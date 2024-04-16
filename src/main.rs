@@ -7,7 +7,23 @@ mod utils;
 async fn main() {
     let waku = WakuClient::new(None);
     // call waku.health
-    let health = waku.version();
+    let health = waku.health();
     let result = health.await.unwrap();
-    println!("{:?}", result);
+    assert!(result.0 == true, "Node is not healthy.");
+
+    // relayed
+    // let msgs = waku
+    //     .relay
+    //     .get_messages("/dria/1/synthesis/protobuf")
+    //     .await
+    //     .unwrap();
+    // println!("Messages: {:?}", msgs);
+
+    // stored
+    let msgs = waku
+        .store
+        .get_messages("/dria/1/synthesis/protobuf", Some(true), None)
+        .await
+        .unwrap();
+    println!("Messages: {:?}", msgs);
 }

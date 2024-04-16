@@ -1,11 +1,11 @@
 use reqwest::Client;
 use std::collections::HashMap;
-use url::Url;
 
 use crate::utils::convert_to_query_params;
 
 const DEFAULT_BASE_URL: &str = "http://127.0.0.1:8645";
 
+#[derive(Debug, Clone)]
 pub struct BaseClient {
     base_url: String,
     client: Client,
@@ -21,6 +21,7 @@ impl BaseClient {
         }
     }
 
+    /// A generic GET request.
     pub async fn get(
         &self,
         url: &str,
@@ -44,10 +45,11 @@ impl BaseClient {
         res.error_for_status()
     }
 
+    /// A generic POST request.
     pub async fn post(
         &self,
         url: &str,
-        body: HashMap<&str, serde_json::Value>,
+        body: serde_json::Value,
     ) -> Result<reqwest::Response, reqwest::Error> {
         let full_url = format!("{}/{}", self.base_url, url);
 
@@ -63,10 +65,11 @@ impl BaseClient {
         res.error_for_status()
     }
 
+    /// A generic DELETE request.
     pub async fn delete(
         &self,
         url: &str,
-        body: HashMap<&str, serde_json::Value>,
+        body: serde_json::Value,
     ) -> Result<reqwest::Response, reqwest::Error> {
         let full_url = format!("{}/{}", self.base_url, url);
 

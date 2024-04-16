@@ -1,17 +1,24 @@
 use serde::{Deserialize, Serialize};
 
-use crate::clients::base::BaseClient;
+use crate::clients::{base::BaseClient, store::StoreClient};
+
+use super::relay::RelayClient;
 
 /// Waku [REST API](https://waku-org.github.io/waku-rest-api) wrapper.
 pub struct WakuClient {
     base: BaseClient,
+    pub store: StoreClient,
+    pub relay: RelayClient,
 }
 
 impl WakuClient {
     /// Creates a new instance of WakuClient.
     pub fn new(base_url: Option<&str>) -> Self {
         let base = BaseClient::new(base_url);
-        WakuClient { base }
+        let store = StoreClient::new(base.clone());
+        let relay = RelayClient::new(base.clone());
+
+        WakuClient { base, store, relay }
     }
 
     /// Health-check for the node.
@@ -35,12 +42,12 @@ impl WakuClient {
         Ok(info)
     }
 
-    // /// Returns the connected peers.
-    // pub async fn peers(&self) -> Result<Vec<PeerInfo>, Box<dyn std::error::Error>> {
-    //     let res = self.base.get("admin/v1/peers", None).await?;
-    //     let peers = res.json().await?;
-    //     Ok(peers)
-    // }
+    /// Returns the connected peers.
+    pub async fn peers(&self) -> Result<Vec<PeerInfo>, Box<dyn std::error::Error>> {
+        let res = self.base.get("admin/v1/peers", None).await?;
+        let peers = res.json().await?;
+        Ok(peers)
+    }
 }
 
 /// Debug information response.
