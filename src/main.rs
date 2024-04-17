@@ -1,6 +1,7 @@
 use clients::waku::WakuClient;
 
 mod clients;
+mod node;
 mod utils;
 
 #[tokio::main]

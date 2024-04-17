@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
-
 use super::get_current_time_nanos;
+use base64::{prelude::BASE64_STANDARD, Engine};
+use serde::{Deserialize, Serialize};
 
 /// Within Waku Message and Content Topic we specify version to be 0.
 ///
@@ -30,14 +30,28 @@ pub struct Message {
 }
 
 /// Creates a Waku Message with the given message and content topic.
-pub fn create_message(message: String, topic: String) -> Message {
+///
+/// - message: the payload itself, will be encoded into base64
+pub fn create_message(
+    payload: impl AsRef<[u8]>,
+    topic: String,
+    ephemeral: Option<bool>,
+) -> Message {
+    // encode message into base64
+    let b64_encoded = BASE64_STANDARD.encode(payload);
     Message {
-        payload: message,
+        payload: b64_encoded,
         content_topic: create_content_topic(topic, None),
         version: WAKU_ENC_VERSION,
         timestamp: get_current_time_nanos(),
-        ephemeral: false,
+        ephemeral: ephemeral.unwrap_or(false),
     }
+}
+
+pub fn parse_message_payload(message: &Message) -> Vec<u8> {
+    BASE64_STANDARD
+        .decode(&message.payload)
+        .expect("Could not decode")
 }
 
 /// A [Content Topic](https://docs.waku.org/learn/concepts/content-topics) is represented as a string with the form:
@@ -50,7 +64,6 @@ pub fn create_message(message: String, topic: String) -> Message {
 /// `app-name` defaults to `dria` unless specified otherwise with the second argument.
 pub fn create_content_topic(topic: String, app: Option<String>) -> String {
     let app = app.unwrap_or("dria".to_string());
-
     format!("/{}/{}/{}/{}", app, WAKU_ENC_VERSION, topic, WAKU_ENCODING)
 }
 
@@ -72,13 +85,17 @@ mod tests {
 
     #[test]
     fn test_create_message() {
-        let message = "Hello, world!".to_string();
+        let payload = "Hello, world!".as_bytes();
         let content_topic = "my-content-topic".to_string();
-        let msg = create_message(message, content_topic);
-        assert_eq!(msg.payload, "Hello, world!");
-        assert_eq!(msg.content_topic, "/dria/0/my-content-topic/proto");
-        assert_eq!(msg.version, WAKU_ENC_VERSION);
-        assert!(msg.timestamp > 0);
-        assert!(!msg.ephemeral);
+        let message = create_message(payload, content_topic, None);
+        assert_eq!(message.payload, "SGVsbG8sIHdvcmxkIQ=="); // "Hello, world!" in base64
+        assert_eq!(message.content_topic, "/dria/0/my-content-topic/proto");
+
+        assert_eq!(message.version, WAKU_ENC_VERSION, "Incorrect version.");
+        assert!(!message.ephemeral, "Should not be ephemeral by default.");
+        assert!(message.timestamp > 0);
+
+        let payload_decoded = parse_message_payload(&message);
+        assert_eq!(payload, payload_decoded.as_slice());
     }
 }

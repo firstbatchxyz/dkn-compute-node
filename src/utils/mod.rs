@@ -1,8 +1,5 @@
-pub mod bloom;
-pub mod encryption;
-pub mod hashing;
+pub mod crypto;
 pub mod message;
-pub mod signature;
 
 use std::collections::HashMap;
 use std::time::SystemTime;
@@ -21,13 +18,6 @@ pub fn convert_to_query_params(params: HashMap<String, String>) -> String {
         .extend_pairs(params)
         .finish()
 }
-
-/// "dria" (8 times) converted to hex as a byte array.
-#[cfg(test)]
-pub const DUMMY_KEY: [u8; 32] = [
-    64, 72, 69, 61, 64, 72, 69, 61, 64, 72, 69, 61, 64, 72, 69, 61, 64, 72, 69, 61, 64, 72, 69, 61,
-    64, 72, 69, 61, 64, 72, 69, 61,
-];
 
 #[cfg(test)]
 mod tests {

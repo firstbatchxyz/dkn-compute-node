@@ -26,7 +26,6 @@ impl RelayClient {
         content_topic: &str,
     ) -> Result<Vec<Message>, Box<dyn std::error::Error>> {
         let topic = urlencoding::encode(content_topic).to_string();
-        println!("topic: {}", topic);
         let res = self
             .base
             .get(&format!("relay/v1/auto/messages/{}", topic), None)

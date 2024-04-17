@@ -8,14 +8,26 @@ readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-reqwest = { version = "0.12.3", features = ["json"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+reqwest = { version = "0.12.3", features = ["json"] }
+base64 = "0.22.0"
+
+# url encondings
 url = "2.5.0"
 urlencoding = "2.1.3"
+
+# encryption & signatures
 ecies = { version = "0.2", default-features = false, features = ["pure"] }
 libsecp256k1 = "0.7.1"
+
+# bloom filters
 bloomfilter = "1"
+
+# hashing stuff
 hex-literal = "0.4.1"
 sha2 = "0.10.8"
+
+# connects with Ollama running locally
+ollama-rs = "0.1.8"
