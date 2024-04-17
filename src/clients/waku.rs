@@ -1,16 +1,25 @@
+#![allow(unused)]
+
 use super::{base::BaseClient, relay::RelayClient, store::StoreClient};
 use serde::{Deserialize, Serialize};
 
 /// Waku [REST API](https://waku-org.github.io/waku-rest-api) wrapper.
+#[derive(Debug, Clone)]
 pub struct WakuClient {
     base: BaseClient,
     pub store: StoreClient,
     pub relay: RelayClient,
 }
 
+impl Default for WakuClient {
+    fn default() -> Self {
+        WakuClient::new("http://127.0.0.1:8645")
+    }
+}
+
 impl WakuClient {
     /// Creates a new instance of WakuClient.
-    pub fn new(base_url: Option<&str>) -> Self {
+    pub fn new(base_url: &str) -> Self {
         let base = BaseClient::new(base_url);
         let store = StoreClient::new(base.clone());
         let relay = RelayClient::new(base.clone());
@@ -66,4 +75,35 @@ pub struct PeerInfo {
 pub struct ProtocolInfo {
     pub protocol: String,
     pub connected: bool,
+}
+
+#[cfg(feature = "waku-test")]
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_waku() {
+        let waku = WakuClient::default();
+        // call waku.health
+        let health = waku.health();
+        let result = health.await.unwrap();
+        assert!(result.0, "Node is not healthy.");
+
+        // relayed
+        // let msgs = waku
+        //     .relay
+        //     .get_messages("/dria/1/synthesis/protobuf")
+        //     .await
+        //     .unwrap();
+        // println!("Messages: {:?}", msgs);
+
+        // stored
+        let msgs = waku
+            .store
+            .get_messages("/dria/1/synthesis/protobuf", Some(true), None)
+            .await
+            .unwrap();
+        println!("Messages: {:?}", msgs);
+    }
 }

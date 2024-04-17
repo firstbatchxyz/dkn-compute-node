@@ -4,9 +4,9 @@ use std::collections::HashMap;
 
 use crate::{clients::base::BaseClient, utils::message::Message};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 /// Client for [13/WAKU2-STORE](https://github.com/vacp2p/rfc-index/blob/main/waku/standards/core/13/store.md) operations.
+#[derive(Debug, Clone)]
 pub struct StoreClient {
     base: BaseClient,
 }

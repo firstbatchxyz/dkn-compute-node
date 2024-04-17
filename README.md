@@ -13,7 +13,13 @@
 
 ## Setup
 
-...
+A Dria Knowledge Node is composed of 3 things:
+
+- [**Compute Node**](https://github.com/firstbatchxyz/dkn-compute-node): basically this repo, handling the computation & interface with Ollama and Waku.
+- [**Ollama**](https://github.com/ollama/ollama): locally hosted LLMs
+- [**Waku**](https://github.com/waku-org/nwaku-compose): peer-to-peer networking
+
+Using a single Docker Compose file, we have prepared the entire setup, with necessary credentials given via an `.env` file. (TODO)
 
 ## Testing
 

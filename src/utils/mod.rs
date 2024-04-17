@@ -6,6 +6,7 @@ use std::time::SystemTime;
 use url::form_urlencoded;
 
 /// Returns the current time in nanoseconds since the Unix epoch.
+#[inline]
 pub fn get_current_time_nanos() -> u128 {
     SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
@@ -13,6 +14,7 @@ pub fn get_current_time_nanos() -> u128 {
         .as_nanos()
 }
 
+#[inline]
 pub fn convert_to_query_params(params: HashMap<String, String>) -> String {
     form_urlencoded::Serializer::new(String::new())
         .extend_pairs(params)

@@ -9,8 +9,6 @@ use serde::{Deserialize, Serialize};
 const WAKU_ENC_VERSION: u8 = 0;
 
 /// Within Content Topic we specify encoding to be `proto` as is the recommendation by Waku.
-/// This is because encryption takes place at our application layer, instead of
-/// at protocol layer of Waku.
 const WAKU_ENCODING: &str = "proto";
 
 /// A Waku message, as defined by [14/WAKU2-MESSAGE](https://github.com/vacp2p/rfc-index/blob/main/waku/standards/core/14/message.md).
@@ -30,17 +28,13 @@ pub struct Message {
 }
 
 /// Creates a Waku Message with the given message and content topic.
-///
-/// - message: the payload itself, will be encoded into base64
 pub fn create_message(
     payload: impl AsRef<[u8]>,
     topic: String,
     ephemeral: Option<bool>,
 ) -> Message {
-    // encode message into base64
-    let b64_encoded = BASE64_STANDARD.encode(payload);
     Message {
-        payload: b64_encoded,
+        payload: BASE64_STANDARD.encode(payload),
         content_topic: create_content_topic(topic, None),
         version: WAKU_ENC_VERSION,
         timestamp: get_current_time_nanos(),

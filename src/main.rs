@@ -1,12 +1,13 @@
 use clients::waku::WakuClient;
 
-mod clients;
+pub mod clients;
+mod config;
 mod node;
 mod utils;
 
 #[tokio::main]
 async fn main() {
-    let waku = WakuClient::new(None);
+    let waku = WakuClient::default();
     // call waku.health
     let health = waku.health();
     let result = health.await.unwrap();

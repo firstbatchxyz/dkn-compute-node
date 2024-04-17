@@ -1,6 +1,5 @@
-use bloomfilter::Bloom;
-use ecies::{decrypt, encrypt};
-use libsecp256k1::{recover, sign, verify, Message, PublicKey, RecoveryId, SecretKey, Signature};
+use libsecp256k1::{RecoveryId, Signature};
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 /// Generic SHA256 hash function.
@@ -12,6 +11,7 @@ pub fn hash(data: impl AsRef<[u8]>) -> [u8; 32] {
 /// Explicit form of a secp256k1 signature.
 ///
 /// A `From` trait is implemented for a (Signature, RecoveryId) pair.
+#[derive(Serialize, Deserialize, Debug)]
 pub struct SignatureVRS {
     v: u8,
     r: [u8; 32],
@@ -29,7 +29,10 @@ impl From<(Signature, RecoveryId)> for SignatureVRS {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bloomfilter::Bloom;
+    use ecies::{decrypt, encrypt};
     use hex_literal::hex;
+    use libsecp256k1::{recover, sign, verify, Message, PublicKey, SecretKey};
 
     const DUMMY_KEY: &[u8; 32] = b"driadriadriadriadriadriadriadria";
     const MESSAGE: &[u8] = "hello world".as_bytes();

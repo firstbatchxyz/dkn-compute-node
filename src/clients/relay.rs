@@ -1,9 +1,10 @@
-#![allow(unused_variables)]
+#![allow(unused)]
 
 use crate::{clients::base::BaseClient, utils::message::Message};
 use urlencoding;
 
 /// Client for [11/WAKU2-RELAY](https://github.com/vacp2p/rfc-index/blob/main/waku/standards/core/11/relay.md) operations.
+#[derive(Debug, Clone)]
 pub struct RelayClient {
     base: BaseClient,
 }
@@ -85,7 +86,7 @@ impl RelayClient {
         Ok(())
     }
 
-    /** Get subscribed messages with a topic. */
+    /// Get subscribed messages with a topic.
     pub async fn get_subscribed_messages(
         &self,
         pubsub_topic: &str,

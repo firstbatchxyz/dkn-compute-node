@@ -3,8 +3,6 @@ use std::collections::HashMap;
 
 use crate::utils::convert_to_query_params;
 
-const DEFAULT_BASE_URL: &str = "http://127.0.0.1:8645";
-
 #[derive(Debug, Clone)]
 pub struct BaseClient {
     base_url: String,
@@ -12,8 +10,8 @@ pub struct BaseClient {
 }
 
 impl BaseClient {
-    pub fn new(base_url: Option<&str>) -> Self {
-        let url = base_url.unwrap_or(DEFAULT_BASE_URL).to_string();
+    pub fn new(base_url: &str) -> Self {
+        let url = base_url.to_string();
         let client = Client::new();
         BaseClient {
             base_url: url,
