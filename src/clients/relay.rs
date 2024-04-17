@@ -1,3 +1,5 @@
+#![allow(unused_variables)]
+
 use crate::{clients::base::BaseClient, utils::message::Message};
 use urlencoding;
 
@@ -12,9 +14,10 @@ impl RelayClient {
     }
 
     /// Send a subscribed message.
-    pub async fn send_message(&self, message: Message) {
+    pub async fn send_message(&self, message: Message) -> Result<(), Box<dyn std::error::Error>> {
         let message = serde_json::json!(message);
-        self.base.post("relay/v1/auto/messages", message).await;
+        self.base.post("relay/v1/auto/messages", message).await?;
+        Ok(())
     }
 
     /// Get subscribed messages with a topic.

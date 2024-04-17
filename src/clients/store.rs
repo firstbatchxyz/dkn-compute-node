@@ -1,3 +1,5 @@
+#![allow(unused_variables)]
+
 use std::collections::HashMap;
 
 use crate::{clients::base::BaseClient, utils::message::Message};

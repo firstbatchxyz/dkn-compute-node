@@ -9,7 +9,7 @@ async fn main() {
     // call waku.health
     let health = waku.health();
     let result = health.await.unwrap();
-    assert!(result.0 == true, "Node is not healthy.");
+    assert!(result.0, "Node is not healthy.");
 
     // relayed
     // let msgs = waku

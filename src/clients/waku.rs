@@ -1,8 +1,5 @@
+use super::{base::BaseClient, relay::RelayClient, store::StoreClient};
 use serde::{Deserialize, Serialize};
-
-use crate::clients::{base::BaseClient, store::StoreClient};
-
-use super::relay::RelayClient;
 
 /// Waku [REST API](https://waku-org.github.io/waku-rest-api) wrapper.
 pub struct WakuClient {

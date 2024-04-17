@@ -2,16 +2,16 @@ use serde::{Deserialize, Serialize};
 
 use super::get_current_time_nanos;
 
-/// Creates a Waku message with the given message and content topic.
-pub fn create_message(message: String, content_topic: String) -> Message {
-    Message {
-        payload: message,
-        content_topic,
-        version: 0,
-        timestamp: get_current_time_nanos(),
-        ephemeral: false,
-    }
-}
+/// Within Waku Message and Content Topic we specify version to be 0.
+///
+/// This is because encryption takes place at our application layer, instead of
+/// at protocol layer of Waku.
+const WAKU_ENC_VERSION: u8 = 0;
+
+/// Within Content Topic we specify encoding to be `proto` as is the recommendation by Waku.
+/// This is because encryption takes place at our application layer, instead of
+/// at protocol layer of Waku.
+const WAKU_ENCODING: &str = "proto";
 
 /// A Waku message, as defined by [14/WAKU2-MESSAGE](https://github.com/vacp2p/rfc-index/blob/main/waku/standards/core/14/message.md).
 #[derive(Serialize, Deserialize, Debug)]
@@ -29,19 +29,56 @@ pub struct Message {
     // meta: Option<Vec<u8>>, // TODO: metadata?
 }
 
+/// Creates a Waku Message with the given message and content topic.
+pub fn create_message(message: String, topic: String) -> Message {
+    Message {
+        payload: message,
+        content_topic: create_content_topic(topic, None),
+        version: WAKU_ENC_VERSION,
+        timestamp: get_current_time_nanos(),
+        ephemeral: false,
+    }
+}
+
+/// A [Content Topic](https://docs.waku.org/learn/concepts/content-topics) is represented as a string with the form:
+///
+/// ```sh
+/// /app-name/version/content-topic/encoding
+/// /waku/2/default-waku/proto # example
+/// ```
+///
+/// `app-name` defaults to `dria` unless specified otherwise with the second argument.
+pub fn create_content_topic(topic: String, app: Option<String>) -> String {
+    let app = app.unwrap_or("dria".to_string());
+
+    format!("/{}/{}/{}/{}", app, WAKU_ENC_VERSION, topic, WAKU_ENCODING)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
+    fn test_create_content_topic() {
+        let topic = "default-waku".to_string();
+
+        let app = "waku".to_string();
+        let expected = "/waku/0/default-waku/proto".to_string();
+        assert_eq!(create_content_topic(topic.clone(), Some(app)), expected);
+
+        let expected = "/dria/0/default-waku/proto".to_string();
+        assert_eq!(create_content_topic(topic, None), expected);
+    }
+
+    #[test]
     fn test_create_message() {
         let message = "Hello, world!".to_string();
-        let content_topic = "/waku/0/default-waku/proto".to_string();
+        let content_topic = "my-content-topic".to_string();
         let msg = create_message(message, content_topic);
         assert_eq!(msg.payload, "Hello, world!");
-        assert_eq!(msg.content_topic, "/waku/0/default-waku/proto");
-        assert_eq!(msg.version, 0);
+        assert_eq!(msg.content_topic, "/dria/0/my-content-topic/proto");
+        assert_eq!(msg.version, WAKU_ENC_VERSION);
         assert!(msg.timestamp > 0);
-        assert_eq!(msg.ephemeral, true);
+        assert!(!msg.ephemeral);
     }
 }

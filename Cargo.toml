@@ -2,6 +2,8 @@
 name = "dria-compute-node"
 version = "0.1.0"
 edition = "2021"
+license = "Apache-2.0"
+readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -12,3 +14,8 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 url = "2.5.0"
 urlencoding = "2.1.3"
+ecies = { version = "0.2", default-features = false, features = ["pure"] }
+libsecp256k1 = "0.7.1"
+bloomfilter = "1"
+hex-literal = "0.4.1"
+sha2 = "0.10.8"
