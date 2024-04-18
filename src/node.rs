@@ -1,11 +1,11 @@
 use ecies::encrypt;
-use libsecp256k1::{sign, Message, PublicKey, SecretKey, Signature};
+use hex::ToHex;
+use libsecp256k1::{sign, Message, PublicKey, SecretKey};
 use ollama_rs::{generation::completion::request::GenerationRequest, Ollama};
-use serde::{Deserialize, Serialize};
 
 use crate::{
     clients::waku::WakuClient,
-    utils::crypto::{hash, SignatureVRS},
+    utils::{crypto::hash, payload::Payload},
 };
 
 /// # Dria Compute Node
@@ -15,7 +15,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct DriaComputeNode {
     secret_key: SecretKey,
-    public_key: PublicKey,
+    pub public_key: PublicKey,
     waku: WakuClient,
     ollama: Ollama,
     model: String,
@@ -25,13 +25,13 @@ impl Default for DriaComputeNode {
     fn default() -> Self {
         let waku = WakuClient::default();
         let ollama = Ollama::default();
-        DriaComputeNode::new(waku, ollama)
+        let secret_key = SecretKey::parse_slice(b"driadriadriadriadriadriadriadria").unwrap();
+        DriaComputeNode::new(waku, ollama, secret_key)
     }
 }
 
 impl DriaComputeNode {
-    pub fn new(waku: WakuClient, ollama: Ollama) -> Self {
-        let secret_key = SecretKey::parse_slice(&[1] /* TODO: read from env */).unwrap();
+    pub fn new(waku: WakuClient, ollama: Ollama, secret_key: SecretKey) -> Self {
         let public_key = PublicKey::from_secret_key(&secret_key);
 
         DriaComputeNode {
@@ -43,44 +43,50 @@ impl DriaComputeNode {
         }
     }
 
+    /// Given a bloom-filter of a task, checks if this node is selected to do the task.
+    fn check_membership() {
+        unimplemented!() // TODO:!
+    }
+
     /// # Dria Computation
     ///
     /// As per Dria Whitepaper section 5.1 algorithm 2:
     ///
-    /// 1. Compute result
-    /// 2. Sign result with node `self.secret_key`
-    /// 3. Encrypt (signature, result) with `task_public_key`
-    /// 4. Commit to `(signature, result)` using SHA256.
-    async fn create_payload(
+    /// - Sign result with node `self.secret_key`
+    /// - Encrypt (signature, result) with `task_public_key`
+    /// - Commit to `(signature, result)` using SHA256.
+    fn create_payload(
         &self,
-        data: impl AsRef<[u8]>,
+        result: impl AsRef<[u8]>,
         task_pubkey: &[u8],
-    ) -> Result<ComputationPayload, Box<dyn std::error::Error>> {
-        let result = self.compute_result(&data).await;
-
+    ) -> Result<Payload, Box<dyn std::error::Error>> {
         // sign result
-        let digest_bytes = hash(data);
-        let digest_msg = Message::parse_slice(&digest_bytes)?;
-        let (signature, recid) = sign(&digest_msg, &self.secret_key);
+        let result_digest: [u8; 32] = hash(result.as_ref());
+        let result_msg = Message::parse_slice(&result_digest)?;
+        let (signature, recid) = sign(&result_msg, &self.secret_key);
+        let signature: [u8; 64] = signature.serialize();
+        let recid: [u8; 1] = [recid.serialize()];
 
         // encrypt result
-        let ciphertext = encrypt(task_pubkey, result.as_slice()).expect("Could not encrypt.");
+        let ciphertext: Vec<u8> =
+            encrypt(task_pubkey, result.as_ref()).expect("Could not encrypt.");
 
         // concat `signature_bytes` and `digest_bytes`
         let mut preimage = Vec::new();
-        preimage.extend_from_slice(&signature.serialize());
-        preimage.extend_from_slice(&digest_bytes);
-        let commitment = hash(preimage);
+        preimage.extend_from_slice(&signature);
+        preimage.extend_from_slice(&recid);
+        preimage.extend_from_slice(&result_digest);
+        let commitment: [u8; 32] = hash(preimage);
 
-        Ok(ComputationPayload {
-            commitment,
-            ciphertext,
-            signature: SignatureVRS::from((signature, recid)),
+        Ok(Payload {
+            commitment: hex::encode(commitment),
+            ciphertext: hex::encode(ciphertext),
+            signature: format!("{}{}", hex::encode(signature), hex::encode(recid)),
         })
     }
 
     /// Computes a result with the given input `data`.
-    async fn compute_result(&self, data: &impl AsRef<[u8]>) -> Vec<u8> {
+    async fn compute_result(&self, data: &impl AsRef<[u8]>) -> impl AsRef<[u8]> {
         let prompt = String::from_utf8_lossy(data.as_ref()).to_string();
 
         let gen_req = GenerationRequest::new(self.model.clone(), prompt);
@@ -92,18 +98,62 @@ impl DriaComputeNode {
     }
 }
 
-/// A Dria Computation payload is a triple:
-///
-/// 1. Ciphertext: Computation result encrypted with the public key of the task.
-/// 2. Commitment: A commitment to `signature || plaintext result`
-/// 3. Signature: A signature on the digest of plaintext result.
-///
-/// To check the commitment, one must decrypt the ciphertext and parse plaintext from it,
-/// and compute the digest using SHA256. That digest will then be used for the signature check.
-#[derive(Serialize, Deserialize, Debug)]
-pub struct ComputationPayload {
-    signature: SignatureVRS,
-    ciphertext: Vec<u8>,
-    commitment: [u8; 32],
-    // TODO: recovery Id?
+mod tests {
+    use super::*;
+    use ecies::decrypt;
+    use libsecp256k1::{verify, RecoveryId, Signature};
+
+    const RESULT: &[u8; 28] = b"this is some result you know";
+    const TASK_PRIV_KEY: &[u8; 32] = b"aaaabbbbccccddddddddccccbbbbaaaa";
+
+    #[test]
+    fn test_payload() {
+        let node = DriaComputeNode::default();
+        let secret_key = SecretKey::parse_slice(TASK_PRIV_KEY).unwrap();
+        let public_key = PublicKey::from_secret_key(&secret_key);
+
+        let payload = node
+            .create_payload(RESULT, &public_key.serialize())
+            .unwrap();
+
+        // decrypt result
+        let result = decrypt(
+            &secret_key.serialize(),
+            hex::decode(payload.ciphertext).unwrap().as_slice(),
+        )
+        .expect("Could not decrypt.");
+        assert_eq!(result, RESULT, "Result mismatch.");
+
+        // verify signature
+        let rsv = hex::decode(payload.signature).unwrap();
+        let (signature_bytes, recid_bytes) = rsv.split_at(64);
+        let signature = Signature::parse_standard_slice(signature_bytes).unwrap();
+        let recid = RecoveryId::parse(recid_bytes[0]).unwrap();
+
+        let result_digest = hash(result);
+        let message = Message::parse_slice(&result_digest).unwrap();
+        assert!(
+            verify(&message, &signature, &node.public_key),
+            "Could not verify."
+        );
+
+        // recover verifying key (public key) from signature
+        let recovered_public_key =
+            libsecp256k1::recover(&message, &signature, &recid).expect("Could not recover");
+        assert_eq!(
+            node.public_key, recovered_public_key,
+            "Public key mismatch."
+        );
+
+        // verify commitments
+        let mut preimage = Vec::new();
+        preimage.extend_from_slice(signature_bytes);
+        preimage.extend_from_slice(recid_bytes);
+        preimage.extend_from_slice(&result_digest);
+        assert_eq!(
+            hash(preimage),
+            hex::decode(payload.commitment).unwrap().as_slice(),
+            "Commitment mismatch."
+        );
+    }
 }

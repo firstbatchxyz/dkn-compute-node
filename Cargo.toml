@@ -13,6 +13,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 reqwest = { version = "0.12.3", features = ["json"] }
 base64 = "0.22.0"
+hex = "0.4.3"
 
 # url encondings
 url = "2.5.0"
@@ -26,7 +27,6 @@ libsecp256k1 = "0.7.1"
 bloomfilter = "1"
 
 # hashing stuff
-hex-literal = "0.4.1"
 sha2 = "0.10.8"
 
 # connects with Ollama running locally

@@ -83,12 +83,10 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_waku() {
+    async fn test_version() {
         let waku = WakuClient::default();
-        // call waku.health
-        let health = waku.health();
-        let result = health.await.unwrap();
-        assert!(result.0, "Node is not healthy.");
+        let version = waku.version().await.unwrap();
+        assert_eq!("v0.26.0", version);
 
         // relayed
         // let msgs = waku
@@ -99,11 +97,11 @@ mod tests {
         // println!("Messages: {:?}", msgs);
 
         // stored
-        let msgs = waku
-            .store
-            .get_messages("/dria/1/synthesis/protobuf", Some(true), None)
-            .await
-            .unwrap();
-        println!("Messages: {:?}", msgs);
+        // let msgs = waku
+        //     .store
+        //     .get_messages("/dria/1/synthesis/protobuf", Some(true), None)
+        //     .await
+        //     .unwrap();
+        // println!("Messages: {:?}", msgs);
     }
 }

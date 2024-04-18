@@ -1,5 +1,6 @@
 pub mod crypto;
 pub mod message;
+pub mod payload;
 
 use std::collections::HashMap;
 use std::time::SystemTime;
