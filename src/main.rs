@@ -1,9 +1,4 @@
-use clients::waku::WakuClient;
-
-pub mod clients;
-mod config;
-mod node;
-mod utils;
+use dria_compute_node::clients::waku::WakuClient;
 
 #[tokio::main]
 async fn main() {

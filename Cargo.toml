@@ -24,10 +24,11 @@ ecies = { version = "0.2", default-features = false, features = ["pure"] }
 libsecp256k1 = "0.7.1"
 
 # bloom filters
-bloomfilter = "1"
+fastbloom-rs = "0.5.9"
 
 # hashing stuff
 sha2 = "0.10.8"
+sha3 = "0.10.8"
 
 # connects with Ollama running locally
 ollama-rs = "0.1.8"

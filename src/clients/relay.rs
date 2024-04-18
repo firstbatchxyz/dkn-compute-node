@@ -36,7 +36,7 @@ impl RelayClient {
         Ok(msgs)
     }
 
-    /** Subscribe to a pub-sub topic. */
+    /// Subscribe to a pub-sub topic.
     pub async fn subscribe(
         &self,
         pubsub_topics: Vec<String>,

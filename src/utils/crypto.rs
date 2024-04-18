@@ -1,17 +1,32 @@
-use libsecp256k1::{RecoveryId, Signature};
-use serde::{Deserialize, Serialize};
+use ecies::PublicKey;
 use sha2::{Digest, Sha256};
+use sha3::Keccak256;
 
-/// Generic SHA256 hash function.
+/// Generic SHA256 function.
 #[inline]
-pub fn hash(data: impl AsRef<[u8]>) -> [u8; 32] {
+pub fn sha256hash(data: impl AsRef<[u8]>) -> [u8; 32] {
     Sha256::digest(data).into()
+}
+
+/// Generic KECCAK256 function.
+#[inline]
+pub fn keccak256hash(data: impl AsRef<[u8]>) -> [u8; 32] {
+    Keccak256::digest(data).into()
+}
+
+/// Given a secp256k1 public key, finds the corresponding Ethereum address.
+pub fn to_address(public_key: &PublicKey) -> [u8; 20] {
+    let public_key = public_key.serialize();
+    let hash = keccak256hash(public_key.split_at(1).1);
+
+    let mut address = [0u8; 20];
+    address.copy_from_slice(&hash[12..]);
+    address
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bloomfilter::Bloom;
     use ecies::{decrypt, encrypt};
     use hex::decode;
     use libsecp256k1::{recover, sign, verify, Message, PublicKey, SecretKey};
@@ -24,9 +39,19 @@ mod tests {
         // sha256 of "hello world"
         let expected = "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9";
         let expected = decode(expected).unwrap();
-        assert_eq!(hash(MESSAGE), expected.as_slice());
+        assert_eq!(sha256hash(MESSAGE), expected.as_slice());
     }
 
+    #[test]
+    fn test_address() {
+        let sk = SecretKey::parse_slice(DUMMY_KEY).expect("Could not parse private key slice.");
+        let pk = PublicKey::from_secret_key(&sk);
+        let addr = to_address(&pk);
+        assert_eq!(
+            "D79Fdf178547614CFdd0dF6397c53569716Bd596".to_lowercase(),
+            hex::encode(addr)
+        );
+    }
     #[test]
     fn test_encrypt_decrypt() {
         let sk = SecretKey::parse_slice(DUMMY_KEY).expect("Could not parse private key slice.");
@@ -44,7 +69,7 @@ mod tests {
             SecretKey::parse_slice(DUMMY_KEY).expect("Could not parse private key slice.");
 
         // sign the message using the secret key
-        let digest = hash(MESSAGE);
+        let digest = sha256hash(MESSAGE);
         let message = Message::parse_slice(&digest).expect("Could not parse message.");
         let (signature, recid) = sign(&message, &secret_key);
 
@@ -58,19 +83,5 @@ mod tests {
         let public_key = recovered_public_key;
         let ok = verify(&message, &signature, &public_key);
         assert!(ok, "could not verify");
-    }
-
-    #[test]
-    fn test_bloom_filter() {
-        let num_items = 128;
-        let fp_rate = 0.001;
-
-        let mut bloom = Bloom::new_for_fp_rate(num_items, fp_rate);
-        bloom.set(&10);
-
-        assert_eq!(bloom.check(&10), true);
-        assert_eq!(bloom.check(&20), false);
-
-        // println!("{:?}", bloom.bitmap().len());
     }
 }
