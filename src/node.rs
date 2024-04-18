@@ -6,21 +6,25 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, to_string};
 
 use crate::{
-    clients::waku::WakuClient,
-    utils::{crypto::sha256hash, filter::FilterPayload},
+    utils::{
+        crypto::{sha256hash, to_address},
+        filter::FilterPayload,
+    },
+    waku::WakuClient,
 };
 
 /// # Dria Compute Node
 ///
 /// The `secret_key` is constructed from a private key read from the environment.
 /// This same key is used by Waku as well.
+#[allow(unused)]
 #[derive(Debug, Clone)]
 pub struct DriaComputeNode {
     secret_key: SecretKey,
     pub public_key: PublicKey,
     pub address: String,
-    waku: WakuClient,
-    ollama: Ollama,
+    pub waku: WakuClient,
+    // ollama: Ollama,
     model: String,
 }
 
@@ -28,7 +32,15 @@ impl Default for DriaComputeNode {
     fn default() -> Self {
         let waku = WakuClient::default();
         let ollama = Ollama::default();
-        let secret_key = SecretKey::parse(b"driadriadriadriadriadriadriadria").unwrap();
+
+        let secret_key = SecretKey::parse_slice(
+            hex::decode("6472696164726961647269616472696164726961647269616472696164726961")
+                .unwrap()
+                .as_slice(),
+        )
+        .unwrap();
+        // TODO: read from env
+
         DriaComputeNode::new(waku, ollama, secret_key)
     }
 }
@@ -36,13 +48,13 @@ impl Default for DriaComputeNode {
 impl DriaComputeNode {
     pub fn new(waku: WakuClient, ollama: Ollama, secret_key: SecretKey) -> Self {
         let public_key = PublicKey::from_secret_key(&secret_key);
-        let address = hex::encode(sha256hash(public_key.serialize().as_ref()));
+        let address = hex::encode(to_address(&public_key));
         DriaComputeNode {
             secret_key,
             public_key,
             address,
             waku,
-            ollama,
+            // ollama,
             model: "llama2:latest".to_string(), // TODO: make this configurable
         }
     }
@@ -50,10 +62,9 @@ impl DriaComputeNode {
     /// Given a hex-string serialized Bloom Filter of a task, checks if this node is selected to do the task.
     ///
     /// This is done by checking if the address of this node is in the filter.
+    #[inline]
     pub fn is_tasked(&self, task_filter: String) -> bool {
-        let filter = BloomFilter::from(FilterPayload::from(task_filter));
-
-        filter.contains(self.address.as_bytes())
+        BloomFilter::from(FilterPayload::from(task_filter)).contains(self.address.as_bytes())
     }
 
     /// Creates the payload of a computation result, as per Dria Whitepaper section 5.1 algorithm 2:

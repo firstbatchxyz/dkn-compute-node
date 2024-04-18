@@ -1,6 +1,6 @@
-#[cfg(feature = "waku-test")]
+// #[cfg(feature = "waku_test")]
 mod waku_tests {
-    use dria_compute_node::clients::waku::WakuClient;
+    use dria_compute_node::waku::WakuClient;
 
     #[tokio::test]
     async fn test_version() {

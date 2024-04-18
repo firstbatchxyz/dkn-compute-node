@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use crate::{clients::base::BaseClient, utils::message::Message};
+use crate::{utils::message::Message, waku::BaseClient};
 use urlencoding;
 
 /// Client for [11/WAKU2-RELAY](https://github.com/vacp2p/rfc-index/blob/main/waku/standards/core/11/relay.md) operations.
@@ -14,14 +14,14 @@ impl RelayClient {
         RelayClient { base }
     }
 
-    /// Send a subscribed message.
+    /// Send a message.
     pub async fn send_message(&self, message: Message) -> Result<(), Box<dyn std::error::Error>> {
         let message = serde_json::json!(message);
         self.base.post("relay/v1/auto/messages", message).await?;
         Ok(())
     }
 
-    /// Get subscribed messages with a topic.
+    /// Get messages with a given content topic.
     pub async fn get_messages(
         &self,
         content_topic: &str,

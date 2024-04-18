@@ -28,11 +28,7 @@ pub struct Message {
 }
 
 /// Creates a Waku Message with the given message and content topic.
-pub fn create_message(
-    payload: impl AsRef<[u8]>,
-    topic: String,
-    ephemeral: Option<bool>,
-) -> Message {
+pub fn create_message(payload: impl AsRef<[u8]>, topic: &str, ephemeral: Option<bool>) -> Message {
     Message {
         payload: BASE64_STANDARD.encode(payload),
         content_topic: create_content_topic(topic, None),
@@ -56,9 +52,15 @@ pub fn parse_message_payload(message: &Message) -> Vec<u8> {
 /// ```
 ///
 /// `app-name` defaults to `dria` unless specified otherwise with the second argument.
-pub fn create_content_topic(topic: String, app: Option<String>) -> String {
-    let app = app.unwrap_or("dria".to_string());
-    format!("/{}/{}/{}/{}", app, WAKU_ENC_VERSION, topic, WAKU_ENCODING)
+#[inline]
+pub fn create_content_topic(topic: &str, app: Option<&str>) -> String {
+    format!(
+        "/{}/{}/{}/{}",
+        app.unwrap_or("dria"),
+        WAKU_ENC_VERSION,
+        topic,
+        WAKU_ENCODING
+    )
 }
 
 #[cfg(test)]
@@ -67,11 +69,11 @@ mod tests {
 
     #[test]
     fn test_create_content_topic() {
-        let topic = "default-waku".to_string();
+        let topic = "default-waku";
 
-        let app = "waku".to_string();
+        let app = "waku";
         let expected = "/waku/0/default-waku/proto".to_string();
-        assert_eq!(create_content_topic(topic.clone(), Some(app)), expected);
+        assert_eq!(create_content_topic(topic, Some(app)), expected);
 
         let expected = "/dria/0/default-waku/proto".to_string();
         assert_eq!(create_content_topic(topic, None), expected);
@@ -80,8 +82,8 @@ mod tests {
     #[test]
     fn test_create_message() {
         let payload = "Hello, world!".as_bytes();
-        let content_topic = "my-content-topic".to_string();
-        let message = create_message(payload, content_topic, None);
+        let topic = "my-content-topic";
+        let message = create_message(payload, topic, None);
         assert_eq!(message.payload, "SGVsbG8sIHdvcmxkIQ=="); // "Hello, world!" in base64
         assert_eq!(message.content_topic, "/dria/0/my-content-topic/proto");
 

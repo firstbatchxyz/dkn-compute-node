@@ -1,6 +1,10 @@
 #![allow(unused)]
 
-use super::{base::BaseClient, relay::RelayClient, store::StoreClient};
+pub mod base;
+pub mod relay;
+pub mod store;
+
+use self::{base::BaseClient, relay::RelayClient, store::StoreClient};
 use serde::{Deserialize, Serialize};
 
 /// Waku [REST API](https://waku-org.github.io/waku-rest-api) wrapper.

@@ -1,4 +1,4 @@
-#[cfg(feature = "ollama-tests")]
+#[cfg(feature = "ollama_test")]
 mod ollama_tests {
     use ollama_rs::{generation::completion::request::GenerationRequest, Ollama};
 

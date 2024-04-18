@@ -1,26 +1,57 @@
-use dria_compute_node::clients::waku::WakuClient;
+use dria_compute_node::{node::DriaComputeNode, utils::message::create_content_topic};
+
+#[allow(unused)]
+use log::{debug, error, info, log_enabled, Level};
 
 #[tokio::main]
-async fn main() {
-    let waku = WakuClient::default();
-    // call waku.health
-    let health = waku.health();
-    let result = health.await.unwrap();
-    assert!(result.0, "Node is not healthy.");
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    env_logger::init();
+    let node = DriaComputeNode::default();
+    println!("Address: {:?}", node.address);
 
-    // relayed
-    // let msgs = waku
-    //     .relay
-    //     .get_messages("/dria/1/synthesis/protobuf")
-    //     .await
-    //     .unwrap();
-    // println!("Messages: {:?}", msgs);
+    // DKN Heartbeat Handler
+    //
+    // Dria Node sends heartbeat requests at regular intervals to Waku, and each compute
+    // node must respond back to it with a heartbeat response at the respective content topic.
+    let heartbeat_handle = tokio::spawn(async move {
+        let heartbeat_content_topic = create_content_topic("heartbeat", None);
 
-    // stored
-    let msgs = waku
-        .store
-        .get_messages("/dria/1/synthesis/protobuf", Some(true), None)
-        .await
-        .unwrap();
-    println!("Messages: {:?}", msgs);
+        loop {
+            // get latest heartbeat messages
+            let messages = node
+                .waku
+                .relay
+                .get_messages(heartbeat_content_topic.as_str())
+                .await
+                .unwrap();
+
+            // handle each message
+            // TODO: !!!
+            println!("Messages: {:?}", messages);
+
+            // sleep for 5 seconds
+            println!("Waiting for a while...");
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        }
+    });
+
+    // DKN Compute Handler
+    //
+    // Listens to compute requests by Dria Admin Node's (ensured via signatures)
+    // tokio::spawn(async move {
+    //     loop {
+    //         // get latest heartbeat messages
+    //         let messages = node.waku.relay.get_messages("fdsf").await.unwrap();
+
+    //         // handle each message
+    //         // TODO: !!!
+
+    //         // sleep for 5 seconds
+    //         tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    //     }
+    // });
+
+    heartbeat_handle.await.unwrap();
+
+    Ok(())
 }

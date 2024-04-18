@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use crate::{clients::base::BaseClient, utils::message::Message};
+use crate::{utils::message::Message, waku::BaseClient};
 use serde::{Deserialize, Serialize};
 
 /// Client for [13/WAKU2-STORE](https://github.com/vacp2p/rfc-index/blob/main/waku/standards/core/13/store.md) operations.
