@@ -4,6 +4,8 @@ pub mod base;
 pub mod relay;
 pub mod store;
 
+use crate::config::defaults::DEFAULT_DKN_WAKU_URL;
+
 use self::{base::BaseClient, relay::RelayClient, store::StoreClient};
 use serde::{Deserialize, Serialize};
 
@@ -17,7 +19,7 @@ pub struct WakuClient {
 
 impl Default for WakuClient {
     fn default() -> Self {
-        WakuClient::new("http://127.0.0.1:8645")
+        WakuClient::new(DEFAULT_DKN_WAKU_URL)
     }
 }
 

@@ -1,11 +1,11 @@
 use ecies::encrypt;
 use fastbloom_rs::{BloomFilter, Membership};
 use libsecp256k1::{sign, Message, PublicKey, SecretKey};
-use ollama_rs::Ollama;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, to_string};
 
 use crate::{
+    config::defaults::DEFAULT_DKN_WALLET_PRIVKEY,
     utils::{
         crypto::{sha256hash, to_address},
         filter::FilterPayload,
@@ -13,10 +13,6 @@ use crate::{
     waku::WakuClient,
 };
 
-/// # Dria Compute Node
-///
-/// The `secret_key` is constructed from a private key read from the environment.
-/// This same key is used by Waku as well.
 #[allow(unused)]
 #[derive(Debug, Clone)]
 pub struct DriaComputeNode {
@@ -24,29 +20,24 @@ pub struct DriaComputeNode {
     pub public_key: PublicKey,
     pub address: String,
     pub waku: WakuClient,
-    // ollama: Ollama,
     model: String,
 }
 
 impl Default for DriaComputeNode {
     fn default() -> Self {
         let waku = WakuClient::default();
-        let ollama = Ollama::default();
 
-        let secret_key = SecretKey::parse_slice(
-            hex::decode("6472696164726961647269616472696164726961647269616472696164726961")
-                .unwrap()
-                .as_slice(),
-        )
-        .unwrap();
+        let secret_key =
+            SecretKey::parse_slice(hex::decode(DEFAULT_DKN_WALLET_PRIVKEY).unwrap().as_slice())
+                .unwrap();
         // TODO: read from env
 
-        DriaComputeNode::new(waku, ollama, secret_key)
+        DriaComputeNode::new(waku, secret_key)
     }
 }
 
 impl DriaComputeNode {
-    pub fn new(waku: WakuClient, ollama: Ollama, secret_key: SecretKey) -> Self {
+    pub fn new(waku: WakuClient, secret_key: SecretKey) -> Self {
         let public_key = PublicKey::from_secret_key(&secret_key);
         let address = hex::encode(to_address(&public_key));
         DriaComputeNode {
@@ -54,7 +45,6 @@ impl DriaComputeNode {
             public_key,
             address,
             waku,
-            // ollama,
             model: "llama2:latest".to_string(), // TODO: make this configurable
         }
     }

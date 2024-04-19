@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# TODO: can remove this later
+# Small utility to check the health of the node in a loop.
 
 while true; do
   response=$(curl -s http://127.0.0.1:8645/health)

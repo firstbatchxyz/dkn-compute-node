@@ -1,3 +1,4 @@
+pub mod compute;
 pub mod config;
 pub mod node;
 pub mod utils;

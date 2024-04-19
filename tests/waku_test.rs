@@ -1,27 +1,23 @@
 // #[cfg(feature = "waku_test")]
 mod waku_tests {
-    use dria_compute_node::waku::WakuClient;
+    use dria_compute_node::{utils::message::create_content_topic, waku::WakuClient};
 
     #[tokio::test]
     async fn test_version() {
-        let waku = WakuClient::default();
+        let mut waku = WakuClient::default();
         let version = waku.version().await.unwrap();
         assert_eq!("v0.26.0", version);
 
-        // relayed
-        // let msgs = waku
-        //     .relay
-        //     .get_messages("/dria/1/synthesis/protobuf")
-        //     .await
-        //     .unwrap();
-        // println!("Messages: {:?}", msgs);
+        // subscribe to content topic message
+        let topic = create_content_topic("heartbeat", None);
+        waku.relay.subscribe(vec![topic.clone()]).await.unwrap();
 
-        // stored
-        // let msgs = waku
-        //     .store
-        //     .get_messages("/dria/1/synthesis/protobuf", Some(true), None)
-        //     .await
-        //     .unwrap();
-        // println!("Messages: {:?}", msgs);
+        // get message
+        let msgs = waku
+            .store
+            .get_messages(&topic, Some(true), None)
+            .await
+            .unwrap();
+        println!("Messages: {:?}", msgs);
     }
 }

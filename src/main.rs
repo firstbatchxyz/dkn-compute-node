@@ -6,7 +6,7 @@ use log::{debug, error, info, log_enabled, Level};
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
-    let node = DriaComputeNode::default();
+    let mut node = DriaComputeNode::default();
     println!("Address: {:?}", node.address);
 
     // DKN Heartbeat Handler
@@ -14,7 +14,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Dria Node sends heartbeat requests at regular intervals to Waku, and each compute
     // node must respond back to it with a heartbeat response at the respective content topic.
     let heartbeat_handle = tokio::spawn(async move {
+        // subscribe to heartbeat topic
         let heartbeat_content_topic = create_content_topic("heartbeat", None);
+        node.waku
+            .relay
+            .subscribe(vec![heartbeat_content_topic.clone()])
+            .await
+            .expect("Could not subscribe.");
 
         loop {
             // get latest heartbeat messages
@@ -27,7 +33,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             // handle each message
             // TODO: !!!
-            println!("Messages: {:?}", messages);
+            println!("Messages:\n{:?}", messages);
 
             // sleep for 5 seconds
             println!("Waiting for a while...");
