@@ -3,12 +3,14 @@ use fastbloom_rs::{BloomFilter, Membership};
 use libsecp256k1::{sign, Message, PublicKey, SecretKey};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, to_string};
+use tokio::time;
 
 use crate::{
-    config::defaults::DEFAULT_DKN_WALLET_PRIVKEY,
+    config::{constants::WAKU_HEARTBEAT_TOPIC, DriaComputeNodeConfig},
     utils::{
         crypto::{sha256hash, to_address},
         filter::FilterPayload,
+        message::create_content_topic,
     },
     waku::WakuClient,
 };
@@ -20,32 +22,26 @@ pub struct DriaComputeNode {
     pub public_key: PublicKey,
     pub address: String,
     pub waku: WakuClient,
-    model: String,
 }
 
 impl Default for DriaComputeNode {
     fn default() -> Self {
-        let waku = WakuClient::default();
-
-        let secret_key =
-            SecretKey::parse_slice(hex::decode(DEFAULT_DKN_WALLET_PRIVKEY).unwrap().as_slice())
-                .unwrap();
-        // TODO: read from env
-
-        DriaComputeNode::new(waku, secret_key)
+        DriaComputeNode::new(DriaComputeNodeConfig::default())
     }
 }
 
 impl DriaComputeNode {
-    pub fn new(waku: WakuClient, secret_key: SecretKey) -> Self {
+    pub fn new(config: DriaComputeNodeConfig) -> Self {
+        let secret_key = config.DKN_WALLET_PRIVKEY;
         let public_key = PublicKey::from_secret_key(&secret_key);
         let address = hex::encode(to_address(&public_key));
+
+        let waku = WakuClient::new(&config.DKN_WAKU_URL);
         DriaComputeNode {
             secret_key,
             public_key,
             address,
             waku,
-            model: "llama2:latest".to_string(), // TODO: make this configurable
         }
     }
 
@@ -90,6 +86,36 @@ impl DriaComputeNode {
             ciphertext: hex::encode(ciphertext),
             signature: format!("{}{}", hex::encode(signature), hex::encode(recid)),
         })
+    }
+
+    /// Checks for a heartbeat by Dria.
+    pub async fn check_heartbeat(&mut self) {
+        let topic = create_content_topic(WAKU_HEARTBEAT_TOPIC);
+
+        // subscribe to content topic if not subscribed
+        if !self.waku.relay.is_subscribed(&topic) {
+            self.waku
+                .relay
+                .subscribe(vec![topic.clone()])
+                .await
+                .expect("Could not subscribe.");
+        }
+
+        loop {
+            let messages = self.waku.relay.get_messages(topic.as_str()).await.unwrap();
+
+            if !messages.is_empty() {
+                // respond to the latest heartbeat message only
+                println!("Messages:\n{:?}", messages);
+            }
+
+            time::sleep(time::Duration::from_millis(500)).await;
+        }
+    }
+
+    /// Checks for a task by Dria. This is done by checking the `task` content topic.
+    async fn check_task(&self, topic: String) {
+        unimplemented!()
     }
 }
 

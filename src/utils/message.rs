@@ -1,15 +1,8 @@
+use crate::config::constants::{WAKU_APP_NAME, WAKU_ENCODING, WAKU_ENC_VERSION};
+
 use super::get_current_time_nanos;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use serde::{Deserialize, Serialize};
-
-/// Within Waku Message and Content Topic we specify version to be 0.
-///
-/// This is because encryption takes place at our application layer, instead of
-/// at protocol layer of Waku.
-const WAKU_ENC_VERSION: u8 = 0;
-
-/// Within Content Topic we specify encoding to be `proto` as is the recommendation by Waku.
-const WAKU_ENCODING: &str = "proto";
 
 /// A Waku message, as defined by [14/WAKU2-MESSAGE](https://github.com/vacp2p/rfc-index/blob/main/waku/standards/core/14/message.md).
 #[derive(Serialize, Deserialize, Debug)]
@@ -31,7 +24,7 @@ pub struct Message {
 pub fn create_message(payload: impl AsRef<[u8]>, topic: &str, ephemeral: Option<bool>) -> Message {
     Message {
         payload: BASE64_STANDARD.encode(payload),
-        content_topic: create_content_topic(topic, None),
+        content_topic: create_content_topic(topic),
         version: WAKU_ENC_VERSION,
         timestamp: get_current_time_nanos(),
         ephemeral: ephemeral.unwrap_or(false),
@@ -53,13 +46,10 @@ pub fn parse_message_payload(message: &Message) -> Vec<u8> {
 ///
 /// `app-name` defaults to `dria` unless specified otherwise with the second argument.
 #[inline]
-pub fn create_content_topic(topic: &str, app: Option<&str>) -> String {
+pub fn create_content_topic(topic: &str) -> String {
     format!(
         "/{}/{}/{}/{}",
-        app.unwrap_or("dria"),
-        WAKU_ENC_VERSION,
-        topic,
-        WAKU_ENCODING
+        WAKU_APP_NAME, WAKU_ENC_VERSION, topic, WAKU_ENCODING
     )
 }
 
@@ -71,17 +61,14 @@ mod tests {
     fn test_create_content_topic() {
         let topic = "default-waku";
 
-        let app = "waku";
-        let expected = "/waku/0/default-waku/proto".to_string();
-        assert_eq!(create_content_topic(topic, Some(app)), expected);
-
         let expected = "/dria/0/default-waku/proto".to_string();
-        assert_eq!(create_content_topic(topic, None), expected);
+        assert_eq!(create_content_topic(topic), expected);
     }
 
     #[test]
     fn test_create_message() {
-        let payload = "Hello, world!".as_bytes();
+        let payload_plain = "Hello, world!";
+        let payload = payload_plain.as_bytes();
         let topic = "my-content-topic";
         let message = create_message(payload, topic, None);
         assert_eq!(message.payload, "SGVsbG8sIHdvcmxkIQ=="); // "Hello, world!" in base64

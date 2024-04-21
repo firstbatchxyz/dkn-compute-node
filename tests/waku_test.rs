@@ -9,7 +9,7 @@ mod waku_tests {
         assert_eq!("v0.26.0", version);
 
         // subscribe to content topic message
-        let topic = create_content_topic("heartbeat", None);
+        let topic = create_content_topic("heartbeat");
         waku.relay.subscribe(vec![topic.clone()]).await.unwrap();
 
         // get message

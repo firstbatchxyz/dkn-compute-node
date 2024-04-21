@@ -35,6 +35,13 @@ impl RelayClient {
         Ok(())
     }
 
+    /// Check if a node is subscribed to a content topic using the local cache.
+    ///
+    /// Note that the container itself could be subscribed from before, but we might not be aware of it.
+    pub fn is_subscribed(&self, topic: &String) -> bool {
+        self.content_topics.contains(topic)
+    }
+
     /// Get messages with a given content topic.
     ///
     /// The content topic must have been subscribed to before.
