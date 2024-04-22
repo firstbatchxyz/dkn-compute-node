@@ -26,7 +26,6 @@ impl BaseClient {
         query_params: Option<HashMap<String, String>>,
     ) -> Result<reqwest::Response, reqwest::Error> {
         let mut full_url = format!("{}/{}", self.base_url, url);
-        dbg!("GET {}", full_url.clone());
 
         // add query parameters
         if let Some(params) = query_params {
@@ -34,6 +33,7 @@ impl BaseClient {
             full_url.push_str(&format!("?{}", query_string));
         }
 
+        dbg!(full_url.clone());
         let res = self
             .client
             .get(&full_url)

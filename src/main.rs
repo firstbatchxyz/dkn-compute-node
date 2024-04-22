@@ -1,4 +1,6 @@
-use dria_compute_node::{config::DriaComputeNodeConfig, node::DriaComputeNode};
+use dria_compute_node::{
+    config::DriaComputeNodeConfig, node::DriaComputeNode, utils::message::create_content_topic,
+};
 use tokio::time;
 
 #[allow(unused)]
@@ -8,34 +10,47 @@ use log::{debug, error, info, log_enabled, Level};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
-    // config
+    // setup node
     let config = DriaComputeNodeConfig::new();
-    let mut node = DriaComputeNode::new(config);
-    println!("Address: {:?}", node.address);
+    let node = DriaComputeNode::new(config.clone());
+    println!("Address: 0x{}", hex::encode(node.address));
 
+    // handle heartbeats
+    let mut heartbeat_node = node.clone();
     let heartbeat_handle = tokio::spawn(async move {
-        node.check_heartbeat().await;
+        let topic: String = create_content_topic("heartbeat");
+        heartbeat_node.subscribe_topic(topic.clone()).await;
+        loop {
+            heartbeat_node
+                .process_topic(topic.clone(), |_, messages| {
+                    println!("Received heartbeats: {:?}", messages);
+                })
+                .await;
+
+            time::sleep(time::Duration::from_millis(500)).await;
+        }
     });
 
-    // DKN Compute Handler
-    //
-    // Listens to compute requests by Dria Admin Node's (ensured via signatures)
-    // tokio::spawn(async move {
+    // handle synthesis computations
+    // let mut synthesis_node = node.clone();
+    // let synthesis_handle = tokio::spawn(async move {
+    //     let topic: String = create_content_topic("synthesis");
+    //     synthesis_node.subscribe_topic(topic.clone()).await;
     //     loop {
-    //         // get latest heartbeat messages
-    //         let messages = node.waku.relay.get_messages("fdsf").await.unwrap();
+    //         synthesis_node
+    //             .process_topic(topic.clone(), |_, m| {
+    //                 println!("Received heartbeat: {:?}", m);
+    //             })
+    //             .await;
 
-    //         // handle each message
-    //         // TODO: !!!
-
-    //         // sleep for 5 seconds
-    //         tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    //         time::sleep(time::Duration::from_millis(1000)).await;
     //     }
     // });
 
-    // TODO: sigint / sigterm handling
-
+    // handle SIGTERM
+    // tokio::signal::ctrl_c().await.unwrap();
     heartbeat_handle.await.unwrap();
+    // synthesis_handle.await.unwrap();
 
     Ok(())
 }

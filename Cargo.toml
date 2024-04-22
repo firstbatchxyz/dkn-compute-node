@@ -6,9 +6,9 @@ license = "Apache-2.0"
 readme = "README.md"
 
 [features]
+default = ["waku_test", "ollama_test"]
 waku_test = []
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+ollama_test = []
 
 [dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
@@ -37,3 +37,7 @@ sha3 = "0.10.8"
 ollama-rs = "0.1.8"
 env_logger = "0.11.3"
 log = "0.4.21"
+tokio-graceful-shutdown = "0.15.0" # TODO: might remove
+
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

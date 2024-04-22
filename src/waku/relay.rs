@@ -2,7 +2,7 @@
 
 use std::borrow::BorrowMut;
 
-use crate::{utils::message::Message, waku::BaseClient};
+use crate::{utils::message::WakuMessage, waku::BaseClient};
 use urlencoding;
 
 /// Client for [11/WAKU2-RELAY](https://github.com/vacp2p/rfc-index/blob/main/waku/standards/core/11/relay.md) operations.
@@ -28,7 +28,10 @@ impl RelayClient {
     }
 
     /// Send a message.
-    pub async fn send_message(&self, message: Message) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn send_message(
+        &self,
+        message: WakuMessage,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let message = serde_json::json!(message);
         self.base.post("relay/v1/auto/messages", message).await?;
 
@@ -48,7 +51,7 @@ impl RelayClient {
     pub async fn get_messages(
         &self,
         content_topic: &str,
-    ) -> Result<Vec<Message>, Box<dyn std::error::Error>> {
+    ) -> Result<Vec<WakuMessage>, Box<dyn std::error::Error>> {
         let topic = urlencoding::encode(content_topic).to_string();
         let res = self
             .base
@@ -63,18 +66,18 @@ impl RelayClient {
     /// Subscribe to an array of content topics.
     pub async fn subscribe(
         &mut self,
-        content_topics: Vec<String>,
+        content_topic: String,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let res = self
             .base
             .post(
                 "relay/v1/auto/subscriptions",
-                serde_json::json!(content_topics),
+                serde_json::json!(vec![content_topic.clone()]),
             )
             .await?;
 
         // add content_topics to self.content_topics
-        self.content_topics.extend(content_topics);
+        self.content_topics.push(content_topic);
         Ok(())
     }
 

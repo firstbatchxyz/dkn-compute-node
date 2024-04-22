@@ -1,4 +1,4 @@
-// #[cfg(feature = "ollama_test")]
+#[cfg(feature = "ollama_test")]
 mod ollama_tests {
     use dria_compute_node::compute::ollama::{OllamaClient, OllamaModel};
 
