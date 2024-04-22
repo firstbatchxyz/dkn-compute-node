@@ -20,18 +20,15 @@ pub struct WakuMessage {
     // meta: Option<Vec<u8>>, // TODO: metadata?
 }
 
-/// Creates a Waku Message with the given message and content topic.
-pub fn create_message(
-    payload: impl AsRef<[u8]>,
-    topic: &str,
-    ephemeral: Option<bool>,
-) -> WakuMessage {
-    WakuMessage {
-        payload: BASE64_STANDARD.encode(payload),
-        content_topic: create_content_topic(topic),
-        version: WAKU_ENC_VERSION,
-        timestamp: get_current_time_nanos(),
-        ephemeral: ephemeral.unwrap_or(false),
+impl WakuMessage {
+    pub fn new(payload: impl AsRef<[u8]>, topic: &str, ephemeral: bool) -> Self {
+        WakuMessage {
+            payload: BASE64_STANDARD.encode(payload),
+            content_topic: create_content_topic(topic),
+            version: WAKU_ENC_VERSION,
+            timestamp: get_current_time_nanos(),
+            ephemeral,
+        }
     }
 }
 
@@ -71,15 +68,14 @@ mod tests {
 
     #[test]
     fn test_create_message() {
-        let payload_plain = "Hello, world!";
-        let payload = payload_plain.as_bytes();
+        let payload = b"Hello, world!";
         let topic = "my-content-topic";
-        let message = create_message(payload, topic, None);
+        let ephemeral = false;
+        let message = WakuMessage::new(payload, topic, ephemeral);
         assert_eq!(message.payload, "SGVsbG8sIHdvcmxkIQ=="); // "Hello, world!" in base64
         assert_eq!(message.content_topic, "/dria/0/my-content-topic/proto");
-
         assert_eq!(message.version, WAKU_ENC_VERSION, "Incorrect version.");
-        assert!(!message.ephemeral, "Should not be ephemeral by default.");
+        assert_eq!(message.ephemeral, ephemeral);
         assert!(message.timestamp > 0);
 
         let payload_decoded = parse_message_payload(&message);

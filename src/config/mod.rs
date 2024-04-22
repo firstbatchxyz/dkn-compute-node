@@ -14,17 +14,17 @@ use self::{constants::WAKU_HEARTBEAT_TOPIC, defaults::*};
 #[allow(non_snake_case)]
 #[derive(Debug, Clone)]
 pub struct DriaComputeNodeConfig {
-    /// Waku container URL
+    /// Waku (nwaku) container URL.
     pub DKN_WAKU_URL: String,
-    /// Wallet Private Key
-    pub DKN_WALLET_PRIVKEY: SecretKey,
-    /// Wallet Public Key
-    pub DKN_WALLET_PUBKEY: PublicKey,
-    /// Wallet Public Key
+    /// Wallet secret/private key.
+    pub DKN_WALLET_SECRET_KEY: SecretKey,
+    /// Wallet public key, derived from the secret key.
+    pub DKN_WALLET_PUBLIC_KEY: PublicKey,
+    /// Wallet address, derived from the public key.
     pub DKN_WALLET_ADDRESS: [u8; 20],
-    /// Ollama container host
+    /// Ollama container host.
     pub DKN_OLLAMA_HOST: String,
-    /// Ollama container port
+    /// Ollama container port.
     pub DKN_OLLAMA_PORT: u16,
 }
 
@@ -53,9 +53,9 @@ impl DriaComputeNodeConfig {
         Self {
             DKN_WAKU_URL: env::var("DKN_WAKU_URL").unwrap_or(DEFAULT_DKN_WAKU_URL.to_string()),
 
-            DKN_WALLET_PRIVKEY: secret_key,
+            DKN_WALLET_SECRET_KEY: secret_key,
 
-            DKN_WALLET_PUBKEY: public_key,
+            DKN_WALLET_PUBLIC_KEY: public_key,
 
             DKN_WALLET_ADDRESS: address,
 

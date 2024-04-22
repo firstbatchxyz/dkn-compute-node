@@ -1,17 +1,13 @@
+use std::future::Future;
+
 use ecies::encrypt;
 use fastbloom_rs::{BloomFilter, Membership};
-use libsecp256k1::{sign, Message, PublicKey, RecoveryId, SecretKey, Signature};
-use serde::{Deserialize, Serialize};
-use serde_json::{json, to_string};
-use tokio::{task::JoinHandle, time};
+use libsecp256k1::{sign, Message, RecoveryId, Signature};
 
 use crate::{
-    config::{constants::WAKU_HEARTBEAT_TOPIC, DriaComputeNodeConfig},
+    config::DriaComputeNodeConfig,
     utils::{
-        crypto::{sha256hash, to_address},
-        filter::FilterPayload,
-        message::{create_content_topic, WakuMessage},
-        payload::ComputePayload,
+        crypto::sha256hash, filter::FilterPayload, message::WakuMessage, payload::ComputePayload,
     },
     waku::WakuClient,
 };
@@ -20,7 +16,6 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct DriaComputeNode {
     pub config: DriaComputeNodeConfig,
-    pub address: [u8; 20],
     pub waku: WakuClient,
 }
 
@@ -32,14 +27,8 @@ impl Default for DriaComputeNode {
 
 impl DriaComputeNode {
     pub fn new(config: DriaComputeNodeConfig) -> Self {
-        let address = to_address(&config.DKN_WALLET_PUBKEY);
-
         let waku = WakuClient::new(&config.DKN_WAKU_URL);
-        DriaComputeNode {
-            config,
-            address,
-            waku,
-        }
+        DriaComputeNode { config, waku }
     }
 
     /// Returns the wallet address of the node.
@@ -51,7 +40,7 @@ impl DriaComputeNode {
     /// Shorthand to sign a digest with node's secret key.
     #[inline]
     pub fn sign(&self, message: &Message) -> (Signature, RecoveryId) {
-        sign(&message, &self.config.DKN_WALLET_PRIVKEY)
+        sign(&message, &self.config.DKN_WALLET_SECRET_KEY)
     }
 
     /// Given a hex-string serialized Bloom Filter of a task, checks if this node is selected to do the task.
@@ -59,7 +48,7 @@ impl DriaComputeNode {
     /// This is done by checking if the address of this node is in the filter.
     #[inline]
     pub fn is_tasked(&self, task_filter: String) -> bool {
-        BloomFilter::from(FilterPayload::from(task_filter)).contains(&self.address)
+        BloomFilter::from(FilterPayload::from(task_filter)).contains(&self.address())
     }
 
     /// Creates the payload of a computation result, as per Dria Whitepaper section 5.1 algorithm 2:
@@ -75,7 +64,7 @@ impl DriaComputeNode {
         // sign result
         let result_digest: [u8; 32] = sha256hash(result.as_ref());
         let result_msg = Message::parse(&result_digest);
-        let (signature, recid) = sign(&result_msg, &self.config.DKN_WALLET_PRIVKEY);
+        let (signature, recid) = sign(&result_msg, &self.config.DKN_WALLET_SECRET_KEY);
         let signature: [u8; 64] = signature.serialize();
         let recid: [u8; 1] = [recid.serialize()];
 
@@ -97,36 +86,28 @@ impl DriaComputeNode {
         })
     }
 
-    /// Checks for a heartbeat by Dria.
-    // pub async fn check_heartbeat(&self) {
-    //     let messages = self
-    //         .waku
-    //         .relay
-    //         .get_messages(self.config.DKN_HEARTBEAT_TOPIC.as_str())
-    //         .await
-    //         .unwrap();
-
-    //     if !messages.is_empty() {
-    //         println!("Messages:\n{:?}", messages);
-    //         self.handle_heartbeat(&messages[0]).await;
-    //     }
-    // }
-
     /// Subscribe to a certain task with its topic.
-    pub async fn subscribe_topic(&mut self, content_topic: String) {
-        // subscribe to content topic if not subscribed
+    pub async fn subscribe_topic(
+        &mut self,
+        content_topic: String,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         if !self.waku.relay.is_subscribed(&content_topic) {
-            self.waku
-                .relay
-                .subscribe(content_topic)
-                .await
-                .expect("Could not subscribe to topic.");
+            self.waku.relay.subscribe(content_topic).await
+        } else {
+            Ok(())
         }
     }
 
-    /// Checks for a task by Dria. This is done by subscribing to the `task` content topic.
-    pub async fn process_topic(&self, topic: String, handler: impl Fn(&Self, Vec<WakuMessage>)) {
-        let messages = self.waku.relay.get_messages(topic.as_str()).await.unwrap();
-        handler(self, messages);
+    /// Processes messages in a topic with a handler.
+    ///
+    /// The handler takes in a reference to this compute node, along with the messages read for that topic.
+    /// It must return a vector of messages to be published.
+    pub async fn process_topic(
+        &self,
+        topic: String,
+        mut handler: impl FnMut(&Self, Vec<WakuMessage>) -> Vec<WakuMessage>,
+    ) -> Result<Vec<WakuMessage>, Box<dyn std::error::Error>> {
+        let messages = self.waku.relay.get_messages(topic.as_str()).await?;
+        Ok(handler(self, messages))
     }
 }

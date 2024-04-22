@@ -49,7 +49,7 @@ fn test_payload_generation_verification() {
     let result_digest = sha256hash(result);
     let message = Message::parse_slice(&result_digest).unwrap();
     assert!(
-        verify(&message, &signature, &node.config.DKN_WALLET_PUBKEY),
+        verify(&message, &signature, &node.config.DKN_WALLET_PUBLIC_KEY),
         "Could not verify."
     );
 
@@ -57,7 +57,7 @@ fn test_payload_generation_verification() {
     let recovered_public_key =
         libsecp256k1::recover(&message, &signature, &recid).expect("Could not recover");
     assert_eq!(
-        node.config.DKN_WALLET_PUBKEY, recovered_public_key,
+        node.config.DKN_WALLET_PUBLIC_KEY, recovered_public_key,
         "Public key mismatch."
     );
 
@@ -81,20 +81,18 @@ fn test_heartbeat_and_task_assignment() {
     let node = DriaComputeNode::default();
 
     // a heartbeat message is signed and sent to Admin Node (via Waku network)
-    const HEARTBEAT_MESSAGE: &[u8; 7] = b"sign-me";
-    let heartbeat_digest: [u8; 32] = sha256hash(HEARTBEAT_MESSAGE.as_ref());
-    let heartbeat_message = Message::parse(&heartbeat_digest);
+    let heartbeat_message = Message::parse(&sha256hash(b"sign-me"));
     let (heartbeat_signature, heartbeat_recid) = node.sign(&heartbeat_message);
 
     // admin recovers the address from the signature
     let recovered_public_key = recover(&heartbeat_message, &heartbeat_signature, &heartbeat_recid)
         .expect("Could not recover");
     assert_eq!(
-        node.config.DKN_WALLET_PUBKEY, recovered_public_key,
+        node.config.DKN_WALLET_PUBLIC_KEY, recovered_public_key,
         "Public key mismatch."
     );
     let address = to_address(&recovered_public_key);
-    assert_eq!(address, node.address, "Address mismatch.");
+    assert_eq!(address, node.address(), "Address mismatch.");
 
     // admin node assigns the task to the compute node via Bloom Filter
     let mut bloom = FilterBuilder::new(100, 0.01).build_bloom_filter();

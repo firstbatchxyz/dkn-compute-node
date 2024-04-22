@@ -1,4 +1,4 @@
-use fastbloom_rs::{BloomFilter, FilterBuilder, Hashes};
+use fastbloom_rs::{BloomFilter, Hashes};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, to_string};
 
@@ -42,7 +42,7 @@ impl From<BloomFilter> for FilterPayload {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use fastbloom_rs::Membership;
+    use fastbloom_rs::{FilterBuilder, Membership};
 
     #[test]
     fn test_bloom_filter() {
