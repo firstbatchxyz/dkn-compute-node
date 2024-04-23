@@ -1,14 +1,11 @@
 pub mod constants;
 pub mod defaults;
 
+use self::defaults::*;
+use crate::utils::crypto::to_address;
 use ecies::PublicKey;
 use libsecp256k1::{PublicKeyFormat, SecretKey};
 use std::env;
-use tokio::time::Duration;
-
-use crate::utils::{crypto::to_address, message::create_content_topic};
-
-use self::{constants::WAKU_HEARTBEAT_TOPIC, defaults::*};
 
 #[allow(non_snake_case)]
 #[derive(Debug, Clone)]
@@ -27,13 +24,6 @@ pub struct DriaComputeNodeConfig {
     pub DKN_OLLAMA_HOST: String,
     /// Ollama container port.
     pub DKN_OLLAMA_PORT: u16,
-}
-
-impl Default for DriaComputeNodeConfig {
-    /// Alias for `new`.
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 impl DriaComputeNodeConfig {
@@ -78,5 +68,12 @@ impl DriaComputeNodeConfig {
                 .parse::<u16>()
                 .expect("Could not parse port."),
         }
+    }
+}
+
+impl Default for DriaComputeNodeConfig {
+    /// Alias for `new`.
+    fn default() -> Self {
+        Self::new()
     }
 }

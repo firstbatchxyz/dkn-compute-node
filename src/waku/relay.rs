@@ -16,6 +16,7 @@ use urlencoding;
 #[derive(Debug, Clone)]
 pub struct RelayClient {
     base: BaseClient,
+    // TODO: we may not need this
     content_topics: Vec<String>,
 }
 

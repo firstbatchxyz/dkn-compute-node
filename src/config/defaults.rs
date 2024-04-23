@@ -8,8 +8,6 @@ pub const DEFAULT_DKN_WALLET_SECRET_KEY: &str =
 pub const DEFAULT_DKN_ADMIN_PUBLIC_KEY: &str =
     "0208ef5e65a9c656a6f92fb2c770d5d5e2ecffe02a6aade19207f75110be6ae658";
 
-pub const DEFAULT_DKN_HEARTBEAT_TIMEOUT: &str = "1000"; // millis
-
 pub const DEFAULT_DKN_OLLAMA_HOST: &str = "http://127.0.0.1";
 
 pub const DEFAULT_DKN_OLLAMA_PORT: &str = "11434";
