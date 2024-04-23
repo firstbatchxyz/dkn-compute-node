@@ -2,7 +2,7 @@ use std::future::Future;
 
 use ecies::encrypt;
 use fastbloom_rs::{BloomFilter, Membership};
-use libsecp256k1::{sign, Message, RecoveryId, Signature};
+use libsecp256k1::{sign, verify, Message, RecoveryId, Signature};
 
 use crate::{
     config::DriaComputeNodeConfig,
@@ -101,13 +101,41 @@ impl DriaComputeNode {
     /// Processes messages in a topic with a handler.
     ///
     /// The handler takes in a reference to this compute node, along with the messages read for that topic.
-    /// It must return a vector of messages to be published.
-    pub async fn process_topic(
+    /// Upon handling, it will return something generic of type `T`.
+    pub async fn process_topic<T>(
         &self,
         topic: String,
-        mut handler: impl FnMut(&Self, Vec<WakuMessage>) -> Vec<WakuMessage>,
-    ) -> Result<Vec<WakuMessage>, Box<dyn std::error::Error>> {
-        let messages = self.waku.relay.get_messages(topic.as_str()).await?;
+        mut handler: impl FnMut(&Self, Vec<WakuMessage>) -> T,
+    ) -> Result<T, Box<dyn std::error::Error>> {
+        let mut messages: Vec<WakuMessage> = self.waku.relay.get_messages(topic.as_str()).await?;
+
+        // only keep messages that are authentic to Dria
+        messages.retain(|message| {
+            let (signature, rest) = message.payload.split_at(65);
+            let (signature, _) = signature.split_at(1);
+            let signature = Signature::parse_standard_slice(signature.as_bytes());
+            match signature {
+                // signature could be parsed, return its verification result
+                Ok(signature) => verify(
+                    &Message::parse(&sha256hash(rest.as_bytes())),
+                    &signature,
+                    &self.config.DKN_ADMIN_PUBLIC_KEY,
+                ),
+                // signature could not be parsed
+                Err(_) => false,
+            }
+        });
+
+        // map each message payload into
+        let messages = messages
+            .into_iter()
+            .map(|mut message| {
+                message.payload = message.payload[66..].to_string();
+                return message;
+            })
+            .collect();
+
+        //
         Ok(handler(self, messages))
     }
 }

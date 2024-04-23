@@ -28,6 +28,8 @@ pub fn to_address(public_key: &PublicKey) -> [u8; 20] {
 
 #[cfg(test)]
 mod tests {
+    use crate::config;
+
     use super::*;
     use ecies::{decrypt, encrypt};
     use hex::decode;
@@ -54,6 +56,7 @@ mod tests {
             hex::encode(addr)
         );
     }
+
     #[test]
     fn test_encrypt_decrypt() {
         let sk = SecretKey::parse_slice(DUMMY_KEY).expect("Could not parse private key slice.");

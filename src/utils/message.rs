@@ -2,7 +2,7 @@ use crate::config::constants::{WAKU_APP_NAME, WAKU_ENCODING, WAKU_ENC_VERSION};
 
 use super::get_current_time_nanos;
 use base64::{prelude::BASE64_STANDARD, Engine};
-use serde::{Deserialize, Serialize};
+use serde::{de::Error, Deserialize, Serialize};
 
 /// A Waku message, as defined by [14/WAKU2-MESSAGE](https://github.com/vacp2p/rfc-index/blob/main/waku/standards/core/14/message.md).
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -30,12 +30,19 @@ impl WakuMessage {
             ephemeral,
         }
     }
-}
 
-pub fn parse_message_payload(message: &WakuMessage) -> Vec<u8> {
-    BASE64_STANDARD
-        .decode(&message.payload)
-        .expect("Could not decode")
+    /// Decodes the base64 payload into bytes.
+    pub fn decode_payload(&self) -> Result<Vec<u8>, base64::DecodeError> {
+        BASE64_STANDARD.decode(&self.payload)
+    }
+
+    /// Decodes and parses the payload into JSON.
+    pub fn parse_payload<T: for<'a> Deserialize<'a>>(&self) -> Result<T, serde_json::Error> {
+        let payload = self
+            .decode_payload()
+            .map_err(|err| serde_json::Error::custom(format!("Base64 decode failed: {}", err)))?;
+        serde_json::from_slice(&payload)
+    }
 }
 
 /// A [Content Topic](https://docs.waku.org/learn/concepts/content-topics) is represented as a string with the form:
@@ -57,6 +64,7 @@ pub fn create_content_topic(topic: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn test_create_content_topic() {
@@ -67,18 +75,28 @@ mod tests {
     }
 
     #[test]
-    fn test_create_message() {
-        let payload = b"Hello, world!";
+    fn test_create_and_decode_message() {
+        #[derive(Serialize, Deserialize, PartialEq, Debug)]
+        struct TestStruct {
+            hello: String,
+        }
+
+        let obj = TestStruct {
+            hello: "world".to_string(),
+        };
+
+        let payload = serde_json::to_vec(&json!(obj)).unwrap();
         let topic = "my-content-topic";
         let ephemeral = false;
+
         let message = WakuMessage::new(payload, topic, ephemeral);
-        assert_eq!(message.payload, "SGVsbG8sIHdvcmxkIQ=="); // "Hello, world!" in base64
+        assert_eq!(message.payload, "eyJoZWxsbyI6IndvcmxkIn0="); // {"hello":"world"} in base64
         assert_eq!(message.content_topic, "/dria/0/my-content-topic/proto");
         assert_eq!(message.version, WAKU_ENC_VERSION, "Incorrect version.");
         assert_eq!(message.ephemeral, ephemeral);
         assert!(message.timestamp > 0);
 
-        let payload_decoded = parse_message_payload(&message);
-        assert_eq!(payload, payload_decoded.as_slice());
+        let parsed_obj: TestStruct = message.parse_payload().expect("Should decode.");
+        assert_eq!(obj, parsed_obj);
     }
 }

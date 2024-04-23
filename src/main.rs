@@ -22,15 +22,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // handle heartbeats
     let mut heartbeat_node = node.clone();
     let heartbeat_handle = tokio::spawn(async move {
-        let heartbeat_message = Message::parse(&sha256hash(b"sign-me"));
-        let (signature, recid) = heartbeat_node.sign(&heartbeat_message);
-        let heartbeat_signature = format!(
-            "{}{}",
-            hex::encode(signature.serialize()),
-            hex::encode([recid.serialize()])
-        );
+        const HEARTBEAT_TOPIC: &str = "heartbeat";
 
-        let topic: String = create_content_topic("heartbeat");
+        let topic: String = create_content_topic(HEARTBEAT_TOPIC);
         match heartbeat_node.subscribe_topic(topic.clone()).await {
             Ok(_) => {
                 println!("Subscribed to heartbeat topic: {}", topic);
@@ -44,23 +38,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .process_topic(topic.clone(), |_, messages| {
                     println!("Heartbeats: {:?}", messages);
 
-                    if messages
-                        .iter()
-                        .find(|_| {
-                            // TODO: find the first message with Dria signature
-                            true
-                        })
-                        .is_some()
-                    {
-                        vec![WakuMessage::new(heartbeat_signature.clone(), &topic, false)]
-                    } else {
-                        vec![]
+                    if let Some(message) = messages.last() {
+                        let heartbeat_message = WakuMessage::parse(&message.payload);
+                        let heartbeat_message = Message::parse(&sha256hash(b"sign-me"));
+                        let (signature, recid) = heartbeat_node.sign(&heartbeat_message);
+                        let heartbeat_signature = format!(
+                            "{}{}",
+                            hex::encode(signature.serialize()),
+                            hex::encode([recid.serialize()])
+                        );
                     }
+
+                    // Some(WakuMessage::new(heartbeat_signature.clone(), &topic, false))
                 })
                 .await
             {
                 Ok(messages_to_publish) => {
-                    println!("Sending heartbeat: {:?}", messages_to_publish);
+                    if let Some(message) = messages_to_publish {
+                        println!("Sending heartbeat: {:?}", message);
+                    }
                 }
                 Err(e) => {
                     println!("Error processing heartbeat: {:?}", e);
@@ -72,21 +68,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // handle synthesis computations
-    // let mut synthesis_node = node.clone();
-    // let synthesis_handle = tokio::spawn(async move {
-    //     let topic: String = create_content_topic("synthesis");
-    //     synthesis_node.subscribe_topic(topic.clone()).await;
-    //     loop {
-    //         synthesis_node
-    //             .process_topic(topic.clone(), |_, m| {
-    //                 println!("Synthesis tasks: {:?}", m);
-    //                 None
-    //             })
-    //             .await;
+    let mut synthesis_node = node.clone();
+    let synthesis_handle = tokio::spawn(async move {
+        let topic: String = create_content_topic("synthesis");
+        synthesis_node.subscribe_topic(topic.clone()).await;
+        loop {
+            synthesis_node
+                .process_topic(topic.clone(), |_, messages| {
+                    println!("Synthesis tasks: {:?}", messages);
+                })
+                .await;
 
-    //         time::sleep(time::Duration::from_millis(1000)).await;
-    //     }
-    // });
+            time::sleep(time::Duration::from_millis(1000)).await;
+        }
+    });
 
     heartbeat_handle.await.unwrap();
     // synthesis_handle.await.unwrap();
