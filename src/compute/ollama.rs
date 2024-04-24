@@ -95,10 +95,9 @@ impl OllamaClient {
     }
 
     /// Generates a result using the local LLM.
-    pub async fn generate(&self, prompt: String) -> GenerationResponse {
+    pub async fn generate(&self, prompt: String) -> Result<GenerationResponse, String> {
         self.client
             .generate(GenerationRequest::new(self.model.borrow().into(), prompt))
             .await
-            .unwrap()
     }
 }

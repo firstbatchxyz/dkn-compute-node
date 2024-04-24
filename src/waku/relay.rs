@@ -12,13 +12,14 @@ use urlencoding;
 /// 1. A node subscribes to a content topic
 /// 2. Nodes that are subscribed to the same content topic can send and receive messages via the network.
 /// 3. On termination, the node unsubscribes from the content topic.
-///
 #[derive(Debug, Clone)]
 pub struct RelayClient {
     base: BaseClient,
     // TODO: we may not need this
     content_topics: Vec<String>,
 }
+
+// TODO: dont create content topic outside and pass it in here, have each function create the parameter itself.
 
 impl RelayClient {
     pub fn new(base: BaseClient) -> Self {
@@ -32,9 +33,12 @@ impl RelayClient {
     pub async fn send_message(
         &self,
         message: WakuMessage,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Box<dyn std::error::Error + Send>> {
         let message = serde_json::json!(message);
-        self.base.post("relay/v1/auto/messages", message).await?;
+        self.base
+            .post("relay/v1/auto/messages", message)
+            .await
+            .map_err(|err| Box::new(err) as Box<dyn std::error::Error + Send>);
 
         Ok(())
     }

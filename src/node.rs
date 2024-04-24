@@ -37,18 +37,32 @@ impl DriaComputeNode {
         self.config.DKN_WALLET_ADDRESS
     }
 
-    /// Shorthand to sign a digest with node's secret key.
+    /// Shorthand to sign a digest with node's secret key and return signature & recovery id.
     #[inline]
     pub fn sign(&self, message: &Message) -> (Signature, RecoveryId) {
         sign(&message, &self.config.DKN_WALLET_SECRET_KEY)
+    }
+
+    /// Shorthand to sign a digest (bytes) with node's secret key and return signature & recovery id
+    /// serialized to 65 byte hex-string.
+    #[inline]
+    pub fn sign_bytes(&self, message: &[u8; 32]) -> String {
+        let message = Message::parse(message);
+        let (signature, recid) = sign(&message, &self.config.DKN_WALLET_SECRET_KEY);
+
+        format!(
+            "{}{}",
+            hex::encode(signature.serialize()),
+            hex::encode([recid.serialize()])
+        )
     }
 
     /// Given a hex-string serialized Bloom Filter of a task, checks if this node is selected to do the task.
     ///
     /// This is done by checking if the address of this node is in the filter.
     #[inline]
-    pub fn is_tasked(&self, task_filter: String) -> bool {
-        BloomFilter::from(FilterPayload::from(task_filter)).contains(&self.address())
+    pub fn is_tasked(&self, filter: FilterPayload) -> bool {
+        BloomFilter::from(filter).contains(&self.address())
     }
 
     /// Creates the payload of a computation result, as per Dria Whitepaper section 5.1 algorithm 2:
@@ -102,7 +116,7 @@ impl DriaComputeNode {
     ///
     /// The handler takes in a reference to this compute node, along with the messages read for that topic.
     /// Upon handling, it will return something generic of type `T`.
-    pub async fn process_topic<T>(
+    pub async fn process_topic<T: Send + Sync>(
         &self,
         topic: String,
         mut handler: impl FnMut(&Self, Vec<WakuMessage>) -> T,
@@ -126,7 +140,7 @@ impl DriaComputeNode {
             }
         });
 
-        // map each message payload into
+        // map each message that is `signature || payload` into just the `payload`
         let messages = messages
             .into_iter()
             .map(|mut message| {
@@ -135,7 +149,6 @@ impl DriaComputeNode {
             })
             .collect();
 
-        //
         Ok(handler(self, messages))
     }
 }

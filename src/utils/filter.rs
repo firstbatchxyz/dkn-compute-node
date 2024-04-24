@@ -5,7 +5,7 @@ use serde_json::{json, to_string};
 /// A task filter is used to determine if a node is selected.
 ///
 /// The filter is a Bloom Filter with a set of items and a false positive rate, it is serialized as a hex string.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FilterPayload {
     pub filter: String,
     pub hashes: u32,

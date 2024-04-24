@@ -98,8 +98,7 @@ fn test_heartbeat_and_task_assignment() {
     let mut bloom = FilterBuilder::new(100, 0.01).build_bloom_filter();
     bloom.add(&address);
     let filter_payload = FilterPayload::from(bloom);
-    let filter_payload_str = String::from(filter_payload);
 
     // compute node receives the filter and checks if it is tasked
-    assert!(node.is_tasked(filter_payload_str), "Node should be tasked.");
+    assert!(node.is_tasked(filter_payload), "Node should be tasked.");
 }

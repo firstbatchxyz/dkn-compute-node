@@ -1,5 +1,7 @@
 use dria_compute_node::{
-    config::DriaComputeNodeConfig, node::DriaComputeNode, workers::heartbeat::heartbeat_worker,
+    config::DriaComputeNodeConfig,
+    node::DriaComputeNode,
+    workers::{heartbeat::heartbeat_worker, synthesis::synthesis_worker},
 };
 
 #[allow(unused)]
@@ -12,9 +14,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let node = DriaComputeNode::new(DriaComputeNodeConfig::new());
     println!("Address: 0x{}", hex::encode(node.address()));
 
-    let heartbeat_handle = heartbeat_worker(node.clone());
-    let synthesis_handle = heartbeat_handle.await.unwrap();
-    // synthesis_handle.await.unwrap();
+    let mut join_handles = Vec::new();
+
+    join_handles.push(heartbeat_worker(node.clone()));
+    join_handles.push(synthesis_worker(node.clone()));
+
+    // await all handles
+    for handle in join_handles {
+        handle.await.expect("Could not await."); // TODO: handle
+    }
 
     Ok(())
 }

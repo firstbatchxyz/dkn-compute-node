@@ -21,6 +21,13 @@ pub struct WakuMessage {
 }
 
 impl WakuMessage {
+    /// Creates a new Waku message.
+    ///
+    /// ## Parameters
+    /// - `payload` is given as bytes, and is base64-encoded within this function.
+    /// - `topic` is the name of the topic itself within the full content topic. The rest of the content topic
+    /// is filled in automatically.
+    /// - `ephemeral`: a boolean indicating whether this message should be stored via the Store protocol.
     pub fn new(payload: impl AsRef<[u8]>, topic: &str, ephemeral: bool) -> Self {
         WakuMessage {
             payload: BASE64_STANDARD.encode(payload),
