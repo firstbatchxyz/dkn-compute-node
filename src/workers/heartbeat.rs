@@ -1,10 +1,4 @@
-use crate::{
-    node::DriaComputeNode,
-    utils::{
-        crypto::sha256hash,
-        message::{create_content_topic, WakuMessage},
-    },
-};
+use crate::{node::DriaComputeNode, utils::crypto::sha256hash, waku::message::WakuMessage};
 
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
@@ -23,13 +17,12 @@ pub fn heartbeat_worker(
     mut node: DriaComputeNode,
     cancellation: CancellationToken,
 ) -> tokio::task::JoinHandle<()> {
-    let topic: String = create_content_topic(TOPIC);
     let sleep_amount = tokio::time::Duration::from_millis(SLEEP_MILLIS);
 
     tokio::spawn(async move {
-        match node.subscribe_topic(topic.clone()).await {
+        match node.subscribe_topic(TOPIC).await {
             Ok(_) => {
-                println!("Subscribed to {}", topic);
+                println!("Subscribed to {}", TOPIC);
             }
             Err(e) => {
                 println!("Error subscribing to {}", e);
@@ -47,7 +40,7 @@ pub fn heartbeat_worker(
             //     }
             // }
             let mut msg_to_send: Option<WakuMessage> = None;
-            if let Ok(messages) = node.process_topic(topic.clone()).await {
+            if let Ok(messages) = node.process_topic(TOPIC).await {
                 println!("Heartbeats: {:?}", messages);
 
                 // we only care about the latest heartbeat

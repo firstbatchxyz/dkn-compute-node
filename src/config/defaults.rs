@@ -8,6 +8,7 @@ pub const DEFAULT_DKN_WALLET_SECRET_KEY: &str =
 pub const DEFAULT_DKN_ADMIN_PUBLIC_KEY: &str =
     "0208ef5e65a9c656a6f92fb2c770d5d5e2ecffe02a6aade19207f75110be6ae658";
 
+// TODO: move these within Ollama instead
 pub const DEFAULT_DKN_OLLAMA_HOST: &str = "http://127.0.0.1";
 
 pub const DEFAULT_DKN_OLLAMA_PORT: &str = "11434";

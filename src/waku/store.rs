@@ -2,8 +2,10 @@
 
 use std::collections::HashMap;
 
-use crate::{utils::message::WakuMessage, waku::BaseClient};
+use crate::waku::BaseClient;
 use serde::{Deserialize, Serialize};
+
+use super::message::WakuMessage;
 
 /// Client for [13/WAKU2-STORE](https://github.com/vacp2p/rfc-index/blob/main/waku/standards/core/13/store.md) operations.
 #[derive(Debug, Clone)]

@@ -2,8 +2,10 @@
 
 use std::borrow::BorrowMut;
 
-use crate::{utils::message::WakuMessage, waku::BaseClient};
+use crate::waku::BaseClient;
 use urlencoding;
+
+use super::message::WakuMessage;
 
 /// Client for [11/WAKU2-RELAY](https://github.com/vacp2p/rfc-index/blob/main/waku/standards/core/11/relay.md) operations.
 ///
@@ -15,18 +17,13 @@ use urlencoding;
 #[derive(Debug, Clone)]
 pub struct RelayClient {
     base: BaseClient,
-    // TODO: we may not need this
-    content_topics: Vec<String>,
 }
 
 // TODO: dont create content topic outside and pass it in here, have each function create the parameter itself.
 
 impl RelayClient {
     pub fn new(base: BaseClient) -> Self {
-        RelayClient {
-            base,
-            content_topics: Vec::new(),
-        }
+        RelayClient { base }
     }
 
     /// Send a message.
@@ -43,24 +40,18 @@ impl RelayClient {
         Ok(())
     }
 
-    /// Check if a node is subscribed to a content topic using the local cache.
-    ///
-    /// Note that the container itself could be subscribed from before, but we might not be aware of it.
-    pub fn is_subscribed(&self, topic: &String) -> bool {
-        self.content_topics.contains(topic)
-    }
-
     /// Get messages with a given content topic.
     ///
     /// The content topic must have been subscribed to before.
     pub async fn get_messages(
         &self,
-        content_topic: &str,
+        topic: &str,
     ) -> Result<Vec<WakuMessage>, Box<dyn std::error::Error>> {
-        let topic = urlencoding::encode(content_topic).to_string();
+        let content_topic = WakuMessage::create_content_topic(topic);
+        let content_topic = urlencoding::encode(&content_topic).to_string();
         let res = self
             .base
-            .get(&format!("relay/v1/auto/messages/{}", topic), None)
+            .get(&format!("relay/v1/auto/messages/{}", content_topic), None)
             .await?;
 
         let msgs = res.json().await?;
@@ -68,39 +59,30 @@ impl RelayClient {
         Ok(msgs)
     }
 
-    /// Subscribe to an array of content topics.
-    pub async fn subscribe(
-        &mut self,
-        content_topic: String,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    /// Subscribe to a topic.
+    pub async fn subscribe(&self, topic: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let content_topic = WakuMessage::create_content_topic(topic);
         let res = self
             .base
             .post(
                 "relay/v1/auto/subscriptions",
-                serde_json::json!(vec![content_topic.clone()]),
+                serde_json::json!(vec![content_topic]),
             )
             .await?;
 
-        // add content_topics to self.content_topics
-        self.content_topics.push(content_topic);
         Ok(())
     }
 
-    /// Unsubscribe from an array of content topics.
-    pub async fn unsubscribe(
-        &mut self,
-        content_topics: Vec<String>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    /// Unsubscribe from a content topic.
+    pub async fn unsubscribe(&self, topic: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let content_topic = WakuMessage::create_content_topic(topic);
         self.base
             .delete(
                 "relay/v1/auto/subscriptions",
-                serde_json::json!(content_topics),
+                serde_json::json!(vec![content_topic]),
             )
             .await?;
 
-        // remove content_topics from self.content_topics
-        self.content_topics
-            .retain(|topic| !content_topics.contains(topic));
         Ok(())
     }
 }

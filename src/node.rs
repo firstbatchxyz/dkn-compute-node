@@ -3,11 +3,10 @@ use fastbloom_rs::{BloomFilter, Membership};
 use libsecp256k1::{sign, verify, Message, RecoveryId, Signature};
 
 use crate::{
+    compute::payload::ComputePayload,
     config::DriaComputeNodeConfig,
-    utils::{
-        crypto::sha256hash, filter::FilterPayload, message::WakuMessage, payload::ComputePayload,
-    },
-    waku::WakuClient,
+    utils::{crypto::sha256hash, filter::FilterPayload},
+    waku::{message::WakuMessage, WakuClient},
 };
 
 #[allow(unused)]
@@ -98,24 +97,17 @@ impl DriaComputeNode {
     }
 
     /// Subscribe to a certain task with its topic.
-    pub async fn subscribe_topic(
-        &mut self,
-        content_topic: String,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        if !self.waku.relay.is_subscribed(&content_topic) {
-            self.waku.relay.subscribe(content_topic).await
-        } else {
-            Ok(())
-        }
+    pub async fn subscribe_topic(&mut self, topic: &str) -> Result<(), Box<dyn std::error::Error>> {
+        self.waku.relay.subscribe(topic).await
     }
 
     /// Processes messages in a topic with a handler.
     ///
     pub async fn process_topic(
         &self,
-        topic: String,
+        topic: &str,
     ) -> Result<Vec<WakuMessage>, Box<dyn std::error::Error>> {
-        let mut messages: Vec<WakuMessage> = self.waku.relay.get_messages(topic.as_str()).await?;
+        let mut messages: Vec<WakuMessage> = self.waku.relay.get_messages(topic).await?;
 
         // only keep messages that are authentic to Dria
         messages.retain(|message| {

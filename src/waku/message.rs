@@ -1,6 +1,8 @@
-use crate::config::constants::{WAKU_APP_NAME, WAKU_ENCODING, WAKU_ENC_VERSION};
+use crate::{
+    config::constants::{WAKU_APP_NAME, WAKU_ENCODING, WAKU_ENC_VERSION},
+    utils::get_current_time_nanos,
+};
 
-use super::get_current_time_nanos;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use serde::{de::Error, Deserialize, Serialize};
 
@@ -31,7 +33,7 @@ impl WakuMessage {
     pub fn new(payload: impl AsRef<[u8]>, topic: &str, ephemeral: bool) -> Self {
         WakuMessage {
             payload: BASE64_STANDARD.encode(payload),
-            content_topic: create_content_topic(topic),
+            content_topic: Self::create_content_topic(topic),
             version: WAKU_ENC_VERSION,
             timestamp: get_current_time_nanos(),
             ephemeral,
@@ -50,22 +52,22 @@ impl WakuMessage {
             .map_err(|err| serde_json::Error::custom(format!("Base64 decode failed: {}", err)))?;
         serde_json::from_slice(&payload)
     }
-}
 
-/// A [Content Topic](https://docs.waku.org/learn/concepts/content-topics) is represented as a string with the form:
-///
-/// ```sh
-/// /app-name/version/content-topic/encoding
-/// /waku/2/default-waku/proto # example
-/// ```
-///
-/// `app-name` defaults to `dria` unless specified otherwise with the second argument.
-#[inline]
-pub fn create_content_topic(topic: &str) -> String {
-    format!(
-        "/{}/{}/{}/{}",
-        WAKU_APP_NAME, WAKU_ENC_VERSION, topic, WAKU_ENCODING
-    )
+    /// A [Content Topic](https://docs.waku.org/learn/concepts/content-topics) is represented as a string with the form:
+    ///
+    /// ```sh
+    /// /app-name/version/content-topic/encoding
+    /// /waku/2/default-waku/proto # example
+    /// ```
+    ///
+    /// `app-name` defaults to `dria` unless specified otherwise with the second argument.
+    #[inline]
+    pub fn create_content_topic(topic: &str) -> String {
+        format!(
+            "/{}/{}/{}/{}",
+            WAKU_APP_NAME, WAKU_ENC_VERSION, topic, WAKU_ENCODING
+        )
+    }
 }
 
 #[cfg(test)]
@@ -78,7 +80,7 @@ mod tests {
         let topic = "default-waku";
 
         let expected = "/dria/0/default-waku/proto".to_string();
-        assert_eq!(create_content_topic(topic), expected);
+        assert_eq!(WakuMessage::create_content_topic(topic), expected);
     }
 
     #[test]

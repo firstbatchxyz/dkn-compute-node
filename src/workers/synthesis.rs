@@ -1,12 +1,8 @@
 use crate::{
     compute::ollama::OllamaClient,
     node::DriaComputeNode,
-    utils::{
-        crypto::sha256hash,
-        filter::FilterPayload,
-        get_current_time_nanos,
-        message::{create_content_topic, WakuMessage},
-    },
+    utils::{crypto::sha256hash, filter::FilterPayload, get_current_time_nanos},
+    waku::message::WakuMessage,
 };
 use ecies::PublicKey;
 use libsecp256k1::Message;
@@ -39,14 +35,13 @@ pub fn synthesis_worker(
     mut node: DriaComputeNode,
     cancellation: CancellationToken,
 ) -> tokio::task::JoinHandle<()> {
-    let topic: String = create_content_topic(TOPIC);
     let sleep_amount = tokio::time::Duration::from_millis(SLEEP_MILLIS);
     let ollama = OllamaClient::default(); // TODO: read env
 
     tokio::spawn(async move {
-        match node.subscribe_topic(topic.clone()).await {
+        match node.subscribe_topic(TOPIC).await {
             Ok(_) => {
-                println!("Subscribed to {}", topic);
+                println!("Subscribed to {}", TOPIC);
             }
             Err(e) => {
                 println!("Error subscribing to {}", e);
@@ -55,7 +50,7 @@ pub fn synthesis_worker(
 
         loop {
             let mut tasks = Vec::new();
-            if let Ok(messages) = node.process_topic(topic.clone()).await {
+            if let Ok(messages) = node.process_topic(TOPIC).await {
                 println!("Synthesis tasks: {:?}", messages);
 
                 for message in messages {
@@ -79,17 +74,13 @@ pub fn synthesis_worker(
 
             for task in tasks {
                 // get prompt result from Ollama
-                let result = ollama
-                    .generate(task.prompt)
-                    .await
-                    .expect("TODO TODO")
-                    .response;
+                let llm_result = ollama.generate(task.prompt).await.expect("TODO TODO");
 
                 // create h||s||e payload
                 let payload = node
-                    .create_payload(result, &task.public_key.as_bytes())
+                    .create_payload(llm_result.response, &task.public_key.as_bytes())
                     .expect("TODO TODO");
-                let message = WakuMessage::new(String::from("sss"), &task.task_id, false);
+                let message = WakuMessage::new(String::from(payload), &task.task_id, false);
 
                 // send result to Waku network
                 node.waku
