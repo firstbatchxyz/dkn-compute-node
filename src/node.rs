@@ -1,5 +1,3 @@
-use std::future::Future;
-
 use ecies::encrypt;
 use fastbloom_rs::{BloomFilter, Membership};
 use libsecp256k1::{sign, verify, Message, RecoveryId, Signature};
@@ -83,8 +81,7 @@ impl DriaComputeNode {
         let recid: [u8; 1] = [recid.serialize()];
 
         // encrypt result
-        let ciphertext: Vec<u8> =
-            encrypt(task_pubkey, result.as_ref()).expect("Could not encrypt.");
+        let ciphertext = encrypt(task_pubkey, result.as_ref()).expect("Could not encrypt.");
 
         // concat `signature_bytes` and `digest_bytes`
         let mut preimage = Vec::new();
@@ -114,13 +111,10 @@ impl DriaComputeNode {
 
     /// Processes messages in a topic with a handler.
     ///
-    /// The handler takes in a reference to this compute node, along with the messages read for that topic.
-    /// Upon handling, it will return something generic of type `T`.
-    pub async fn process_topic<T: Send + Sync>(
+    pub async fn process_topic(
         &self,
         topic: String,
-        mut handler: impl FnMut(&Self, Vec<WakuMessage>) -> T,
-    ) -> Result<T, Box<dyn std::error::Error>> {
+    ) -> Result<Vec<WakuMessage>, Box<dyn std::error::Error>> {
         let mut messages: Vec<WakuMessage> = self.waku.relay.get_messages(topic.as_str()).await?;
 
         // only keep messages that are authentic to Dria
@@ -149,6 +143,6 @@ impl DriaComputeNode {
             })
             .collect();
 
-        Ok(handler(self, messages))
+        Ok(messages)
     }
 }

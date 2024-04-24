@@ -10,7 +10,7 @@ use ollama_rs::{
 };
 
 #[allow(non_camel_case_types)]
-#[derive(Default, Debug)]
+#[derive(Default, Clone, Debug)]
 pub enum OllamaModel {
     #[default]
     Mistral, /////////// 7B 4.1GB ollama run mistral
@@ -57,6 +57,7 @@ impl From<&OllamaModel> for String {
 }
 
 /// A wrapper for the Ollama API.
+#[derive(Debug, Clone)]
 pub struct OllamaClient {
     client: Ollama,
     model: OllamaModel,

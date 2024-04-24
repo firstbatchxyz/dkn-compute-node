@@ -13,6 +13,8 @@ use libsecp256k1::Message;
 use ollama_rs::Ollama;
 use serde::{Deserialize, Serialize};
 use tokio::time;
+use tokio_graceful_shutdown::errors::CancelledByShutdown;
+use tokio_util::sync::CancellationToken;
 
 const TOPIC: &str = "synthesis";
 const SLEEP_MILLIS: u64 = 500;
@@ -33,7 +35,10 @@ struct SynthesisPayload {
     public_key: String,
 }
 
-pub fn synthesis_worker(mut node: DriaComputeNode) -> tokio::task::JoinHandle<()> {
+pub fn synthesis_worker(
+    mut node: DriaComputeNode,
+    cancellation: CancellationToken,
+) -> tokio::task::JoinHandle<()> {
     let topic: String = create_content_topic(TOPIC);
     let sleep_amount = tokio::time::Duration::from_millis(SLEEP_MILLIS);
     let ollama = OllamaClient::default(); // TODO: read env
@@ -50,40 +55,25 @@ pub fn synthesis_worker(mut node: DriaComputeNode) -> tokio::task::JoinHandle<()
 
         loop {
             let mut tasks = Vec::new();
+            if let Ok(messages) = node.process_topic(topic.clone()).await {
+                println!("Synthesis tasks: {:?}", messages);
 
-            match node
-                .process_topic(topic.clone(), |_, messages| {
-                    println!("Synthesis tasks: {:?}", messages);
+                for message in messages {
+                    let task = message
+                        .parse_payload::<SynthesisPayload>()
+                        .expect("TODO TODO"); // TODO: error handling
 
-                    // TODO: can we parallelize all LLM requests here?
-                    let mut tasks = Vec::new();
-                    for message in messages {
-                        let task = message
-                            .parse_payload::<SynthesisPayload>()
-                            .expect("TODO TODO"); // TODO: error handling
-
-                        // check deadline
-                        if get_current_time_nanos() >= task.deadline.clone() {
-                            continue;
-                        }
-
-                        // check task inclusion
-                        if !node.is_tasked(task.filter.clone()) {
-                            continue;
-                        }
-
-                        tasks.push(task);
+                    // check deadline
+                    if get_current_time_nanos() >= task.deadline.clone() {
+                        continue;
                     }
 
-                    tasks
-                })
-                .await
-            {
-                Ok(tasks_) => {
-                    tasks = tasks_;
-                }
-                Err(error) => {
-                    println!("Error processing heartbeat: {:?}", error);
+                    // check task inclusion
+                    if !node.is_tasked(task.filter.clone()) {
+                        continue;
+                    }
+
+                    tasks.push(task);
                 }
             }
 
@@ -99,7 +89,7 @@ pub fn synthesis_worker(mut node: DriaComputeNode) -> tokio::task::JoinHandle<()
                 let payload = node
                     .create_payload(result, &task.public_key.as_bytes())
                     .expect("TODO TODO");
-                let message = WakuMessage::new(String::from(payload), &task.task_id, false);
+                let message = WakuMessage::new(String::from("sss"), &task.task_id, false);
 
                 // send result to Waku network
                 node.waku

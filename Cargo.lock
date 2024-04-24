@@ -380,6 +380,7 @@ dependencies = [
  "sha3",
  "tokio",
  "tokio-graceful-shutdown",
+ "tokio-util",
  "url",
  "urlencoding",
 ]
