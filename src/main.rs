@@ -1,8 +1,6 @@
-use dria_compute_node::{
-    config::DriaComputeNodeConfig,
-    node::DriaComputeNode,
-    workers::{heartbeat::heartbeat_worker, synthesis::synthesis_worker},
-};
+#[allow(unused)]
+use dria_compute_node::workers::{heartbeat::heartbeat_worker, synthesis::synthesis_worker};
+use dria_compute_node::{config::DriaComputeNodeConfig, node::DriaComputeNode};
 use tokio_util::sync::CancellationToken;
 
 #[tokio::main]
@@ -20,7 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match tokio::signal::ctrl_c().await {
         Ok(()) => {
-            println!("Received CTRL+C, stopping workers.");
+            println!("\nReceived CTRL+C, stopping workers.");
             cancellation.cancel();
         }
         Err(err) => {

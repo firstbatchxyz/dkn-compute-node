@@ -9,7 +9,6 @@ use libsecp256k1::Message;
 use ollama_rs::Ollama;
 use serde::{Deserialize, Serialize};
 use tokio::time;
-use tokio_graceful_shutdown::errors::CancelledByShutdown;
 use tokio_util::sync::CancellationToken;
 
 const TOPIC: &str = "synthesis";

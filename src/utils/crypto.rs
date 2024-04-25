@@ -16,14 +16,9 @@ pub fn keccak256hash(data: impl AsRef<[u8]>) -> [u8; 32] {
 
 /// Given a secp256k1 public key, finds the corresponding Ethereum address.
 pub fn to_address(public_key: &PublicKey) -> [u8; 20] {
-    // hash the public key (x,y)
-    let public_key = public_key.serialize();
-    let hash = keccak256hash(public_key.split_at(1).1);
-
-    // get last 20 bytes
-    let mut address = [0u8; 20];
-    address.copy_from_slice(&hash[12..]);
-    address
+    keccak256hash(&public_key.serialize()[1..])[12..32]
+        .try_into()
+        .unwrap() // guaranteed to be 20 bytes
 }
 
 #[cfg(test)]

@@ -6,11 +6,11 @@ use tokio_util::sync::CancellationToken;
 const TOPIC: &str = "heartbeat";
 const SLEEP_MILLIS: u64 = 500;
 
-/// Heartbeat Payload contains just the `uuid` as a string.
-/// This uuid can be used as the content topic to respond with a signature for that heartbeat.
+/// Heartbeat Payload
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct HeartbeatPayload {
     uuid: String,
+    deadline: u128,
 }
 
 pub fn heartbeat_worker(

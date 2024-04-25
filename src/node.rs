@@ -101,8 +101,6 @@ impl DriaComputeNode {
         self.waku.relay.subscribe(topic).await
     }
 
-    /// Processes messages in a topic with a handler.
-    ///
     pub async fn process_topic(
         &self,
         topic: &str,
@@ -121,8 +119,7 @@ impl DriaComputeNode {
         let messages = messages
             .into_iter()
             .map(|mut message| {
-                // TODO: map to typed message maybe?
-                message.payload = message.payload[130..].to_string();
+                message.payload = message.payload[132..].to_string();
                 return message;
             })
             .collect();
