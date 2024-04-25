@@ -108,29 +108,21 @@ impl DriaComputeNode {
         topic: &str,
     ) -> Result<Vec<WakuMessage>, Box<dyn std::error::Error>> {
         let mut messages: Vec<WakuMessage> = self.waku.relay.get_messages(topic).await?;
+        println!("ALL {}\n{:?}", topic, messages);
 
         // only keep messages that are authentic to Dria
         messages.retain(|message| {
-            let (signature, rest) = message.payload.split_at(65);
-            let (signature, _) = signature.split_at(1);
-            let signature = Signature::parse_standard_slice(signature.as_bytes());
-            match signature {
-                // signature could be parsed, return its verification result
-                Ok(signature) => verify(
-                    &Message::parse(&sha256hash(rest.as_bytes())),
-                    &signature,
-                    &self.config.DKN_ADMIN_PUBLIC_KEY,
-                ),
-                // signature could not be parsed
-                Err(_) => false,
-            }
+            message
+                .is_signed(&self.config.DKN_ADMIN_PUBLIC_KEY)
+                .expect("TODO TODO")
         });
 
         // map each message that is `signature || payload` into just the `payload`
         let messages = messages
             .into_iter()
             .map(|mut message| {
-                message.payload = message.payload[66..].to_string();
+                // TODO: map to typed message maybe?
+                message.payload = message.payload[130..].to_string();
                 return message;
             })
             .collect();

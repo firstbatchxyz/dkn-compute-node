@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 use std::borrow::BorrowMut;
 
 use crate::waku::BaseClient;
@@ -35,7 +33,7 @@ impl RelayClient {
         self.base
             .post("relay/v1/auto/messages", message)
             .await
-            .map_err(|err| Box::new(err) as Box<dyn std::error::Error + Send>);
+            .map_err(|err| Box::new(err) as Box<dyn std::error::Error + Send>)?;
 
         Ok(())
     }
@@ -55,15 +53,14 @@ impl RelayClient {
             .await?;
 
         let msgs = res.json().await?;
-
+        println!("SUCCESFULL: {:?}", msgs);
         Ok(msgs)
     }
 
     /// Subscribe to a topic.
     pub async fn subscribe(&self, topic: &str) -> Result<(), Box<dyn std::error::Error>> {
         let content_topic = WakuMessage::create_content_topic(topic);
-        let res = self
-            .base
+        self.base
             .post(
                 "relay/v1/auto/subscriptions",
                 serde_json::json!(vec![content_topic]),

@@ -1,11 +1,9 @@
-#![allow(unused)]
-
 pub mod base;
 pub mod message;
 pub mod relay;
 pub mod store;
 
-use crate::config::{defaults::DEFAULT_DKN_WAKU_URL, DriaComputeNodeConfig};
+use crate::config::DriaComputeNodeConfig;
 
 use self::{base::BaseClient, relay::RelayClient, store::StoreClient};
 use serde::{Deserialize, Serialize};

@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use crate::utils::convert_to_query_params;
 
+/// A wrapper for GET, POST and DELETE requests.
 #[derive(Debug, Clone)]
 pub struct BaseClient {
     base_url: String,
@@ -33,7 +34,7 @@ impl BaseClient {
             full_url.push_str(&format!("?{}", query_string));
         }
 
-        dbg!(full_url.clone());
+        // dbg!(full_url.clone());
         let res = self
             .client
             .get(&full_url)
@@ -41,6 +42,7 @@ impl BaseClient {
             .send()
             .await?;
 
+        // println!("{:?}", res);
         res.error_for_status()
     }
 

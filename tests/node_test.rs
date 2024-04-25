@@ -4,6 +4,7 @@ use dria_compute_node::{
         crypto::{sha256hash, to_address},
         filter::FilterPayload,
     },
+    waku::message::WakuMessage,
 };
 use ecies::decrypt;
 use fastbloom_rs::{FilterBuilder, Membership};

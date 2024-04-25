@@ -20,10 +20,6 @@ pub struct DriaComputeNodeConfig {
     pub DKN_WALLET_ADDRESS: [u8; 20],
     /// Admin public key, used for message authenticity.
     pub DKN_ADMIN_PUBLIC_KEY: PublicKey,
-    /// Ollama container host.
-    pub DKN_OLLAMA_HOST: String,
-    /// Ollama container port.
-    pub DKN_OLLAMA_PORT: u16,
 }
 
 impl DriaComputeNodeConfig {
@@ -60,13 +56,6 @@ impl DriaComputeNodeConfig {
             DKN_WALLET_SECRET_KEY: secret_key,
             DKN_WALLET_PUBLIC_KEY: public_key,
             DKN_WALLET_ADDRESS: address,
-
-            DKN_OLLAMA_HOST: env::var("DKN_OLLAMA_HOST")
-                .unwrap_or(DEFAULT_DKN_OLLAMA_HOST.to_string()),
-            DKN_OLLAMA_PORT: env::var("DKN_OLLAMA_PORT")
-                .unwrap_or(DEFAULT_DKN_OLLAMA_PORT.to_string())
-                .parse::<u16>()
-                .expect("Could not parse port."),
         }
     }
 }

@@ -6,7 +6,7 @@ license = "Apache-2.0"
 readme = "README.md"
 
 [features]
-default = ["waku_test", "ollama_test"]
+default = ["waku_test"] #, "ollama_test"]
 waku_test = []
 ollama_test = []
 

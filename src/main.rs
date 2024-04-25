@@ -16,7 +16,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut join_handles = Vec::new();
     join_handles.push(heartbeat_worker(node.clone(), cancellation.clone()));
-    join_handles.push(synthesis_worker(node.clone(), cancellation.clone()));
+    // join_handles.push(synthesis_worker(node.clone(), cancellation.clone()));
 
     match tokio::signal::ctrl_c().await {
         Ok(()) => {

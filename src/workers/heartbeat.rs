@@ -30,41 +30,65 @@ pub fn heartbeat_worker(
         }
 
         loop {
-            // tokio::select! {
-            //         // Step 3: Using cloned token to listen to cancellation requests
-            //     _ = cancellation.cancelled() => {
-            //         // The token was cancelled, task can shut down
-            //     }
-            //     _ = tokio::time::sleep(std::time::Duration::from_secs(9999)) => {
-            //         // Long work has completed
-            //     }
-            // }
-            let mut msg_to_send: Option<WakuMessage> = None;
-            if let Ok(messages) = node.process_topic(TOPIC).await {
-                println!("Heartbeats: {:?}", messages);
+            tokio::select! {
+                _ = cancellation.cancelled() => { break; }
+                _ = tokio::time::sleep(sleep_amount) => {
+                    let mut msg_to_send: Option<WakuMessage> = None;
+                    if let Ok(messages) = node.process_topic(TOPIC).await {
+                        // println!("Heartbeats: {:?}", messages);
 
-                // we only care about the latest heartbeat
-                if let Some(message) = messages.last() {
-                    let uuid = message
-                        .parse_payload::<HeartbeatPayload>()
-                        .expect("TODO TODO") // TODO: error handling
-                        .uuid;
-                    let signature = node.sign_bytes(&sha256hash(uuid.as_bytes()));
+                        // we only care about the latest heartbeat
+                        if let Some(message) = messages.last() {
+                            println!("HB MESSAGE: {:?}", message);
 
-                    msg_to_send = Some(WakuMessage::new(signature, &uuid, false));
+                            let uuid = message
+                                .parse_payload::<HeartbeatPayload>()
+                                .expect("TODO TODO") // TODO: error handling
+                                .uuid;
+                            let signature = node.sign_bytes(&sha256hash(uuid.as_bytes()));
+
+                            msg_to_send = Some(WakuMessage::new(signature, &uuid));
+                        }
+                    }
+
+                    // send message
+                    if let Some(message) = msg_to_send {
+                        node.waku
+                            .relay
+                            .send_message(message)
+                            .await
+                            .expect("TODO TODO");
+                    }
                 }
             }
 
-            // send message
-            if let Some(message) = msg_to_send {
-                node.waku
-                    .relay
-                    .send_message(message)
-                    .await
-                    .expect("TODO TODO");
-            }
-
-            tokio::time::sleep(sleep_amount).await;
+            // tokio::time::sleep(sleep_amount).await;
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use ecies::PublicKey;
+    use libsecp256k1::PublicKeyFormat;
+
+    use crate::{
+        config::defaults::DEFAULT_DKN_ADMIN_PUBLIC_KEY, waku::message::WakuMessage,
+        workers::heartbeat::HeartbeatPayload,
+    };
+
+    #[test]
+    fn test_raw_heartbeat() {
+        let message = serde_json::from_str::<WakuMessage>("{ \"payload\": \"ODI3NTEzYzU4NDIzNWI2ZDQ3MTAwZDUxOTViMTc2ZDk3MTNlZTMyOGU0ZmQ5Yjg2ODU0OTBhYTViNTZmNDVmNDM5OTkwNTg4MTU4YTU1YzFhMDRiNjVhMTEyZDJlZTQxNWMyMzllNjg4ZGViMDY3NmMwYWU2NjU3ZmM0ODlmZWYwMHsidXVpZCI6ICIxMjg5MjZjZC05NGEyLTQxNjMtYWVjMC1mNTIyZDZlMjA2N2MifQ==\", \"contentTopic\": \"/dria/0/heartbeat/proto\"}").expect("Could not parse");
+        let public_key = PublicKey::parse_slice(
+            hex::decode(DEFAULT_DKN_ADMIN_PUBLIC_KEY.to_string())
+                .unwrap()
+                .as_slice(),
+            Some(PublicKeyFormat::Compressed),
+        )
+        .unwrap();
+
+        let parsed = message.parse_signed_payload::<HeartbeatPayload>(&public_key);
+        assert!(parsed.is_ok());
+    }
 }

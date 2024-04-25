@@ -1,6 +1,5 @@
 use std::borrow::Borrow;
 
-use crate::config::defaults::{DEFAULT_DKN_OLLAMA_HOST, DEFAULT_DKN_OLLAMA_PORT};
 use log::info;
 use ollama_rs::{
     error::OllamaError,
@@ -8,6 +7,9 @@ use ollama_rs::{
     models::pull::PullModelStatus,
     Ollama,
 };
+
+pub const DEFAULT_DKN_OLLAMA_HOST: &str = "http://127.0.0.1";
+pub const DEFAULT_DKN_OLLAMA_PORT: u16 = 11434;
 
 #[allow(non_camel_case_types)]
 #[derive(Default, Clone, Debug)]
@@ -66,25 +68,23 @@ pub struct OllamaClient {
 impl Default for OllamaClient {
     fn default() -> Self {
         Self::new(
-            DEFAULT_DKN_OLLAMA_HOST.to_string(),
-            DEFAULT_DKN_OLLAMA_PORT.parse().unwrap(),
+            DEFAULT_DKN_OLLAMA_HOST,
+            DEFAULT_DKN_OLLAMA_PORT,
             OllamaModel::default(),
         )
     }
 }
 
 impl OllamaClient {
-    pub fn new(host: String, port: u16, model: OllamaModel) -> Self {
-        let client = Ollama::new(host, port);
-        Self { client, model }
+    pub fn new(host: &str, port: u16, model: OllamaModel) -> Self {
+        Self {
+            client: Ollama::new(host.to_string(), port),
+            model,
+        }
     }
 
     pub fn default_with_model(model: OllamaModel) -> Self {
-        Self::new(
-            DEFAULT_DKN_OLLAMA_HOST.to_string(),
-            DEFAULT_DKN_OLLAMA_PORT.parse().unwrap(),
-            model,
-        )
+        Self::new(DEFAULT_DKN_OLLAMA_HOST, DEFAULT_DKN_OLLAMA_PORT, model)
     }
 
     /// Pulls the configured model.

@@ -49,48 +49,51 @@ pub fn synthesis_worker(
         }
 
         loop {
-            let mut tasks = Vec::new();
-            if let Ok(messages) = node.process_topic(TOPIC).await {
-                println!("Synthesis tasks: {:?}", messages);
+            tokio::select! {
+                _ = cancellation.cancelled() => { break; }
+                _ = tokio::time::sleep(sleep_amount) => {
+                    let mut tasks = Vec::new();
+                    if let Ok(messages) = node.process_topic(TOPIC).await {
+                        println!("Synthesis tasks: {:?}", messages);
 
-                for message in messages {
-                    let task = message
-                        .parse_payload::<SynthesisPayload>()
-                        .expect("TODO TODO"); // TODO: error handling
+                        for message in messages {
+                            let task = message
+                                .parse_payload::<SynthesisPayload>()
+                                .expect("TODO TODO"); // TODO: error handling
 
-                    // check deadline
-                    if get_current_time_nanos() >= task.deadline.clone() {
-                        continue;
+                            // check deadline
+                            if get_current_time_nanos() >= task.deadline.clone() {
+                                continue;
+                            }
+
+                            // check task inclusion
+                            if !node.is_tasked(task.filter.clone()) {
+                                continue;
+                            }
+
+                            tasks.push(task);
+                        }
                     }
 
-                    // check task inclusion
-                    if !node.is_tasked(task.filter.clone()) {
-                        continue;
-                    }
+                    for task in tasks {
+                        // get prompt result from Ollama
+                        let llm_result = ollama.generate(task.prompt).await.expect("TODO TODO");
 
-                    tasks.push(task);
+                        // create h||s||e payload
+                        let payload = node
+                            .create_payload(llm_result.response, &task.public_key.as_bytes())
+                            .expect("TODO TODO");
+                        let message = WakuMessage::new(String::from(payload), &task.task_id);
+
+                        // send result to Waku network
+                        node.waku
+                            .relay
+                            .send_message(message)
+                            .await
+                            .expect("TODO TODO");
+                    }
                 }
             }
-
-            for task in tasks {
-                // get prompt result from Ollama
-                let llm_result = ollama.generate(task.prompt).await.expect("TODO TODO");
-
-                // create h||s||e payload
-                let payload = node
-                    .create_payload(llm_result.response, &task.public_key.as_bytes())
-                    .expect("TODO TODO");
-                let message = WakuMessage::new(String::from(payload), &task.task_id, false);
-
-                // send result to Waku network
-                node.waku
-                    .relay
-                    .send_message(message)
-                    .await
-                    .expect("TODO TODO");
-            }
-
-            tokio::time::sleep(sleep_amount).await;
         }
     })
 }
