@@ -59,7 +59,6 @@ pub fn heartbeat_worker(
 
                     // send message
                     if let Some(message) = msg_to_send {
-                        log::info!("Sending response: {:?}", message);
                         node.waku
                             .relay
                             .send_message(message)

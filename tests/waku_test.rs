@@ -1,6 +1,6 @@
 #[cfg(feature = "waku_test")]
 mod waku_tests {
-    use dria_compute_node::waku::{message::WakuMessage, WakuClient};
+    use dkn_compute::waku::WakuClient;
 
     #[tokio::test]
     async fn test_version() {

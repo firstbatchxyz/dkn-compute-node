@@ -30,6 +30,7 @@ impl RelayClient {
         message: WakuMessage,
     ) -> Result<(), Box<dyn std::error::Error + Send>> {
         let message = serde_json::json!(message);
+        log::info!("Sending message:\n{:?}", message);
         self.base
             .post("relay/v1/auto/messages", message)
             .await

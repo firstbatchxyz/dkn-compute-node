@@ -26,7 +26,10 @@ Using a single Docker Compose file, we have prepared the entire setup, with nece
 You can run the processes at a set log level:
 
 ```sh
-RUST_LOG=info cargo run
+RUST_LOG==info cargo run
+
+# or debug log only this code
+RUST_LOG=none,dkn_compute=info cargo run
 ```
 
 ## Testing

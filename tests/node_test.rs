@@ -1,4 +1,4 @@
-use dria_compute_node::{
+use dkn_compute::{
     node::DriaComputeNode,
     utils::{
         crypto::{sha256hash, to_address},

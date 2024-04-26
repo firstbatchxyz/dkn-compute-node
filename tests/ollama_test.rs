@@ -1,6 +1,6 @@
 #[cfg(feature = "ollama_test")]
 mod ollama_tests {
-    use dria_compute_node::compute::ollama::{OllamaClient, OllamaModel};
+    use dkn_compute::compute::ollama::{OllamaClient, OllamaModel};
 
     #[tokio::test]
     async fn test_ollama_prompt() {

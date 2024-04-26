@@ -1,6 +1,6 @@
 #[allow(unused)]
-use dria_compute_node::workers::{heartbeat::heartbeat_worker, synthesis::synthesis_worker};
-use dria_compute_node::{config::DriaComputeNodeConfig, node::DriaComputeNode};
+use dkn_compute::workers::{heartbeat::heartbeat_worker, synthesis::synthesis_worker};
+use dkn_compute::{config::DriaComputeNodeConfig, node::DriaComputeNode};
 use tokio_util::sync::CancellationToken;
 
 #[tokio::main]
