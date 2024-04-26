@@ -39,7 +39,7 @@ impl WakuMessage {
     pub fn new(payload: impl AsRef<[u8]>, topic: &str) -> Self {
         WakuMessage {
             payload: BASE64_STANDARD.encode(payload),
-            content_topic: Self::create_content_topic(topic),
+            content_topic: Self::create_content_topic(topic).to_string(),
             version: WAKU_ENC_VERSION,
             timestamp: get_current_time_nanos(),
             ephemeral: false,
@@ -84,7 +84,7 @@ impl WakuMessage {
 
         // verify signature
         let digest = libsecp256k1::Message::parse(&sha256hash(body));
-        Ok(libsecp256k1::verify(&digest, &signature, &public_key))
+        Ok(libsecp256k1::verify(&digest, &signature, public_key))
     }
 
     /// A [Content Topic](https://docs.waku.org/learn/concepts/content-topics) is represented as a string with the form:

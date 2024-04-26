@@ -4,7 +4,7 @@ use dkn_compute::{
         crypto::{sha256hash, to_address},
         filter::FilterPayload,
     },
-    waku::message::WakuMessage,
+    waku::message::{self, WakuMessage},
 };
 use ecies::decrypt;
 use fastbloom_rs::{FilterBuilder, Membership};
@@ -102,4 +102,28 @@ fn test_heartbeat_and_task_assignment() {
 
     // compute node receives the filter and checks if it is tasked
     assert!(node.is_tasked(filter_payload), "Node should be tasked.");
+}
+
+/// This test sends a message to Waku, sleeps a bit, and then receives it.
+///
+/// The topic is subscribe at the start, and is unsubscribed at the end.
+#[tokio::test]
+async fn test_message_send_and_receive() {
+    let _ = env_logger::try_init();
+
+    let node = DriaComputeNode::default();
+    let topic = "test-topic-msr";
+
+    node.subscribe_topic(topic)
+        .await
+        .expect("Could not subscribe.");
+
+    let message = WakuMessage::new("hello world".to_string(), topic);
+
+    node.send_message(message).await.unwrap();
+
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+
+    let messages = node.process_topic(topic, false).await.unwrap();
+    println!("Received messages: {:?}", messages);
 }

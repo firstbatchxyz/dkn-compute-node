@@ -3,7 +3,7 @@ pub mod message;
 pub mod relay;
 pub mod store;
 
-use crate::config::DriaComputeNodeConfig;
+use crate::config::defaults::DEFAULT_DKN_WAKU_URL;
 
 use self::{base::BaseClient, relay::RelayClient, store::StoreClient};
 use serde::{Deserialize, Serialize};
@@ -18,7 +18,7 @@ pub struct WakuClient {
 
 impl Default for WakuClient {
     fn default() -> Self {
-        WakuClient::new(&DriaComputeNodeConfig::default().DKN_WAKU_URL)
+        WakuClient::new(DEFAULT_DKN_WAKU_URL)
     }
 }
 
@@ -62,21 +62,22 @@ impl WakuClient {
 }
 
 /// Debug information response.
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct InfoResponse {
     pub listen_addresses: Vec<String>,
     pub enr_uri: String,
 }
 
 /// Peer information.
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct PeerInfo {
-    pub multi_addr: String,
+    pub multiaddr: String,
     pub protocols: Vec<ProtocolInfo>,
 }
 
 /// Protocol information.
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ProtocolInfo {
     pub protocol: String,
     pub connected: bool,

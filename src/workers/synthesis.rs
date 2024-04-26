@@ -33,7 +33,7 @@ struct SynthesisPayload {
 }
 
 pub fn synthesis_worker(
-    mut node: DriaComputeNode,
+    node: DriaComputeNode,
     cancellation: CancellationToken,
 ) -> tokio::task::JoinHandle<()> {
     let sleep_amount = tokio::time::Duration::from_millis(SLEEP_MILLIS);
@@ -63,7 +63,7 @@ pub fn synthesis_worker(
                                 .expect("TODO TODO");
 
                             // check deadline
-                            if get_current_time_nanos() >= task.deadline.clone() {
+                            if get_current_time_nanos() >= task.deadline {
                                 continue;
                             }
 
@@ -82,7 +82,7 @@ pub fn synthesis_worker(
 
                         // create h||s||e payload
                         let payload = node
-                            .create_payload(llm_result.response, &task.public_key.as_bytes())
+                            .create_payload(llm_result.response, task.public_key.as_bytes())
                             .expect("TODO TODO");
                         let message = WakuMessage::new(String::from(payload), &task.task_id);
 

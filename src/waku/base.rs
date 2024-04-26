@@ -1,8 +1,6 @@
 use reqwest::Client;
 use std::collections::HashMap;
 
-use crate::utils::convert_to_query_params;
-
 /// A wrapper for GET, POST and DELETE requests.
 #[derive(Debug, Clone)]
 pub struct BaseClient {
@@ -84,5 +82,28 @@ impl BaseClient {
             .await?;
 
         res.error_for_status()
+    }
+}
+
+#[inline]
+fn convert_to_query_params(params: HashMap<String, String>) -> String {
+    url::form_urlencoded::Serializer::new(String::new())
+        .extend_pairs(params)
+        .finish()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_convert_to_query_params() {
+        let mut params = HashMap::new();
+        params.insert("key1".to_string(), "v_a lue/1".to_string());
+        // we could test with multiple keys as well, but the ordering of parameters
+        // may change sometimes which causes the test to fail randomly
+
+        let expected = "key1=v_a+lue%2F1".to_string();
+        assert_eq!(convert_to_query_params(params), expected);
     }
 }

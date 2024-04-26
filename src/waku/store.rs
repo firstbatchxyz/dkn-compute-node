@@ -42,13 +42,14 @@ impl StoreClient {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 struct StoreResponse {
     messages: Vec<WakuMessage>,
     cursor: Cursor,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 struct Cursor {
     pubsub_topic: String,
     sender_time: u128,
@@ -56,7 +57,7 @@ struct Cursor {
     digest: Digest,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 struct Digest {
     data: String,
 }
