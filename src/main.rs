@@ -5,17 +5,22 @@ use tokio_util::sync::CancellationToken;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    env_logger::init();
+    env_logger::builder()
+        // setting this to None disables the timestamp
+        .format_timestamp(Some(env_logger::TimestampPrecision::Millis))
+        .init();
 
     let node = DriaComputeNode::new(DriaComputeNodeConfig::new());
     log::info!("Address: 0x{}", hex::encode(node.address()));
 
     let cancellation = CancellationToken::new();
-
     let mut join_handles = Vec::new();
-    join_handles.push(heartbeat_worker(node.clone(), cancellation.clone()));
-    // join_handles.push(synthesis_worker(node.clone(), cancellation.clone()));
 
+    #[cfg(feature = "heartbeat")]
+    join_handles.push(heartbeat_worker(node.clone(), cancellation.clone()));
+
+    #[cfg(feature = "synthesis")]
+    // join_handles.push(synthesis_worker(node.clone(), cancellation.clone()));
     match tokio::signal::ctrl_c().await {
         Ok(()) => {
             println!("\nReceived CTRL+C, stopping workers.");

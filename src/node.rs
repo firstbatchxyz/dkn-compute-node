@@ -104,25 +104,19 @@ impl DriaComputeNode {
     pub async fn process_topic(
         &self,
         topic: &str,
+        signed: bool,
     ) -> Result<Vec<WakuMessage>, Box<dyn std::error::Error>> {
         let mut messages: Vec<WakuMessage> = self.waku.relay.get_messages(topic).await?;
-        println!("ALL {}\n{:?}", topic, messages);
+        log::info!("All {} messages:\n{:?}", topic, messages);
 
-        // only keep messages that are authentic to Dria
-        messages.retain(|message| {
-            message
-                .is_signed(&self.config.DKN_ADMIN_PUBLIC_KEY)
-                .expect("TODO TODO")
-        });
-
-        // map each message that is `signature || payload` into just the `payload`
-        let messages = messages
-            .into_iter()
-            .map(|mut message| {
-                message.payload = message.payload[132..].to_string();
-                return message;
-            })
-            .collect();
+        if signed {
+            // only keep messages that are authentic to Dria
+            messages.retain(|message| {
+                message
+                    .is_signed(&self.config.DKN_ADMIN_PUBLIC_KEY)
+                    .expect("TODO TODO")
+            });
+        }
 
         Ok(messages)
     }

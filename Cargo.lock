@@ -330,9 +330,11 @@ dependencies = [
  "env_logger",
  "fastbloom-rs",
  "hex",
+ "hex-literal",
  "libsecp256k1",
  "log",
  "ollama-rs",
+ "rand 0.8.5",
  "reqwest 0.12.3",
  "serde",
  "serde_json",
@@ -608,6 +610,12 @@ name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+
+[[package]]
+name = "hex-literal"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6fe2267d4ed49bc07b63801559be28c718ea06c4738b7a03c94df7386d2cde46"
 
 [[package]]
 name = "hkdf"

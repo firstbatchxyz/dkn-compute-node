@@ -1,14 +1,10 @@
 use crate::{
     compute::ollama::OllamaClient,
     node::DriaComputeNode,
-    utils::{crypto::sha256hash, filter::FilterPayload, get_current_time_nanos},
+    utils::{filter::FilterPayload, get_current_time_nanos},
     waku::message::WakuMessage,
 };
-use ecies::PublicKey;
-use libsecp256k1::Message;
-use ollama_rs::Ollama;
 use serde::{Deserialize, Serialize};
-use tokio::time;
 use tokio_util::sync::CancellationToken;
 
 const TOPIC: &str = "synthesis";
@@ -20,6 +16,12 @@ const SLEEP_MILLIS: u64 = 500;
 /// hence creating synthetic data.
 ///
 /// ## Fields
+///
+/// - `task_id`: The unique identifier of the task.
+/// - `deadline`: The deadline of the task in nanoseconds.
+/// - `prompt`: The prompt to be given to the LLM.
+/// - `filter`: The filter of the task.
+/// - `public_key`: The public key of the requester.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 struct SynthesisPayload {
@@ -40,10 +42,10 @@ pub fn synthesis_worker(
     tokio::spawn(async move {
         match node.subscribe_topic(TOPIC).await {
             Ok(_) => {
-                println!("Subscribed to {}", TOPIC);
+                log::info!("Subscribed to {}", TOPIC);
             }
             Err(e) => {
-                println!("Error subscribing to {}", e);
+                log::error!("Error subscribing to {}", e);
             }
         }
 
@@ -52,13 +54,13 @@ pub fn synthesis_worker(
                 _ = cancellation.cancelled() => { break; }
                 _ = tokio::time::sleep(sleep_amount) => {
                     let mut tasks = Vec::new();
-                    if let Ok(messages) = node.process_topic(TOPIC).await {
+                    if let Ok(messages) = node.process_topic(TOPIC, true).await {
                         println!("Synthesis tasks: {:?}", messages);
 
                         for message in messages {
                             let task = message
-                                .parse_payload::<SynthesisPayload>()
-                                .expect("TODO TODO"); // TODO: error handling
+                                .parse_payload::<SynthesisPayload>(true)
+                                .expect("TODO TODO");
 
                             // check deadline
                             if get_current_time_nanos() >= task.deadline.clone() {

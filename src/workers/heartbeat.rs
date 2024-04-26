@@ -4,9 +4,13 @@ use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
 const TOPIC: &str = "heartbeat";
-const SLEEP_MILLIS: u64 = 500;
+const SLEEP_MILLIS: u64 = 1000;
 
-/// Heartbeat Payload
+/// # Heartbeat Payload
+///
+/// A heartbeat is a message sent by a node to indicate that it is alive. Dria nodes request
+/// a heartbeat with a unique identifier, and the requester node will sign the identifier and send the signature back to a topic
+/// identified with the `uuid`.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct HeartbeatPayload {
     uuid: String,
@@ -22,37 +26,40 @@ pub fn heartbeat_worker(
     tokio::spawn(async move {
         match node.subscribe_topic(TOPIC).await {
             Ok(_) => {
-                println!("Subscribed to {}", TOPIC);
+                log::info!("Subscribed to '{}'", TOPIC);
             }
             Err(e) => {
-                println!("Error subscribing to {}", e);
+                log::error!("Error subscribing to '{}'", e);
             }
         }
 
         loop {
             tokio::select! {
-                _ = cancellation.cancelled() => { break; }
+                _ = cancellation.cancelled() => {
+                    // TODO: maybe unsubscribe?
+                    break;
+                }
                 _ = tokio::time::sleep(sleep_amount) => {
                     let mut msg_to_send: Option<WakuMessage> = None;
-                    if let Ok(messages) = node.process_topic(TOPIC).await {
+                    if let Ok(messages) = node.process_topic(TOPIC, true).await {
                         // println!("Heartbeats: {:?}", messages);
 
                         // we only care about the latest heartbeat
                         if let Some(message) = messages.last() {
-                            println!("HB MESSAGE: {:?}", message);
+                            log::info!("Received: {:?}", message);
 
-                            let uuid = message
-                                .parse_payload::<HeartbeatPayload>()
-                                .expect("TODO TODO") // TODO: error handling
-                                .uuid;
-                            let signature = node.sign_bytes(&sha256hash(uuid.as_bytes()));
+                            let body = message
+                                .parse_payload::<HeartbeatPayload>(true)
+                                .expect("TODO TODO");
+                            let signature = node.sign_bytes(&sha256hash(body.uuid.as_bytes()));
 
-                            msg_to_send = Some(WakuMessage::new(signature, &uuid));
+                            msg_to_send = Some(WakuMessage::new(signature, &body.uuid));
                         }
                     }
 
                     // send message
                     if let Some(message) = msg_to_send {
+                        log::info!("Sending response: {:?}", message);
                         node.waku
                             .relay
                             .send_message(message)
@@ -61,34 +68,32 @@ pub fn heartbeat_worker(
                     }
                 }
             }
-
-            // tokio::time::sleep(sleep_amount).await;
         }
     })
 }
 
 #[cfg(test)]
 mod tests {
-    use ecies::PublicKey;
-    use libsecp256k1::PublicKeyFormat;
+    use crate::{config::defaults::DEFAULT_DKN_ADMIN_PUBLIC_KEY, waku::message::WakuMessage};
+    use ecies::SecretKey;
+    use libsecp256k1::PublicKey;
 
-    use crate::{
-        config::defaults::DEFAULT_DKN_ADMIN_PUBLIC_KEY, waku::message::WakuMessage,
-        workers::heartbeat::HeartbeatPayload,
-    };
+    use super::HeartbeatPayload;
 
     #[test]
-    fn test_raw_heartbeat() {
-        let message = serde_json::from_str::<WakuMessage>("{ \"payload\": \"ODI3NTEzYzU4NDIzNWI2ZDQ3MTAwZDUxOTViMTc2ZDk3MTNlZTMyOGU0ZmQ5Yjg2ODU0OTBhYTViNTZmNDVmNDM5OTkwNTg4MTU4YTU1YzFhMDRiNjVhMTEyZDJlZTQxNWMyMzllNjg4ZGViMDY3NmMwYWU2NjU3ZmM0ODlmZWYwMHsidXVpZCI6ICIxMjg5MjZjZC05NGEyLTQxNjMtYWVjMC1mNTIyZDZlMjA2N2MifQ==\", \"contentTopic\": \"/dria/0/heartbeat/proto\"}").expect("Could not parse");
-        let public_key = PublicKey::parse_slice(
-            hex::decode(DEFAULT_DKN_ADMIN_PUBLIC_KEY.to_string())
-                .unwrap()
-                .as_slice(),
-            Some(PublicKeyFormat::Compressed),
-        )
-        .unwrap();
+    fn test_heartbeat_payload() {
+        let pk = PublicKey::parse_compressed(DEFAULT_DKN_ADMIN_PUBLIC_KEY).unwrap();
+        let message = WakuMessage { 
+            payload: "Y2RmODcyNDlhY2U3YzQ2MDIzYzNkMzBhOTc4ZWY3NjViMWVhZDlmNWJhMDUyY2MxMmY0NzIzMjQyYjc0YmYyODFjMDA1MTdmMGYzM2VkNTgzMzk1YWUzMTY1ODQ3NWQyNDRlODAxYzAxZDE5MjYwMDM1MTRkNzEwMThmYTJkNjEwMXsidXVpZCI6ICI4MWE2M2EzNC05NmM2LTRlNWEtOTliNS02YjI3NGQ5ZGUxNzUiLCAiZGVhZGxpbmUiOiAxNzE0MTI4NzkyfQ==".to_string(), 
+            content_topic: "/dria/0/heartbeat/proto".to_string(), 
+            version: 0, 
+            timestamp: 1714129073557846272, 
+            ephemeral: false 
+        };
 
-        let parsed = message.parse_signed_payload::<HeartbeatPayload>(&public_key);
-        assert!(parsed.is_ok());
+        let obj = message.parse_payload::<HeartbeatPayload>(true);
+        println!("{:?}", obj);
+
+
     }
 }

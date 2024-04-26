@@ -1,4 +1,4 @@
-use std::borrow::Borrow;
+use std::{borrow::Borrow, env};
 
 use log::info;
 use ollama_rs::{
@@ -68,23 +68,46 @@ pub struct OllamaClient {
 impl Default for OllamaClient {
     fn default() -> Self {
         Self::new(
-            DEFAULT_DKN_OLLAMA_HOST,
-            DEFAULT_DKN_OLLAMA_PORT,
+            Some(DEFAULT_DKN_OLLAMA_HOST),
+            Some(DEFAULT_DKN_OLLAMA_PORT),
             OllamaModel::default(),
         )
     }
 }
 
 impl OllamaClient {
-    pub fn new(host: &str, port: u16, model: OllamaModel) -> Self {
+    /// Creates a new Ollama client.
+    ///
+    /// Reads `DKN_OLLAMA_HOST` and `DKN_OLLAMA_PORT` from the environment, and defaults if not provided.
+    pub fn new(host: Option<&str>, port: Option<u16>, model: OllamaModel) -> Self {
+        // let host = host.unwrap_or_else(|| {
+        //     env::var("DKN_OLLAMA_HOST")
+        //         .unwrap_or_else(|_| host.unwrap_or(DEFAULT_DKN_OLLAMA_HOST).to_string())
+        //         .as_str()
+        // });
+
+        let port = port.unwrap_or_else(|| {
+            env::var("DKN_OLLAMA_PORT")
+                .and_then(|port_str| {
+                    port_str
+                        .parse::<u16>()
+                        .map_err(|_| env::VarError::NotPresent)
+                })
+                .unwrap_or_else(|_| DEFAULT_DKN_OLLAMA_PORT)
+        });
+
         Self {
-            client: Ollama::new(host.to_string(), port),
+            client: Ollama::new(host.unwrap().to_string(), port),
             model,
         }
     }
 
     pub fn default_with_model(model: OllamaModel) -> Self {
-        Self::new(DEFAULT_DKN_OLLAMA_HOST, DEFAULT_DKN_OLLAMA_PORT, model)
+        Self::new(
+            Some(DEFAULT_DKN_OLLAMA_HOST),
+            Some(DEFAULT_DKN_OLLAMA_PORT),
+            model,
+        )
     }
 
     /// Pulls the configured model.

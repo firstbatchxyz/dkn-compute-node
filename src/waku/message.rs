@@ -22,11 +22,11 @@ pub struct WakuMessage {
     pub payload: String,
     pub content_topic: String,
     #[serde(default)]
-    version: u8,
+    pub version: u8,
     #[serde(default)]
-    timestamp: u128,
+    pub timestamp: u128,
     #[serde(default)]
-    ephemeral: bool,
+    pub ephemeral: bool,
 }
 
 impl WakuMessage {
@@ -52,12 +52,22 @@ impl WakuMessage {
     }
 
     /// Decodes and parses the payload into JSON.
-    pub fn parse_payload<T: for<'a> Deserialize<'a>>(&self) -> Result<T, serde_json::Error> {
+    pub fn parse_payload<T: for<'a> Deserialize<'a>>(
+        &self,
+        signed: bool,
+    ) -> Result<T, serde_json::Error> {
         let payload = self
             .decode_payload()
             .map_err(|err| serde_json::Error::custom(format!("Base64 decode failed: {}", err)))?;
 
-        serde_json::from_slice(&payload)
+        let body = if signed {
+            // skips the 65 byte hex signature
+            &payload[130..]
+        } else {
+            &payload[..]
+        };
+
+        serde_json::from_slice(body)
     }
 
     pub fn is_signed(&self, public_key: &PublicKey) -> Result<bool, serde_json::Error> {
@@ -67,49 +77,14 @@ impl WakuMessage {
             .map_err(|err| serde_json::Error::custom(format!("Base64 decode failed: {}", err)))?;
 
         // parse signature (64 bytes = 128 hex chars, although the full 65-byte RSV signature is given)
-        let signature = &payload[..128];
+        let (signature, body) = (&payload[..128], &payload[130..]);
         let signature = hex::decode(signature).expect("could not decode");
         let signature =
             libsecp256k1::Signature::parse_standard_slice(&signature).expect("could not parse");
 
-        // parse rest of the payload and find its digest for signature
-        let rest = &payload[130..];
-        let digest = libsecp256k1::Message::parse(&sha256hash(rest));
-
         // verify signature
+        let digest = libsecp256k1::Message::parse(&sha256hash(body));
         Ok(libsecp256k1::verify(&digest, &signature, &public_key))
-    }
-
-    /// Decodes and parses the payload into JSON.
-    ///
-    /// Internally, it does three things:
-    /// 1. Parse the signature (hex) and rest of the payload.
-    /// 2. Verify signature with hash of the rest.
-    /// 3. If pass, deserialize the rest.
-    pub fn parse_signed_payload<T: for<'a> Deserialize<'a>>(
-        &self,
-        public_key: &PublicKey,
-    ) -> Result<T, serde_json::Error> {
-        // decode base64 payload
-        let payload = self
-            .decode_payload()
-            .map_err(|err| serde_json::Error::custom(format!("Base64 decode failed: {}", err)))?;
-
-        // parse signature (64 bytes = 128 hex chars, although the full 65-byte RSV signature is given)
-        let signature = &payload[..128];
-        let signature = hex::decode(signature).expect("could not decode");
-        let signature =
-            libsecp256k1::Signature::parse_standard_slice(&signature).expect("could not parse");
-
-        // parse rest of the payload and find its digest for signature
-        let rest = &payload[130..];
-        let digest = libsecp256k1::Message::parse(&sha256hash(rest));
-
-        // verify signature
-        match libsecp256k1::verify(&digest, &signature, &public_key) {
-            true => serde_json::from_slice(rest),
-            false => Err(serde_json::Error::custom("Signature verification failed.")),
-        }
     }
 
     /// A [Content Topic](https://docs.waku.org/learn/concepts/content-topics) is represented as a string with the form:
@@ -132,41 +107,88 @@ impl WakuMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use libsecp256k1::{Message, SecretKey};
+    use rand::thread_rng;
     use serde_json::json;
+
+    #[derive(Serialize, Deserialize, PartialEq, Debug)]
+    struct TestStruct {
+        hello: String,
+    }
+
+    impl Default for TestStruct {
+        fn default() -> Self {
+            TestStruct {
+                hello: "world".to_string(),
+            }
+        }
+    }
+
+    const TOPIC: &str = "test-topic";
 
     #[test]
     fn test_create_content_topic() {
-        let topic = "default-waku";
-
-        let expected = "/dria/0/default-waku/proto".to_string();
-        assert_eq!(WakuMessage::create_content_topic(topic), expected);
+        let expected = "/dria/0/test-topic/proto".to_string();
+        assert_eq!(WakuMessage::create_content_topic(TOPIC), expected);
     }
 
     #[test]
-    fn test_create_and_decode_message() {
-        #[derive(Serialize, Deserialize, PartialEq, Debug)]
-        struct TestStruct {
-            hello: String,
-        }
+    fn test_unsigned_message() {
+        // create payload & message
+        let body = TestStruct::default();
+        let payload = serde_json::to_vec(&json!(body)).unwrap();
+        let message = WakuMessage::new(payload, TOPIC);
 
-        let obj = TestStruct {
-            hello: "world".to_string(),
-        };
-
-        let payload = serde_json::to_vec(&json!(obj)).unwrap();
-        let topic = "my-content-topic";
-
-        let message = WakuMessage::new(payload, topic);
-        assert_eq!(message.payload, "eyJoZWxsbyI6IndvcmxkIn0="); // {"hello":"world"} in base64
-        assert_eq!(message.content_topic, "/dria/0/my-content-topic/proto");
-        assert_eq!(message.version, WAKU_ENC_VERSION, "Incorrect version.");
+        // decode message
+        let message_body = message.decode_payload().unwrap();
+        let body = serde_json::from_slice::<TestStruct>(&message_body).unwrap();
         assert_eq!(
-            message.ephemeral, false,
-            "Should not be ephemeral by default."
+            serde_json::to_string(&body).unwrap(),
+            "{\"hello\":\"world\"}"
         );
+        assert_eq!(message.content_topic, "/dria/0/test-topic/proto");
+        assert_eq!(message.version, WAKU_ENC_VERSION);
+        assert_eq!(message.ephemeral, false);
         assert!(message.timestamp > 0);
 
-        let parsed_obj = message.parse_payload().expect("Should decode.");
-        assert_eq!(obj, parsed_obj);
+        let parsed_body = message.parse_payload(false).expect("Should decode.");
+        assert_eq!(body, parsed_body);
+    }
+
+    #[test]
+    fn test_signed_message() {
+        let mut rng = thread_rng();
+        let sk = SecretKey::random(&mut rng);
+
+        // create payload & message with signature & body
+        let body = TestStruct::default();
+        let body_str = serde_json::to_string(&json!(body)).unwrap();
+        let (signature, recid) = libsecp256k1::sign(&Message::parse(&sha256hash(&body_str)), &sk);
+        let signature_str = format!(
+            "{}{}",
+            hex::encode(signature.serialize()),
+            hex::encode([recid.serialize()])
+        );
+        let payload = format!("{}{}", signature_str, body_str);
+        let message = WakuMessage::new(payload, TOPIC);
+
+        // decode message
+        let message_body = message.decode_payload().unwrap();
+        let body = serde_json::from_slice::<TestStruct>(&message_body[130..]).unwrap();
+        assert_eq!(
+            serde_json::to_string(&body).unwrap(),
+            "{\"hello\":\"world\"}"
+        );
+        assert_eq!(message.content_topic, "/dria/0/test-topic/proto");
+        assert_eq!(message.version, WAKU_ENC_VERSION);
+        assert_eq!(message.ephemeral, false);
+        assert!(message.timestamp > 0);
+
+        // check signature
+        let pk = PublicKey::from_secret_key(&sk);
+        assert!(message.is_signed(&pk).unwrap());
+
+        let parsed_body = message.parse_payload(true).expect("Should decode.");
+        assert_eq!(body, parsed_body);
     }
 }

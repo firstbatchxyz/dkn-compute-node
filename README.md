@@ -21,6 +21,14 @@ A Dria Knowledge Node is composed of 3 things:
 
 Using a single Docker Compose file, we have prepared the entire setup, with necessary credentials given via an `.env` file. (TODO)
 
+## Usage
+
+You can run the processes at a set log level:
+
+```sh
+RUST_LOG=info cargo run
+```
+
 ## Testing
 
 Simply run:

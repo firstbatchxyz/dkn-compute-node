@@ -25,26 +25,21 @@ pub struct DriaComputeNodeConfig {
 impl DriaComputeNodeConfig {
     pub fn new() -> Self {
         let secret_key = SecretKey::parse_slice(
-            hex::decode(
-                env::var("DKN_WALLET_PRIVKEY").unwrap_or(DEFAULT_DKN_WALLET_SECRET_KEY.to_string()),
-            )
-            .unwrap()
-            .as_slice(),
+            hex::decode(env::var("DKN_WALLET_PRIVKEY").unwrap_or_default())
+                .unwrap_or_default()
+                .as_slice(),
         )
-        .expect("Could not parse secret key.");
+        .unwrap_or(SecretKey::parse(DEFAULT_DKN_WALLET_SECRET_KEY).unwrap());
 
         let public_key = PublicKey::from_secret_key(&secret_key);
 
         let admin_public_key = PublicKey::parse_slice(
-            hex::decode(
-                env::var("DKN_ADMIN_PUBLIC_KEY")
-                    .unwrap_or(DEFAULT_DKN_ADMIN_PUBLIC_KEY.to_string()),
-            )
-            .unwrap()
-            .as_slice(),
+            hex::decode(env::var("DKN_ADMIN_PUBLIC_KEY").unwrap_or_default())
+                .unwrap_or_default()
+                .as_slice(),
             Some(PublicKeyFormat::Compressed),
         )
-        .expect("Could not parse public key.");
+        .unwrap_or(PublicKey::parse_compressed(DEFAULT_DKN_ADMIN_PUBLIC_KEY).unwrap());
 
         let address = to_address(&public_key);
 

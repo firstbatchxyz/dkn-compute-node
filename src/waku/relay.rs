@@ -53,7 +53,6 @@ impl RelayClient {
             .await?;
 
         let msgs = res.json().await?;
-        println!("SUCCESFULL: {:?}", msgs);
         Ok(msgs)
     }
 

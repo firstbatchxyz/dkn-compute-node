@@ -15,6 +15,7 @@ pub fn keccak256hash(data: impl AsRef<[u8]>) -> [u8; 32] {
 }
 
 /// Given a secp256k1 public key, finds the corresponding Ethereum address.
+#[inline]
 pub fn to_address(public_key: &PublicKey) -> [u8; 20] {
     keccak256hash(&public_key.serialize()[1..])[12..32]
         .try_into()
