@@ -137,7 +137,6 @@ impl DriaComputeNode {
     ) -> Result<Vec<WakuMessage>, Box<dyn std::error::Error>> {
         let content_topic = WakuMessage::create_content_topic(topic);
         let mut messages: Vec<WakuMessage> = self.waku.relay.get_messages(&content_topic).await?;
-        log::debug!("All {} messages:\n{:?}", topic, messages);
 
         if signed {
             // only keep messages that are authentic to Dria

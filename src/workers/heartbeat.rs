@@ -26,10 +26,11 @@ pub fn heartbeat_worker(
     tokio::spawn(async move {
         match node.subscribe_topic(TOPIC).await {
             Ok(_) => {
-                log::info!("Subscribed to '{}'", TOPIC);
+                log::info!("Subscribed to {}", TOPIC);
             }
             Err(e) => {
-                log::error!("Error subscribing to '{}'", e);
+                log::error!("Error subscribing to {}", e);
+                return;
             }
         }
 

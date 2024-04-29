@@ -11,31 +11,39 @@
   </p>
 </p>
 
-## Setup
+## About
 
-A Dria Knowledge Node is composed of 3 things:
+A **Dria Compute Node** is a unit of computation within the Dria Knowledge Network. It's purpose is to process tasks given by the **Dria Admin Node**, and receive rewards for providing correct results. These nodes are part of the [Waku](https://waku.org/) network, a privacy-preserving cencorship resistant peer-to-peer network.
 
-- [**Compute Node**](https://github.com/firstbatchxyz/dkn-compute-node): basically this repo, handling the computation & interface with Ollama and Waku.
-- [**Ollama**](https://github.com/ollama/ollama): locally hosted LLMs
-- [**Waku**](https://github.com/waku-org/nwaku-compose): peer-to-peer networking
+### Heartbeat
 
-Using a single Docker Compose file, we have prepared the entire setup, with necessary credentials given via an `.env` file. (TODO)
+Dria Admin Node broadcasts heartbeat messages at a set interval, it is a required duty of the compute node to respond to these so that they can be included in the list of available nodes for task assignment.
 
-## Usage
+### Tasks
 
-You can run the processes at a set log level:
+Compute nodes can technically do any arbitrary task, from computing the square root of a given number to finding LLM outputs from a given prompt. We currently have the following tasks:
+
+- **Synthesis**: Using [**Ollama**](https://github.com/ollama/ollama), nodes will generate synthetic data with respect to prompts given by the admin node.
+
+Each task can be enabled providing the task name as a feature to the executable.
+
+## Usage with Compose
+
+TODO: describe docker compose
+
+## Usage from Source
+
+We are using [Just](https://just.systems/) as a wrapper for some scripts. You can see the available commands with:
 
 ```sh
-RUST_LOG==info cargo run
-
-# or debug log only this code
-RUST_LOG=none,dkn_compute=info cargo run
+just -l
 ```
 
 ## Testing
 
-Simply run:
+Besides unit tests, there are tests for Waku network, and for compute tasks such as Ollama.
 
 ```sh
-cargo test
+just test
+just test:waku
 ```

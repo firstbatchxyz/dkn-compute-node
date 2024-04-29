@@ -11,7 +11,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     let node = DriaComputeNode::new(DriaComputeNodeConfig::new());
-    log::info!("Address: 0x{}", hex::encode(node.address()));
+    log::info!("Address:    0x{}", hex::encode(node.address()));
+    log::info!(
+        "Public Key: 0x{}",
+        hex::encode(node.config.DKN_WALLET_PUBLIC_KEY.serialize_compressed())
+    );
 
     let cancellation = CancellationToken::new();
     let mut join_handles = Vec::new();
@@ -19,8 +23,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(feature = "heartbeat")]
     join_handles.push(heartbeat_worker(node.clone(), cancellation.clone()));
 
-    #[cfg(feature = "synthesis")]
-    join_handles.push(synthesis_worker(node.clone(), cancellation.clone()));
+    // #[cfg(feature = "synthesis")]
+    // join_handles.push(synthesis_worker(node.clone(), cancellation.clone()));
 
     // SIGINT handler
     match tokio::signal::ctrl_c().await {
