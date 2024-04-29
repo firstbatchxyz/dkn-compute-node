@@ -1,9 +1,9 @@
 use ecies::encrypt;
 use fastbloom_rs::{BloomFilter, Membership};
-use libsecp256k1::{sign, verify, Message, RecoveryId, Signature};
+use libsecp256k1::{sign, Message, RecoveryId, Signature};
 
 use crate::{
-    compute::payload::ComputePayload,
+    compute::payload::TaskResponsePayload,
     config::DriaComputeNodeConfig,
     utils::{crypto::sha256hash, filter::FilterPayload},
     waku::{message::WakuMessage, WakuClient},
@@ -37,7 +37,7 @@ impl DriaComputeNode {
     /// Shorthand to sign a digest with node's secret key and return signature & recovery id.
     #[inline]
     pub fn sign(&self, message: &Message) -> (Signature, RecoveryId) {
-        sign(&message, &self.config.DKN_WALLET_SECRET_KEY)
+        sign(message, &self.config.DKN_WALLET_SECRET_KEY)
     }
 
     /// Shorthand to sign a digest (bytes) with node's secret key and return signature & recovery id
@@ -71,7 +71,7 @@ impl DriaComputeNode {
         &self,
         result: impl AsRef<[u8]>,
         task_pubkey: &[u8],
-    ) -> Result<ComputePayload, Box<dyn std::error::Error>> {
+    ) -> Result<TaskResponsePayload, Box<dyn std::error::Error>> {
         // sign result
         let result_digest: [u8; 32] = sha256hash(result.as_ref());
         let result_msg = Message::parse(&result_digest);
@@ -89,7 +89,7 @@ impl DriaComputeNode {
         preimage.extend_from_slice(&result_digest);
         let commitment: [u8; 32] = sha256hash(preimage);
 
-        Ok(ComputePayload {
+        Ok(TaskResponsePayload {
             commitment: hex::encode(commitment),
             ciphertext: hex::encode(ciphertext),
             signature: format!("{}{}", hex::encode(signature), hex::encode(recid)),
@@ -97,8 +97,37 @@ impl DriaComputeNode {
     }
 
     /// Subscribe to a certain task with its topic.
-    pub async fn subscribe_topic(&mut self, topic: &str) -> Result<(), Box<dyn std::error::Error>> {
-        self.waku.relay.subscribe(topic).await
+    pub async fn subscribe_topic(&self, topic: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let content_topic = WakuMessage::create_content_topic(topic);
+        self.waku.relay.subscribe(&content_topic).await
+    }
+
+    /// Unsubscribe from a certain task with its topic.
+    pub async fn unsubscribe_topic(&self, topic: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let content_topic = WakuMessage::create_content_topic(topic);
+        self.waku.relay.unsubscribe(&content_topic).await
+    }
+
+    /// Send a message via Waku Relay.
+    pub async fn send_message(
+        &self,
+        message: WakuMessage,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        self.waku.relay.send_message(message).await
+    }
+
+    /// Send a message via Waku Relay on a topic, where
+    /// the topic is subscribed, the message is sent, and
+    /// the topic is unsubscribed right afterwards.
+    pub async fn send_once_message(
+        &self,
+        message: WakuMessage,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let content_topic = message.content_topic.clone();
+        self.waku.relay.subscribe(&content_topic).await?;
+        self.waku.relay.send_message(message).await?;
+        self.waku.relay.unsubscribe(&content_topic).await?;
+        Ok(())
     }
 
     pub async fn process_topic(
@@ -106,8 +135,9 @@ impl DriaComputeNode {
         topic: &str,
         signed: bool,
     ) -> Result<Vec<WakuMessage>, Box<dyn std::error::Error>> {
-        let mut messages: Vec<WakuMessage> = self.waku.relay.get_messages(topic).await?;
-        log::info!("All {} messages:\n{:?}", topic, messages);
+        let content_topic = WakuMessage::create_content_topic(topic);
+        let mut messages: Vec<WakuMessage> = self.waku.relay.get_messages(&content_topic).await?;
+        log::debug!("All {} messages:\n{:?}", topic, messages);
 
         if signed {
             // only keep messages that are authentic to Dria

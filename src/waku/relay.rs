@@ -1,5 +1,3 @@
-use std::borrow::BorrowMut;
-
 use crate::waku::BaseClient;
 use urlencoding;
 
@@ -28,13 +26,10 @@ impl RelayClient {
     pub async fn send_message(
         &self,
         message: WakuMessage,
-    ) -> Result<(), Box<dyn std::error::Error + Send>> {
-        let message = serde_json::json!(message);
+    ) -> Result<(), Box<dyn std::error::Error>> {
         log::info!("Sending message:\n{:?}", message);
-        self.base
-            .post("relay/v1/auto/messages", message)
-            .await
-            .map_err(|err| Box::new(err) as Box<dyn std::error::Error + Send>)?;
+        let message = serde_json::json!(message);
+        self.base.post("relay/v1/auto/messages", message).await?;
 
         Ok(())
     }
@@ -44,22 +39,27 @@ impl RelayClient {
     /// The content topic must have been subscribed to before.
     pub async fn get_messages(
         &self,
-        topic: &str,
+        content_topic: &str,
     ) -> Result<Vec<WakuMessage>, Box<dyn std::error::Error>> {
-        let content_topic = WakuMessage::create_content_topic(topic);
-        let content_topic = urlencoding::encode(&content_topic).to_string();
+        log::info!("Polling {}", content_topic);
+        let content_topic_encoded = urlencoding::encode(content_topic).to_string();
         let res = self
             .base
-            .get(&format!("relay/v1/auto/messages/{}", content_topic), None)
+            .get(
+                &format!("relay/v1/auto/messages/{}", content_topic_encoded),
+                None,
+            )
             .await?;
 
+        // parse body
         let msgs = res.json().await?;
+
         Ok(msgs)
     }
 
     /// Subscribe to a topic.
-    pub async fn subscribe(&self, topic: &str) -> Result<(), Box<dyn std::error::Error>> {
-        let content_topic = WakuMessage::create_content_topic(topic);
+    pub async fn subscribe(&self, content_topic: &str) -> Result<(), Box<dyn std::error::Error>> {
+        log::info!("Subscribing to {}", content_topic);
         self.base
             .post(
                 "relay/v1/auto/subscriptions",
@@ -71,8 +71,8 @@ impl RelayClient {
     }
 
     /// Unsubscribe from a content topic.
-    pub async fn unsubscribe(&self, topic: &str) -> Result<(), Box<dyn std::error::Error>> {
-        let content_topic = WakuMessage::create_content_topic(topic);
+    pub async fn unsubscribe(&self, content_topic: &str) -> Result<(), Box<dyn std::error::Error>> {
+        log::info!("Unsubscribing from {}", content_topic);
         self.base
             .delete(
                 "relay/v1/auto/subscriptions",

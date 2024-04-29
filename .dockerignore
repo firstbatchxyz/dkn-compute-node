@@ -1,0 +1,9 @@
+target
+Dockerfile
+manifests
+.dockerignore
+.git
+.gitignore
+.github
+.DS_Store
+README.md

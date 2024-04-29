@@ -18,7 +18,7 @@ struct HeartbeatPayload {
 }
 
 pub fn heartbeat_worker(
-    mut node: DriaComputeNode,
+    node: DriaComputeNode,
     cancellation: CancellationToken,
 ) -> tokio::task::JoinHandle<()> {
     let sleep_amount = tokio::time::Duration::from_millis(SLEEP_MILLIS);
@@ -36,13 +36,13 @@ pub fn heartbeat_worker(
         loop {
             tokio::select! {
                 _ = cancellation.cancelled() => {
-                    // TODO: maybe unsubscribe?
+                    node.unsubscribe_topic(TOPIC).await
+                        .expect("TODO TODO");
                     break;
                 }
                 _ = tokio::time::sleep(sleep_amount) => {
-                    let mut msg_to_send: Option<WakuMessage> = None;
+                    let mut msg_to_send: Option<WakuMessage> = None; 
                     if let Ok(messages) = node.process_topic(TOPIC, true).await {
-                        // println!("Heartbeats: {:?}", messages);
 
                         // we only care about the latest heartbeat
                         if let Some(message) = messages.last() {
@@ -51,18 +51,18 @@ pub fn heartbeat_worker(
                             let body = message
                                 .parse_payload::<HeartbeatPayload>(true)
                                 .expect("TODO TODO");
-                            let signature = node.sign_bytes(&sha256hash(body.uuid.as_bytes()));
+                            let uuid = body.uuid;
+                            let signature = node.sign_bytes(&sha256hash(uuid.as_bytes()));
 
-                            msg_to_send = Some(WakuMessage::new(signature, &body.uuid));
+                            msg_to_send = Some(WakuMessage::new(signature, &uuid));
                         }
+                    } else {
+                        log::error!("Error processing topic {}", TOPIC);
                     }
 
                     // send message
                     if let Some(message) = msg_to_send {
-                        node.waku
-                            .relay
-                            .send_message(message)
-                            .await
+                        node.send_once_message(message).await
                             .expect("TODO TODO");
                     }
                 }
@@ -74,7 +74,6 @@ pub fn heartbeat_worker(
 #[cfg(test)]
 mod tests {
     use crate::{config::defaults::DEFAULT_DKN_ADMIN_PUBLIC_KEY, waku::message::WakuMessage};
-    use ecies::SecretKey;
     use libsecp256k1::PublicKey;
 
     use super::HeartbeatPayload;
@@ -90,9 +89,10 @@ mod tests {
             ephemeral: false 
         };
 
-        let obj = message.parse_payload::<HeartbeatPayload>(true);
-        println!("{:?}", obj);
+        assert!(message.is_signed(&pk).unwrap());
 
-
+        let obj = message.parse_payload::<HeartbeatPayload>(true).unwrap();
+        assert_eq!(obj.uuid, "81a63a34-96c6-4e5a-99b5-6b274d9de175");
+        assert_eq!(obj.deadline, 1714128792);
     }
 }

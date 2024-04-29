@@ -93,7 +93,7 @@ impl OllamaClient {
                         .parse::<u16>()
                         .map_err(|_| env::VarError::NotPresent)
                 })
-                .unwrap_or_else(|_| DEFAULT_DKN_OLLAMA_PORT)
+                .unwrap_or(DEFAULT_DKN_OLLAMA_PORT)
         });
 
         Self {

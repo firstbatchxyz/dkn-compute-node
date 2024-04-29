@@ -33,7 +33,7 @@ struct SynthesisPayload {
 }
 
 pub fn synthesis_worker(
-    mut node: DriaComputeNode,
+    node: DriaComputeNode,
     cancellation: CancellationToken,
 ) -> tokio::task::JoinHandle<()> {
     let sleep_amount = tokio::time::Duration::from_millis(SLEEP_MILLIS);
@@ -51,11 +51,14 @@ pub fn synthesis_worker(
 
         loop {
             tokio::select! {
-                _ = cancellation.cancelled() => { break; }
+                _ = cancellation.cancelled() => {
+                    node.unsubscribe_topic(TOPIC).await
+                        .expect("TODO TODO");
+                    break;
+                }
                 _ = tokio::time::sleep(sleep_amount) => {
                     let mut tasks = Vec::new();
                     if let Ok(messages) = node.process_topic(TOPIC, true).await {
-                        println!("Synthesis tasks: {:?}", messages);
 
                         for message in messages {
                             let task = message
@@ -63,12 +66,14 @@ pub fn synthesis_worker(
                                 .expect("TODO TODO");
 
                             // check deadline
-                            if get_current_time_nanos() >= task.deadline.clone() {
+                            if get_current_time_nanos() >= task.deadline {
+                                log::debug!("{}", format!("Skipping {} due to deadline.", task.task_id));
                                 continue;
                             }
 
                             // check task inclusion
                             if !node.is_tasked(task.filter.clone()) {
+                                log::debug!("{}", format!("Skipping {} due to filter.", task.task_id));
                                 continue;
                             }
 
@@ -82,7 +87,7 @@ pub fn synthesis_worker(
 
                         // create h||s||e payload
                         let payload = node
-                            .create_payload(llm_result.response, &task.public_key.as_bytes())
+                            .create_payload(llm_result.response, task.public_key.as_bytes())
                             .expect("TODO TODO");
                         let message = WakuMessage::new(String::from(payload), &task.task_id);
 
