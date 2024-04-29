@@ -51,11 +51,14 @@ pub fn synthesis_worker(
 
         loop {
             tokio::select! {
-                _ = cancellation.cancelled() => { break; }
+                _ = cancellation.cancelled() => {
+                    node.unsubscribe_topic(TOPIC).await
+                        .expect("TODO TODO");
+                    break;
+                }
                 _ = tokio::time::sleep(sleep_amount) => {
                     let mut tasks = Vec::new();
                     if let Ok(messages) = node.process_topic(TOPIC, true).await {
-                        println!("Synthesis tasks: {:?}", messages);
 
                         for message in messages {
                             let task = message
@@ -64,11 +67,13 @@ pub fn synthesis_worker(
 
                             // check deadline
                             if get_current_time_nanos() >= task.deadline {
+                                log::debug!("{}", format!("Skipping {} due to deadline.", task.task_id));
                                 continue;
                             }
 
                             // check task inclusion
                             if !node.is_tasked(task.filter.clone()) {
+                                log::debug!("{}", format!("Skipping {} due to filter.", task.task_id));
                                 continue;
                             }
 

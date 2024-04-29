@@ -4,7 +4,7 @@ use dkn_compute::{
         crypto::{sha256hash, to_address},
         filter::FilterPayload,
     },
-    waku::message::{self, WakuMessage},
+    waku::message::WakuMessage,
 };
 use ecies::decrypt;
 use fastbloom_rs::{FilterBuilder, Membership};

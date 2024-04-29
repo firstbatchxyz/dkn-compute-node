@@ -36,13 +36,13 @@ pub fn heartbeat_worker(
         loop {
             tokio::select! {
                 _ = cancellation.cancelled() => {
-                    
+                    node.unsubscribe_topic(TOPIC).await
+                        .expect("TODO TODO");
                     break;
                 }
                 _ = tokio::time::sleep(sleep_amount) => {
                     let mut msg_to_send: Option<WakuMessage> = None; 
                     if let Ok(messages) = node.process_topic(TOPIC, true).await {
-                        // println!("Heartbeats: {:?}", messages);
 
                         // we only care about the latest heartbeat
                         if let Some(message) = messages.last() {

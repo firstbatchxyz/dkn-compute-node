@@ -26,6 +26,7 @@ pub struct WakuMessage {
     #[serde(default)]
     pub timestamp: u128,
     #[serde(default)]
+    #[serde(skip_serializing)] // see: https://github.com/waku-org/nwaku/issues/2643
     pub ephemeral: bool,
 }
 

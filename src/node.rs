@@ -102,6 +102,12 @@ impl DriaComputeNode {
         self.waku.relay.subscribe(&content_topic).await
     }
 
+    /// Unsubscribe from a certain task with its topic.
+    pub async fn unsubscribe_topic(&self, topic: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let content_topic = WakuMessage::create_content_topic(topic);
+        self.waku.relay.unsubscribe(&content_topic).await
+    }
+
     /// Send a message via Waku Relay.
     pub async fn send_message(
         &self,
@@ -131,7 +137,7 @@ impl DriaComputeNode {
     ) -> Result<Vec<WakuMessage>, Box<dyn std::error::Error>> {
         let content_topic = WakuMessage::create_content_topic(topic);
         let mut messages: Vec<WakuMessage> = self.waku.relay.get_messages(&content_topic).await?;
-        log::info!("All {} messages:\n{:?}", topic, messages);
+        log::debug!("All {} messages:\n{:?}", topic, messages);
 
         if signed {
             // only keep messages that are authentic to Dria

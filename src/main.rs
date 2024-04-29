@@ -20,17 +20,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     join_handles.push(heartbeat_worker(node.clone(), cancellation.clone()));
 
     #[cfg(feature = "synthesis")]
-    // join_handles.push(synthesis_worker(node.clone(), cancellation.clone()));
+    join_handles.push(synthesis_worker(node.clone(), cancellation.clone()));
+
+    // SIGINT handler
     match tokio::signal::ctrl_c().await {
         Ok(()) => {
-            println!("\nReceived CTRL+C, stopping workers.");
+            log::warn!("Received SIGINT, stopping workers.");
             cancellation.cancel();
         }
         Err(err) => {
-            eprintln!("Unable to listen for shutdown signal: {}", err);
+            log::error!("Unable to listen for shutdown signal: {}", err);
         }
     }
 
+    // wait for all workers
     for handle in join_handles {
         handle.await.expect("Could not await."); // TODO: handle
     }

@@ -32,7 +32,6 @@ impl BaseClient {
             full_url.push_str(&format!("?{}", query_string));
         }
 
-        // dbg!(full_url.clone());
         let res = self
             .client
             .get(&full_url)
@@ -40,7 +39,6 @@ impl BaseClient {
             .send()
             .await?;
 
-        // println!("{:?}", res);
         res.error_for_status()
     }
 
@@ -55,7 +53,7 @@ impl BaseClient {
         let res = self
             .client
             .post(&full_url)
-            .header("Accept", "application/json, text/plain")
+            // .header("Accept", "application/json")
             .header("Content-Type", "application/json")
             .json(&body)
             .send()

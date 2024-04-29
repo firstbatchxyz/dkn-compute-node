@@ -27,7 +27,7 @@ impl RelayClient {
         &self,
         message: WakuMessage,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        println!("Sending message:\n{:?}", message);
+        log::info!("Sending message:\n{:?}", message);
         let message = serde_json::json!(message);
         self.base.post("relay/v1/auto/messages", message).await?;
 
@@ -41,7 +41,7 @@ impl RelayClient {
         &self,
         content_topic: &str,
     ) -> Result<Vec<WakuMessage>, Box<dyn std::error::Error>> {
-        log::info!("Gettings messages for {}", content_topic);
+        log::info!("Polling {}", content_topic);
         let content_topic_encoded = urlencoding::encode(content_topic).to_string();
         let res = self
             .base
