@@ -1,10 +1,9 @@
 use crate::{
-    compute::ollama::OllamaClient,
+    compute::{ollama::OllamaClient, payload::TaskRequestPayload},
     node::DriaComputeNode,
-    utils::{filter::FilterPayload, get_current_time_nanos},
+    utils::get_current_time_nanos,
     waku::message::WakuMessage,
 };
-use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
 const TOPIC: &str = "synthesis";
@@ -14,23 +13,7 @@ const SLEEP_MILLIS: u64 = 500;
 ///
 /// A synthesis task is the task of putting a prompt to an LLM and obtaining many results, essentially growing the number of data points in a dataset,
 /// hence creating synthetic data.
-///
-/// ## Fields
-///
-/// - `task_id`: The unique identifier of the task.
-/// - `deadline`: The deadline of the task in nanoseconds.
-/// - `prompt`: The prompt to be given to the LLM.
-/// - `filter`: The filter of the task.
-/// - `public_key`: The public key of the requester.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-struct SynthesisPayload {
-    task_id: String,
-    deadline: u128,
-    prompt: String,
-    filter: FilterPayload,
-    public_key: String,
-}
+type SynthesisPayload = TaskRequestPayload<String>;
 
 pub fn synthesis_worker(
     node: DriaComputeNode,
@@ -72,10 +55,8 @@ pub fn synthesis_worker(
                 _ = tokio::time::sleep(sleep_amount) => {
                     let mut tasks = Vec::new();
                     if let Ok(messages) = node.process_topic(TOPIC, true).await {
-
                         for message in messages {
-                            match message
-                            .parse_payload::<SynthesisPayload>(true) {
+                            match message.parse_payload::<SynthesisPayload>(true) {
                                 Ok(task) => {
                                     // check deadline
                                     if get_current_time_nanos() >= task.deadline {
@@ -90,20 +71,18 @@ pub fn synthesis_worker(
                                     }
 
                                     tasks.push(task);
-                                }
+                                },
                                 Err(e) => {
                                     log::error!("Error parsing payload: {}", e);
                                     continue;
                                 }
                             }
-
-
                         }
                     }
 
                     for task in tasks {
                         // get prompt result from Ollama
-                        let llm_result = match ollama.generate(task.prompt).await {
+                        let llm_result = match ollama.generate(task.input).await {
                             Ok(result) => result,
                             Err(e) => {
                                 log::error!("Error generating prompt result: {}", e);
@@ -112,8 +91,7 @@ pub fn synthesis_worker(
                         };
 
                         // create h||s||e payload
-                        let payload = match node
-                        .create_payload(llm_result.response, task.public_key.as_bytes()) {
+                        let payload = match node.create_payload(llm_result.response, task.public_key.as_bytes()) {
                             Ok(payload) => payload,
                             Err(e) => {
                                 log::error!("Error creating payload: {}", e);

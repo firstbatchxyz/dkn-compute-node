@@ -24,6 +24,10 @@ format:
 run:
 	RUST_LOG=info cargo run
 
+# Run all workers
+run-all:
+	RUST_LOG=info cargo run --features=synthesis
+
 # Run with crate-level DEBUG level logging
 debug:
 	RUST_LOG=none,dkn_compute=debug cargo run

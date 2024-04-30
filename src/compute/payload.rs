@@ -30,13 +30,21 @@ impl From<TaskResponsePayload> for String {
 
 /// # Dria Task Request
 ///
-/// A task request
-/// TODO: make this part of snythesis data
+/// A generic task request, given by Dria.
+///
+/// ## Fields
+///
+/// - `task_id`: The unique identifier of the task.
+/// - `deadline`: The deadline of the task in nanoseconds.
+/// - `input`: The input to the compute function.
+/// - `filter`: The filter of the task.
+/// - `public_key`: The public key of the requester.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-struct TaskRequestPayload<T> {
-    task_id: String,
-    deadline: u128,
-    input: T,
-    filter: FilterPayload,
-    public_key: String,
+#[serde(rename_all = "camelCase")]
+pub struct TaskRequestPayload<T> {
+    pub(crate) task_id: String,
+    pub(crate) deadline: u128,
+    pub(crate) input: T,
+    pub(crate) filter: FilterPayload,
+    pub(crate) public_key: String,
 }

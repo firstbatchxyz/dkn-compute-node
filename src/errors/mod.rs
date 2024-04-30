@@ -2,6 +2,10 @@ use serde::Deserialize;
 
 pub type NodeResult<T> = std::result::Result<T, NodeError>;
 
+/// # Node Error
+///
+/// A generic error within the Compute Node. This may originate from serde, reqwest and such. The source is
+/// included along the error message, and `From` traits are implemented for expected errors.
 #[derive(Deserialize)]
 pub struct NodeError {
     #[serde(rename = "error")]

@@ -6,7 +6,6 @@ use tokio_util::sync::CancellationToken;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::builder()
-        // setting this to None disables the timestamp
         .format_timestamp(Some(env_logger::TimestampPrecision::Millis))
         .init();
 

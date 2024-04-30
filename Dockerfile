@@ -26,4 +26,4 @@ COPY --from=builder /usr/src/app/target/release/dkn_compute /
 
 EXPOSE 8080
 
-CMD ["./dria_hnsw"]
+CMD ["./dkn_compute"]

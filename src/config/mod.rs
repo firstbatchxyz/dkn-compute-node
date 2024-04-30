@@ -10,12 +10,12 @@ use std::env;
 #[allow(non_snake_case)]
 #[derive(Debug, Clone)]
 pub struct DriaComputeNodeConfig {
-    /// Waku (nwaku) container URL.
-    pub DKN_WAKU_URL: String,
     /// Wallet secret/private key.
-    pub DKN_WALLET_SECRET_KEY: SecretKey,
+    pub(crate) DKN_WALLET_SECRET_KEY: SecretKey,
     /// Wallet public key, derived from the secret key.
     pub DKN_WALLET_PUBLIC_KEY: PublicKey,
+    /// Waku (nwaku) container URL.
+    pub DKN_WAKU_URL: String,
     /// Wallet address, derived from the public key.
     pub DKN_WALLET_ADDRESS: [u8; 20],
     /// Admin public key, used for message authenticity.

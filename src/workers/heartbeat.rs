@@ -46,39 +46,41 @@ pub fn heartbeat_worker(
                     break;
                 }
                 _ = tokio::time::sleep(sleep_amount) => {
-                    let mut msg_to_send: Option<WakuMessage> = None;
-                    if let Ok(messages) = node.process_topic(TOPIC, true).await {
-
-                        // we only care about the latest heartbeat
-                        if let Some(message) = messages.last() {
-                            log::info!("Received: {}", message);
-
-                            match message
-                            .parse_payload::<HeartbeatPayload>(true) {
-                                Ok(body) => {
-                                    let uuid = body.uuid;
-                                    let signature = node.sign_bytes(&sha256hash(uuid.as_bytes()));
-                                    msg_to_send = Some(WakuMessage::new(signature, &uuid));
-                                }
-                                Err(e) => {
-                                    log::error!("Error parsing payload: {}", e);
-                                    continue;
-                                }
-                            }
-
-
+                    let messages = match node.process_topic(TOPIC, true).await {
+                        Ok(messages) => messages,
+                        Err(e) => {
+                            log::error!("Error processing topic {}: {}", TOPIC, e);
+                            continue;
                         }
-                    } else {
-                        log::error!("Error processing topic {}", TOPIC);
-                        continue;
-                    }
+                    };
 
-                    // send message
-                    if let Some(message) = msg_to_send {
+                    // we only care about the latest heartbeat
+                    if let Some(message) = messages.last() {
+                        log::info!("Received: {}", message);
+
+                        let message = match message
+                        .parse_payload::<HeartbeatPayload>(true) {
+                            Ok(body) => {
+                                let uuid = body.uuid;
+                                let signature = node.sign_bytes(&sha256hash(uuid.as_bytes()));
+                                WakuMessage::new(signature, &uuid)
+                            }
+                            Err(e) => {
+                                log::error!("Error parsing payload: {}", e);
+                                continue;
+                            }
+                        };
+
+
+                        // send message
                         if let Err(e) = node.send_once_message(message).await {
                             log::error!("Error sending message: {}", e);
                         }
+
                     }
+
+
+
                 }
             }
         }
