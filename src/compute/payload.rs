@@ -30,7 +30,8 @@ impl From<TaskResponsePayload> for String {
 
 /// # Dria Task Request
 ///
-/// A task request TODO: ...
+/// A task request
+/// TODO: make this part of snythesis data
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct TaskRequestPayload<T> {
     task_id: String,

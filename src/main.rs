@@ -18,13 +18,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     let cancellation = CancellationToken::new();
-    let mut join_handles = Vec::new();
 
-    #[cfg(feature = "heartbeat")]
-    join_handles.push(heartbeat_worker(node.clone(), cancellation.clone()));
-
-    #[cfg(feature = "synthesis")]
-    join_handles.push(synthesis_worker(node.clone(), cancellation.clone()));
+    log::info!("Starting workers...");
+    let join_handles = vec![
+        #[cfg(feature = "heartbeat")]
+        heartbeat_worker(node.clone(), cancellation.clone()),
+        #[cfg(feature = "synthesis")]
+        synthesis_worker(node.clone(), cancellation.clone()),
+    ];
 
     // SIGINT handler
     match tokio::signal::ctrl_c().await {
@@ -39,7 +40,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // wait for all workers
     for handle in join_handles {
-        handle.await.expect("Could not await."); // TODO: handle
+        if let Err(e) = handle.await {
+            log::error!("Worker failed with: {}", e);
+        }
     }
 
     Ok(())

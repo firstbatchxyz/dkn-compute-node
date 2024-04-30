@@ -1,3 +1,5 @@
+use core::fmt;
+
 use crate::{
     config::constants::{WAKU_APP_NAME, WAKU_ENCODING, WAKU_ENC_VERSION},
     utils::{crypto::sha256hash, get_current_time_nanos},
@@ -30,8 +32,15 @@ pub struct WakuMessage {
     pub ephemeral: bool,
 }
 
+/// 65-byte signature as hex characters take up 130 characters.
+/// The 65-byte signature is composed of 64-byte RSV signature and 1-byte recovery id.
+///
+/// When recovery is not required and only verification is being done, we omit the recovery id
+/// and therefore use 128 characters: SIGNATURE_SIZE - 2.
+const SIGNATURE_SIZE: usize = 130;
+
 impl WakuMessage {
-    /// Creates a new Waku message.
+    /// Creates a new ephemeral Waku message with current timestamp, version 0.
     ///
     /// ## Parameters
     /// - `payload` is gives as bytes. It is base64 encoded internally.
@@ -43,7 +52,7 @@ impl WakuMessage {
             content_topic: Self::create_content_topic(topic).to_string(),
             version: WAKU_ENC_VERSION,
             timestamp: get_current_time_nanos(),
-            ephemeral: false,
+            ephemeral: true,
         }
     }
 
@@ -63,7 +72,7 @@ impl WakuMessage {
 
         let body = if signed {
             // skips the 65 byte hex signature
-            &payload[130..]
+            &payload[SIGNATURE_SIZE..]
         } else {
             &payload[..]
         };
@@ -78,7 +87,7 @@ impl WakuMessage {
             .map_err(|err| serde_json::Error::custom(format!("Base64 decode failed: {}", err)))?;
 
         // parse signature (64 bytes = 128 hex chars, although the full 65-byte RSV signature is given)
-        let (signature, body) = (&payload[..128], &payload[130..]);
+        let (signature, body) = (&payload[..SIGNATURE_SIZE - 2], &payload[SIGNATURE_SIZE..]);
         let signature = hex::decode(signature).expect("could not decode");
         let signature =
             libsecp256k1::Signature::parse_standard_slice(&signature).expect("could not parse");
@@ -101,6 +110,16 @@ impl WakuMessage {
         format!(
             "/{}/{}/{}/{}",
             WAKU_APP_NAME, WAKU_ENC_VERSION, topic, WAKU_ENCODING
+        )
+    }
+}
+
+impl fmt::Display for WakuMessage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "WakuMessage {} at {}\n{}",
+            self.content_topic, self.timestamp, self.payload
         )
     }
 }
@@ -131,6 +150,12 @@ mod tests {
     fn test_create_content_topic() {
         let expected = "/dria/0/test-topic/proto".to_string();
         assert_eq!(WakuMessage::create_content_topic(TOPIC), expected);
+    }
+
+    #[test]
+    fn test_display_message() {
+        let message = WakuMessage::new(b"hello world", "test-topic");
+        println!("{}", message);
     }
 
     #[test]

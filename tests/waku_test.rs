@@ -1,4 +1,4 @@
-#[cfg(feature = "waku_test")]
+#[cfg_attr(test, cfg(feature = "waku_test"))]
 mod waku_tests {
     use dkn_compute::{node::DriaComputeNode, waku::message::WakuMessage};
 

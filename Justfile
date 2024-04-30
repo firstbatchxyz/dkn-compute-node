@@ -4,15 +4,27 @@ set dotenv-load
 test:
 	cargo test
 
+# Run Ollama integration tests only
+test-ollama:
+	cargo test ollama_test --features=ollama_test
+
+# Run Waku integration tests only
+test-waku:
+	cargo test waku_test --features=waku_test
+
 # Run clippy
 lint:
 	cargo clippy
+
+# Run formatter
+format:
+	cargo fmt
 
 # Run with INFO level logging
 run:
 	RUST_LOG=info cargo run
 
-# Run with crate-level DEBUG level loggin
+# Run with crate-level DEBUG level logging
 debug:
 	RUST_LOG=none,dkn_compute=debug cargo run
 

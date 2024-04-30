@@ -6,10 +6,13 @@ license = "Apache-2.0"
 readme = "README.md"
 
 [features]
-# default = ["ollama_test, waku_test"]
-default = ["heartbeat", "synthesis"]
-synthesis = []                       # enables Synthetic Data Generation process
-heartbeat = []                       # enables heartbeat process
+default = ["heartbeat"]
+
+# workers
+synthesis = [] # Synthetic Data Generation
+heartbeat = [] # Heartbeat
+
+# test features
 waku_test = []
 ollama_test = []
 

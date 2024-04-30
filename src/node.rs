@@ -138,12 +138,15 @@ impl DriaComputeNode {
         let content_topic = WakuMessage::create_content_topic(topic);
         let mut messages: Vec<WakuMessage> = self.waku.relay.get_messages(&content_topic).await?;
 
+        // if signed, only keep messages that are authentic to Dria
         if signed {
-            // only keep messages that are authentic to Dria
             messages.retain(|message| {
                 message
                     .is_signed(&self.config.DKN_ADMIN_PUBLIC_KEY)
-                    .expect("TODO TODO")
+                    .unwrap_or_else(|e| {
+                        log::warn!("Could not verify message signature: {}", e);
+                        false
+                    })
             });
         }
 

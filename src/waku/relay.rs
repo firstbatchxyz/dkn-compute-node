@@ -15,8 +15,6 @@ pub struct RelayClient {
     base: BaseClient,
 }
 
-// TODO: dont create content topic outside and pass it in here, have each function create the parameter itself.
-
 impl RelayClient {
     pub fn new(base: BaseClient) -> Self {
         RelayClient { base }
@@ -27,7 +25,7 @@ impl RelayClient {
         &self,
         message: WakuMessage,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        log::info!("Sending message:\n{:?}", message);
+        log::info!("Sending: {}", message);
         let message = serde_json::json!(message);
         self.base.post("relay/v1/auto/messages", message).await?;
 

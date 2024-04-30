@@ -23,7 +23,7 @@ Dria Admin Node broadcasts heartbeat messages at a set interval, it is a require
 
 Compute nodes can technically do any arbitrary task, from computing the square root of a given number to finding LLM outputs from a given prompt. We currently have the following tasks:
 
-- **Synthesis**: Using [**Ollama**](https://github.com/ollama/ollama), nodes will generate synthetic data with respect to prompts given by the admin node.
+- **Synthesis**: Using [Ollama](https://github.com/ollama/ollama), nodes will generate synthetic data with respect to prompts given by the admin node.
 
 Each task can be enabled providing the task name as a feature to the executable.
 
@@ -39,11 +39,21 @@ We are using [Just](https://just.systems/) as a wrapper for some scripts. You ca
 just -l
 ```
 
-## Testing
+## Styling
 
-Besides unit tests, there are tests for Waku network, and for compute tasks such as Ollama.
+Lint and format with:
 
 ```sh
-just test
-just test:waku
+just lint
+just format
+```
+
+## Testing
+
+Besides the unit tests, there are separate tests for Waku network, and for compute tasks such as Ollama.
+
+```sh
+just test         # unit tests
+just test-waku    # Waku tests (requires a running Waku node)
+just test-ollama  # Ollama tests (requires a running Ollama client)
 ```

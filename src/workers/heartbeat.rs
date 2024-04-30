@@ -37,34 +37,44 @@ pub fn heartbeat_worker(
         loop {
             tokio::select! {
                 _ = cancellation.cancelled() => {
-                    node.unsubscribe_topic(TOPIC).await
-                        .expect("TODO TODO");
+                    if let Err(e) = node.unsubscribe_topic(TOPIC).await {
+                        log::error!("Error unsubscribing from {}: {}\nContinuing anyway.", TOPIC, e);
+                    }
                     break;
                 }
                 _ = tokio::time::sleep(sleep_amount) => {
-                    let mut msg_to_send: Option<WakuMessage> = None; 
+                    let mut msg_to_send: Option<WakuMessage> = None;
                     if let Ok(messages) = node.process_topic(TOPIC, true).await {
 
                         // we only care about the latest heartbeat
                         if let Some(message) = messages.last() {
-                            log::info!("Received: {:?}", message);
+                            log::info!("Received: {}", message);
 
-                            let body = message
-                                .parse_payload::<HeartbeatPayload>(true)
-                                .expect("TODO TODO");
-                            let uuid = body.uuid;
-                            let signature = node.sign_bytes(&sha256hash(uuid.as_bytes()));
+                            match message
+                            .parse_payload::<HeartbeatPayload>(true) {
+                                Ok(body) => {
+                                    let uuid = body.uuid;
+                                    let signature = node.sign_bytes(&sha256hash(uuid.as_bytes()));
+                                    msg_to_send = Some(WakuMessage::new(signature, &uuid));
+                                }
+                                Err(e) => {
+                                    log::error!("Error parsing payload: {}", e);
+                                    continue;
+                                }
+                            }
 
-                            msg_to_send = Some(WakuMessage::new(signature, &uuid));
+
                         }
                     } else {
                         log::error!("Error processing topic {}", TOPIC);
+                        continue;
                     }
 
                     // send message
                     if let Some(message) = msg_to_send {
-                        node.send_once_message(message).await
-                            .expect("TODO TODO");
+                        if let Err(e) = node.send_once_message(message).await {
+                            log::error!("Error sending message: {}", e);
+                        }
                     }
                 }
             }
@@ -82,12 +92,12 @@ mod tests {
     #[test]
     fn test_heartbeat_payload() {
         let pk = PublicKey::parse_compressed(DEFAULT_DKN_ADMIN_PUBLIC_KEY).unwrap();
-        let message = WakuMessage { 
+        let message = WakuMessage {
             payload: "Y2RmODcyNDlhY2U3YzQ2MDIzYzNkMzBhOTc4ZWY3NjViMWVhZDlmNWJhMDUyY2MxMmY0NzIzMjQyYjc0YmYyODFjMDA1MTdmMGYzM2VkNTgzMzk1YWUzMTY1ODQ3NWQyNDRlODAxYzAxZDE5MjYwMDM1MTRkNzEwMThmYTJkNjEwMXsidXVpZCI6ICI4MWE2M2EzNC05NmM2LTRlNWEtOTliNS02YjI3NGQ5ZGUxNzUiLCAiZGVhZGxpbmUiOiAxNzE0MTI4NzkyfQ==".to_string(), 
             content_topic: "/dria/0/heartbeat/proto".to_string(), 
-            version: 0, 
-            timestamp: 1714129073557846272, 
-            ephemeral: false 
+            version: 0,
+            timestamp: 1714129073557846272,
+            ephemeral: false
         };
 
         assert!(message.is_signed(&pk).unwrap());
