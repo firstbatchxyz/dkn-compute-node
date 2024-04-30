@@ -1,6 +1,5 @@
 use std::{borrow::Borrow, env};
 
-use log::info;
 use ollama_rs::{
     error::OllamaError,
     generation::completion::{request::GenerationRequest, GenerationResponse},
@@ -23,7 +22,7 @@ impl Default for OllamaClient {
         Self::new(
             Some(DEFAULT_DKN_OLLAMA_HOST.to_string()),
             Some(DEFAULT_DKN_OLLAMA_PORT),
-            OllamaModel::default(),
+            Some(OllamaModel::default()),
         )
     }
 }
@@ -32,7 +31,7 @@ impl OllamaClient {
     /// Creates a new Ollama client.
     ///
     /// Reads `DKN_OLLAMA_HOST` and `DKN_OLLAMA_PORT` from the environment, and defaults if not provided.
-    pub fn new(host: Option<String>, port: Option<u16>, model: OllamaModel) -> Self {
+    pub fn new(host: Option<String>, port: Option<u16>, model: Option<OllamaModel>) -> Self {
         let host = host.unwrap_or_else(|| {
             env::var("DKN_OLLAMA_HOST").unwrap_or(DEFAULT_DKN_OLLAMA_HOST.to_string())
         });
@@ -47,23 +46,21 @@ impl OllamaClient {
                 .unwrap_or(DEFAULT_DKN_OLLAMA_PORT)
         });
 
+        let model = model.unwrap_or_else(|| {
+            OllamaModel::from(
+                env::var("DKN_OLLAMA_MODEL").unwrap_or(String::from(&OllamaModel::default())),
+            )
+        });
+
         Self {
             client: Ollama::new(host, port),
             model,
         }
     }
 
-    pub fn default_with_model(model: OllamaModel) -> Self {
-        Self::new(
-            Some(DEFAULT_DKN_OLLAMA_HOST.to_string()),
-            Some(DEFAULT_DKN_OLLAMA_PORT),
-            model,
-        )
-    }
-
     /// Pulls the configured model.
     pub async fn setup(&self) -> Result<PullModelStatus, OllamaError> {
-        info!("Pulling model: {:?}", self.model);
+        log::info!("Pulling model: {:?}", self.model);
         self.client
             .pull_model(self.model.borrow().into(), false)
             .await
@@ -78,7 +75,7 @@ impl OllamaClient {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Default, Clone, Debug)]
+#[derive(Default, Clone, Debug, PartialEq)]
 pub enum OllamaModel {
     #[default] ///////// Param  Memory  Command
     Mistral, /////////// 7B     4.1GB   ollama run mistral
@@ -124,10 +121,9 @@ impl From<&OllamaModel> for String {
     }
 }
 
-impl From<&str> for OllamaModel {
-    /// Returns the model `name` such that it can be used as `ollama run <name>`.
-    fn from(value: &str) -> Self {
-        match value {
+impl From<String> for OllamaModel {
+    fn from(value: String) -> Self {
+        match value.as_str() {
             "llama3" => OllamaModel::Llama3_8B,
             "llama3:70b" => OllamaModel::Llama3_70B,
             "mistral" => OllamaModel::Mistral,
@@ -144,7 +140,10 @@ impl From<&str> for OllamaModel {
             "gemma:2b" => OllamaModel::Gemma_2B,
             "gemma:7b" => OllamaModel::Gemma_7B,
             "solar" => OllamaModel::Solar,
-            _ => OllamaModel::default(),
+            _ => {
+                log::warn!("Unknown model: {}, using default.", value);
+                OllamaModel::default()
+            }
         }
     }
 }
@@ -156,10 +155,30 @@ mod tests {
     #[test]
     fn test_ollama_config() {
         env::set_var("DKN_OLLAMA_HOST", "im-a-host");
+        env::set_var("DKN_OLLAMA_MODEL", "phi");
         env::remove_var("DKN_OLLAMA_PORT");
 
-        // will use default port, but read host from env
-        let ollama = OllamaClient::new(None, None, OllamaModel::default());
+        // will use default port, but read host and model from env
+        let ollama = OllamaClient::new(None, None, None);
         assert_eq!(ollama.client.uri(), "im-a-host:11434");
+        assert_eq!(ollama.model, OllamaModel::Phi2);
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "ollama_test")]
+    async fn test_ollama_prompt() {
+        let model = OllamaModel::OrcaMini;
+        let ollama = OllamaClient::new(None, None, model);
+        let prompt = "The sky appears blue during the day because of a process called scattering. \
+            When sunlight enters the Earth's atmosphere, it collides with air molecules such as oxygen and nitrogen. \
+            These collisions cause some of the light to be absorbed or reflected, which makes the colors we see appear more vivid and vibrant. \
+            Blue is one of the brightest colors that is scattered the most by the atmosphere, making it visible to our eyes during the day. \
+            What may be the question this answer?".to_string();
+
+        let gen_res = ollama
+            .generate(prompt.clone())
+            .await
+            .expect("Could not generate.");
+        println!("Prompt: {}\n\nResponse:{}", prompt, gen_res.response);
     }
 }

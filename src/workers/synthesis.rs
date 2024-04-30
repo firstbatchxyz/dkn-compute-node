@@ -37,9 +37,11 @@ pub fn synthesis_worker(
     cancellation: CancellationToken,
 ) -> tokio::task::JoinHandle<()> {
     let sleep_amount = tokio::time::Duration::from_millis(SLEEP_MILLIS);
-    let ollama = OllamaClient::default(); // TODO: read env
+    let ollama = OllamaClient::new(None, None, None);
 
     tokio::spawn(async move {
+        ollama.setup().await.expect("TODO TODO");
+
         match node.subscribe_topic(TOPIC).await {
             Ok(_) => {
                 log::info!("Subscribed to {}", TOPIC);

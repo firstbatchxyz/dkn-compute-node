@@ -23,8 +23,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(feature = "heartbeat")]
     join_handles.push(heartbeat_worker(node.clone(), cancellation.clone()));
 
-    // #[cfg(feature = "synthesis")]
-    // join_handles.push(synthesis_worker(node.clone(), cancellation.clone()));
+    #[cfg(feature = "synthesis")]
+    join_handles.push(synthesis_worker(node.clone(), cancellation.clone()));
 
     // SIGINT handler
     match tokio::signal::ctrl_c().await {

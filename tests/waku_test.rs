@@ -1,6 +1,6 @@
 #[cfg(feature = "waku_test")]
 mod waku_tests {
-    use dkn_compute::node::DriaComputeNode;
+    use dkn_compute::{node::DriaComputeNode, waku::message::WakuMessage};
 
     #[tokio::test]
     async fn test_base_waku() {
@@ -10,7 +10,7 @@ mod waku_tests {
         assert_eq!("v0.26.0", version);
 
         let peers = waku.peers().await.expect("Should get peers.");
-        assert!(!peers.is_empty());
+        assert!(!peers.is_empty(), "Expected at least 1 peer.");
 
         let info = waku.info().await.expect("Should get debug info.");
         assert!(!info.listen_addresses.is_empty());
