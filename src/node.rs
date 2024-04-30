@@ -5,6 +5,7 @@ use libsecp256k1::{sign, Message, RecoveryId, Signature};
 use crate::{
     compute::payload::TaskResponsePayload,
     config::DriaComputeNodeConfig,
+    errors::NodeResult,
     utils::{crypto::sha256hash, filter::FilterPayload},
     waku::{message::WakuMessage, WakuClient},
 };
@@ -71,7 +72,7 @@ impl DriaComputeNode {
         &self,
         result: impl AsRef<[u8]>,
         task_pubkey: &[u8],
-    ) -> Result<TaskResponsePayload, Box<dyn std::error::Error>> {
+    ) -> NodeResult<TaskResponsePayload> {
         // sign result
         let result_digest: [u8; 32] = sha256hash(result.as_ref());
         let result_msg = Message::parse(&result_digest);
@@ -82,7 +83,7 @@ impl DriaComputeNode {
         // encrypt result
         let ciphertext = encrypt(task_pubkey, result.as_ref()).expect("Could not encrypt.");
 
-        // concat `signature_bytes` and `digest_bytes`
+        // concatenate `signature_bytes` and `digest_bytes`
         let mut preimage = Vec::new();
         preimage.extend_from_slice(&signature);
         preimage.extend_from_slice(&recid);
@@ -97,32 +98,26 @@ impl DriaComputeNode {
     }
 
     /// Subscribe to a certain task with its topic.
-    pub async fn subscribe_topic(&self, topic: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn subscribe_topic(&self, topic: &str) -> NodeResult<()> {
         let content_topic = WakuMessage::create_content_topic(topic);
         self.waku.relay.subscribe(&content_topic).await
     }
 
     /// Unsubscribe from a certain task with its topic.
-    pub async fn unsubscribe_topic(&self, topic: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn unsubscribe_topic(&self, topic: &str) -> NodeResult<()> {
         let content_topic = WakuMessage::create_content_topic(topic);
         self.waku.relay.unsubscribe(&content_topic).await
     }
 
     /// Send a message via Waku Relay.
-    pub async fn send_message(
-        &self,
-        message: WakuMessage,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn send_message(&self, message: WakuMessage) -> NodeResult<()> {
         self.waku.relay.send_message(message).await
     }
 
     /// Send a message via Waku Relay on a topic, where
     /// the topic is subscribed, the message is sent, and
     /// the topic is unsubscribed right afterwards.
-    pub async fn send_once_message(
-        &self,
-        message: WakuMessage,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn send_once_message(&self, message: WakuMessage) -> NodeResult<()> {
         let content_topic = message.content_topic.clone();
         self.waku.relay.subscribe(&content_topic).await?;
         self.waku.relay.send_message(message).await?;
@@ -130,11 +125,7 @@ impl DriaComputeNode {
         Ok(())
     }
 
-    pub async fn process_topic(
-        &self,
-        topic: &str,
-        signed: bool,
-    ) -> Result<Vec<WakuMessage>, Box<dyn std::error::Error>> {
+    pub async fn process_topic(&self, topic: &str, signed: bool) -> NodeResult<Vec<WakuMessage>> {
         let content_topic = WakuMessage::create_content_topic(topic);
         let mut messages: Vec<WakuMessage> = self.waku.relay.get_messages(&content_topic).await?;
 

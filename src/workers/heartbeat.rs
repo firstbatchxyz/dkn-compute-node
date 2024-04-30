@@ -24,15 +24,18 @@ pub fn heartbeat_worker(
     let sleep_amount = tokio::time::Duration::from_millis(SLEEP_MILLIS);
 
     tokio::spawn(async move {
-        match node.subscribe_topic(TOPIC).await {
-            Ok(_) => {
-                log::info!("Subscribed to {}", TOPIC);
-            }
-            Err(e) => {
-                log::error!("Error subscribing to {}", e);
-                return;
+        while let Err(e) = node.subscribe_topic(TOPIC).await {
+            log::error!(
+                "Error subscribing to {}: {}\nRetrying in 5 seconds.",
+                TOPIC,
+                e
+            );
+            tokio::select! {
+                _ = cancellation.cancelled() => return,
+                _ = tokio::time::sleep(tokio::time::Duration::from_secs(5)) => continue
             }
         }
+        log::info!("Subscribed to {}", TOPIC);
 
         loop {
             tokio::select! {

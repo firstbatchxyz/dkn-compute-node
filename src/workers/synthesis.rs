@@ -42,17 +42,24 @@ pub fn synthesis_worker(
     tokio::spawn(async move {
         while let Err(e) = ollama.setup().await {
             log::error!("Error setting up Ollama: {}\nRetrying in 5 seconds.", e);
-            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+            tokio::select! {
+                _ = cancellation.cancelled() => return,
+                _ = tokio::time::sleep(tokio::time::Duration::from_secs(5)) => continue
+            }
         }
 
-        match node.subscribe_topic(TOPIC).await {
-            Ok(_) => {
-                log::info!("Subscribed to {}", TOPIC);
-            }
-            Err(e) => {
-                log::error!("Error subscribing to {}", e);
+        while let Err(e) = node.subscribe_topic(TOPIC).await {
+            log::error!(
+                "Error subscribing to {}: {}\nRetrying in 5 seconds.",
+                TOPIC,
+                e
+            );
+            tokio::select! {
+                _ = cancellation.cancelled() => return,
+                _ = tokio::time::sleep(tokio::time::Duration::from_secs(5)) => continue
             }
         }
+        log::info!("Subscribed to {}", TOPIC);
 
         loop {
             tokio::select! {
