@@ -53,7 +53,7 @@ impl BaseClient {
         let res = self
             .client
             .post(&full_url)
-            // .header("Accept", "application/json")
+            .header("Accept", "application/json")
             .header("Content-Type", "application/json")
             .json(&body)
             .send()

@@ -62,3 +62,12 @@ impl From<serde_json::Error> for NodeError {
         }
     }
 }
+
+impl From<base64::DecodeError> for NodeError {
+    fn from(value: base64::DecodeError) -> Self {
+        Self {
+            message: value.to_string(),
+            source: "base64".to_string(),
+        }
+    }
+}

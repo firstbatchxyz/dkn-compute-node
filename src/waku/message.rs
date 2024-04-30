@@ -1,11 +1,11 @@
-use core::fmt;
-
 use crate::{
     config::constants::{WAKU_APP_NAME, WAKU_ENCODING, WAKU_ENC_VERSION},
+    errors::NodeResult,
     utils::{crypto::sha256hash, get_current_time_nanos},
 };
 
 use base64::{prelude::BASE64_STANDARD, Engine};
+use core::fmt;
 use ecies::PublicKey;
 use serde::{de::Error, Deserialize, Serialize};
 
@@ -43,6 +43,7 @@ impl WakuMessage {
     /// Creates a new ephemeral Waku message with current timestamp, version 0.
     ///
     /// ## Parameters
+    ///
     /// - `payload` is gives as bytes. It is base64 encoded internally.
     /// - `topic` is the name of the topic itself within the full content topic. The rest of the content topic
     /// is filled in automatically, e.g. `/dria/0/<topic>/proto`.
@@ -62,10 +63,7 @@ impl WakuMessage {
     }
 
     /// Decodes and parses the payload into JSON.
-    pub fn parse_payload<T: for<'a> Deserialize<'a>>(
-        &self,
-        signed: bool,
-    ) -> Result<T, serde_json::Error> {
+    pub fn parse_payload<T: for<'a> Deserialize<'a>>(&self, signed: bool) -> NodeResult<T> {
         let payload = self
             .decode_payload()
             .map_err(|err| serde_json::Error::custom(format!("Base64 decode failed: {}", err)))?;
@@ -77,14 +75,12 @@ impl WakuMessage {
             &payload[..]
         };
 
-        serde_json::from_slice(body)
+        serde_json::from_slice(body)?
     }
 
-    pub fn is_signed(&self, public_key: &PublicKey) -> Result<bool, serde_json::Error> {
+    pub fn is_signed(&self, public_key: &PublicKey) -> NodeResult<bool> {
         // decode base64 payload
-        let payload = self
-            .decode_payload()
-            .map_err(|err| serde_json::Error::custom(format!("Base64 decode failed: {}", err)))?;
+        let payload = self.decode_payload()?;
 
         // parse signature (64 bytes = 128 hex chars, although the full 65-byte RSV signature is given)
         let (signature, body) = (&payload[..SIGNATURE_SIZE - 2], &payload[SIGNATURE_SIZE..]);
@@ -116,10 +112,15 @@ impl WakuMessage {
 
 impl fmt::Display for WakuMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let payload_decoded = self
+            .decode_payload()
+            .unwrap_or(self.payload.as_bytes().to_vec());
+
+        let payload_str = String::from_utf8(payload_decoded).unwrap_or(self.payload.clone());
         write!(
             f,
             "WakuMessage {} at {}\n{}",
-            self.content_topic, self.timestamp, self.payload
+            self.content_topic, self.timestamp, payload_str
         )
     }
 }
@@ -162,14 +163,15 @@ mod tests {
     fn test_unsigned_message() {
         // create payload & message
         let body = TestStruct::default();
-        let payload = serde_json::to_vec(&json!(body)).unwrap();
+        let payload = serde_json::to_vec(&json!(body)).expect("Should serialize.");
         let message = WakuMessage::new(payload, TOPIC);
 
         // decode message
-        let message_body = message.decode_payload().unwrap();
-        let body = serde_json::from_slice::<TestStruct>(&message_body).unwrap();
+        let message_body = message.decode_payload().expect("Should decode.");
+        let body =
+            serde_json::from_slice::<TestStruct>(&message_body).expect("Should deserialize.");
         assert_eq!(
-            serde_json::to_string(&body).unwrap(),
+            serde_json::to_string(&body).expect("Should stringify."),
             "{\"hello\":\"world\"}"
         );
         assert_eq!(message.content_topic, "/dria/0/test-topic/proto");
@@ -188,7 +190,7 @@ mod tests {
 
         // create payload & message with signature & body
         let body = TestStruct::default();
-        let body_str = serde_json::to_string(&json!(body)).unwrap();
+        let body_str = serde_json::to_string(&json!(body)).expect("Should stringify.");
         let (signature, recid) = libsecp256k1::sign(&Message::parse(&sha256hash(&body_str)), &sk);
         let signature_str = format!(
             "{}{}",
@@ -199,10 +201,11 @@ mod tests {
         let message = WakuMessage::new(payload, TOPIC);
 
         // decode message
-        let message_body = message.decode_payload().unwrap();
-        let body = serde_json::from_slice::<TestStruct>(&message_body[130..]).unwrap();
+        let message_body = message.decode_payload().expect("Should decode.");
+        let body =
+            serde_json::from_slice::<TestStruct>(&message_body[130..]).expect("Should parse.");
         assert_eq!(
-            serde_json::to_string(&body).unwrap(),
+            serde_json::to_string(&body).expect("Should stringify."),
             "{\"hello\":\"world\"}"
         );
         assert_eq!(message.content_topic, "/dria/0/test-topic/proto");
@@ -212,7 +215,7 @@ mod tests {
 
         // check signature
         let pk = PublicKey::from_secret_key(&sk);
-        assert!(message.is_signed(&pk).unwrap());
+        assert!(message.is_signed(&pk).expect("Should check signature."));
 
         let parsed_body = message.parse_payload(true).expect("Should decode.");
         assert_eq!(body, parsed_body);

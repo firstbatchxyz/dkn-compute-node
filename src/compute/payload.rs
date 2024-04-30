@@ -12,6 +12,7 @@ use crate::utils::filter::FilterPayload;
 /// and compute the digest using SHA256. That digest will then be used for the signature check.
 ///
 /// ## Fields
+///
 /// - `ciphertext`: Computation result encrypted with the public key of the task.
 /// - `commitment`: A commitment to `signature || plaintext result`
 /// - `signature`: A signature on the digest of plaintext result.
@@ -24,7 +25,7 @@ pub struct TaskResponsePayload {
 
 impl From<TaskResponsePayload> for String {
     fn from(value: TaskResponsePayload) -> Self {
-        to_string(&json!(value)).unwrap()
+        to_string(&json!(value)).unwrap() // TODO: Handle error
     }
 }
 
@@ -37,7 +38,7 @@ impl From<TaskResponsePayload> for String {
 /// - `task_id`: The unique identifier of the task.
 /// - `deadline`: The deadline of the task in nanoseconds.
 /// - `input`: The input to the compute function.
-/// - `filter`: The filter of the task.
+/// - `filter`: The Bloom filter of the task.
 /// - `public_key`: The public key of the requester.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]

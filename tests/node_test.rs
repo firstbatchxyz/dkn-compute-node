@@ -19,34 +19,36 @@ fn test_payload_generation_verification() {
     const RESULT: &[u8; 28] = b"this is some result you know";
 
     let node = DriaComputeNode::default();
-    let secret_key = SecretKey::parse(ADMIN_PRIV_KEY).unwrap();
+    let secret_key = SecretKey::parse(ADMIN_PRIV_KEY).expect("Should parse secret key.");
     let public_key = PublicKey::from_secret_key(&secret_key);
 
     // create payload
     let payload = node
         .create_payload(RESULT, &public_key.serialize())
-        .unwrap();
+        .expect("Should create payload.");
 
     // (here we assume the payload is sent to Waku network, and picked up again)
 
     // decrypt result
     let result = decrypt(
         &secret_key.serialize(),
-        hex::decode(payload.ciphertext).unwrap().as_slice(),
+        hex::decode(payload.ciphertext)
+            .expect("Should decode.")
+            .as_slice(),
     )
     .expect("Could not decrypt.");
     assert_eq!(result, RESULT, "Result mismatch.");
 
     // verify signature
-    let rsv = hex::decode(payload.signature).unwrap();
+    let rsv = hex::decode(payload.signature).expect("Should decode.");
     let mut signature_bytes = [0u8; 64];
     signature_bytes.copy_from_slice(&rsv[0..64]);
     let recid_bytes: [u8; 1] = [rsv[64]];
-    let signature = Signature::parse_standard(&signature_bytes).unwrap();
-    let recid = RecoveryId::parse(recid_bytes[0]).unwrap();
+    let signature = Signature::parse_standard(&signature_bytes).expect("Should parse signature.");
+    let recid = RecoveryId::parse(recid_bytes[0]).expect("Should parse recovery id.");
 
     let result_digest = sha256hash(result);
-    let message = Message::parse_slice(&result_digest).unwrap();
+    let message = Message::parse(&result_digest);
     assert!(
         verify(&message, &signature, &node.config.DKN_WALLET_PUBLIC_KEY),
         "Could not verify."
@@ -67,7 +69,9 @@ fn test_payload_generation_verification() {
     preimage.extend_from_slice(&result_digest);
     assert_eq!(
         sha256hash(preimage),
-        hex::decode(payload.commitment).unwrap().as_slice(),
+        hex::decode(payload.commitment)
+            .expect("Should decode.")
+            .as_slice(),
         "Commitment mismatch."
     );
 }

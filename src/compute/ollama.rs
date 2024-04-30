@@ -30,7 +30,7 @@ impl Default for OllamaClient {
 impl OllamaClient {
     /// Creates a new Ollama client.
     ///
-    /// Reads `DKN_OLLAMA_HOST` and `DKN_OLLAMA_PORT` from the environment, and defaults if not provided.
+    /// Reads `DKN_OLLAMA_HOST`, `DKN_OLLAMA_PORT` and `DKN_OLLAMA_MODEL` from the environment, and defaults if not provided.
     pub fn new(host: Option<String>, port: Option<u16>, model: Option<OllamaModel>) -> Self {
         let host = host.unwrap_or_else(|| {
             env::var("DKN_OLLAMA_HOST").unwrap_or(DEFAULT_DKN_OLLAMA_HOST.to_string())

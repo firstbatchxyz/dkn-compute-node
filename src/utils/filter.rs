@@ -13,7 +13,7 @@ pub struct FilterPayload {
 
 impl From<FilterPayload> for String {
     fn from(value: FilterPayload) -> Self {
-        to_string(&json!(value)).unwrap()
+        to_string(&json!(value)).unwrap() // TODO: handle error
     }
 }
 
@@ -25,7 +25,7 @@ impl From<String> for FilterPayload {
 
 impl From<FilterPayload> for BloomFilter {
     fn from(value: FilterPayload) -> Self {
-        let filter = hex::decode(value.filter).unwrap();
+        let filter = hex::decode(value.filter).unwrap(); // TODO: handle error
         BloomFilter::from_u8_array(filter.as_slice(), value.hashes)
     }
 }

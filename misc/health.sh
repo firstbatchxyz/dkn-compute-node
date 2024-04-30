@@ -1,5 +1,4 @@
 #!/bin/bash
-
 # Small utility to check the health of the node in a loop.
 
 while true; do

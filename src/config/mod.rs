@@ -29,7 +29,11 @@ impl DriaComputeNodeConfig {
                 .unwrap_or_default()
                 .as_slice(),
         )
-        .unwrap_or(SecretKey::parse(DEFAULT_DKN_WALLET_SECRET_KEY).unwrap());
+        .unwrap_or(
+            // TODO: maybe give error & ask for key specifically?
+            SecretKey::parse(DEFAULT_DKN_WALLET_SECRET_KEY)
+                .expect("Should decrypt default secret key."),
+        );
 
         let public_key = PublicKey::from_secret_key(&secret_key);
 
@@ -39,7 +43,10 @@ impl DriaComputeNodeConfig {
                 .as_slice(),
             Some(PublicKeyFormat::Compressed),
         )
-        .unwrap_or(PublicKey::parse_compressed(DEFAULT_DKN_ADMIN_PUBLIC_KEY).unwrap());
+        .unwrap_or(
+            PublicKey::parse_compressed(DEFAULT_DKN_ADMIN_PUBLIC_KEY)
+                .expect("Should decrypt default Admin public key."),
+        );
 
         let address = to_address(&public_key);
 
