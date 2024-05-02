@@ -80,3 +80,12 @@ impl From<hex::FromHexError> for NodeError {
         }
     }
 }
+
+impl From<ecies::SecpError> for NodeError {
+    fn from(value: ecies::SecpError) -> Self {
+        Self {
+            message: value.to_string(),
+            source: "secp256k1".to_string(),
+        }
+    }
+}

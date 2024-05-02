@@ -28,6 +28,10 @@ run:
 run-all:
 	RUST_LOG=info cargo run --features=synthesis
 
+# Run all workers in debug mode
+run-all-dbg:
+	RUST_LOG=none,dkn_compute=debug cargo run --features=synthesis
+
 # Run with crate-level DEBUG level logging
 debug:
 	RUST_LOG=none,dkn_compute=debug cargo run

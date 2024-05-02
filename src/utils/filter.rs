@@ -7,7 +7,7 @@ use serde_json::{json, to_string};
 /// The filter is a Bloom Filter with a set of items and a false positive rate, it is serialized as a hex string.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FilterPayload {
-    pub filter: String,
+    pub hex: String,
     pub hashes: u32,
 }
 
@@ -33,7 +33,7 @@ impl TryFrom<&FilterPayload> for BloomFilter {
     type Error = hex::FromHexError;
 
     fn try_from(value: &FilterPayload) -> Result<Self, Self::Error> {
-        let filter = hex::decode(value.filter.as_str())?;
+        let filter = hex::decode(value.hex.as_str())?;
         Ok(BloomFilter::from_u8_array(&filter, value.hashes))
     }
 }
@@ -41,7 +41,7 @@ impl TryFrom<&FilterPayload> for BloomFilter {
 impl From<BloomFilter> for FilterPayload {
     fn from(value: BloomFilter) -> Self {
         FilterPayload {
-            filter: hex::encode(value.get_u8_array()),
+            hex: hex::encode(value.get_u8_array()),
             hashes: value.hashes(),
         }
     }
@@ -65,7 +65,7 @@ mod tests {
         // 250 items, 0.01 fp rate (7 hashes), includes b"helloworld" and nothing else
         const FILTER_HEX: &str = "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004000000000000040000000000000400000000000004000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000000000004000000000000040000";
         let filter_payload = FilterPayload {
-            filter: FILTER_HEX.to_string(),
+            hex: FILTER_HEX.to_string(),
             hashes: 7,
         };
 
@@ -79,7 +79,7 @@ mod tests {
         // 128 items, 0.01 fp rate (7 hashes), includes b"helloworld" and nothing else
         const FILTER_HEX: &str = "00000040000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000000000040000000000000000000000000004000000000000000000000000000000000000000000000040000000000000000000000000004000000000000000000000000000000000000";
         let filter_payload = FilterPayload {
-            filter: FILTER_HEX.to_string(),
+            hex: FILTER_HEX.to_string(),
             hashes: 7,
         };
 

@@ -3,7 +3,6 @@ use std::{borrow::Borrow, env};
 use ollama_rs::{
     error::OllamaError,
     generation::completion::{request::GenerationRequest, GenerationResponse},
-    models::pull::PullModelStatus,
     Ollama,
 };
 
@@ -59,26 +58,37 @@ impl OllamaClient {
     }
 
     /// Pulls the configured model.
-    pub async fn setup(&self) -> Result<PullModelStatus, OllamaError> {
+    pub async fn setup(&self) -> Result<(), OllamaError> {
         log::info!("Pulling model: {:?}", self.model);
-        self.client
+
+        let status = self
+            .client
             .pull_model(self.model.borrow().into(), false)
-            .await
+            .await?;
+
+        log::info!("Pulled {:?}: {} ()", self.model, status.message);
+        Ok(())
     }
 
     /// Generates a result using the local LLM.
     pub async fn generate(&self, prompt: String) -> Result<GenerationResponse, String> {
-        self.client
+        log::debug!("Generating with prompt: {}", prompt);
+
+        let gen_res = self
+            .client
             .generate(GenerationRequest::new(self.model.borrow().into(), prompt))
-            .await
+            .await?;
+
+        log::debug!("Generated response: {}", gen_res.response);
+        Ok(gen_res)
     }
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Default, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum OllamaModel {
-    #[default] ///////// Param  Memory  Command
-    Mistral, /////////// 7B     4.1GB   ollama run mistral
+    /////////            Param  Memory  Command
+    Mistral,          // 7B     4.1GB   ollama run mistral
     Llama2Uncensored, // 7B	    3.8GB	ollama run llama2-uncensored
     Llama2_13B,       // 13B    7.3GB   ollama run llama2:13b
     Llama2_70B,       // 70B    39GB	ollama run llama2:70b
@@ -86,14 +96,21 @@ pub enum OllamaModel {
     Llama3_70B,       // 70B    40GB	ollama run llama3:70b
     DolphinPhi,       // 2.7B   1.6GB	ollama run dolphin-phi
     Phi2,             // 2.7B   1.7GB	ollama run phi
+    Phi3,             // 3.8B   2.3GB	ollama run phi3
     NeuralChat,       // 7B	    4.1GB	ollama run neural-chat
     Starling,         // 7B	    4.1GB	ollama run starling-lm
     CodeLlama,        // 7B	    3.8GB	ollama run codellama
-    OrcaMini,         // 3B	    1.9GB	ollama run orca-mini
     LLaVA,            // 7B	    4.5GB	ollama run llava
     Gemma_2B,         // 2B	    1.4GB	ollama run gemma:2b
+    OrcaMini,         // 3B	    1.9GB	ollama run orca-mini
     Gemma_7B,         // 7B	    4.8GB	ollama run gemma:7b
     Solar,            // 10.7B  6.1GB	ollama run solar
+}
+
+impl Default for OllamaModel {
+    fn default() -> Self {
+        OllamaModel::OrcaMini
+    }
 }
 
 impl From<&OllamaModel> for String {
@@ -105,6 +122,7 @@ impl From<&OllamaModel> for String {
             OllamaModel::Mistral => "mistral",
             OllamaModel::DolphinPhi => "dolphin-phi",
             OllamaModel::Phi2 => "phi",
+            OllamaModel::Phi3 => "phi3",
             OllamaModel::NeuralChat => "neural-chat",
             OllamaModel::Starling => "starling-lm",
             OllamaModel::CodeLlama => "codellama",
@@ -129,6 +147,7 @@ impl From<String> for OllamaModel {
             "mistral" => OllamaModel::Mistral,
             "dolphin-phi" => OllamaModel::DolphinPhi,
             "phi" => OllamaModel::Phi2,
+            "phi3" => OllamaModel::Phi3,
             "neural-chat" => OllamaModel::NeuralChat,
             "starling-lm" => OllamaModel::Starling,
             "codellama" => OllamaModel::CodeLlama,

@@ -6,8 +6,8 @@ use crate::{
 };
 use tokio_util::sync::CancellationToken;
 
-const TOPIC: &str = "synthesis";
-const SLEEP_MILLIS: u64 = 500;
+const TOPIC: &str = "synth";
+const SLEEP_MILLIS: u64 = 1000;
 
 /// # Synthesis Payload
 ///
@@ -88,6 +88,15 @@ pub fn synthesis_worker(
                     }
 
                     for task in tasks {
+                        // parse public key
+                        let task_public_key = match hex::decode(&task.public_key) {
+                            Ok(public_key) => public_key,
+                            Err(e) => {
+                                log::error!("Error parsing public key: {}", e);
+                                continue;
+                            }
+                        };
+
                         // get prompt result from Ollama
                         let llm_result = match ollama.generate(task.input).await {
                             Ok(result) => result,
@@ -98,7 +107,7 @@ pub fn synthesis_worker(
                         };
 
                         // create h||s||e payload
-                        let payload = match node.create_payload(llm_result.response, task.public_key.as_bytes()) {
+                        let payload = match node.create_payload(llm_result.response, &task_public_key) {
                             Ok(payload) => payload,
                             Err(e) => {
                                 log::error!("Error creating payload: {}", e);

@@ -83,7 +83,7 @@ impl DriaComputeNode {
         let recid: [u8; 1] = [recid.serialize()];
 
         // encrypt result
-        let ciphertext = encrypt(task_pubkey, result.as_ref()).expect("Could not encrypt.");
+        let ciphertext = encrypt(task_pubkey, result.as_ref())?;
 
         // concatenate `signature_bytes` and `digest_bytes`
         let mut preimage = Vec::new();
@@ -136,6 +136,12 @@ impl DriaComputeNode {
     pub async fn process_topic(&self, topic: &str, signed: bool) -> NodeResult<Vec<WakuMessage>> {
         let content_topic = WakuMessage::create_content_topic(topic);
         let mut messages: Vec<WakuMessage> = self.waku.relay.get_messages(&content_topic).await?;
+        if !messages.is_empty() {
+            log::debug!("Received messages on topic {}:", topic);
+            for message in &messages {
+                log::debug!("{}", message);
+            }
+        }
 
         // if signed, only keep messages that are authentic to Dria
         if signed {
