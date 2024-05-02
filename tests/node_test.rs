@@ -19,13 +19,13 @@ fn test_payload_generation_verification() {
     const RESULT: &[u8; 28] = b"this is some result you know";
 
     let node = DriaComputeNode::default();
-    let secret_key = SecretKey::parse(ADMIN_PRIV_KEY).expect("Should parse secret key.");
+    let secret_key = SecretKey::parse(ADMIN_PRIV_KEY).expect("Should parse secret key");
     let public_key = PublicKey::from_secret_key(&secret_key);
 
     // create payload
     let payload = node
         .create_payload(RESULT, &public_key.serialize())
-        .expect("Should create payload.");
+        .expect("Should create payload");
 
     // (here we assume the payload is sent to Waku network, and picked up again)
 
@@ -33,25 +33,25 @@ fn test_payload_generation_verification() {
     let result = decrypt(
         &secret_key.serialize(),
         hex::decode(payload.ciphertext)
-            .expect("Should decode.")
+            .expect("Should decode")
             .as_slice(),
     )
-    .expect("Could not decrypt.");
-    assert_eq!(result, RESULT, "Result mismatch.");
+    .expect("Could not decrypt");
+    assert_eq!(result, RESULT, "Result mismatch");
 
     // verify signature
-    let rsv = hex::decode(payload.signature).expect("Should decode.");
+    let rsv = hex::decode(payload.signature).expect("Should decode");
     let mut signature_bytes = [0u8; 64];
     signature_bytes.copy_from_slice(&rsv[0..64]);
     let recid_bytes: [u8; 1] = [rsv[64]];
-    let signature = Signature::parse_standard(&signature_bytes).expect("Should parse signature.");
-    let recid = RecoveryId::parse(recid_bytes[0]).expect("Should parse recovery id.");
+    let signature = Signature::parse_standard(&signature_bytes).expect("Should parse signature");
+    let recid = RecoveryId::parse(recid_bytes[0]).expect("Should parse recovery id");
 
     let result_digest = sha256hash(result);
     let message = Message::parse(&result_digest);
     assert!(
         verify(&message, &signature, &node.config.DKN_WALLET_PUBLIC_KEY),
-        "Could not verify."
+        "Could not verify"
     );
 
     // recover verifying key (public key) from signature
@@ -59,7 +59,7 @@ fn test_payload_generation_verification() {
         libsecp256k1::recover(&message, &signature, &recid).expect("Could not recover");
     assert_eq!(
         node.config.DKN_WALLET_PUBLIC_KEY, recovered_public_key,
-        "Public key mismatch."
+        "Public key mismatch"
     );
 
     // verify commitments (algorithm 4 in whitepaper)
@@ -70,9 +70,9 @@ fn test_payload_generation_verification() {
     assert_eq!(
         sha256hash(preimage),
         hex::decode(payload.commitment)
-            .expect("Should decode.")
+            .expect("Should decode")
             .as_slice(),
-        "Commitment mismatch."
+        "Commitment mismatch"
     );
 }
 
@@ -92,10 +92,10 @@ fn test_heartbeat_and_task_assignment() {
         .expect("Could not recover");
     assert_eq!(
         node.config.DKN_WALLET_PUBLIC_KEY, recovered_public_key,
-        "Public key mismatch."
+        "Public key mismatch"
     );
     let address = to_address(&recovered_public_key);
-    assert_eq!(address, node.address(), "Address mismatch.");
+    assert_eq!(address, node.address(), "Address mismatch");
 
     // admin node assigns the task to the compute node via Bloom Filter
     let mut bloom = FilterBuilder::new(100, 0.01).build_bloom_filter();
@@ -103,5 +103,9 @@ fn test_heartbeat_and_task_assignment() {
     let filter_payload = FilterPayload::from(bloom);
 
     // compute node receives the filter and checks if it is tasked
-    assert!(node.is_tasked(filter_payload), "Node should be tasked.");
+    assert!(
+        node.is_tasked(&filter_payload)
+            .expect("Should check filter"),
+        "Node should be tasked"
+    );
 }

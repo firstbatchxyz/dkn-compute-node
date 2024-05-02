@@ -15,7 +15,7 @@ mod ollama_test {
         let gen_res = ollama
             .generate(prompt.clone())
             .await
-            .expect("Could not generate.");
+            .expect("Should generate response");
         println!("Prompt: {}\n\nResponse:{}", prompt, gen_res.response);
     }
 }

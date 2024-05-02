@@ -11,22 +11,30 @@ pub struct FilterPayload {
     pub hashes: u32,
 }
 
-impl From<FilterPayload> for String {
-    fn from(value: FilterPayload) -> Self {
-        to_string(&json!(value)).unwrap() // TODO: handle error
+impl TryFrom<&FilterPayload> for String {
+    type Error = serde_json::Error;
+
+    fn try_from(value: &FilterPayload) -> Result<Self, Self::Error> {
+        let string = to_string(&json!(value))?;
+        Ok(string)
     }
 }
 
-impl From<String> for FilterPayload {
-    fn from(value: String) -> Self {
-        serde_json::from_str(value.as_str()).expect("Could not parse FilterPayload")
+impl TryFrom<String> for FilterPayload {
+    type Error = serde_json::Error;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        let payload = serde_json::from_str(value.as_str())?;
+        Ok(payload)
     }
 }
 
-impl From<FilterPayload> for BloomFilter {
-    fn from(value: FilterPayload) -> Self {
-        let filter = hex::decode(value.filter).unwrap(); // TODO: handle error
-        BloomFilter::from_u8_array(filter.as_slice(), value.hashes)
+impl TryFrom<&FilterPayload> for BloomFilter {
+    type Error = hex::FromHexError;
+
+    fn try_from(value: &FilterPayload) -> Result<Self, Self::Error> {
+        let filter = hex::decode(value.filter.as_str())?;
+        Ok(BloomFilter::from_u8_array(&filter, value.hashes))
     }
 }
 
@@ -61,7 +69,7 @@ mod tests {
             hashes: 7,
         };
 
-        let bf = BloomFilter::from(filter_payload);
+        let bf = BloomFilter::try_from(&filter_payload).expect("Should parse filter");
         assert!(bf.contains(b"helloworld"));
         assert!(!bf.contains(b"im not in this filter"));
     }
@@ -75,7 +83,7 @@ mod tests {
             hashes: 7,
         };
 
-        let bf = BloomFilter::from(filter_payload);
+        let bf = BloomFilter::try_from(&filter_payload).expect("Should parse filter");
         assert!(bf.contains(b"helloworld"));
         assert!(!bf.contains(b"im not in this filter"));
     }

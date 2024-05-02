@@ -35,7 +35,6 @@ pub fn heartbeat_worker(
                 _ = tokio::time::sleep(tokio::time::Duration::from_secs(5)) => continue
             }
         }
-        log::info!("Subscribed to {}", TOPIC);
 
         loop {
             tokio::select! {
@@ -97,20 +96,20 @@ mod tests {
     #[test]
     fn test_heartbeat_payload() {
         let pk = PublicKey::parse_compressed(DEFAULT_DKN_ADMIN_PUBLIC_KEY)
-            .expect("Should parse public key.");
+            .expect("Should parse public key");
         let message = WakuMessage {
             payload: "Y2RmODcyNDlhY2U3YzQ2MDIzYzNkMzBhOTc4ZWY3NjViMWVhZDlmNWJhMDUyY2MxMmY0NzIzMjQyYjc0YmYyODFjMDA1MTdmMGYzM2VkNTgzMzk1YWUzMTY1ODQ3NWQyNDRlODAxYzAxZDE5MjYwMDM1MTRkNzEwMThmYTJkNjEwMXsidXVpZCI6ICI4MWE2M2EzNC05NmM2LTRlNWEtOTliNS02YjI3NGQ5ZGUxNzUiLCAiZGVhZGxpbmUiOiAxNzE0MTI4NzkyfQ==".to_string(), 
             content_topic: "/dria/0/heartbeat/proto".to_string(), 
             version: 0,
             timestamp: 1714129073557846272,
-            ephemeral: false
+            ephemeral: true
         };
 
-        assert!(message.is_signed(&pk).expect("Should check signature."));
+        assert!(message.is_signed(&pk).expect("Should check signature"));
 
         let obj = message
             .parse_payload::<HeartbeatPayload>(true)
-            .expect("Should parse payload.");
+            .expect("Should parse payload");
         assert_eq!(obj.uuid, "81a63a34-96c6-4e5a-99b5-6b274d9de175");
         assert_eq!(obj.deadline, 1714128792);
     }

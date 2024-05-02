@@ -51,7 +51,7 @@ impl RelayClient {
 
     /// Subscribe to a topic.
     pub async fn subscribe(&self, content_topic: &str) -> NodeResult<()> {
-        log::info!("Subscribing to {}", content_topic);
+        log::debug!("Subscribing to {}", content_topic);
         self.base
             .post(
                 "relay/v1/auto/subscriptions",
@@ -64,7 +64,7 @@ impl RelayClient {
 
     /// Unsubscribe from a content topic.
     pub async fn unsubscribe(&self, content_topic: &str) -> NodeResult<()> {
-        log::info!("Unsubscribing from {}", content_topic);
+        log::debug!("Unsubscribing from {}", content_topic);
         self.base
             .delete(
                 "relay/v1/auto/subscriptions",

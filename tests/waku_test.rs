@@ -6,13 +6,13 @@ mod waku_tests {
     async fn test_base_waku() {
         let waku = DriaComputeNode::default().waku;
 
-        let version = waku.version().await.expect("Should get version.");
+        let version = waku.version().await.expect("Should get version");
         assert_eq!("v0.26.0", version);
 
-        let peers = waku.peers().await.expect("Should get peers.");
-        assert!(!peers.is_empty(), "Expected at least 1 peer.");
+        let peers = waku.peers().await.expect("Should get peers");
+        assert!(!peers.is_empty(), "Expected at least 1 peer");
 
-        let info = waku.info().await.expect("Should get debug info.");
+        let info = waku.info().await.expect("Should get debug info");
         assert!(!info.listen_addresses.is_empty());
         assert!(info.enr_uri.starts_with("enr:"));
     }
@@ -22,14 +22,11 @@ mod waku_tests {
         const TOPIC: &str = "heartbeat";
         let waku = DriaComputeNode::default().waku;
 
-        waku.relay
-            .subscribe(TOPIC)
-            .await
-            .expect("Should subscribe.");
+        waku.relay.subscribe(TOPIC).await.expect("Should subscribe");
         waku.relay
             .get_messages(TOPIC)
             .await
-            .expect("Should get messages.");
+            .expect("Should get messages");
     }
 
     /// This test sends a message to Waku, sleeps a bit, and then receives it.
@@ -42,15 +39,13 @@ mod waku_tests {
         let node = DriaComputeNode::default();
         let topic = "test-topic-msr";
 
-        node.subscribe_topic(topic)
-            .await
-            .expect("Should subscribe.");
+        node.subscribe_topic(topic).await.expect("Should subscribe");
 
         let message = WakuMessage::new("hello world".to_string(), topic);
 
         node.send_message(message)
             .await
-            .expect("Should send message.");
+            .expect("Should send message");
 
         // wait a bit for the message
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
@@ -58,8 +53,8 @@ mod waku_tests {
         let messages = node
             .process_topic(topic, false)
             .await
-            .expect("Should receive.");
+            .expect("Should receive");
 
-        assert!(messages.len() > 0, "Should have received message.");
+        assert!(messages.len() > 0, "Should have received message");
     }
 }

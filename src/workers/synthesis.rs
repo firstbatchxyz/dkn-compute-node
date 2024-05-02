@@ -42,7 +42,6 @@ pub fn synthesis_worker(
                 _ = tokio::time::sleep(tokio::time::Duration::from_secs(5)) => continue
             }
         }
-        log::info!("Subscribed to {}", TOPIC);
 
         loop {
             tokio::select! {
@@ -65,9 +64,17 @@ pub fn synthesis_worker(
                                     }
 
                                     // check task inclusion
-                                    if !node.is_tasked(task.filter.clone()) {
-                                        log::debug!("{}", format!("Skipping {} due to filter.", task.task_id));
-                                        continue;
+                                    match node.is_tasked(&task.filter) {
+                                        Ok(is_tasked) => {
+                                            if is_tasked {
+                                                log::debug!("{}", format!("Skipping {} due to filter.", task.task_id));
+                                                continue;
+                                            }
+                                        },
+                                        Err(e) => {
+                                            log::error!("Error checking task inclusion: {}", e);
+                                            continue;
+                                        }
                                     }
 
                                     tasks.push(task);
@@ -99,8 +106,17 @@ pub fn synthesis_worker(
                             }
                         };
 
+                        // stringify payload
+                        let payload_str = match payload.to_string() {
+                            Ok(payload_str) => payload_str,
+                            Err(e) => {
+                                log::error!("Error stringifying payload: {}", e);
+                                continue;
+                            }
+                        };
+
                         // send result to Waku network
-                        let message = WakuMessage::new(String::from(payload), &task.task_id);
+                        let message = WakuMessage::new(payload_str, &task.task_id);
                         if let Err(e) = node.waku
                             .relay
                             .send_message(message)

@@ -7,7 +7,7 @@ use crate::{
 use base64::{prelude::BASE64_STANDARD, Engine};
 use core::fmt;
 use ecies::PublicKey;
-use serde::{de::Error, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 /// A Waku message, as defined by [14/WAKU2-MESSAGE](https://github.com/vacp2p/rfc-index/blob/main/waku/standards/core/14/message.md).
 ///
@@ -64,9 +64,7 @@ impl WakuMessage {
 
     /// Decodes and parses the payload into JSON.
     pub fn parse_payload<T: for<'a> Deserialize<'a>>(&self, signed: bool) -> NodeResult<T> {
-        let payload = self
-            .decode_payload()
-            .map_err(|err| serde_json::Error::custom(format!("Base64 decode failed: {}", err)))?;
+        let payload = self.decode_payload()?;
 
         let body = if signed {
             // skips the 65 byte hex signature
@@ -75,7 +73,8 @@ impl WakuMessage {
             &payload[..]
         };
 
-        serde_json::from_slice(body)?
+        let parsed: T = serde_json::from_slice(body)?;
+        Ok(parsed)
     }
 
     pub fn is_signed(&self, public_key: &PublicKey) -> NodeResult<bool> {
@@ -163,23 +162,22 @@ mod tests {
     fn test_unsigned_message() {
         // create payload & message
         let body = TestStruct::default();
-        let payload = serde_json::to_vec(&json!(body)).expect("Should serialize.");
+        let payload = serde_json::to_vec(&json!(body)).expect("Should serialize");
         let message = WakuMessage::new(payload, TOPIC);
 
         // decode message
-        let message_body = message.decode_payload().expect("Should decode.");
-        let body =
-            serde_json::from_slice::<TestStruct>(&message_body).expect("Should deserialize.");
+        let message_body = message.decode_payload().expect("Should decode");
+        let body = serde_json::from_slice::<TestStruct>(&message_body).expect("Should deserialize");
         assert_eq!(
-            serde_json::to_string(&body).expect("Should stringify."),
+            serde_json::to_string(&body).expect("Should stringify"),
             "{\"hello\":\"world\"}"
         );
         assert_eq!(message.content_topic, "/dria/0/test-topic/proto");
         assert_eq!(message.version, WAKU_ENC_VERSION);
-        assert_eq!(message.ephemeral, false);
+        assert_eq!(message.ephemeral, true);
         assert!(message.timestamp > 0);
 
-        let parsed_body = message.parse_payload(false).expect("Should decode.");
+        let parsed_body = message.parse_payload(false).expect("Should decode");
         assert_eq!(body, parsed_body);
     }
 
@@ -190,7 +188,7 @@ mod tests {
 
         // create payload & message with signature & body
         let body = TestStruct::default();
-        let body_str = serde_json::to_string(&json!(body)).expect("Should stringify.");
+        let body_str = serde_json::to_string(&json!(body)).expect("Should stringify");
         let (signature, recid) = libsecp256k1::sign(&Message::parse(&sha256hash(&body_str)), &sk);
         let signature_str = format!(
             "{}{}",
@@ -201,23 +199,23 @@ mod tests {
         let message = WakuMessage::new(payload, TOPIC);
 
         // decode message
-        let message_body = message.decode_payload().expect("Should decode.");
+        let message_body = message.decode_payload().expect("Should decode");
         let body =
-            serde_json::from_slice::<TestStruct>(&message_body[130..]).expect("Should parse.");
+            serde_json::from_slice::<TestStruct>(&message_body[130..]).expect("Should parse");
         assert_eq!(
-            serde_json::to_string(&body).expect("Should stringify."),
+            serde_json::to_string(&body).expect("Should stringify"),
             "{\"hello\":\"world\"}"
         );
         assert_eq!(message.content_topic, "/dria/0/test-topic/proto");
         assert_eq!(message.version, WAKU_ENC_VERSION);
-        assert_eq!(message.ephemeral, false);
+        assert_eq!(message.ephemeral, true);
         assert!(message.timestamp > 0);
 
         // check signature
         let pk = PublicKey::from_secret_key(&sk);
-        assert!(message.is_signed(&pk).expect("Should check signature."));
+        assert!(message.is_signed(&pk).expect("Should check signature"));
 
-        let parsed_body = message.parse_payload(true).expect("Should decode.");
+        let parsed_body = message.parse_payload(true).expect("Should decode");
         assert_eq!(body, parsed_body);
     }
 }

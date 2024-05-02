@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, to_string};
 
-use crate::utils::filter::FilterPayload;
+use crate::{errors::NodeResult, utils::filter::FilterPayload};
 
 /// # Dria Task Response
 ///
@@ -10,22 +10,19 @@ use crate::utils::filter::FilterPayload;
 ///
 /// To check the commitment, one must decrypt the ciphertext and parse plaintext from it,
 /// and compute the digest using SHA256. That digest will then be used for the signature check.
-///
-/// ## Fields
-///
-/// - `ciphertext`: Computation result encrypted with the public key of the task.
-/// - `commitment`: A commitment to `signature || plaintext result`
-/// - `signature`: A signature on the digest of plaintext result.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TaskResponsePayload {
+    /// A signature on the digest of plaintext result.
     pub signature: String,
+    /// Computation result encrypted with the public key of the task.
     pub ciphertext: String,
+    /// A commitment to `signature || result`
     pub commitment: String,
 }
 
-impl From<TaskResponsePayload> for String {
-    fn from(value: TaskResponsePayload) -> Self {
-        to_string(&json!(value)).unwrap() // TODO: Handle error
+impl TaskResponsePayload {
+    pub fn to_string(&self) -> NodeResult<String> {
+        to_string(&json!(self)).map_err(|e| e.into())
     }
 }
 

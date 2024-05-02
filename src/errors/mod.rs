@@ -71,3 +71,12 @@ impl From<base64::DecodeError> for NodeError {
         }
     }
 }
+
+impl From<hex::FromHexError> for NodeError {
+    fn from(value: hex::FromHexError) -> Self {
+        Self {
+            message: value.to_string(),
+            source: "hex".to_string(),
+        }
+    }
+}

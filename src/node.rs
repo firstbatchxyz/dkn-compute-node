@@ -59,8 +59,10 @@ impl DriaComputeNode {
     ///
     /// This is done by checking if the address of this node is in the filter.
     #[inline]
-    pub fn is_tasked(&self, filter: FilterPayload) -> bool {
-        BloomFilter::from(filter).contains(&self.address())
+    pub fn is_tasked(&self, filter: &FilterPayload) -> NodeResult<bool> {
+        let filter = BloomFilter::try_from(filter)?;
+
+        Ok(filter.contains(&self.address()))
     }
 
     /// Creates the payload of a computation result, as per Dria Whitepaper section 5.1 algorithm 2:
@@ -100,13 +102,17 @@ impl DriaComputeNode {
     /// Subscribe to a certain task with its topic.
     pub async fn subscribe_topic(&self, topic: &str) -> NodeResult<()> {
         let content_topic = WakuMessage::create_content_topic(topic);
-        self.waku.relay.subscribe(&content_topic).await
+        self.waku.relay.subscribe(&content_topic).await?;
+        log::info!("Subscribed to {}", topic);
+        Ok(())
     }
 
     /// Unsubscribe from a certain task with its topic.
     pub async fn unsubscribe_topic(&self, topic: &str) -> NodeResult<()> {
         let content_topic = WakuMessage::create_content_topic(topic);
-        self.waku.relay.unsubscribe(&content_topic).await
+        self.waku.relay.unsubscribe(&content_topic).await?;
+        log::info!("Unsubscribed from {}", topic);
+        Ok(())
     }
 
     /// Send a message via Waku Relay.
@@ -125,6 +131,8 @@ impl DriaComputeNode {
         Ok(())
     }
 
+    /// Process messages on a certain topic, and if they are expected to be signed by the admin
+    /// key of Dria, only keeps the ones that are authentic.
     pub async fn process_topic(&self, topic: &str, signed: bool) -> NodeResult<Vec<WakuMessage>> {
         let content_topic = WakuMessage::create_content_topic(topic);
         let mut messages: Vec<WakuMessage> = self.waku.relay.get_messages(&content_topic).await?;

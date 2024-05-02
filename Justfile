@@ -18,7 +18,7 @@ lint:
 
 # Run formatter
 format:
-	cargo fmt
+	cargo fmt -v
 
 # Run with INFO level logging
 run:
@@ -38,5 +38,5 @@ docs:
 
 # Print active environment
 env:
-  @echo "Wallet Secret: $DKN_WALLET_SECRET_KEY"
-  @echo "Admin Public: $DKN_ADMIN_PUBLIC_KEY"
+  @echo "Wallet Secret: ${DKN_WALLET_SECRET_KEY}"
+  @echo "Admin Public: ${DKN_ADMIN_PUBLIC_KEY}"
