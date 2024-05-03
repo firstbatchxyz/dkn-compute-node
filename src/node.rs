@@ -19,7 +19,7 @@ pub struct DriaComputeNode {
 
 impl Default for DriaComputeNode {
     fn default() -> Self {
-        DriaComputeNode::new(DriaComputeNodeConfig::default())
+        DriaComputeNode::new(DriaComputeNodeConfig::new())
     }
 }
 

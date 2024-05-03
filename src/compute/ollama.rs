@@ -99,7 +99,6 @@ pub enum OllamaModel {
     Llama3_8B,        // 8B	    4.7GB	ollama run llama3
     Llama3_70B,       // 70B    40GB	ollama run llama3:70b
     DolphinPhi,       // 2.7B   1.6GB	ollama run dolphin-phi
-    Phi2,             // 2.7B   1.7GB	ollama run phi
     Phi3,             // 3.8B   2.3GB	ollama run phi3
     NeuralChat,       // 7B	    4.1GB	ollama run neural-chat
     Starling,         // 7B	    4.1GB	ollama run starling-lm
@@ -125,7 +124,6 @@ impl From<&OllamaModel> for String {
             OllamaModel::Llama3_70B => "llama3:70b",
             OllamaModel::Mistral => "mistral",
             OllamaModel::DolphinPhi => "dolphin-phi",
-            OllamaModel::Phi2 => "phi",
             OllamaModel::Phi3 => "phi3",
             OllamaModel::NeuralChat => "neural-chat",
             OllamaModel::Starling => "starling-lm",
@@ -150,7 +148,6 @@ impl From<String> for OllamaModel {
             "llama3:70b" => OllamaModel::Llama3_70B,
             "mistral" => OllamaModel::Mistral,
             "dolphin-phi" => OllamaModel::DolphinPhi,
-            "phi" => OllamaModel::Phi2,
             "phi3" => OllamaModel::Phi3,
             "neural-chat" => OllamaModel::NeuralChat,
             "starling-lm" => OllamaModel::Starling,
@@ -191,6 +188,15 @@ mod tests {
         // will use default port, but read host and model from env
         let ollama = OllamaClient::new(None, None, None);
         assert_eq!(ollama.client.uri(), "im-a-host:11434");
-        assert_eq!(ollama.model, OllamaModel::Phi2);
+        assert_eq!(ollama.model, OllamaModel::OrcaMini);
+    }
+
+    #[test]
+    fn test_model_parse() {
+        let model = OllamaModel::from("fsdfsdf".to_string());
+        assert_eq!(model, OllamaModel::default());
+
+        let model = OllamaModel::from("phi3".to_string());
+        assert_eq!(model, OllamaModel::Phi3);
     }
 }

@@ -23,6 +23,8 @@ services:
       DKN_OLLAMA_PORT: "11434"
       DKN_OLLAMA_MODEL: "phi3"
       DKN_WAKU_URL: "http://nwaku:8645"
+      DKN_WALLET_SECRET_KEY: ${ETH_TESTNET_KEY}
+      DKN_ADMIN_PUBLIC_KEY: "0208ef5e65a9c656a6f92fb2c770d5d5e2ecffe02a6aade19207f75110be6ae658"
       RUST_LOG: "info"
     depends_on:
       - nwaku
@@ -53,7 +55,7 @@ services:
         - *rln_env
     volumes:
       - ${CERTS_DIR:-./waku/certs}:/etc/letsencrypt/:Z
-      - ./waku/run_node.sh:/opt/run_node.sh:Z
+      - ./run_node.sh:/opt/run_node.sh:Z
       - ./waku/rln_tree:/etc/rln_tree/:Z
       - ./waku/keystore:/keystore:Z
     entrypoint: sh

@@ -6,6 +6,12 @@ use ecies::PublicKey;
 use libsecp256k1::{PublicKeyFormat, SecretKey};
 use std::env;
 
+/// 32 byte secret key hex(b"node") * 8
+/// address:
+#[cfg(test)]
+pub const DEFAULT_DKN_WALLET_SECRET_KEY: &[u8; 32] =
+    &hex_literal::hex!("6e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f6465");
+
 #[allow(non_snake_case)]
 #[derive(Debug, Clone)]
 pub struct DriaComputeNodeConfig {
@@ -19,18 +25,22 @@ pub struct DriaComputeNodeConfig {
     pub DKN_ADMIN_PUBLIC_KEY: PublicKey,
 }
 
+#[cfg(test)]
+fn prepare_secret() -> SecretKey {
+    SecretKey::parse(DEFAULT_DKN_WALLET_SECRET_KEY).expect("Should decrypt default secret key.")
+}
+
+#[cfg(not(test))]
+fn prepare_secret() -> SecretKey {
+    let secret_env =
+        env::var("DKN_WALLET_SECRET_KEY").expect("Secret key should be provided in .env.");
+    let secret_dec = hex::decode(secret_env).expect("Secret key should be 32-bytes hex encoded.");
+    SecretKey::parse_slice(&secret_dec).expect("Secret key should be parseable.")
+}
+
 impl DriaComputeNodeConfig {
     pub fn new() -> Self {
-        let secret_key = SecretKey::parse_slice(
-            hex::decode(env::var("DKN_WALLET_PRIVKEY").unwrap_or_default())
-                .unwrap_or_default()
-                .as_slice(),
-        )
-        .unwrap_or(
-            // TODO: maybe give error & ask for key specifically?
-            SecretKey::parse(DEFAULT_DKN_WALLET_SECRET_KEY)
-                .expect("Should decrypt default secret key."),
-        );
+        let secret_key = prepare_secret();
 
         let public_key = PublicKey::from_secret_key(&secret_key);
 
@@ -53,6 +63,10 @@ impl DriaComputeNodeConfig {
             hex::encode(public_key.serialize_compressed())
         );
         log::info!(
+            "Node Secret Key: 0x{}...",
+            hex::encode(&secret_key.serialize()[0..1]),
+        );
+        log::info!(
             "Admin Public Key: 0x{}",
             hex::encode(admin_public_key.serialize_compressed())
         );
@@ -66,9 +80,20 @@ impl DriaComputeNodeConfig {
     }
 }
 
-impl Default for DriaComputeNodeConfig {
-    /// Alias for `new`.
-    fn default() -> Self {
-        Self::new()
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_config() {
+        env::set_var(
+            "DKN_WALLET_SECRET_KEY",
+            "6e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f6465",
+        );
+        let cfg = DriaComputeNodeConfig::new();
+        assert_eq!(
+            hex::encode(cfg.DKN_WALLET_ADDRESS),
+            "1f56f6131705fbf19371122c80d7a2d40fcf9a68"
+        );
     }
 }

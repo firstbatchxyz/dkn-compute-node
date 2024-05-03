@@ -11,6 +11,18 @@
   </p>
 </p>
 
+<p align="center">
+    <a href="https://opensource.org/licenses/MIT" target="_blank">
+        <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-7CB9E8.svg">
+    </a>
+    <a href="./.github/workflows/test.yml" target="_blank">
+        <img alt="Workflow: Tests" src="https://github.com/firstbatchxyz/dkn-compute-node/actions/workflows/tests.yml/badge.svg?branch=master">
+    </a>
+    <a href="https://discord.gg/2wuU9ym6fq" target="_blank">
+        <img alt="Discord" src="https://dcbadge.vercel.app/api/server/2wuU9ym6fq?style=flat">
+    </a>
+</p>
+
 ## About
 
 A **Dria Compute Node** is a unit of computation within the Dria Knowledge Network. It's purpose is to process tasks given by the **Dria Admin Node**, and receive rewards for providing correct results. These nodes are part of the [Waku](https://waku.org/) network, a privacy-preserving cencorship resistant peer-to-peer network.
@@ -31,25 +43,36 @@ Each task can be enabled providing the task name as a feature to the executable.
 
 We are using a reduced version of [nwaku-compose](https://github.com/waku-org/nwaku-compose) for the Waku node. It only uses the RELAY protocol, and STORE is disabled. The respective files are under the [waku](./waku/) folder.
 
-## Usage with Compose
+## Usage
+
+Dria Compute Node is mainly expected to be executed using Docker Compose. The provided compose file will setup everything required. To start running a node, you must do the following:
+
+1. **Prepare Environment Variables**: Dria Compute Node makes use of several environment variables, some of which used by Waku itself as well. First, prepare you environment variable as given in [.env.example](./.env.example).
+
+1. **Fund an Ethereum Wallet with 0.1 Sepolia ETH**: Waku and Dria makes use of the same Ethereum wallet, and Waku uses RLN Relay protocol for further security within the network. If you have not registered to RLN protocol yet, register by running `./register_rln.sh`. If you have already registered, you will have a `keystore.json` which you can place under `./waku/keystore/keystore.json` in this directory.
+
+1.
 
 TODO: describe docker compose
 
-## Usage from Source
+### Run from Source
 
-We are using [Just](https://just.systems/) as a wrapper for some scripts. You can see the available commands with:
+Clone the repository:
 
 ```sh
-just -l
+git clone https://github.com/firstbatchxyz/dkn-compute-node
 ```
 
-## Styling
-
-Lint and format with:
+We are using Make as a wrapper for some scripts. You can see the available commands with:
 
 ```sh
-just lint
-just format
+make help
+```
+
+Run Waku and Ollama node elsewhere, and then run the compute node with:
+
+```sh
+make run
 ```
 
 ## Testing
@@ -57,7 +80,16 @@ just format
 Besides the unit tests, there are separate tests for Waku network, and for compute tasks such as Ollama.
 
 ```sh
-just test         # unit tests
-just test-waku    # Waku tests (requires a running Waku node)
-just test-ollama  # Ollama tests (requires a running Ollama client)
+make test         # unit tests
+make test-waku    # Waku tests (requires a running Waku node)
+make test-ollama  # Ollama tests (requires a running Ollama client)
+```
+
+## Styling
+
+Lint and format with:
+
+```sh
+make lint
+make format
 ```
