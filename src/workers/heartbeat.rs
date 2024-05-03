@@ -1,10 +1,9 @@
+use std::time::Duration;
+
 use crate::{node::DriaComputeNode, utils::crypto::sha256hash, waku::message::WakuMessage};
 
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
-
-const TOPIC: &str = "heartbeat";
-const SLEEP_MILLIS: u64 = 1000;
 
 /// # Heartbeat Payload
 ///
@@ -20,14 +19,14 @@ struct HeartbeatPayload {
 pub fn heartbeat_worker(
     node: DriaComputeNode,
     cancellation: CancellationToken,
+    topic: &'static str,
+    sleep_amount: Duration,
 ) -> tokio::task::JoinHandle<()> {
-    let sleep_amount = tokio::time::Duration::from_millis(SLEEP_MILLIS);
-
     tokio::spawn(async move {
-        while let Err(e) = node.subscribe_topic(TOPIC).await {
+        while let Err(e) = node.subscribe_topic(topic).await {
             log::error!(
                 "Error subscribing to {}: {}\nRetrying in 5 seconds.",
-                TOPIC,
+                topic,
                 e
             );
             tokio::select! {
@@ -39,16 +38,16 @@ pub fn heartbeat_worker(
         loop {
             tokio::select! {
                 _ = cancellation.cancelled() => {
-                    if let Err(e) = node.unsubscribe_topic(TOPIC).await {
-                        log::error!("Error unsubscribing from {}: {}\nContinuing anyway.", TOPIC, e);
+                    if let Err(e) = node.unsubscribe_topic(topic).await {
+                        log::error!("Error unsubscribing from {}: {}\nContinuing anyway.", topic, e);
                     }
                     break;
                 }
                 _ = tokio::time::sleep(sleep_amount) => {
-                    let messages = match node.process_topic(TOPIC, true).await {
+                    let messages = match node.process_topic(topic, true).await {
                         Ok(messages) => messages,
                         Err(e) => {
-                            log::error!("Error processing topic {}: {}", TOPIC, e);
+                            log::error!("Error processing topic {}: {}", topic, e);
                             continue;
                         }
                     };

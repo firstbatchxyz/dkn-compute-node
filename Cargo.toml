@@ -6,6 +6,10 @@ license = "Apache-2.0"
 readme = "README.md"
 
 [features]
+default = ["synthesis"]
+synthesis = []
+
+# test features
 waku_test = []
 ollama_test = []
 

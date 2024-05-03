@@ -77,10 +77,18 @@ We are using Make as a wrapper for some scripts. You can see the available comma
 make help
 ```
 
-Run Waku and Ollama node elsewhere, and then run the compute node with:
+While running Waku and Ollama node elsewhere, you can run the compute node with:
 
 ```sh
 make run
+```
+
+## Docs
+
+Open crate docs using:
+
+```sh
+make docs
 ```
 
 ## Testing

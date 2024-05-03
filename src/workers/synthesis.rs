@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::{
     compute::{ollama::OllamaClient, payload::TaskRequestPayload},
     node::DriaComputeNode,
@@ -5,9 +7,6 @@ use crate::{
     waku::message::WakuMessage,
 };
 use tokio_util::sync::CancellationToken;
-
-const TOPIC: &str = "synthesis";
-const SLEEP_MILLIS: u64 = 1000;
 
 /// # Synthesis Payload
 ///
@@ -18,8 +17,9 @@ type SynthesisPayload = TaskRequestPayload<String>;
 pub fn synthesis_worker(
     node: DriaComputeNode,
     cancellation: CancellationToken,
+    topic: &'static str,
+    sleep_amount: Duration,
 ) -> tokio::task::JoinHandle<()> {
-    let sleep_amount = tokio::time::Duration::from_millis(SLEEP_MILLIS);
     let ollama = OllamaClient::new(None, None, None);
 
     tokio::spawn(async move {
@@ -31,10 +31,10 @@ pub fn synthesis_worker(
             }
         }
 
-        while let Err(e) = node.subscribe_topic(TOPIC).await {
+        while let Err(e) = node.subscribe_topic(topic).await {
             log::error!(
                 "Error subscribing to {}: {}\nRetrying in 5 seconds.",
-                TOPIC,
+                topic,
                 e
             );
             tokio::select! {
@@ -46,14 +46,14 @@ pub fn synthesis_worker(
         loop {
             tokio::select! {
                 _ = cancellation.cancelled() => {
-                    if let Err(e) = node.unsubscribe_topic(TOPIC).await {
-                        log::error!("Error unsubscribing from {}: {}\nContinuing anyway.", TOPIC, e);
+                    if let Err(e) = node.unsubscribe_topic(topic).await {
+                        log::error!("Error unsubscribing from {}: {}\nContinuing anyway.", topic, e);
                     }
                     break;
                 }
                 _ = tokio::time::sleep(sleep_amount) => {
                     let mut tasks = Vec::new();
-                    if let Ok(messages) = node.process_topic(TOPIC, true).await {
+                    if let Ok(messages) = node.process_topic(topic, true).await {
                         for message in messages {
                             match message.parse_payload::<SynthesisPayload>(true) {
                                 Ok(task) => {

@@ -1,8 +1,11 @@
-use dkn_compute::workers::{heartbeat::heartbeat_worker, synthesis::synthesis_worker};
+use dkn_compute::workers::heartbeat::*;
 use dkn_compute::{config::DriaComputeNodeConfig, node::DriaComputeNode};
 use tokio::signal::unix::{signal, SignalKind};
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
+
+#[cfg(feature = "synthesis")]
+use dkn_compute::workers::synthesis::*;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -16,8 +19,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::info!("Starting workers");
     let cancellation = CancellationToken::new();
     let tracker = TaskTracker::new();
-    tracker.spawn(heartbeat_worker(node.clone(), cancellation.clone()));
-    tracker.spawn(synthesis_worker(node.clone(), cancellation.clone()));
+
+    // heartbeat is always enabled
+    tracker.spawn(heartbeat_worker(
+        node.clone(),
+        cancellation.clone(),
+        "heartbeat",
+        tokio::time::Duration::from_millis(1000),
+    ));
+
+    #[cfg(feature = "synthesis")]
+    tracker.spawn(synthesis_worker(
+        node.clone(),
+        cancellation.clone(),
+        "synthesis",
+        tokio::time::Duration::from_millis(1000),
+    ));
+
     tracker.close(); // close tracker after spawning everything
 
     // wait for termination signals

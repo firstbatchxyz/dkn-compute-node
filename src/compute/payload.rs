@@ -16,7 +16,7 @@ pub struct TaskResponsePayload {
     pub signature: String,
     /// Computation result encrypted with the public key of the task.
     pub ciphertext: String,
-    /// A commitment to `signature || result`
+    /// A commitment to `signature || result`.
     pub commitment: String,
 }
 
@@ -29,20 +29,17 @@ impl TaskResponsePayload {
 /// # Dria Task Request
 ///
 /// A generic task request, given by Dria.
-///
-/// ## Fields
-///
-/// - `task_id`: The unique identifier of the task.
-/// - `deadline`: The deadline of the task in nanoseconds.
-/// - `input`: The input to the compute function.
-/// - `filter`: The Bloom filter of the task.
-/// - `public_key`: The public key of the requester.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskRequestPayload<T> {
+    /// The unique identifier of the task.
     pub(crate) task_id: String,
+    /// The deadline of the task in nanoseconds.
     pub(crate) deadline: u128,
+    /// The input to the compute function.
     pub(crate) input: T,
+    /// The Bloom filter of the task.
     pub(crate) filter: FilterPayload,
+    /// The public key of the requester.
     pub(crate) public_key: String,
 }
