@@ -59,6 +59,10 @@ impl OllamaClient {
 
     /// Pulls the configured model.
     pub async fn setup(&self) -> Result<(), OllamaError> {
+        log::info!("Checking local models");
+        let status = self.client.list_local_models().await?;
+        log::info!("{:?}", status[0]);
+
         log::info!("Pulling model: {}", self.model);
 
         let status = self

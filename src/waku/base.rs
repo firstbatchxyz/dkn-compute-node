@@ -4,13 +4,12 @@ use std::collections::HashMap;
 /// A wrapper for GET, POST and DELETE requests.
 #[derive(Debug, Clone)]
 pub struct BaseClient {
-    base_url: String,
+    pub(super) base_url: String,
     client: Client,
 }
 
 impl BaseClient {
-    pub fn new(base_url: &str) -> Self {
-        let url = base_url.to_string();
+    pub fn new(url: String) -> Self {
         let client = Client::new();
         BaseClient {
             base_url: url,

@@ -1,8 +1,12 @@
-pub mod base;
+mod base;
 pub mod message;
-pub mod relay;
+mod relay;
 
-use crate::{config::defaults::DEFAULT_DKN_WAKU_URL, errors::NodeResult};
+const DEFAULT_DKN_WAKU_URL: &str = "http://127.0.0.1:8645";
+
+use std::env;
+
+use crate::errors::NodeResult;
 
 use self::{base::BaseClient, relay::RelayClient};
 use serde::{Deserialize, Serialize};
@@ -16,14 +20,17 @@ pub struct WakuClient {
 
 impl Default for WakuClient {
     fn default() -> Self {
-        WakuClient::new(DEFAULT_DKN_WAKU_URL)
+        WakuClient::new(None)
     }
 }
 
 impl WakuClient {
     /// Creates a new instance of WakuClient.
-    pub fn new(base_url: &str) -> Self {
-        let base = BaseClient::new(base_url);
+    pub fn new(url: Option<String>) -> Self {
+        let url: String = url.unwrap_or_else(|| {
+            env::var("DKN_WAKU_URL").unwrap_or(DEFAULT_DKN_WAKU_URL.to_string())
+        });
+        let base = BaseClient::new(url);
         let relay = RelayClient::new(base.clone());
 
         WakuClient { base, relay }
@@ -78,4 +85,17 @@ pub struct PeerInfo {
 pub struct ProtocolInfo {
     pub protocol: String,
     pub connected: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_waku_config() {
+        env::set_var("DKN_WAKU_URL", "im-a-host:1337");
+
+        let waku = WakuClient::new(None);
+        assert_eq!(waku.base.base_url, "im-a-host:1337");
+    }
 }
