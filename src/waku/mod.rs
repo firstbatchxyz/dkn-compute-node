@@ -30,9 +30,10 @@ impl WakuClient {
         let url: String = url.unwrap_or_else(|| {
             env::var("DKN_WAKU_URL").unwrap_or(DEFAULT_DKN_WAKU_URL.to_string())
         });
+        log::info!("Waku URL: {}", url);
+
         let base = BaseClient::new(url);
         let relay = RelayClient::new(base.clone());
-
         WakuClient { base, relay }
     }
 

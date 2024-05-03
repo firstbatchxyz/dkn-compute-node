@@ -12,8 +12,8 @@ pub const DEFAULT_DKN_OLLAMA_PORT: u16 = 11434;
 /// A wrapper for the Ollama API.
 #[derive(Debug, Clone)]
 pub struct OllamaClient {
-    pub client: Ollama,
-    pub model: OllamaModel,
+    pub(crate) client: Ollama,
+    pub(crate) model: OllamaModel,
 }
 
 impl Default for OllamaClient {
@@ -51,17 +51,17 @@ impl OllamaClient {
             )
         });
 
-        Self {
-            client: Ollama::new(host, port),
-            model,
-        }
+        let client = Ollama::new(host, port);
+        log::info!("Ollama URL: {}", client.uri());
+
+        Self { client, model }
     }
 
     /// Pulls the configured model.
     pub async fn setup(&self) -> Result<(), OllamaError> {
         log::info!("Checking local models");
         let status = self.client.list_local_models().await?;
-        log::info!("{:?}", status[0]);
+        log::info!("Ollama Local Models:\n{:?}", status);
 
         log::info!("Pulling model: {}", self.model);
 

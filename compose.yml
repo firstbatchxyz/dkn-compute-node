@@ -16,16 +16,17 @@ x-rln-environment: &rln_env
 # Services definitions
 services:
   # DKN Compute Node
-  # compute-node:
-  #   build: "./"
-  #   environment:
-  #     DKN_OLLAMA_HOST: "ollama"
-  #     DKN_OLLAMA_PORT: "11434"
-  #     DKN_OLLAMA_MODEL: "phi3"
-  #     DKN_WAKU_URL: "nwaku:8645"
-  #   depends_on:
-  #     - nwaku
-  #     - ollama
+  compute:
+    build: "./"
+    environment:
+      DKN_OLLAMA_HOST: "http://ollama"
+      DKN_OLLAMA_PORT: "11434"
+      DKN_OLLAMA_MODEL: "phi3"
+      DKN_WAKU_URL: "http://nwaku:8645"
+      RUST_LOG: "info"
+    depends_on:
+      - nwaku
+      - ollama
 
   # Waku Node
   nwaku:
@@ -35,9 +36,10 @@ services:
       - 30304:30304/udp
       - 9005:9005/udp
       - 127.0.0.1:8003:8003
-      - 80:80 #Let's Encrypt
-      - 8000:8000/tcp #WSS
-      - 127.0.0.1:8645:8645
+      - 80:80 # Let's Encrypt
+      - 8000:8000/tcp # WSS
+      # - 127.0.0.1:8645:8645
+      - 8645:8645
     <<:
       - *logging
     environment:

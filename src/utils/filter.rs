@@ -7,8 +7,8 @@ use serde_json::{json, to_string};
 /// The filter is a Bloom Filter with a set of items and a false positive rate, it is serialized as a hex string.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FilterPayload {
-    pub hex: String,
-    pub hashes: u32,
+    pub(crate) hex: String,
+    pub(crate) hashes: u32,
 }
 
 impl TryFrom<&FilterPayload> for String {

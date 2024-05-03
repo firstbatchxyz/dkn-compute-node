@@ -10,14 +10,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .format_timestamp(Some(env_logger::TimestampPrecision::Millis))
         .init();
 
-    let node = DriaComputeNode::new(DriaComputeNodeConfig::new());
-    log::info!("Address:    0x{}", hex::encode(node.address()));
-    log::info!(
-        "Public Key: 0x{}",
-        hex::encode(node.config.DKN_WALLET_PUBLIC_KEY.serialize_compressed())
-    );
+    let config = DriaComputeNodeConfig::new();
+    let node = DriaComputeNode::new(config);
 
-    log::info!("Starting workers...");
+    log::info!("Starting workers");
     let cancellation = CancellationToken::new();
     let tracker = TaskTracker::new();
     tracker.spawn(heartbeat_worker(node.clone(), cancellation.clone()));
@@ -31,10 +27,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         _ = sigterm.recv() => log::warn!("Recieved SIGTERM"),
         _ = sigint.recv() => log::warn!("Recieved SIGINT"),
     };
+
+    // cancel all workers
     cancellation.cancel();
 
     // wait for all workers
-    log::warn!("Stopping all workers.");
+    log::warn!("Stopping workers");
     tracker.wait().await;
 
     Ok(())

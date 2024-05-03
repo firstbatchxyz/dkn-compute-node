@@ -47,6 +47,16 @@ impl DriaComputeNodeConfig {
 
         let address = to_address(&public_key);
 
+        log::info!("Address:    0x{}", hex::encode(address));
+        log::info!(
+            "Node Public Key: 0x{}",
+            hex::encode(public_key.serialize_compressed())
+        );
+        log::info!(
+            "Admin Public Key: 0x{}",
+            hex::encode(admin_public_key.serialize_compressed())
+        );
+
         Self {
             DKN_ADMIN_PUBLIC_KEY: admin_public_key,
             DKN_WALLET_SECRET_KEY: secret_key,
