@@ -22,8 +22,8 @@ RUN cargo build --release
 
 # copy release binary to distroless
 FROM --platform=$BUILDPLATFORM gcr.io/distroless/cc
-COPY --from=builder /usr/src/app/target/release/dkn_compute /
+COPY --from=builder /usr/src/app/target/release/dkn-compute /
 
 EXPOSE 8080
 
-CMD ["./dkn_compute"]
+CMD ["./dkn-compute"]

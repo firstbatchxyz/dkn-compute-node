@@ -7,7 +7,7 @@ mod waku_tests {
         let waku = DriaComputeNode::default().waku;
 
         let version = waku.version().await.expect("Should get version");
-        assert_eq!("v0.26.0", version);
+        assert_eq!("v0.27.0", version);
 
         let peers = waku.peers().await.expect("Should get peers");
         assert!(!peers.is_empty(), "Expected at least 1 peer");

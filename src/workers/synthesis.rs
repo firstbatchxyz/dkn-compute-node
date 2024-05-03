@@ -6,7 +6,7 @@ use crate::{
 };
 use tokio_util::sync::CancellationToken;
 
-const TOPIC: &str = "synth";
+const TOPIC: &str = "synthesis";
 const SLEEP_MILLIS: u64 = 1000;
 
 /// # Synthesis Payload

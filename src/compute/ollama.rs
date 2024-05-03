@@ -59,14 +59,14 @@ impl OllamaClient {
 
     /// Pulls the configured model.
     pub async fn setup(&self) -> Result<(), OllamaError> {
-        log::info!("Pulling model: {:?}", self.model);
+        log::info!("Pulling model: {}", self.model);
 
         let status = self
             .client
             .pull_model(self.model.borrow().into(), false)
             .await?;
 
-        log::info!("Pulled {:?}: {} ()", self.model, status.message);
+        log::info!("Pulled {}: {}", self.model, status.message);
         Ok(())
     }
 
@@ -160,10 +160,17 @@ impl From<String> for OllamaModel {
             "gemma:7b" => OllamaModel::Gemma_7B,
             "solar" => OllamaModel::Solar,
             _ => {
-                log::warn!("Unknown model: {}, using default.", value);
-                OllamaModel::default()
+                let model = OllamaModel::default();
+                log::warn!("Unknown model: {}, using default: {}", value, model);
+                model
             }
         }
+    }
+}
+
+impl std::fmt::Display for OllamaModel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
     }
 }
 

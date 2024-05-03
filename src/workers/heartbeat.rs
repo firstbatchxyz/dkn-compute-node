@@ -88,8 +88,17 @@ pub fn heartbeat_worker(
 
 #[cfg(test)]
 mod tests {
-    use crate::{config::defaults::DEFAULT_DKN_ADMIN_PUBLIC_KEY, waku::message::WakuMessage};
-    use libsecp256k1::PublicKey;
+    use crate::{
+        config::defaults::DEFAULT_DKN_ADMIN_PUBLIC_KEY,
+        node::DriaComputeNode,
+        utils::{
+            crypto::{sha256hash, to_address},
+            filter::FilterPayload,
+        },
+        waku::message::WakuMessage,
+    };
+    use fastbloom_rs::{FilterBuilder, Membership};
+    use libsecp256k1::{recover, Message, PublicKey};
 
     use super::HeartbeatPayload;
 
@@ -112,5 +121,40 @@ mod tests {
             .expect("Should parse payload");
         assert_eq!(obj.uuid, "81a63a34-96c6-4e5a-99b5-6b274d9de175");
         assert_eq!(obj.deadline, 1714128792);
+    }
+
+    /// This test demonstrates the process of heartbeat & task assignment.
+    ///
+    /// A heart-beat message is sent over the network by Admin Node, and compute node responds with a signature.
+    #[test]
+    fn test_heartbeat_and_task_assignment() {
+        let node = DriaComputeNode::default();
+
+        // a heartbeat message is signed and sent to Admin Node (via Waku network)
+        let heartbeat_message = Message::parse(&sha256hash(b"sign-me"));
+        let (heartbeat_signature, heartbeat_recid) = node.sign(&heartbeat_message);
+
+        // admin recovers the address from the signature
+        let recovered_public_key =
+            recover(&heartbeat_message, &heartbeat_signature, &heartbeat_recid)
+                .expect("Could not recover");
+        assert_eq!(
+            node.config.DKN_WALLET_PUBLIC_KEY, recovered_public_key,
+            "Public key mismatch"
+        );
+        let address = to_address(&recovered_public_key);
+        assert_eq!(address, node.address(), "Address mismatch");
+
+        // admin node assigns the task to the compute node via Bloom Filter
+        let mut bloom = FilterBuilder::new(100, 0.01).build_bloom_filter();
+        bloom.add(&address);
+        let filter_payload = FilterPayload::from(bloom);
+
+        // compute node receives the filter and checks if it is tasked
+        assert!(
+            node.is_tasked(&filter_payload)
+                .expect("Should check filter"),
+            "Node should be tasked"
+        );
     }
 }

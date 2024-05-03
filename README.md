@@ -27,6 +27,10 @@ Compute nodes can technically do any arbitrary task, from computing the square r
 
 Each task can be enabled providing the task name as a feature to the executable.
 
+### Waku
+
+We are using a reduced version of [nwaku-compose](https://github.com/waku-org/nwaku-compose) for the Waku node. It only uses the RELAY protocol, and STORE is disabled. The respective files are under the [waku](./waku/) folder.
+
 ## Usage with Compose
 
 TODO: describe docker compose

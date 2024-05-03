@@ -158,3 +158,78 @@ impl DriaComputeNode {
         Ok(messages)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ecies::decrypt;
+    use libsecp256k1::{verify, PublicKey, SecretKey};
+
+    /// This test demonstrates the creation and parsing of a payload.
+    ///
+    /// In DKN, the payload is created by Compute Node but parsed by the Admin Node.
+    /// At the end, there is also the verification step for the commitments.
+    #[test]
+    fn test_payload_generation_verification() {
+        const ADMIN_PRIV_KEY: &[u8; 32] = b"aaaabbbbccccddddddddccccbbbbaaaa";
+        const RESULT: &[u8; 28] = b"this is some result you know";
+
+        let node = DriaComputeNode::default();
+        let secret_key = SecretKey::parse(ADMIN_PRIV_KEY).expect("Should parse secret key");
+        let public_key = PublicKey::from_secret_key(&secret_key);
+
+        // create payload
+        let payload = node
+            .create_payload(RESULT, &public_key.serialize())
+            .expect("Should create payload");
+
+        // (here we assume the payload is sent to Waku network, and picked up again)
+
+        // decrypt result
+        let result = decrypt(
+            &secret_key.serialize(),
+            hex::decode(payload.ciphertext)
+                .expect("Should decode")
+                .as_slice(),
+        )
+        .expect("Could not decrypt");
+        assert_eq!(result, RESULT, "Result mismatch");
+
+        // verify signature
+        let rsv = hex::decode(payload.signature).expect("Should decode");
+        let mut signature_bytes = [0u8; 64];
+        signature_bytes.copy_from_slice(&rsv[0..64]);
+        let recid_bytes: [u8; 1] = [rsv[64]];
+        let signature =
+            Signature::parse_standard(&signature_bytes).expect("Should parse signature");
+        let recid = RecoveryId::parse(recid_bytes[0]).expect("Should parse recovery id");
+
+        let result_digest = sha256hash(result);
+        let message = Message::parse(&result_digest);
+        assert!(
+            verify(&message, &signature, &node.config.DKN_WALLET_PUBLIC_KEY),
+            "Could not verify"
+        );
+
+        // recover verifying key (public key) from signature
+        let recovered_public_key =
+            libsecp256k1::recover(&message, &signature, &recid).expect("Could not recover");
+        assert_eq!(
+            node.config.DKN_WALLET_PUBLIC_KEY, recovered_public_key,
+            "Public key mismatch"
+        );
+
+        // verify commitments (algorithm 4 in whitepaper)
+        let mut preimage = Vec::new();
+        preimage.extend_from_slice(&signature_bytes);
+        preimage.extend_from_slice(&recid_bytes);
+        preimage.extend_from_slice(&result_digest);
+        assert_eq!(
+            sha256hash(preimage),
+            hex::decode(payload.commitment)
+                .expect("Should decode")
+                .as_slice(),
+            "Commitment mismatch"
+        );
+    }
+}

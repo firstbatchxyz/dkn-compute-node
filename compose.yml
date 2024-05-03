@@ -15,9 +15,21 @@ x-rln-environment: &rln_env
 
 # Services definitions
 services:
+  # DKN Compute Node
+  compute-node:
+    build: "./"
+    environment:
+      DKN_OLLAMA_HOST: "ollama"
+      DKN_OLLAMA_PORT: "11434"
+      DKN_OLLAMA_MODEL: "phi3"
+      DKN_WAKU_HOST: "nwaku:8645"
+    depends_on:
+      - nwaku
+      - ollama
+
+  # Waku Node
   nwaku:
-    image: ${NWAKU_IMAGE:-harbor.status.im/wakuorg/nwaku:v0.26.0}
-    restart: on-failure
+    image: harbor.status.im/wakuorg/nwaku:v0.27.0
     ports:
       - 30304:30304/tcp
       - 30304:30304/udp
@@ -38,10 +50,22 @@ services:
       <<:
         - *rln_env
     volumes:
-      - ./run_node.sh:/opt/run_node.sh:Z
-      - ${CERTS_DIR:-./certs}:/etc/letsencrypt/:Z
-      - ./rln_tree:/etc/rln_tree/:Z
-      - ./keystore:/keystore:Z
+      - ${CERTS_DIR:-./waku/certs}:/etc/letsencrypt/:Z
+      - ./waku/run_node.sh:/opt/run_node.sh:Z
+      - ./waku/rln_tree:/etc/rln_tree/:Z
+      - ./waku/keystore:/keystore:Z
     entrypoint: sh
     command:
       - /opt/run_node.sh
+
+  # Ollama Container
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - 11434:11434
+    volumes:
+      - ollama:/root/.ollama
+    # profiles: [synthesis]
+
+volumes:
+  ollama:
