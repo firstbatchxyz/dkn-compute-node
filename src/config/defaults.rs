@@ -1,7 +1,5 @@
 use hex_literal::hex;
 
-pub const DEFAULT_DKN_WAKU_URL: &str = "http://127.0.0.1:8645";
-
 /// 32 byte secret key hex(b"node") * 8
 pub const DEFAULT_DKN_WALLET_SECRET_KEY: &[u8; 32] =
     &hex!("6e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f6465");

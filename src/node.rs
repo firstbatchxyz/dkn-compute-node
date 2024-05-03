@@ -25,7 +25,7 @@ impl Default for DriaComputeNode {
 
 impl DriaComputeNode {
     pub fn new(config: DriaComputeNodeConfig) -> Self {
-        let waku = WakuClient::new(&config.DKN_WAKU_URL);
+        let waku = WakuClient::new(None);
         DriaComputeNode { config, waku }
     }
 

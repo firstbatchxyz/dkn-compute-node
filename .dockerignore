@@ -7,3 +7,6 @@ manifests
 .github
 .DS_Store
 README.md
+misc
+Justfile
+Makefile

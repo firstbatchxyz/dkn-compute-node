@@ -1,5 +1,4 @@
 use crate::{
-    config::constants::{WAKU_APP_NAME, WAKU_ENCODING, WAKU_ENC_VERSION},
     errors::NodeResult,
     utils::{crypto::sha256hash, get_current_time_nanos},
 };
@@ -8,6 +7,21 @@ use base64::{prelude::BASE64_STANDARD, Engine};
 use core::fmt;
 use ecies::PublicKey;
 use serde::{Deserialize, Serialize};
+
+/// Within Waku Message and Content Topic we specify version to be 0 since
+///  encryption takes place at our application layer, instead of at protocol layer of Waku.
+pub const WAKU_ENC_VERSION: u8 = 0;
+
+/// Within Content Topic we specify encoding to be `proto` as is the recommendation by Waku.
+pub const WAKU_ENCODING: &str = "proto";
+
+/// App-name for the Content Topic.
+pub const WAKU_APP_NAME: &str = "dria";
+
+/// We want messages to be short-lived, and furthermore a message response
+/// only makes sense if it is responded to in a short time.
+/// So it makes sense to have messages be ephemeral.
+pub const WAKU_EPHEMERAL: bool = true;
 
 /// A Waku message, as defined by [14/WAKU2-MESSAGE](https://github.com/vacp2p/rfc-index/blob/main/waku/standards/core/14/message.md).
 ///
@@ -53,7 +67,7 @@ impl WakuMessage {
             content_topic: Self::create_content_topic(topic).to_string(),
             version: WAKU_ENC_VERSION,
             timestamp: get_current_time_nanos(),
-            ephemeral: true,
+            ephemeral: WAKU_EPHEMERAL,
         }
     }
 

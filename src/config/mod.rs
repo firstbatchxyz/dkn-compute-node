@@ -1,4 +1,3 @@
-pub mod constants;
 pub mod defaults;
 
 use self::defaults::*;
@@ -14,8 +13,6 @@ pub struct DriaComputeNodeConfig {
     pub(crate) DKN_WALLET_SECRET_KEY: SecretKey,
     /// Wallet public key, derived from the secret key.
     pub DKN_WALLET_PUBLIC_KEY: PublicKey,
-    /// Waku (nwaku) container URL.
-    pub DKN_WAKU_URL: String,
     /// Wallet address, derived from the public key.
     pub DKN_WALLET_ADDRESS: [u8; 20],
     /// Admin public key, used for message authenticity.
@@ -50,11 +47,18 @@ impl DriaComputeNodeConfig {
 
         let address = to_address(&public_key);
 
+        log::info!("Address:    0x{}", hex::encode(address));
+        log::info!(
+            "Node Public Key: 0x{}",
+            hex::encode(public_key.serialize_compressed())
+        );
+        log::info!(
+            "Admin Public Key: 0x{}",
+            hex::encode(admin_public_key.serialize_compressed())
+        );
+
         Self {
             DKN_ADMIN_PUBLIC_KEY: admin_public_key,
-
-            DKN_WAKU_URL: env::var("DKN_WAKU_URL").unwrap_or(DEFAULT_DKN_WAKU_URL.to_string()),
-
             DKN_WALLET_SECRET_KEY: secret_key,
             DKN_WALLET_PUBLIC_KEY: public_key,
             DKN_WALLET_ADDRESS: address,

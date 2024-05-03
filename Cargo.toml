@@ -6,18 +6,11 @@ license = "Apache-2.0"
 readme = "README.md"
 
 [features]
-default = ["heartbeat"]
-
-# workers
-synthesis = [] # Synthetic Data Generation
-heartbeat = [] # Heartbeat
-
-# test features
 waku_test = []
 ollama_test = []
 
 [dependencies]
-tokio-util = "0.7.10"
+tokio-util = { version = "0.7.10", features = ["rt"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
