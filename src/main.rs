@@ -13,6 +13,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .format_timestamp(Some(env_logger::TimestampPrecision::Millis))
         .init();
 
+    const VERSION: &str = env!("CARGO_PKG_VERSION");
+    log::info!("Using Dria Compute Node v{}", VERSION);
+
     let config = DriaComputeNodeConfig::new();
     let node = DriaComputeNode::new(config);
 

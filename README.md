@@ -12,8 +12,8 @@
 </p>
 
 <p align="center">
-    <a href="https://opensource.org/licenses/MIT" target="_blank">
-        <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-7CB9E8.svg">
+    <a href="https://opensource.org/license/apache-2-0" target="_blank">
+        <img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache%202.0-7CB9E8.svg">
     </a>
     <a href="./.github/workflows/test.yml" target="_blank">
         <img alt="Workflow: Tests" src="https://github.com/firstbatchxyz/dkn-compute-node/actions/workflows/tests.yml/badge.svg?branch=master">
@@ -106,6 +106,6 @@ make test-ollama  # Ollama tests (requires a running Ollama client)
 Lint and format with:
 
 ```sh
-make lint
-make format
+make lint # clippy
+make format # rustfmt
 ```

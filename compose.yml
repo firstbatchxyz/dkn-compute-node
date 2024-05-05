@@ -21,7 +21,7 @@ services:
     environment:
       DKN_OLLAMA_HOST: "http://ollama"
       DKN_OLLAMA_PORT: "11434"
-      DKN_OLLAMA_MODEL: "phi3"
+      DKN_OLLAMA_MODEL: ${DKN_OLLAMA_MODEL:-phi3}
       DKN_WAKU_URL: "http://nwaku:8645"
       DKN_WALLET_SECRET_KEY: ${ETH_TESTNET_KEY}
       DKN_ADMIN_PUBLIC_KEY: "0208ef5e65a9c656a6f92fb2c770d5d5e2ecffe02a6aade19207f75110be6ae658"
@@ -45,12 +45,8 @@ services:
     <<:
       - *logging
     environment:
-      DOMAIN: ${DOMAIN}
-      NODEKEY: ${NODEKEY}
       RLN_RELAY_CRED_PASSWORD: "${RLN_RELAY_CRED_PASSWORD}"
       ETH_CLIENT_ADDRESS: *eth_client_address
-      EXTRA_ARGS: ${EXTRA_ARGS}
-      STORAGE_SIZE: ${STORAGE_SIZE}
       <<:
         - *rln_env
     volumes:
