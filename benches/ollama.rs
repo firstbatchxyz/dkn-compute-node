@@ -6,6 +6,9 @@ use std::{collections::HashMap, time::Duration};
 /// This benchmark measures the time it takes to generate a response from a given Ollama model.
 ///
 /// The provided response time is almost equivalent to the log generated within Ollama for `/api/generate` endpoint.
+///
+/// Note that the time it takes to evaluate the prompt and time it takes to generate the response is different, our computations
+/// are based on the total time including both. This is to reflect the overall time of the single "computation task".
 #[tokio::main]
 async fn main() {
     let models = ["orca-mini", "phi3", "llama3", "openhermes"];
@@ -46,7 +49,7 @@ async fn main() {
         println!("\n");
     }
 
-    println!("Average tokens per second for each model:");
+    println!("Average {} for each model:", "tokens per second".yellow());
     for model in models {
         println!("{:<12}\t{}", model, millis_per_char.get(model).unwrap());
     }

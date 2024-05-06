@@ -56,6 +56,9 @@ Dria Compute Node is mainly expected to be executed using Docker Compose. The pr
 With all of these steps completed, you should be able to start a node with:
 
 ```sh
+# clone the repo
+git clone https://github.com/firstbatchxyz/dkn-compute-node
+
 # -d to run in background
 docker compose up -d
 ```
@@ -74,12 +77,6 @@ You have several alternatives to use Ollama:
 You can decide on a model to use by changing `DKN_OLLAMA_MODEL` variable, such as `DKN_OLLAMA_MODEL=llama3`. See [Ollama library](https://ollama.com/library) for the catalog of models.
 
 ## Run from Source
-
-Clone the repository:
-
-```sh
-git clone https://github.com/firstbatchxyz/dkn-compute-node
-```
 
 We are using Make as a wrapper for some scripts. You can see the available commands with:
 

@@ -53,4 +53,7 @@ rand = "0.8.5"
 name = "ollama"
 harness = false
 
+[[example]]
+name = "prompt"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
