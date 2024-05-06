@@ -3,7 +3,6 @@ use std::time::Duration;
 use crate::{node::DriaComputeNode, utils::crypto::sha256hash, waku::message::WakuMessage};
 
 use serde::{Deserialize, Serialize};
-use tokio_util::sync::CancellationToken;
 
 /// # Heartbeat Payload
 ///
@@ -18,26 +17,15 @@ struct HeartbeatPayload {
 
 pub fn heartbeat_worker(
     node: DriaComputeNode,
-    cancellation: CancellationToken,
     topic: &'static str,
     sleep_amount: Duration,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
-        while let Err(e) = node.subscribe_topic(topic).await {
-            log::error!(
-                "Error subscribing to {}: {}\nRetrying in 5 seconds.",
-                topic,
-                e
-            );
-            tokio::select! {
-                _ = cancellation.cancelled() => return,
-                _ = tokio::time::sleep(tokio::time::Duration::from_secs(5)) => continue
-            }
-        }
+        node.subscribe_topic(topic).await;
 
         loop {
             tokio::select! {
-                _ = cancellation.cancelled() => {
+                _ = node.cancellation.cancelled() => {
                     if let Err(e) = node.unsubscribe_topic(topic).await {
                         log::error!("Error unsubscribing from {}: {}\nContinuing anyway.", topic, e);
                     }

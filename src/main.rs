@@ -1,6 +1,6 @@
+use dkn_compute::utils::wait_for_termination;
 use dkn_compute::workers::heartbeat::*;
 use dkn_compute::{config::DriaComputeNodeConfig, node::DriaComputeNode};
-use tokio::signal::unix::{signal, SignalKind};
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
 
@@ -17,16 +17,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::info!("Using Dria Compute Node v{}", VERSION);
 
     let config = DriaComputeNodeConfig::new();
-    let node = DriaComputeNode::new(config);
+    let cancellation = CancellationToken::new();
+    let node = DriaComputeNode::new(config, cancellation.clone());
 
     log::info!("Starting workers");
-    let cancellation = CancellationToken::new();
     let tracker = TaskTracker::new();
-
-    // heartbeat is always enabled
     tracker.spawn(heartbeat_worker(
         node.clone(),
-        cancellation.clone(),
         "heartbeat",
         tokio::time::Duration::from_millis(1000),
     ));
@@ -34,25 +31,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(feature = "synthesis")]
     tracker.spawn(synthesis_worker(
         node.clone(),
-        cancellation.clone(),
         "synthesis",
         tokio::time::Duration::from_millis(1000),
     ));
 
     tracker.close(); // close tracker after spawning everything
 
-    // wait for termination signals
-    let mut sigterm = signal(SignalKind::terminate())?; // Docker sends SIGTERM
-    let mut sigint = signal(SignalKind::interrupt())?; // Ctrl+C sends SIGINT
-    tokio::select! {
-        _ = sigterm.recv() => log::warn!("Recieved SIGTERM"),
-        _ = sigint.recv() => log::warn!("Recieved SIGINT"),
-    };
-
-    // cancel all workers
-    cancellation.cancel();
-
     // wait for all workers
+    wait_for_termination(cancellation).await?;
     log::warn!("Stopping workers");
     tracker.wait().await;
 

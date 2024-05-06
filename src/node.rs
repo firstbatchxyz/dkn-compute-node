@@ -1,6 +1,7 @@
 use ecies::encrypt;
 use fastbloom_rs::{BloomFilter, Membership};
 use libsecp256k1::{sign, Message, RecoveryId, Signature};
+use tokio_util::sync::CancellationToken;
 
 use crate::{
     compute::payload::TaskResponsePayload,
@@ -15,18 +16,23 @@ use crate::{
 pub struct DriaComputeNode {
     pub config: DriaComputeNodeConfig,
     pub waku: WakuClient,
+    pub cancellation: CancellationToken,
 }
 
 impl Default for DriaComputeNode {
     fn default() -> Self {
-        DriaComputeNode::new(DriaComputeNodeConfig::new())
+        DriaComputeNode::new(DriaComputeNodeConfig::new(), CancellationToken::default())
     }
 }
 
 impl DriaComputeNode {
-    pub fn new(config: DriaComputeNodeConfig) -> Self {
+    pub fn new(config: DriaComputeNodeConfig, cancellation: CancellationToken) -> Self {
         let waku = WakuClient::new(None);
-        DriaComputeNode { config, waku }
+        DriaComputeNode {
+            config,
+            waku,
+            cancellation,
+        }
     }
 
     /// Returns the wallet address of the node.
@@ -100,11 +106,22 @@ impl DriaComputeNode {
     }
 
     /// Subscribe to a certain task with its topic.
-    pub async fn subscribe_topic(&self, topic: &str) -> NodeResult<()> {
+    pub async fn subscribe_topic(&self, topic: &str) -> () {
         let content_topic = WakuMessage::create_content_topic(topic);
-        self.waku.relay.subscribe(&content_topic).await?;
+
+        while let Err(e) = self.waku.relay.subscribe(&content_topic).await {
+            log::error!(
+                "Error subscribing to {}: {}\nRetrying in 5 seconds.",
+                topic,
+                e
+            );
+            tokio::select! {
+                _ = self.cancellation.cancelled() => return,
+                _ = tokio::time::sleep(tokio::time::Duration::from_secs(5)) => continue
+            }
+        }
+
         log::info!("Subscribed to {}", topic);
-        Ok(())
     }
 
     /// Unsubscribe from a certain task with its topic.
