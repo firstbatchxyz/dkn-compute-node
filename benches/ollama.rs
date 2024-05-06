@@ -1,7 +1,6 @@
 use colored::Colorize;
-use dkn_compute::{compute::ollama::OllamaClient, utils::get_current_time_nanos};
-use ollama_rs::generation::completion::GenerationResponse;
-use std::{collections::HashMap, time::Duration};
+use dkn_compute::compute::ollama::use_model_with_prompt;
+use std::collections::HashMap;
 
 /// This benchmark measures the time it takes to generate a response from a given Ollama model.
 ///
@@ -53,19 +52,4 @@ async fn main() {
     for model in models {
         println!("{:<12}\t{}", model, millis_per_char.get(model).unwrap());
     }
-}
-
-async fn use_model_with_prompt(model: &str, prompt: &str) -> (GenerationResponse, Duration) {
-    let ollama = OllamaClient::new(None, None, Some(model.to_string()));
-    ollama.setup().await.expect("Should pull model");
-
-    let time = get_current_time_nanos();
-    let gen_res = ollama
-        .generate(prompt.to_string())
-        .await
-        .expect("Should generate response");
-    let time_diff = get_current_time_nanos() - time;
-    let duration = Duration::from_nanos(time_diff as u64);
-
-    (gen_res, duration)
 }
