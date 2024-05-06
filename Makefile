@@ -20,6 +20,14 @@ test-waku:
 bench-ollama:
 		cargo bench -- ollama --exact
 
+.PHONY: prompt #       | Run a single prompt on a model
+prompt:
+		cargo run --example prompt
+
+.PHONY: peers #        | Print the connected peers on an existing Waku node
+peers:
+		cargo run --example peers
+
 .PHONY: lint #         | Run clippy
 lint:
 		cargo clippy

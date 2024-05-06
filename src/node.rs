@@ -115,7 +115,7 @@ impl DriaComputeNode {
         Ok(())
     }
 
-    /// Send a message via Waku Relay.
+    /// Send a message via Waku Relay, assuming the content is subscribed to already.
     pub async fn send_message(&self, message: WakuMessage) -> NodeResult<()> {
         self.waku.relay.send_message(message).await
     }
@@ -123,7 +123,7 @@ impl DriaComputeNode {
     /// Send a message via Waku Relay on a topic, where
     /// the topic is subscribed, the message is sent, and
     /// the topic is unsubscribed right afterwards.
-    pub async fn send_once_message(&self, message: WakuMessage) -> NodeResult<()> {
+    pub async fn send_message_once(&self, message: WakuMessage) -> NodeResult<()> {
         let content_topic = message.content_topic.clone();
         self.waku.relay.subscribe(&content_topic).await?;
         self.waku.relay.send_message(message).await?;

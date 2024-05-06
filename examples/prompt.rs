@@ -1,12 +1,6 @@
 use colored::Colorize;
 use dkn_compute::compute::ollama::use_model_with_prompt;
 
-/// This benchmark measures the time it takes to generate a response from a given Ollama model.
-///
-/// The provided response time is almost equivalent to the log generated within Ollama for `/api/generate` endpoint.
-///
-/// Note that the time it takes to evaluate the prompt and time it takes to generate the response is different, our computations
-/// are based on the total time including both. This is to reflect the overall time of the single "computation task".
 #[tokio::main]
 async fn main() {
     let model = "phi3";

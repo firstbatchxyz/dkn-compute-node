@@ -132,9 +132,7 @@ pub fn synthesis_worker(
 
                         // send result to Waku network
                         let message = WakuMessage::new(payload_str, &task.task_id);
-                        if let Err(e) = node.waku
-                            .relay
-                            .send_message(message)
+                        if let Err(e) = node.send_message_once(message)
                             .await {
                                 log::error!("Error sending message: {}", e);
                                 continue;

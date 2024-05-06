@@ -71,7 +71,7 @@ pub fn heartbeat_worker(
 
 
                         // send message
-                        if let Err(e) = node.send_once_message(message).await {
+                        if let Err(e) = node.send_message_once(message).await {
                             log::error!("Error sending message: {}", e);
                         }
 
