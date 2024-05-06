@@ -58,13 +58,23 @@ services:
     command:
       - /opt/run_node.sh
 
-  # Ollama Container
+  # Ollama Container (non ROCM)
   ollama:
     image: ollama/ollama:latest
     ports:
       - 11434:11434
     volumes:
       - ollama:/root/.ollama
+    profiles: [ollama]
+
+  # Ollama Container (ROCM)
+  ollama-rocm:
+    image: ollama/ollama:rocm
+    ports:
+      - 11434:11434
+    volumes:
+      - ollama:/root/.ollama
+    profiles: [ollama-rocm]
 
 volumes:
   ollama:

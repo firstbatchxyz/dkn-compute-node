@@ -53,17 +53,27 @@ Dria Compute Node is mainly expected to be executed using Docker Compose. The pr
 
 1. **Ethereum Client RPC**: To communicate with Sepolia, you need an RPC URL. You can use [Infura](https://app.infura.io/) or [Alchemy](https://www.alchemy.com/). Your URL will be provided at `ETH_CLIENT_ADDRESS` variable.
 
-1. **Choose Ollama Model**: You can decide on a model to use by changing `DKN_OLLAMA_MODEL` variable. See [Ollama library](https://ollama.com/library) for models.
-
 With all of these steps completed, you should be able to start a node with:
 
 ```sh
+# -d to run in background
 docker compose up -d
 ```
 
 With `-d` option, the containers will be running in the background. You can check their logs either via the terminal or from [Docker Desktop](https://www.docker.com/products/docker-desktop/).
 
-### Run from Source
+### Ollama Configuration
+
+You have several alternatives to use Ollama:
+
+- `docker compose --profile ollama-cpu up -d` will launch Ollama container using CPU only.
+- `docker compose --profile ollama-cuda up -d` will launch Ollama container with CUDA support, for NVIDIA gpus.
+- `docker compose --profile ollama-rocm up -d` will launch Ollama container with ROCM support, for AMD gpus.
+- For Apple Silicon, you must install Ollama (e.g. `brew install ollama`) and launch the server (`ollama serve`) in another terminal, and then simply `docker compose up -d`.
+
+You can decide on a model to use by changing `DKN_OLLAMA_MODEL` variable, such as `DKN_OLLAMA_MODEL=llama3`. See [Ollama library](https://ollama.com/library) for the catalog of models.
+
+## Run from Source
 
 Clone the repository:
 
@@ -101,11 +111,19 @@ make test-waku    # Waku tests (requires a running Waku node)
 make test-ollama  # Ollama tests (requires a running Ollama client)
 ```
 
+## Benchmarking
+
+To measure the speed of some Ollama models we have a benchmark:
+
+```sh
+cargo bench -- ollama --exact
+```
+
 ## Styling
 
 Lint and format with:
 
 ```sh
-make lint # clippy
+make lint   # clippy
 make format # rustfmt
 ```
