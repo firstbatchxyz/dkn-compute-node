@@ -1,6 +1,7 @@
 use colored::Colorize;
 use dkn_compute::{compute::ollama::OllamaClient, utils::get_current_time_nanos};
-use std::time::Duration;
+use ollama_rs::generation::completion::GenerationResponse;
+use std::{collections::HashMap, time::Duration};
 
 /// This benchmark measures the time it takes to generate a response from a given Ollama model.
 ///
@@ -20,17 +21,38 @@ async fn main() {
     1. John Doe, 2. Jane Doe, 3. Foo Bar.",
     ];
 
+    let mut millis_per_char = HashMap::new();
+    let num_prompts = prompts.len() as f64;
     for prompt in prompts {
         println!("{}: {}", "Prompt".blue(), prompt);
         for model in models {
-            use_model_with_prompt(model, prompt).await;
+            let (generation, duration) = use_model_with_prompt(model, prompt).await;
+            println!(
+                "\n{} ({}: {}ms): {}",
+                "Response".green(),
+                model,
+                duration.as_millis(),
+                generation.response
+            );
+
+            millis_per_char.insert(
+                model,
+                millis_per_char.get(model).unwrap_or(&0.0)
+                    + ((generation.final_data.unwrap().eval_count as f64 / duration.as_secs_f64())
+                        / num_prompts),
+            );
         }
 
         println!("\n");
     }
+
+    println!("Average tokens per second for each model:");
+    for model in models {
+        println!("{:<12}\t{}", model, millis_per_char.get(model).unwrap());
+    }
 }
 
-async fn use_model_with_prompt(model: &str, prompt: &str) {
+async fn use_model_with_prompt(model: &str, prompt: &str) -> (GenerationResponse, Duration) {
     let ollama = OllamaClient::new(None, None, Some(model.to_string()));
     ollama.setup().await.expect("Should pull model");
 
@@ -42,11 +64,5 @@ async fn use_model_with_prompt(model: &str, prompt: &str) {
     let time_diff = get_current_time_nanos() - time;
     let duration = Duration::from_nanos(time_diff as u64);
 
-    println!(
-        "\n{} ({}: {}ms): {}",
-        "Response".green(),
-        model,
-        duration.as_millis(),
-        gen_res.response
-    );
+    (gen_res, duration)
 }
