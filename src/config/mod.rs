@@ -1,10 +1,11 @@
-pub mod defaults;
-
-use self::defaults::*;
 use crate::utils::crypto::to_address;
 use ecies::PublicKey;
 use libsecp256k1::{PublicKeyFormat, SecretKey};
 use std::env;
+
+/// 33 byte compressed public key of secret key from hex(b"dria) * 8
+pub const DEFAULT_DKN_ADMIN_PUBLIC_KEY: &[u8; 33] =
+    &hex_literal::hex!("0208ef5e65a9c656a6f92fb2c770d5d5e2ecffe02a6aade19207f75110be6ae658");
 
 /// 32 byte secret key hex(b"node") * 8
 /// address:
@@ -77,6 +78,12 @@ impl DriaComputeNodeConfig {
             DKN_WALLET_PUBLIC_KEY: public_key,
             DKN_WALLET_ADDRESS: address,
         }
+    }
+}
+
+impl Default for DriaComputeNodeConfig {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

@@ -24,6 +24,12 @@ pub fn synthesis_worker(
 
     tokio::spawn(async move {
         while let Err(e) = ollama.setup().await {
+            // edge case: invalid model is given
+            if e.to_string().contains("files does not exist") {
+                log::error!("Invalid Ollama model, please check your environment variables. Exiting worker.");
+                return;
+            }
+
             log::error!("Error setting up Ollama: {}\nRetrying in 5 seconds.", e);
             tokio::select! {
                 _ = cancellation.cancelled() => return,

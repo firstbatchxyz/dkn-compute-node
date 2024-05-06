@@ -1,10 +1,10 @@
 #[cfg_attr(test, cfg(feature = "ollama_test"))]
 mod ollama_test {
-    use dkn_compute::compute::ollama::{OllamaClient, OllamaModel};
+    use dkn_compute::compute::ollama::OllamaClient;
 
     #[tokio::test]
     async fn test_ollama_prompt() {
-        let model = OllamaModel::OrcaMini;
+        let model = "orca-mini".to_string();
         let ollama = OllamaClient::new(None, None, Some(model));
         let prompt = "The sky appears blue during the day because of a process called scattering. \
                 When sunlight enters the Earth's atmosphere, it collides with air molecules such as oxygen and nitrogen. \
@@ -17,5 +17,17 @@ mod ollama_test {
             .await
             .expect("Should generate response");
         println!("Prompt: {}\n\nResponse:{}", prompt, gen_res.response);
+    }
+
+    #[tokio::test]
+    async fn test_ollama_bad_model() {
+        let model = "thismodeldoesnotexistlol".to_string();
+        let ollama = OllamaClient::new(None, None, Some(model));
+
+        let setup_res = ollama.setup().await;
+        assert!(
+            setup_res.is_err(),
+            "Should give error due to non-existing model."
+        );
     }
 }
