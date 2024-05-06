@@ -90,7 +90,8 @@ make help
 While running Waku and Ollama node elsewhere, you can run the compute node with:
 
 ```sh
-make run
+make run     # no tasks except heartbeat
+make run-all # all tasks
 ```
 
 ## Docs
@@ -116,7 +117,7 @@ make test-ollama  # Ollama tests (requires a running Ollama client)
 To measure the speed of some Ollama models we have a benchmark:
 
 ```sh
-cargo bench -- ollama --exact
+make bench-ollama
 ```
 
 ## Styling

@@ -16,6 +16,10 @@ test-ollama:
 test-waku:
 		cargo test waku_test --features=waku_test
 
+.PHONY: bench-ollama # | Run Ollama benchmarks
+bench-ollama:
+		cargo bench -- ollama --exact
+
 .PHONY: lint #         | Run clippy
 lint:
 		cargo clippy

@@ -13,9 +13,8 @@ x-rln-environment: &rln_env
   RLN_RELAY_CRED_PATH: ${RLN_RELAY_CRED_PATH:-} # Optional: Add your RLN_RELAY_CRED_PATH after the "-"
   RLN_RELAY_CRED_PASSWORD: ${RLN_RELAY_CRED_PASSWORD:-} # Optional: Add your RLN_RELAY_CRED_PASSWORD after the "-"
 
-# Services definitions
 services:
-  # DKN Compute Node
+  # Compute Node
   compute:
     build: "./"
     environment:
@@ -58,14 +57,14 @@ services:
     command:
       - /opt/run_node.sh
 
-  # Ollama Container (non ROCM)
+  # Ollama Container (CPU)
   ollama:
     image: ollama/ollama:latest
     ports:
       - 11434:11434
     volumes:
       - ollama:/root/.ollama
-    profiles: [ollama]
+    profiles: [ollama-cpu]
 
   # Ollama Container (ROCM)
   ollama-rocm:
@@ -74,7 +73,26 @@ services:
       - 11434:11434
     volumes:
       - ollama:/root/.ollama
+    devices:
+      - "/dev/kfd"
+      - "/dev/dri"
     profiles: [ollama-rocm]
+
+  # Ollama Container (CUDA)
+  ollama-cuda:
+    image: ollama/ollama
+    ports:
+      - 11434:11434
+    volumes:
+      - ollama:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    profiles: [ollama-cuda]
 
 volumes:
   ollama:
