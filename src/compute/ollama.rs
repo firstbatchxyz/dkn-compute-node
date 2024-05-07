@@ -5,6 +5,7 @@ use ollama_rs::{
     generation::completion::{request::GenerationRequest, GenerationResponse},
     Ollama,
 };
+use tokio_util::sync::CancellationToken;
 
 pub const DEFAULT_DKN_OLLAMA_HOST: &str = "http://127.0.0.1";
 pub const DEFAULT_DKN_OLLAMA_PORT: u16 = 11434;
@@ -58,14 +59,27 @@ impl OllamaClient {
     }
 
     /// Pulls the configured model.
-    pub async fn setup(&self) -> Result<(), OllamaError> {
+    pub async fn setup(&self, cancellation: CancellationToken) -> Result<(), OllamaError> {
         log::info!("Checking local models");
         let status = self.client.list_local_models().await?;
         log::info!("Local Models:\n{:?}", status);
 
         log::info!("Pulling model: {}, this may take a while...", self.model);
-        let status = self.client.pull_model((&self.model).into(), false).await?;
-        log::info!("Pulled {}: {}", self.model, status.message);
+        while let Err(e) = self.client.pull_model((&self.model).into(), false).await {
+            // edge case: invalid model is given
+            if e.to_string().contains("files does not exist") {
+                return Err(OllamaError::from(
+                    "Invalid Ollama model, please check your environment variables.".to_string(),
+                ));
+            } else {
+                log::error!("Error setting up Ollama: {}\nRetrying in 5 seconds.", e);
+                tokio::select! {
+                    _ = cancellation.cancelled() => return Ok(()),
+                    _ = tokio::time::sleep(tokio::time::Duration::from_secs(5)) => continue
+                }
+            }
+        }
+        log::info!("Pulled {}", self.model);
 
         Ok(())
     }
@@ -91,7 +105,10 @@ pub async fn use_model_with_prompt(
     use crate::utils::get_current_time_nanos;
 
     let ollama = OllamaClient::new(None, None, Some(model.to_string()));
-    ollama.setup().await.expect("Should pull model");
+    ollama
+        .setup(CancellationToken::default())
+        .await
+        .expect("Should pull model");
 
     let time = get_current_time_nanos();
     let gen_res = ollama

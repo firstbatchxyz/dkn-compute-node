@@ -6,7 +6,6 @@ use crate::{
     utils::get_current_time_nanos,
     waku::message::WakuMessage,
 };
-use tokio_util::sync::CancellationToken;
 
 /// # Synthesis Payload
 ///
@@ -16,42 +15,21 @@ type SynthesisPayload = TaskRequestPayload<String>;
 
 pub fn synthesis_worker(
     node: DriaComputeNode,
-    cancellation: CancellationToken,
     topic: &'static str,
     sleep_amount: Duration,
 ) -> tokio::task::JoinHandle<()> {
     let ollama = OllamaClient::new(None, None, None);
 
     tokio::spawn(async move {
-        while let Err(e) = ollama.setup().await {
-            // edge case: invalid model is given
-            if e.to_string().contains("files does not exist") {
-                log::error!("Invalid Ollama model, please check your environment variables. Exiting worker.");
-                return;
-            }
-
-            log::error!("Error setting up Ollama: {}\nRetrying in 5 seconds.", e);
-            tokio::select! {
-                _ = cancellation.cancelled() => return,
-                _ = tokio::time::sleep(tokio::time::Duration::from_secs(5)) => continue
-            }
+        if let Err(e) = ollama.setup(node.cancellation.clone()).await {
+            log::error!("Could not setup Ollama: {}", e);
         }
 
-        while let Err(e) = node.subscribe_topic(topic).await {
-            log::error!(
-                "Error subscribing to {}: {}\nRetrying in 5 seconds.",
-                topic,
-                e
-            );
-            tokio::select! {
-                _ = cancellation.cancelled() => return,
-                _ = tokio::time::sleep(tokio::time::Duration::from_secs(5)) => continue
-            }
-        }
+        node.subscribe_topic(topic).await;
 
         loop {
             tokio::select! {
-                _ = cancellation.cancelled() => {
+                _ = node.cancellation.cancelled() => {
                     if let Err(e) = node.unsubscribe_topic(topic).await {
                         log::error!("Error unsubscribing from {}: {}\nContinuing anyway.", topic, e);
                     }
