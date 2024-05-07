@@ -1,8 +1,11 @@
 use dkn_compute::utils::wait_for_termination;
-use dkn_compute::workers::heartbeat::*;
 use dkn_compute::{config::DriaComputeNodeConfig, node::DriaComputeNode};
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
+
+// diagnostic & heartbeat always enabled
+use dkn_compute::workers::diagnostic::*;
+use dkn_compute::workers::heartbeat::*;
 
 #[cfg(feature = "synthesis")]
 use dkn_compute::workers::synthesis::*;
@@ -26,6 +29,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         node.clone(),
         "heartbeat",
         tokio::time::Duration::from_millis(1000),
+    ));
+    tracker.spawn(diagnostic_worker(
+        node.clone(),
+        tokio::time::Duration::from_secs(60),
     ));
 
     #[cfg(feature = "synthesis")]

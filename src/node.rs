@@ -153,11 +153,15 @@ impl DriaComputeNode {
     pub async fn process_topic(&self, topic: &str, signed: bool) -> NodeResult<Vec<WakuMessage>> {
         let content_topic = WakuMessage::create_content_topic(topic);
         let mut messages: Vec<WakuMessage> = self.waku.relay.get_messages(&content_topic).await?;
-        if !messages.is_empty() {
-            log::debug!("Received messages on topic {}:", topic);
-            for message in &messages {
-                log::debug!("{}", message);
-            }
+
+        // dont bother if there are no messages
+        if messages.is_empty() {
+            return Ok(messages);
+        }
+
+        log::debug!("Received messages on topic {}:", topic);
+        for message in &messages {
+            log::debug!("{}", message);
         }
 
         // if signed, only keep messages that are authentic to Dria
