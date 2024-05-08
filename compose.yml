@@ -32,6 +32,7 @@ services:
   # Waku Node
   nwaku:
     image: harbor.status.im/wakuorg/nwaku:v0.27.0
+    restart: on-failure
     ports:
       - 30304:30304/tcp
       - 30304:30304/udp

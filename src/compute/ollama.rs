@@ -58,11 +58,20 @@ impl OllamaClient {
         Self { client, model }
     }
 
-    /// Pulls the configured model.
+    /// Lists local models for diagnostic, and pulls the configured model.
     pub async fn setup(&self, cancellation: CancellationToken) -> Result<(), OllamaError> {
         log::info!("Checking local models");
-        let status = self.client.list_local_models().await?;
-        log::info!("Local Models:\n{:?}", status);
+        let local_models = self.client.list_local_models().await?;
+        let num_local_modals = local_models.len();
+        if num_local_modals == 0 {
+            log::info!("No local models found.");
+        } else {
+            let mut message = format!("{}{}", num_local_modals, " local models found:".to_string());
+            for model in local_models.iter() {
+                message.push_str(format!("\n{}", model.name).as_str())
+            }
+            log::info!("{}", message);
+        }
 
         log::info!("Pulling model: {}, this may take a while...", self.model);
         while let Err(e) = self.client.pull_model((&self.model).into(), false).await {
@@ -88,10 +97,8 @@ impl OllamaClient {
     pub async fn generate(&self, prompt: String) -> Result<GenerationResponse, String> {
         log::debug!("Generating with prompt: {}", prompt);
 
-        let gen_res = self
-            .client
-            .generate(GenerationRequest::new((&self.model).into(), prompt))
-            .await?;
+        let gen_req = GenerationRequest::new(self.model.clone(), prompt);
+        let gen_res = self.client.generate(gen_req).await?;
 
         log::debug!("Generated response: {}", gen_res.response);
         Ok(gen_res)
@@ -111,8 +118,10 @@ pub async fn use_model_with_prompt(
         .expect("Should pull model");
 
     let time = get_current_time_nanos();
+    let prompt = prompt.to_string();
+
     let gen_res = ollama
-        .generate(prompt.to_string())
+        .generate(prompt)
         .await
         .expect("Should generate response");
     let time_diff = get_current_time_nanos() - time;

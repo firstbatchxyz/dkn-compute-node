@@ -38,6 +38,11 @@ pub fn synthesis_worker(
                 _ = tokio::time::sleep(sleep_amount) => {
                     let mut tasks = Vec::new();
                     if let Ok(messages) = node.process_topic(topic, true).await {
+                        if messages.is_empty() {
+                            continue;
+                        }
+                        log::info!("Received {} synthesis tasks.", messages.len());
+
                         for message in messages {
                             match message.parse_payload::<SynthesisPayload>(true) {
                                 Ok(task) => {

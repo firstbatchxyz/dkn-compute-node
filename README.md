@@ -84,11 +84,15 @@ We are using Make as a wrapper for some scripts. You can see the available comma
 make help
 ```
 
+You will need OpenSSL installed as well, see shorthand commands [here](https://github.com/sfackler/rust-openssl/issues/855#issuecomment-450057552).
+
+### Running Compute Node
+
 While running Waku and Ollama node elsewhere, you can run the compute node with:
 
 ```sh
-make run     # no tasks except heartbeat
-make run-all # all tasks
+make run      # info-level logs
+make debug    # debug-level logs
 ```
 
 ## Docs
@@ -111,10 +115,16 @@ make test-ollama  # Ollama tests (requires a running Ollama client)
 
 ## Benchmarking
 
-To measure the speed of some Ollama models we have a benchmark:
+To measure the speed of some Ollama models we have a benchmark that uses some models for a few prompts:
 
 ```sh
-make bench-ollama
+cargo run --release --example ollama
+```
+
+You can also benchmark these models using a larger task list at a given path, with the following command:
+
+```sh
+JSON_PATH="./path/to/your.json" cargo run --release --example ollama
 ```
 
 ## Styling

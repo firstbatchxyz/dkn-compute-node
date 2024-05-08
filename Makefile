@@ -4,6 +4,16 @@ ifneq (,$(wildcard ./.env))
 		export
 endif
 
+###############################################################################
+.PHONY: run #          | Run with INFO level logging
+run:
+		RUST_LOG=info cargo run
+
+.PHONY: debug #        | Run with crate-level DEBUG level logging
+debug:
+		RUST_LOG=none,dkn_compute=debug cargo run
+
+###############################################################################
 .PHONY: test #         | Run tests
 test:
 		cargo test
@@ -15,11 +25,7 @@ test-ollama:
 .PHONY: test-waku #    | Run Waku integration tests only
 test-waku:
 		cargo test waku_test --features=waku_test
-
-.PHONY: bench-ollama # | Run Ollama benchmarks
-bench-ollama:
-		cargo bench -- ollama --exact
-
+############################################################################### 
 .PHONY: prompt #       | Run a single prompt on a model
 prompt:
 		cargo run --example prompt
@@ -28,6 +34,7 @@ prompt:
 peers:
 		cargo run --example peers
 
+###############################################################################
 .PHONY: lint #         | Run clippy
 lint:
 		cargo clippy
@@ -36,22 +43,7 @@ lint:
 format:
 		cargo fmt -v
 
-.PHONY: run #          | Run with INFO level logging
-run:
-		RUST_LOG=info cargo run
-
-.PHONY: run-all #      | Run all workers
-run-all:
-		RUST_LOG=info cargo run --features=synthesis
-
-.PHONY: run-all-dbg #  | Run all workers in debug mode
-run-all-dbg:
-		RUST_LOG=none,dkn_compute=debug cargo run --features=synthesis
-
-.PHONY: debug #        | Run with crate-level DEBUG level logging
-debug:
-		RUST_LOG=none,dkn_compute=debug cargo run
-
+###############################################################################
 .PHONY: docs #         | Generate & open crate documentation
 docs:
 		cargo doc --open --no-deps

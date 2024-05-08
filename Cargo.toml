@@ -49,9 +49,9 @@ ollama-rs = "0.1.8"
 colored = "2.1.0"
 rand = "0.8.5"
 
-[[bench]]
+[[example]]
 name = "ollama"
-harness = false
+path = "./examples/benchmarks/ollama.rs"
 
 [[example]]
 name = "prompt"
