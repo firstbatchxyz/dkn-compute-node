@@ -86,6 +86,7 @@ exec /usr/bin/wakunode\
   --store-message-db-url="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/postgres"\
   --rln-relay-eth-client-address="${ETH_CLIENT_ADDRESS}"\
   --rln-relay-tree-path="/etc/rln_tree"\
+  --staticnode="/ip4/57.129.6.17/tcp/30304/p2p/16Uiu2HAmD4dpgoGKXHjEp5749uPpDwRm6Bpf4TuKTKrj6ErsAa1N"\
   ${RLN_RELAY_CRED_PATH}\
   ${RLN_RELAY_CRED_PASSWORD}\
   ${DNS_WSS_CMD}\
