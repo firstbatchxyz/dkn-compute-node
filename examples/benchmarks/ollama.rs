@@ -1,11 +1,15 @@
 use colored::Colorize;
 use dkn_compute::compute::ollama::use_model_with_prompt;
+use ollama_rs::models;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::env;
 use std::fs::File;
+use std::hash::Hash;
 use std::io::Read;
 
 /// A `println!` macro that only prints when the `debug_assertions` flag is set, i.e. it wont print when `--release` is used.
+#[allow(unused)]
 macro_rules! debug_println {
     ($($arg:tt)*) => (if ::std::cfg!(debug_assertions) { ::std::println!($($arg)*); })
 }
@@ -13,15 +17,32 @@ macro_rules! debug_println {
 /// Shareable format string to print results.
 macro_rules! result_format_str {
     () => {
-        "{:<15} {:<18} {:<18} {:<18} {:<18} {:<18} {:<18}"
+        "{:<8} {:<15} {:<18} {:<18} {:<18} {:<18} {:<18} {:<18} {:<18}"
     };
+}
+
+#[inline(always)]
+fn print_title() {
+    println!(
+        result_format_str!(),
+        "Prompt".blue(),
+        "Model".blue(),
+        "Call (ns)".red(),
+        "Total (ns)".red(),
+        "Prompt (t)".yellow(),
+        "Prompt (ns)".yellow(),
+        "Result (t)".green(),
+        "Result (ns)".green(),
+        "TPS".blue(),
+    );
 }
 
 #[tokio::main]
 async fn main() {
     let models = ["orca-mini"]; //, "phi3", "llama3", "openhermes"];
-    let preset_prompts = [
+    let preset_prompts =  [
         "Give 3 names of famous scientists, 1 Field Medalist, 1 Turing Award recipient and 1 Nobel laureate. Provide only the names, such as: 1. John Doe, 2. Jane Doe, 3. Foo Bar.",
+        "What is the name of the first president of Turkish Republic?",
     ];
 
     // decide on prompts to be used
@@ -40,16 +61,14 @@ async fn main() {
         }
     };
 
-    // let mut tokens_per_second = HashMap::new();
+    print_title();
     let mut results = Vec::new();
-    // let num_prompts = prompts.len() as f64;
-
+    let mut num_prompts = HashMap::new();
     for (prompt_num, prompt) in prompts.iter().enumerate() {
         // println!("{}{}: {}", "Prompt #".blue(), prompt_num, prompt);
-        print_title();
-
         for model in models {
             // will loop until it can generate a result with "final data"
+            // TODO: waiting for issue https://github.com/pepperoni21/ollama-rs/pull/47
             loop {
                 let (generation, duration) = use_model_with_prompt(model, prompt).await;
 
@@ -63,9 +82,14 @@ async fn main() {
                         prompt_eval_duration: gen_data.prompt_eval_duration,
                         eval_count: gen_data.eval_count,
                         eval_duration: gen_data.eval_duration,
+                        tokens_per_second: ((gen_data.eval_count as f64)
+                            / (gen_data.eval_duration as f64)
+                            * 1_000_000_000f64),
                     };
+
                     println!("{}", result);
                     results.push(result);
+                    num_prompts.insert(model, num_prompts.get(model).unwrap_or(&0) + 1);
                     break;
                 } else {
                     println!("{}: {}", "Warn".yellow(), "Could not get final data.");
@@ -74,16 +98,16 @@ async fn main() {
         }
     }
 
-    // tokens_per_second.insert(
-    //     model,
-    //     tokens_per_second.get(model).unwrap_or(&0.0)
-    //         + ((gen_data.eval_count as f64 / (gen_data.total_duration as f64 / 1_000_000_000f64))
-    //             / num_prompts),
-    // );
-
-    // println!("Average {} for each model:", "tokens per second".yellow());
+    println!("Average {} for each model:", "tokens per second".yellow());
+    // let mut tps = HashMap::new();
+    // for result in &results {
+    //     tps.insert(
+    //         &result.model,
+    //         tps.get(&result.model).unwrap_or(&0f64) + result.tokens_per_second,
+    //     );
+    // }
     // for model in models {
-    //     println!("{:<12}\t{}", model, tokens_per_second.get(model).unwrap());
+    //     let avg_tps = tps.get(model).unwrap() / num_prompts.get(&model).unwrap() as f64;
     // }
 }
 
@@ -103,6 +127,7 @@ impl std::fmt::Display for BenchmarkResult {
         write!(
             f,
             result_format_str!(),
+            self.prompt_num,
             self.model,
             self.api_duration,
             self.total_duration,
@@ -110,22 +135,9 @@ impl std::fmt::Display for BenchmarkResult {
             self.prompt_eval_duration,
             self.eval_count,
             self.eval_duration,
+            self.tokens_per_second
         )
     }
-}
-
-#[inline(always)]
-fn print_title() {
-    println!(
-        result_format_str!(),
-        "Model".blue(),
-        "Call (ns)".cyan(),
-        "Total (ns)".red(),
-        "Prompt (t)".yellow(),
-        "Prompt (ns)".yellow(),
-        "Result (t)".green(),
-        "Result (ns)".green(),
-    );
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -146,6 +158,8 @@ struct BenchmarkResult {
     pub eval_count: u16,
     /// Time in nanoseconds spent generating the response
     pub eval_duration: u64,
+    /// Tokens per second is calculated by `eval_count / eval_duration * 10^9`, see https://github.com/ollama/ollama/blob/main/docs/api.md#response
+    pub tokens_per_second: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

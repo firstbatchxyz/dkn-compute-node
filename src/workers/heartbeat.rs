@@ -1,5 +1,5 @@
-use std::time::Duration;
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::{node::DriaComputeNode, utils::crypto::sha256hash, waku::message::WakuMessage};
 
@@ -42,7 +42,7 @@ pub fn heartbeat_worker(
                     };
 
                     if node.is_busy() {
-                        log::debug!("Node is busy, skipping heartbeat.");
+                        log::info!("Node is busy, skipping heartbeat.");
                         continue;
                     }
 

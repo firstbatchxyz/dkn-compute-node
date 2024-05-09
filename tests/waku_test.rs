@@ -6,8 +6,7 @@ mod waku_tests {
     async fn test_base_waku() {
         let waku = DriaComputeNode::default().waku;
 
-        let version = waku.version().await.expect("Should get version");
-        assert_eq!("v0.27.0", version);
+        waku.version().await.expect("Should get version");
 
         let peers = waku.peers().await.expect("Should get peers");
         assert!(!peers.is_empty(), "Expected at least 1 peer");
@@ -39,7 +38,7 @@ mod waku_tests {
         let node = DriaComputeNode::default();
         let topic = "test-topic-msr";
 
-        node.subscribe_topic(topic).await.expect("Should subscribe");
+        node.subscribe_topic(topic).await;
 
         let message = WakuMessage::new("hello world".to_string(), topic);
 

@@ -1,9 +1,8 @@
 use ecies::encrypt;
 use fastbloom_rs::{BloomFilter, Membership};
 use libsecp256k1::{sign, Message, RecoveryId, Signature};
-use tokio_util::sync::CancellationToken;
 use parking_lot::RwLock;
-use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
 
 use crate::{
     compute::payload::TaskResponsePayload,
@@ -36,7 +35,7 @@ impl DriaComputeNode {
             config,
             waku,
             cancellation,
-            busy_lock
+            busy_lock,
         }
     }
 
@@ -123,16 +122,19 @@ impl DriaComputeNode {
     }
 
     /// Subscribe to a certain task with its topic.
-    pub async fn subscribe_topic(&self, topic: &str) -> () {
+    pub async fn subscribe_topic(&self, topic: &str) {
         let content_topic = WakuMessage::create_content_topic(topic);
 
+        const MAX_RETRIES: usize = 30;
         let mut retry_count = 0; // retry count for edge case
         while let Err(e) = self.waku.relay.subscribe(&content_topic).await {
-            if retry_count < 30 {
+            if retry_count < MAX_RETRIES {
                 log::error!(
-                    "Error subscribing to {}: {}\nRetrying in 5 seconds.",
+                    "Error subscribing to {}: {}\nRetrying in 5 seconds ({}/{}).",
                     topic,
-                    e
+                    e,
+                    retry_count,
+                    MAX_RETRIES
                 );
                 tokio::select! {
                     _ = self.cancellation.cancelled() => return,

@@ -66,7 +66,7 @@ impl OllamaClient {
         if num_local_modals == 0 {
             log::info!("No local models found.");
         } else {
-            let mut message = format!("{}{}", num_local_modals, " local models found:".to_string());
+            let mut message = format!("{}{}", num_local_modals, " local models found:");
             for model in local_models.iter() {
                 message.push_str(format!("\n{}", model.name).as_str())
             }
@@ -74,6 +74,7 @@ impl OllamaClient {
         }
 
         log::info!("Pulling model: {}, this may take a while...", self.model);
+        const MAX_RETRIES: usize = 3;
         let mut retry_count = 0; // retry count for edge case
         while let Err(e) = self.client.pull_model((&self.model).into(), false).await {
             // edge case: invalid model is given
@@ -81,8 +82,13 @@ impl OllamaClient {
                 return Err(OllamaError::from(
                     "Invalid Ollama model, please check your environment variables.".to_string(),
                 ));
-            } else if retry_count < 3 {
-                log::error!("Error setting up Ollama: {}\nRetrying in 5 seconds.", e);
+            } else if retry_count < MAX_RETRIES {
+                log::error!(
+                    "Error setting up Ollama: {}\nRetrying in 5 seconds ({}/{}).",
+                    e,
+                    retry_count,
+                    MAX_RETRIES
+                );
                 tokio::select! {
                     _ = cancellation.cancelled() => return Ok(()),
                     _ = tokio::time::sleep(tokio::time::Duration::from_secs(5)) => {

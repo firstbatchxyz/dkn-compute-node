@@ -64,8 +64,9 @@ impl DriaComputeNodeConfig {
             hex::encode(public_key.serialize_compressed())
         );
         log::info!(
-            "Node Secret Key: 0x{}...",
+            "Node Secret Key: 0x{}{}",
             hex::encode(&secret_key.serialize()[0..1]),
+            ".".repeat(62)
         );
         log::info!(
             "Admin Public Key: 0x{}",
