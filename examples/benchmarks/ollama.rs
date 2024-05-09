@@ -1,11 +1,9 @@
 use colored::Colorize;
 use dkn_compute::compute::ollama::use_model_with_prompt;
-use ollama_rs::models;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
 use std::fs::File;
-use std::hash::Hash;
 use std::io::Read;
 
 /// A `println!` macro that only prints when the `debug_assertions` flag is set, i.e. it wont print when `--release` is used.
@@ -39,7 +37,7 @@ fn print_title() {
 
 #[tokio::main]
 async fn main() {
-    let models = ["orca-mini"]; //, "phi3", "llama3", "openhermes"];
+    let models = ["orca-mini", "phi3"]; //, "llama3", "openhermes"];
     let preset_prompts =  [
         "Give 3 names of famous scientists, 1 Field Medalist, 1 Turing Award recipient and 1 Nobel laureate. Provide only the names, such as: 1. John Doe, 2. Jane Doe, 3. Foo Bar.",
         "What is the name of the first president of Turkish Republic?",
@@ -98,17 +96,19 @@ async fn main() {
         }
     }
 
-    println!("Average {} for each model:", "tokens per second".yellow());
-    // let mut tps = HashMap::new();
-    // for result in &results {
-    //     tps.insert(
-    //         &result.model,
-    //         tps.get(&result.model).unwrap_or(&0f64) + result.tokens_per_second,
-    //     );
-    // }
-    // for model in models {
-    //     let avg_tps = tps.get(model).unwrap() / num_prompts.get(&model).unwrap() as f64;
-    // }
+    println!("\nAverage {} for each model:", "tokens per second".yellow());
+    let mut tps = HashMap::new();
+    for result in &results {
+        tps.insert(
+            &result.model,
+            tps.get(&result.model).unwrap_or(&0f64) + result.tokens_per_second,
+        );
+    }
+    for model in models {
+        let avg_tps = tps.get(&model.to_string()).unwrap_or(&0f64)
+            / *num_prompts.get(model).unwrap_or(&1) as f64;
+        println!("{}: {:.2}", model, avg_tps);
+    }
 }
 
 /// Reads a JSON file and deserializes it.
