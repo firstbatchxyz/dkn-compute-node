@@ -31,7 +31,8 @@ services:
 
   # Waku Node
   nwaku:
-    image: harbor.status.im/wakuorg/nwaku:v0.27.0
+    # image: harbor.status.im/wakuorg/nwaku:v0.27.0
+    image: quay.io/wakuorg/nwaku-pr:2682-rln-v1
     restart: on-failure
     ports:
       - 30304:30304/tcp
@@ -56,6 +57,7 @@ services:
     entrypoint: sh
     command:
       - /opt/run_node.sh
+
 
   # Ollama Container (CPU)
   ollama:

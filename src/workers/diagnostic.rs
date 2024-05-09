@@ -1,4 +1,5 @@
 use std::time::Duration;
+use std::sync::Arc;
 
 use crate::node::DriaComputeNode;
 
@@ -7,7 +8,7 @@ use crate::node::DriaComputeNode;
 /// This is a simple worker that keeps track of the node information, and prints it at regular intervals.
 /// In particular, it will print the number of peers.
 pub fn diagnostic_worker(
-    node: DriaComputeNode,
+    node: Arc<DriaComputeNode>,
     sleep_amount: Duration,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {

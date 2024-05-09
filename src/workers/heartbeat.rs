@@ -1,4 +1,5 @@
 use std::time::Duration;
+use std::sync::Arc;
 
 use crate::{node::DriaComputeNode, utils::crypto::sha256hash, waku::message::WakuMessage};
 
@@ -16,7 +17,7 @@ struct HeartbeatPayload {
 }
 
 pub fn heartbeat_worker(
-    node: DriaComputeNode,
+    node: Arc<DriaComputeNode>,
     topic: &'static str,
     sleep_amount: Duration,
 ) -> tokio::task::JoinHandle<()> {
@@ -39,6 +40,11 @@ pub fn heartbeat_worker(
                             continue;
                         }
                     };
+
+                    if node.is_busy() {
+                        log::debug!("Node is busy, skipping heartbeat.");
+                        continue;
+                    }
 
                     // we only care about the latest heartbeat
                     if let Some(message) = messages.last() {

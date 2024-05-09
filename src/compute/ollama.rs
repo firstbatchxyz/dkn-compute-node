@@ -74,18 +74,28 @@ impl OllamaClient {
         }
 
         log::info!("Pulling model: {}, this may take a while...", self.model);
+        let mut retry_count = 0; // retry count for edge case
         while let Err(e) = self.client.pull_model((&self.model).into(), false).await {
             // edge case: invalid model is given
-            if e.to_string().contains("files does not exist") {
+            if e.to_string().contains("file does not exist") {
                 return Err(OllamaError::from(
                     "Invalid Ollama model, please check your environment variables.".to_string(),
                 ));
-            } else {
+            } else if retry_count < 3 {
                 log::error!("Error setting up Ollama: {}\nRetrying in 5 seconds.", e);
                 tokio::select! {
                     _ = cancellation.cancelled() => return Ok(()),
-                    _ = tokio::time::sleep(tokio::time::Duration::from_secs(5)) => continue
+                    _ = tokio::time::sleep(tokio::time::Duration::from_secs(5)) => {
+                        retry_count += 1; // Increment the retry counter
+                        continue;
+                    }
                 }
+            } else {
+                // Handling the case when maximum retries are exceeded
+                log::error!("Maximum retry attempts exceeded, stopping retries.");
+                return Err(OllamaError::from(
+                    "Maximum retry attempts exceeded.".to_string(),
+                ));
             }
         }
         log::info!("Pulled {}", self.model);

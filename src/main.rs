@@ -6,6 +6,7 @@ use tokio_util::task::TaskTracker;
 // diagnostic & heartbeat always enabled
 use dkn_compute::workers::diagnostic::*;
 use dkn_compute::workers::heartbeat::*;
+use std::sync::Arc;
 
 #[cfg(feature = "synthesis")]
 use dkn_compute::workers::synthesis::*;
@@ -21,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = DriaComputeNodeConfig::new();
     let cancellation = CancellationToken::new();
-    let node = DriaComputeNode::new(config, cancellation.clone());
+    let node = Arc::new(DriaComputeNode::new(config, cancellation.clone()));
 
     log::info!("Starting workers");
     let tracker = TaskTracker::new();

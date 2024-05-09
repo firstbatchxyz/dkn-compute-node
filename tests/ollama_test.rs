@@ -1,6 +1,7 @@
 #[cfg_attr(test, cfg(feature = "ollama_test"))]
 mod ollama_test {
     use dkn_compute::compute::ollama::OllamaClient;
+    use tokio_util::sync::CancellationToken;
 
     #[tokio::test]
     async fn test_ollama_prompt() {
@@ -24,7 +25,7 @@ mod ollama_test {
         let model = "thismodeldoesnotexistlol".to_string();
         let ollama = OllamaClient::new(None, None, Some(model));
 
-        let setup_res = ollama.setup().await;
+        let setup_res = ollama.setup(CancellationToken::default()).await;
         assert!(
             setup_res.is_err(),
             "Should give error due to non-existing model."
