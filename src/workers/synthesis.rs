@@ -1,4 +1,5 @@
 use std::time::Duration;
+use std::sync::Arc;
 
 use crate::{
     compute::{ollama::OllamaClient, payload::TaskRequestPayload},
@@ -14,7 +15,7 @@ use crate::{
 type SynthesisPayload = TaskRequestPayload<String>;
 
 pub fn synthesis_worker(
-    node: DriaComputeNode,
+    node: Arc<DriaComputeNode>,
     topic: &'static str,
     sleep_amount: Duration,
 ) -> tokio::task::JoinHandle<()> {
@@ -75,6 +76,8 @@ pub fn synthesis_worker(
                             }
                         }
                     }
+                    // Set node to busy
+                    node.set_busy(true);
 
                     for task in tasks {
                         // parse public key
@@ -121,6 +124,9 @@ pub fn synthesis_worker(
                                 continue;
                             }
                     }
+
+                    // Set node to not busy
+                    node.set_busy(false);
                 }
             }
         }

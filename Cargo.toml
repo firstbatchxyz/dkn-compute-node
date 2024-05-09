@@ -44,6 +44,7 @@ sha3 = "0.10.8"
 
 # connects with Ollama running locally
 ollama-rs = "0.1.8"
+parking_lot = "0.12.2"
 
 [dev-dependencies]
 colored = "2.1.0"

@@ -2,6 +2,8 @@ use ecies::encrypt;
 use fastbloom_rs::{BloomFilter, Membership};
 use libsecp256k1::{sign, Message, RecoveryId, Signature};
 use tokio_util::sync::CancellationToken;
+use parking_lot::RwLock;
+use std::sync::Arc;
 
 use crate::{
     compute::payload::TaskResponsePayload,
@@ -12,11 +14,12 @@ use crate::{
 };
 
 #[allow(unused)]
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct DriaComputeNode {
     pub config: DriaComputeNodeConfig,
     pub waku: WakuClient,
     pub cancellation: CancellationToken,
+    pub busy_lock: RwLock<bool>,
 }
 
 impl Default for DriaComputeNode {
@@ -28,10 +31,12 @@ impl Default for DriaComputeNode {
 impl DriaComputeNode {
     pub fn new(config: DriaComputeNodeConfig, cancellation: CancellationToken) -> Self {
         let waku = WakuClient::new(None);
+        let busy_lock = RwLock::new(false);
         DriaComputeNode {
             config,
             waku,
             cancellation,
+            busy_lock
         }
     }
 
@@ -45,6 +50,18 @@ impl DriaComputeNode {
     #[inline]
     pub fn sign(&self, message: &Message) -> (Signature, RecoveryId) {
         sign(message, &self.config.DKN_WALLET_SECRET_KEY)
+    }
+
+    /// Returns the state of the node, whether it is busy or not.
+    #[inline]
+    pub fn is_busy(&self) -> bool {
+        *self.busy_lock.read()
+    }
+
+    /// Set the state of the node, whether it is busy or not.
+    #[inline]
+    pub fn set_busy(&self, busy: bool) {
+        *self.busy_lock.write() = busy;
     }
 
     /// Shorthand to sign a digest (bytes) with node's secret key and return signature & recovery id
@@ -109,15 +126,23 @@ impl DriaComputeNode {
     pub async fn subscribe_topic(&self, topic: &str) -> () {
         let content_topic = WakuMessage::create_content_topic(topic);
 
+        let mut retry_count = 0; // retry count for edge case
         while let Err(e) = self.waku.relay.subscribe(&content_topic).await {
-            log::error!(
-                "Error subscribing to {}: {}\nRetrying in 5 seconds.",
-                topic,
-                e
-            );
-            tokio::select! {
-                _ = self.cancellation.cancelled() => return,
-                _ = tokio::time::sleep(tokio::time::Duration::from_secs(5)) => continue
+            if retry_count < 30 {
+                log::error!(
+                    "Error subscribing to {}: {}\nRetrying in 5 seconds.",
+                    topic,
+                    e
+                );
+                tokio::select! {
+                    _ = self.cancellation.cancelled() => return,
+                    _ = tokio::time::sleep(tokio::time::Duration::from_secs(5)) => {
+                        retry_count += 1; // Increment the retry counter
+                    }
+                }
+            } else {
+                log::error!("Error subscribing to {}: {}\nAborting.", topic, e);
+                self.cancellation.cancel();
             }
         }
 
