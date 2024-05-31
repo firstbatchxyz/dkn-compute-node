@@ -4,7 +4,7 @@ use std::collections::HashMap;
 /// A wrapper for GET, POST and DELETE requests.
 #[derive(Debug, Clone)]
 pub struct BaseClient {
-    pub(super) base_url: String,
+    base_url: String,
     client: Client,
 }
 
@@ -79,6 +79,10 @@ impl BaseClient {
             .await?;
 
         res.error_for_status()
+    }
+
+    pub fn get_base_url(&self) -> String {
+        self.base_url.clone()
     }
 }
 

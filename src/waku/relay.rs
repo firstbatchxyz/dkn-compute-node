@@ -1,4 +1,4 @@
-use crate::{errors::NodeResult, waku::BaseClient};
+use crate::{errors::NodeResult, utils::http::BaseClient};
 use urlencoding;
 
 use super::message::WakuMessage;

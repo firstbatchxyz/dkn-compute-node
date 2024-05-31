@@ -6,8 +6,9 @@ license = "Apache-2.0"
 readme = "README.md"
 
 [features]
-default = ["synthesis"]
+default = ["search_python"]
 synthesis = []
+search_python = [] 
 
 # test features
 waku_test = []

@@ -1,4 +1,3 @@
-mod base;
 pub mod message;
 mod relay;
 
@@ -8,7 +7,9 @@ use std::env;
 
 use crate::errors::NodeResult;
 
-use self::{base::BaseClient, relay::RelayClient};
+use crate::utils::http::BaseClient;
+
+use self::relay::RelayClient;
 use serde::{Deserialize, Serialize};
 
 /// Waku [REST API](https://waku-org.github.io/waku-rest-api) wrapper.
@@ -97,6 +98,6 @@ mod tests {
         env::set_var("DKN_WAKU_URL", "im-a-host:1337");
 
         let waku = WakuClient::new(None);
-        assert_eq!(waku.base.base_url, "im-a-host:1337");
+        assert_eq!(waku.base.get_base_url(), "im-a-host:1337");
     }
 }

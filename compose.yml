@@ -18,16 +18,16 @@ services:
   compute:
     build: "./"
     environment:
-      DKN_OLLAMA_HOST: "http://host.docker.internal"
-      DKN_OLLAMA_PORT: "11434"
-      DKN_OLLAMA_MODEL: ${DKN_OLLAMA_MODEL:-phi3}
       DKN_WAKU_URL: "http://host.docker.internal:8645"
       DKN_WALLET_SECRET_KEY: ${ETH_TESTNET_KEY}
       DKN_ADMIN_PUBLIC_KEY: "0208ef5e65a9c656a6f92fb2c770d5d5e2ecffe02a6aade19207f75110be6ae658"
-      RUST_LOG: "info"
-    network_mode: "host"
+      SEARCH_AGENT_URL: "http://search-agent:5000"
+      SEARCH_AGENT_MANAGER: true
+      RUST_LOG: "debug"
+    networks:
+      - dkn-search-node-python-network
     depends_on:
-      - nwaku
+      - search-agent
 
   # Waku Node
   nwaku:
@@ -57,7 +57,9 @@ services:
     entrypoint: sh
     command:
       - /opt/run_node.sh
-
+    networks:
+      - dkn-search-node-python-network
+    profiles: [waku]
 
   # Ollama Container (CPU)
   ollama:
@@ -65,7 +67,9 @@ services:
     ports:
       - 11434:11434
     volumes:
-      - ollama:/root/.ollama
+      - ollama:~/.ollama
+    networks:
+      - dkn-search-node-python-network
     profiles: [ollama-cpu]
 
   # Ollama Container (ROCM)
@@ -78,6 +82,8 @@ services:
     devices:
       - "/dev/kfd"
       - "/dev/dri"
+    networks:
+      - dkn-search-node-python-network
     profiles: [ollama-rocm]
 
   # Ollama Container (CUDA)
@@ -94,7 +100,66 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+    networks:
+      - dkn-search-node-python-network
     profiles: [ollama-cuda]
+
+  # dria-search-agent profile
+  qdrant:
+    image: qdrant/qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - ./qdrant_storage:/qdrant/storage:z
+    networks:
+      - dkn-search-node-python-network
+    profiles: [search-python]
+
+  browserless:
+    image: ghcr.io/browserless/chromium
+    environment:
+      - TOKEN=6R0W53R135510
+    ports:
+      - "3030:3000"
+    networks:
+      - dkn-search-node-python-network
+    profiles: [search-python]
+
+  search-agent:
+    image: dria-searching-agent:server
+    ports:
+      - 5000:5000
+    environment:
+      AGENT_MODEL_PROVIDER: Ollama
+      AGENT_MODEL: phi3:latest
+      
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      SERPER_API_KEY: ${SERPER_API_KEY}
+      BROWSERLESS_TOKEN: ${BROWSERLESS_TOKEN}
+
+      OPENAI_MODEL_NAME: "gpt4"
+      VISION_TOOL_MODEL: "CLAUDE_SONNET"
+
+      OLLAMA_URL: http://host.docker.internal:11434
+      QDRANT_URL: http://qdrant:6333
+      BROWSERLESS_URL: http://browserless:3000
+    networks:
+      dkn-search-node-python-network:
+    profiles: [search-python]
+
+
+networks:
+  dkn-search-node-python-network:
+    name: dkn-search-node-python-network
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.30.0.0/24
+          gateway: 172.30.0.1
+
 
 volumes:
   ollama:

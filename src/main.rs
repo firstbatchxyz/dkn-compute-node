@@ -6,10 +6,18 @@ use tokio_util::task::TaskTracker;
 // diagnostic & heartbeat always enabled
 use dkn_compute::workers::diagnostic::*;
 use dkn_compute::workers::heartbeat::*;
+use std::process::exit;
 use std::sync::Arc;
+
+use dkn_compute::utils::http::BaseClient;
+use serde_json::json;
+
 
 #[cfg(feature = "synthesis")]
 use dkn_compute::workers::synthesis::*;
+
+#[cfg(feature = "search_python")]
+use dkn_compute::workers::search_python::*;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -42,6 +50,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "synthesis",
         tokio::time::Duration::from_millis(1000),
     ));
+
+    #[cfg(feature = "search_python")]
+    {
+        tracker.spawn(search_worker(
+            node.clone(),
+            "search_python", // topic?
+            tokio::time::Duration::from_millis(1000),
+        ));
+    }
 
     tracker.close(); // close tracker after spawning everything
 
