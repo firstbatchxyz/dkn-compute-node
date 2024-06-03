@@ -5,7 +5,8 @@
 # Example usage:
 #   ./start.sh --background
 # Required env-variables:
-#   DKN_COMPUTE_MODE = [synthesis | search | search-python]
+#   DKN_TASKS: comma seperated list of one or more items from the below list:
+#       [synthesis,search,search-python]
 
 WAKU_PEER_DISCOVERY_URL="" # TODO: url for getting a list of admin nodes in waku
 BACKGROUND=false
@@ -51,13 +52,13 @@ check_gpu
 
 # compute-node profiles
 compute_node_profiles() {
-    # Check if DKN_COMPUTE_MODE is set
-    if [ -z "$DKN_COMPUTE_MODE" ]; then
-        echo "DKN_COMPUTE_MODE environment variable is not set"
+    # Check if DKN_TASKS is set
+    if [ -z "$DKN_TASKS" ]; then
+        echo "DKN_TASKS environment variable is not set"
         return 1
     fi
 
-    IFS=',' read -ra modes <<< "$DKN_COMPUTE_MODE"
+    IFS=',' read -ra modes <<< "$DKN_TASKS"
     for mode in "${modes[@]}"; do
         COMPOSE_PROFILES+=($mode)
     done
