@@ -1,15 +1,18 @@
 use dkn_compute::utils::wait_for_termination;
 use dkn_compute::{config::DriaComputeNodeConfig, node::DriaComputeNode};
+use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
 
 // diagnostic & heartbeat always enabled
 use dkn_compute::workers::diagnostic::*;
 use dkn_compute::workers::heartbeat::*;
-use std::sync::Arc;
 
 #[cfg(feature = "synthesis")]
 use dkn_compute::workers::synthesis::*;
+
+#[cfg(feature = "search_python")]
+use dkn_compute::workers::search_python::*;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -43,7 +46,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tokio::time::Duration::from_millis(1000),
     ));
 
-    tracker.close(); // close tracker after spawning everything
+    #[cfg(feature = "search_python")]
+    tracker.spawn(search_worker(
+        node.clone(),
+        "search_python", // topic?
+        tokio::time::Duration::from_millis(1000),
+    ));
+
+    // close tracker after spawning everything
+    tracker.close();
 
     // wait for all workers
     wait_for_termination(cancellation).await?;

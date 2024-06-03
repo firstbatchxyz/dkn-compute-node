@@ -6,8 +6,10 @@ license = "Apache-2.0"
 readme = "README.md"
 
 [features]
-default = ["synthesis"]
-synthesis = []
+default = []
+synthesis = [
+] # TODO: remove synthesis feature https://github.com/firstbatchxyz/dkn-compute-node/issues/20
+search_python = []
 
 # test features
 waku_test = []
