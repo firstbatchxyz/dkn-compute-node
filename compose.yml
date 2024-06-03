@@ -49,7 +49,7 @@ services:
     environment:
       RLN_RELAY_CRED_PASSWORD: "${RLN_RELAY_CRED_PASSWORD}"
       ETH_CLIENT_ADDRESS: *eth_client_address
-      EXTRA_ARGS: "${EXTRA_ARGS:-}"
+      EXTRA_ARGS: "${WAKU_EXTRA_ARGS}"
       <<:
         - *rln_env
     volumes:
