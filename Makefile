@@ -25,6 +25,7 @@ test-ollama:
 .PHONY: test-waku #    | Run Waku integration tests only
 test-waku:
 		cargo test waku_test --features=waku_test
+
 ############################################################################### 
 .PHONY: prompt #       | Run a single prompt on a model
 prompt:

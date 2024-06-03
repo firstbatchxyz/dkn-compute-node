@@ -62,7 +62,7 @@ services:
       - /opt/run_node.sh
     networks:
       - dkn-search-node-python-network
-    profiles: [waku]
+    # profiles: [waku] # TODO: in the future we may run Waku with a different compose, keeping this comment here
 
   # Ollama Container (CPU)
   ollama:
@@ -107,7 +107,7 @@ services:
       - dkn-search-node-python-network
     profiles: [ollama-cuda]
 
-  # dria-search-agent profile
+  # Qdrant VectorDB for Search Agent
   qdrant:
     image: qdrant/qdrant
     ports:
@@ -119,10 +119,11 @@ services:
       - dkn-search-node-python-network
     profiles: [search-python]
 
+  # Browser automation
   browserless:
     image: ghcr.io/browserless/chromium
     environment:
-      - TOKEN=6R0W53R135510
+      - TOKEN=${BROWSERLESS_TOKEN}
     ports:
       - "3030:3000"
     networks:
@@ -134,24 +135,20 @@ services:
     ports:
       - 5000:5000
     environment:
-      AGENT_MODEL_PROVIDER: Ollama
-      AGENT_MODEL: phi3:latest
-      
+      AGENT_MODEL_PROVIDER: ${AGENT_MODEL_PROVIDER-Ollama}
+      AGENT_MODEL: ${AGENT_MODEL:-phi3}
+
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       SERPER_API_KEY: ${SERPER_API_KEY}
       BROWSERLESS_TOKEN: ${BROWSERLESS_TOKEN}
 
-      OPENAI_MODEL_NAME: "gpt4"
-      VISION_TOOL_MODEL: "CLAUDE_SONNET"
-
-      OLLAMA_URL: http://host.docker.internal:11434 # duplicated with compute node
+      OLLAMA_URL: http://host.docker.internal:11434
       QDRANT_URL: http://qdrant:6333
       BROWSERLESS_URL: http://browserless:3000
     networks:
       dkn-search-node-python-network:
     profiles: [search-python]
-
 
 networks:
   dkn-search-node-python-network:
@@ -162,7 +159,6 @@ networks:
       config:
         - subnet: 172.30.0.0/24
           gateway: 172.30.0.1
-
 
 volumes:
   ollama:

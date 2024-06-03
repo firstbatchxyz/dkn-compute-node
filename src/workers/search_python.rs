@@ -1,21 +1,14 @@
-use std::time::Duration;
 use std::sync::Arc;
-use serde_json::json;
+use std::time::Duration;
 
 use crate::{
-    compute::payload::TaskRequestPayload,
+    compute::{payload::TaskRequestPayload, search_python::SearchPythonClient},
     node::DriaComputeNode,
     utils::get_current_time_nanos,
-    utils::http::BaseClient,
     waku::message::WakuMessage,
-    config::DriaComputeNodeConfig,
 };
 
-
 /// # Search Payload
-///
-/// A synthesis task is the task of putting a prompt to an LLM and obtaining many results, essentially growing the number of data points in a dataset,
-/// hence creating synthetic data.
 type SearchPayload = TaskRequestPayload<String>;
 
 pub fn search_worker(
@@ -23,9 +16,7 @@ pub fn search_worker(
     topic: &'static str,
     sleep_amount: Duration,
 ) -> tokio::task::JoinHandle<()> {
-
-    let config = node.config.clone();
-    let http_client = BaseClient::new(config.SEARCH_AGENT_URL.to_string());
+    let search_client = SearchPythonClient::new();
 
     tokio::spawn(async move {
         node.subscribe_topic(topic).await;
@@ -91,22 +82,10 @@ pub fn search_worker(
                             }
                         };
 
-                        let body = json!({
-                            "query": task.input,
-                            "with_manager": config.SEARCH_AGENT_MANAGER,
-                        });                    
-                        let r = match http_client.post("search", body).await{
-                            Ok(response) => response,
+                        let search_result = match search_client.search(task.input).await {
+                            Ok(search_result) => search_result,
                             Err(e) => {
-                                eprintln!("Error sending search query to search-agent-python: {:?}", e);
-                                continue;
-                            }
-                        };
-
-                        let search_result = match r.text().await{
-                            Ok(response) => response,
-                            Err(e) => {
-                                eprintln!("Error parsing search-agent-python response: {:?}", e);
+                                log::error!("Error searching: {}", e);
                                 continue;
                             }
                         };

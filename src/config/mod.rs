@@ -24,9 +24,6 @@ pub struct DriaComputeNodeConfig {
     pub DKN_WALLET_ADDRESS: [u8; 20],
     /// Admin public key, used for message authenticity.
     pub DKN_ADMIN_PUBLIC_KEY: PublicKey,
-    /// Dria-searching-agent
-    pub SEARCH_AGENT_URL: String,
-    pub SEARCH_AGENT_MANAGER: bool,
 }
 
 #[cfg(test)]
@@ -76,20 +73,11 @@ impl DriaComputeNodeConfig {
             hex::encode(admin_public_key.serialize_compressed())
         );
 
-        let agent_url = env::var("SEARCH_AGENT_URL").unwrap_or_default();
-        let agent_manager_enabled = match env::var("SEARCH_AGENT_MANAGER").unwrap_or_default().to_lowercase().as_str() {
-            "1" | "true" | "yes" => true,
-            _ => false,
-        };
-    
-
         Self {
             DKN_ADMIN_PUBLIC_KEY: admin_public_key,
             DKN_WALLET_SECRET_KEY: secret_key,
             DKN_WALLET_PUBLIC_KEY: public_key,
             DKN_WALLET_ADDRESS: address,
-            SEARCH_AGENT_URL:  agent_url,
-            SEARCH_AGENT_MANAGER:  agent_manager_enabled
         }
     }
 }
