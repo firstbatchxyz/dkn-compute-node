@@ -203,6 +203,9 @@ impl DriaComputeNode {
             });
         }
 
+        // sort messages with respect to their timestamp
+        messages.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+
         Ok(messages)
     }
 }

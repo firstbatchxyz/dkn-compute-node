@@ -1,4 +1,4 @@
-# load env
+# load .env
 ifneq (,$(wildcard ./.env))
 		include .env
 		export
@@ -13,6 +13,14 @@ run:
 debug:
 		RUST_LOG=none,dkn_compute=debug cargo run
 
+.PHONY: build #        | Build
+build:
+		cargo build
+
+.PHONY: build-all #    | Build with all features
+build-all:
+		cargo build --all-features
+
 ###############################################################################
 .PHONY: test #         | Run tests
 test:
@@ -25,6 +33,10 @@ test-ollama:
 .PHONY: test-waku #    | Run Waku integration tests only
 test-waku:
 		cargo test waku_test --features=waku_test
+
+.PHONY: test-synth-aggr
+test-synth-aggr:
+		RUST_LOG=info cargo test synthesis_aggregation_test --features=synthesis_aggregation_test
 
 ############################################################################### 
 .PHONY: prompt #       | Run a single prompt on a model

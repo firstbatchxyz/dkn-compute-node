@@ -1,15 +1,15 @@
+pub mod tasks;
+
 use crate::utils::crypto::to_address;
 use ecies::PublicKey;
 use libsecp256k1::{PublicKeyFormat, SecretKey};
 use std::env;
 
-/// 33 byte compressed public key of secret key from hex(b"dria) * 8
+/// 33 byte compressed public key of secret key from hex(b"dria) * 8, dummy only
 pub const DEFAULT_DKN_ADMIN_PUBLIC_KEY: &[u8; 33] =
     &hex_literal::hex!("0208ef5e65a9c656a6f92fb2c770d5d5e2ecffe02a6aade19207f75110be6ae658");
 
-/// 32 byte secret key hex(b"node") * 8
-/// address:
-#[cfg(test)]
+/// 32 byte secret key hex(b"node") * 8, dummy only
 pub const DEFAULT_DKN_WALLET_SECRET_KEY: &[u8; 32] =
     &hex_literal::hex!("6e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f6465");
 
@@ -26,22 +26,17 @@ pub struct DriaComputeNodeConfig {
     pub DKN_ADMIN_PUBLIC_KEY: PublicKey,
 }
 
-#[cfg(test)]
-fn prepare_secret() -> SecretKey {
-    SecretKey::parse(DEFAULT_DKN_WALLET_SECRET_KEY).expect("Should decrypt default secret key.")
-}
-
-#[cfg(not(test))]
-fn prepare_secret() -> SecretKey {
-    let secret_env =
-        env::var("DKN_WALLET_SECRET_KEY").expect("Secret key should be provided in .env.");
-    let secret_dec = hex::decode(secret_env).expect("Secret key should be 32-bytes hex encoded.");
-    SecretKey::parse_slice(&secret_dec).expect("Secret key should be parseable.")
-}
-
 impl DriaComputeNodeConfig {
     pub fn new() -> Self {
-        let secret_key = prepare_secret();
+        let secret_key = match env::var("DKN_WALLET_SECRET_KEY") {
+            Ok(secret_env) => {
+                let secret_dec =
+                    hex::decode(secret_env).expect("Secret key should be 32-bytes hex encoded.");
+                SecretKey::parse_slice(&secret_dec).expect("Secret key should be parseable.")
+            }
+            Err(_) => SecretKey::parse(DEFAULT_DKN_WALLET_SECRET_KEY)
+                .expect("Should decrypt default secret key."),
+        };
 
         let public_key = PublicKey::from_secret_key(&secret_key);
 
