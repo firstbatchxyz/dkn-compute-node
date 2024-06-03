@@ -110,7 +110,7 @@ impl OllamaClient {
     }
 
     /// Generates a result using the local LLM.
-    pub async fn generate(&self, prompt: String) -> Result<GenerationResponse, String> {
+    pub async fn generate(&self, prompt: String) -> Result<GenerationResponse, OllamaError> {
         log::debug!("Generating with prompt: {}", prompt);
 
         let gen_req = GenerationRequest::new(self.model.clone(), prompt);

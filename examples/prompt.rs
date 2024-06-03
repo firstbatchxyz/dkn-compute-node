@@ -49,6 +49,8 @@ Do not include instruction, only entry. Do not add any comment.";
         duration.as_millis(),
         generation.response
     );
-    let tps = generation.final_data.unwrap().eval_count as f64 / duration.as_secs_f64();
+    let tps = (generation.eval_count.unwrap_or_default() as f64)
+        / (generation.eval_duration.unwrap_or(1) as f64)
+        * 1_000_000_000f64;
     println!("{}: {}", "Tokens per second".yellow(), tps);
 }

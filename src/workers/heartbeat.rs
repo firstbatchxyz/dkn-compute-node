@@ -41,13 +41,15 @@ pub fn heartbeat_worker(
                         }
                     };
 
-                    if node.is_busy() {
-                        log::info!("Node is busy, skipping heartbeat.");
-                        continue;
-                    }
 
                     // we only care about the latest heartbeat
                     if let Some(message) = messages.last() {
+                        if node.is_busy() {
+                            log::info!("Node is busy, skipping heartbeat.");
+                            continue;
+                        }
+
+
                         log::info!("Received: {}", message);
 
                         let message = match message
