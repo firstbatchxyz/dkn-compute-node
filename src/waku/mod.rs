@@ -1,7 +1,7 @@
 pub mod message;
 mod relay;
 
-const DEFAULT_DKN_WAKU_URL: &str = "http://127.0.0.1:8645";
+const DEFAULT_WAKU_URL: &str = "http://127.0.0.1:8645";
 
 use std::env;
 
@@ -28,9 +28,8 @@ impl Default for WakuClient {
 impl WakuClient {
     /// Creates a new instance of WakuClient.
     pub fn new(url: Option<String>) -> Self {
-        let url: String = url.unwrap_or_else(|| {
-            env::var("DKN_WAKU_URL").unwrap_or(DEFAULT_DKN_WAKU_URL.to_string())
-        });
+        let url: String =
+            url.unwrap_or_else(|| env::var("WAKU_URL").unwrap_or(DEFAULT_WAKU_URL.to_string()));
         log::info!("Waku URL: {}", url);
 
         let base = BaseClient::new(url);
@@ -95,7 +94,7 @@ mod tests {
 
     #[test]
     fn test_waku_config() {
-        env::set_var("DKN_WAKU_URL", "im-a-host:1337");
+        env::set_var("WAKU_URL", "im-a-host:1337");
 
         let waku = WakuClient::new(None);
         assert_eq!(waku.base.get_base_url(), "im-a-host:1337");

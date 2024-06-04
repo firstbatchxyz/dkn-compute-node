@@ -18,12 +18,13 @@ services:
   compute:
     build: "./"
     environment:
-      DKN_OLLAMA_HOST: "http://host.docker.internal"
-      DKN_OLLAMA_PORT: "11434"
-      DKN_OLLAMA_MODEL: ${DKN_OLLAMA_MODEL:-phi3}
-      DKN_WAKU_URL: "http://host.docker.internal:8645"
       DKN_WALLET_SECRET_KEY: ${ETH_TESTNET_KEY}
       DKN_ADMIN_PUBLIC_KEY: "0208ef5e65a9c656a6f92fb2c770d5d5e2ecffe02a6aade19207f75110be6ae658"
+      DKN_TASKS: ${DKN_TASKS}
+      WAKU_URL: "http://host.docker.internal:8645"
+      OLLAMA_HOST: "http://host.docker.internal"
+      OLLAMA_PORT: "11434"
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-phi3}
       RUST_LOG: "info"
       SEARCH_AGENT_URL: "http://search-agent:5000"
       SEARCH_AGENT_MANAGER: true
@@ -31,6 +32,7 @@ services:
       - dkn-search-node-python-network
     depends_on:
       - search-agent
+      - nwaku # TODO: in the future we may run Waku with a different compose, so this can be removed at that step
 
   # Waku Node
   nwaku:

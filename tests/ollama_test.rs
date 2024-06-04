@@ -13,11 +13,11 @@ mod ollama_test {
                 Blue is one of the brightest colors that is scattered the most by the atmosphere, making it visible to our eyes during the day. \
                 What may be the question this answer?".to_string();
 
-        let gen_res = ollama
+        let response = ollama
             .generate(prompt.clone())
             .await
             .expect("Should generate response");
-        println!("Prompt: {}\n\nResponse:{}", prompt, gen_res.response);
+        println!("Prompt: {}\n\nResponse:{}", prompt, response);
     }
 
     #[tokio::test]

@@ -60,7 +60,7 @@ async fn main() {
     };
 
     print_title();
-    let mut results = Vec::new();
+    let mut results: Vec<BenchmarkResult> = Vec::new();
     let mut num_prompts = HashMap::new();
     for (prompt_num, prompt) in prompts.iter().enumerate() {
         // println!("{}{}: {}", "Prompt #".blue(), prompt_num, prompt);

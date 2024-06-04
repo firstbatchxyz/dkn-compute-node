@@ -82,7 +82,7 @@ You have several alternatives to use Ollama:
 - `docker compose --profile ollama-rocm up -d` will launch Ollama container with ROCM support, for AMD gpus.
 - For Apple Silicon, you must install Ollama (e.g. `brew install ollama`) and launch the server (`ollama serve`) in another terminal, and then simply `docker compose up -d`.
 
-You can decide on a model to use by changing `DKN_OLLAMA_MODEL` variable, such as `DKN_OLLAMA_MODEL=llama3`. See [Ollama library](https://ollama.com/library) for the catalog of models.
+You can decide on a model to use by changing `OLLAMA_MODEL` variable, such as `OLLAMA_MODEL=llama3`. See [Ollama library](https://ollama.com/library) for the catalog of models.
 
 ## Run from Source
 

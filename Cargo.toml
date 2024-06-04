@@ -8,9 +8,6 @@ readme = "README.md"
 [features]
 default = []
 
-# search agent type
-search_python = [] # uses Python container for Search Agent
-
 # test features
 waku_test = []
 ollama_test = []
@@ -48,6 +45,9 @@ sha3 = "0.10.8"
 
 # connects with Ollama running locally, uses latest master branch
 ollama-rs = { git = "https://github.com/pepperoni21/ollama-rs.git", branch = "master" }
+langchain-rust = { version = "4.2.0", features = ["ollama"] }
+# TODO: used with LangChain due to version compatibility problems
+ollama-rs-old = { package = "ollama-rs", version = "0.1.9" }
 
 [dev-dependencies]
 colored = "2.1.0"

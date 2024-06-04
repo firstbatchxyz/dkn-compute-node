@@ -7,10 +7,8 @@ use tokio_util::task::TaskTracker;
 
 use dkn_compute::workers::diagnostic::*;
 use dkn_compute::workers::heartbeat::*;
-use dkn_compute::workers::synthesis::*;
-
-#[cfg(feature = "search_python")]
 use dkn_compute::workers::search_python::*;
+use dkn_compute::workers::synthesis::*;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -50,15 +48,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if tasks.search {
-        #[cfg(feature = "search_python")]
+        // TODO: add a feature / env var to enable/disable search_python
+        // and use search_rust instead
         tracker.spawn(search_worker(
             node.clone(),
             "search_python",
             tokio::time::Duration::from_millis(1000),
         ));
-
-        #[cfg(not(feature = "search_python"))]
-        log::error!("search_python feature is not enabled, skipping search worker.");
     }
 
     // close tracker after spawning everything

@@ -101,7 +101,7 @@ pub fn synthesis_worker(
                         };
 
                         // create h||s||e payload
-                        let payload = match node.create_payload(llm_result.response, &task_public_key) {
+                        let payload = match node.create_payload(llm_result, &task_public_key) {
                             Ok(payload) => payload,
                             Err(e) => {
                                 log::error!("Error creating payload: {}", e);

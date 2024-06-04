@@ -1,29 +1,34 @@
+use crate::utils::get_current_time_nanos;
+use langchain_rust::language_models::llm::LLM;
 use std::env;
-
-use ollama_rs::{
-    error::OllamaError,
-    generation::completion::{request::GenerationRequest, GenerationResponse},
-    Ollama,
-};
+use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
-pub const DEFAULT_DKN_OLLAMA_HOST: &str = "http://127.0.0.1";
-pub const DEFAULT_DKN_OLLAMA_PORT: u16 = 11434;
-pub const DEFAULT_DKN_OLLAMA_MODEL: &str = "orca-mini";
+use langchain_rust::llm::client::Ollama as OllamaLang;
+use ollama_rs_old::Ollama as OllamaOld;
+
+use ollama_rs::generation::completion::GenerationResponse;
+use ollama_rs::Ollama;
+use ollama_rs::{error::OllamaError, generation::completion::request::GenerationRequest};
+
+pub const DEFAULT_OLLAMA_HOST: &str = "http://127.0.0.1";
+pub const DEFAULT_OLLAMA_PORT: u16 = 11434;
+pub const DEFAULT_OLLAMA_MODEL: &str = "orca-mini";
 
 /// A wrapper for the Ollama API.
 #[derive(Debug, Clone)]
 pub struct OllamaClient {
     pub(crate) client: Ollama,
+    pub(crate) langchain: OllamaLang,
     pub(crate) model: String,
 }
 
 impl Default for OllamaClient {
     fn default() -> Self {
         Self::new(
-            Some(DEFAULT_DKN_OLLAMA_HOST.to_string()),
-            Some(DEFAULT_DKN_OLLAMA_PORT),
-            Some(DEFAULT_DKN_OLLAMA_MODEL.to_string()),
+            Some(DEFAULT_OLLAMA_HOST.to_string()),
+            Some(DEFAULT_OLLAMA_PORT),
+            Some(DEFAULT_OLLAMA_MODEL.to_string()),
         )
     }
 }
@@ -31,31 +36,37 @@ impl Default for OllamaClient {
 impl OllamaClient {
     /// Creates a new Ollama client.
     ///
-    /// Reads `DKN_OLLAMA_HOST`, `DKN_OLLAMA_PORT` and `DKN_OLLAMA_MODEL` from the environment, and defaults if not provided.
+    /// Reads `OLLAMA_HOST`, `OLLAMA_PORT` and `OLLAMA_MODEL` from the environment, and defaults if not provided.
     pub fn new(host: Option<String>, port: Option<u16>, model: Option<String>) -> Self {
-        let host = host.unwrap_or_else(|| {
-            env::var("DKN_OLLAMA_HOST").unwrap_or(DEFAULT_DKN_OLLAMA_HOST.to_string())
-        });
+        let host = host
+            .unwrap_or_else(|| env::var("OLLAMA_HOST").unwrap_or(DEFAULT_OLLAMA_HOST.to_string()));
 
         let port = port.unwrap_or_else(|| {
-            env::var("DKN_OLLAMA_PORT")
+            env::var("OLLAMA_PORT")
                 .and_then(|port_str| {
                     port_str
                         .parse::<u16>()
                         .map_err(|_| env::VarError::NotPresent)
                 })
-                .unwrap_or(DEFAULT_DKN_OLLAMA_PORT)
+                .unwrap_or(DEFAULT_OLLAMA_PORT)
         });
 
         let model = model.unwrap_or_else(|| {
-            env::var("DKN_OLLAMA_MODEL").unwrap_or(DEFAULT_DKN_OLLAMA_MODEL.to_string())
+            env::var("OLLAMA_MODEL").unwrap_or(DEFAULT_OLLAMA_MODEL.to_string())
         });
 
-        let client = Ollama::new(host, port);
+        let client = Ollama::new(host.clone(), port);
         log::info!("Ollama URL: {}", client.uri());
         log::info!("Ollama Model: {}", model);
 
-        Self { client, model }
+        let client_old = OllamaOld::new(host, port);
+        let langchain = OllamaLang::new(Arc::new(client_old), model.clone(), None);
+
+        Self {
+            langchain,
+            client,
+            model,
+        }
     }
 
     /// Lists local models for diagnostic, and pulls the configured model.
@@ -110,7 +121,24 @@ impl OllamaClient {
     }
 
     /// Generates a result using the local LLM.
-    pub async fn generate(&self, prompt: String) -> Result<GenerationResponse, OllamaError> {
+    pub async fn generate(&self, prompt: String) -> Result<String, OllamaError> {
+        log::debug!("Generating with prompt: {}", prompt);
+
+        let response = self
+            .langchain
+            .invoke(&prompt)
+            .await
+            .map_err(|e| OllamaError::from(format!("{:?}", e)))?;
+
+        log::debug!("Generated response: {}", response);
+        Ok(response)
+    }
+
+    /// Generates a result using the local LLM.
+    pub async fn generate_detailed(
+        &self,
+        prompt: String,
+    ) -> Result<GenerationResponse, OllamaError> {
         log::debug!("Generating with prompt: {}", prompt);
 
         let gen_req = GenerationRequest::new(self.model.clone(), prompt);
@@ -125,8 +153,6 @@ pub async fn use_model_with_prompt(
     model: &str,
     prompt: &str,
 ) -> (GenerationResponse, tokio::time::Duration) {
-    use crate::utils::get_current_time_nanos;
-
     let ollama = OllamaClient::new(None, None, Some(model.to_string()));
     ollama
         .setup(CancellationToken::default())
@@ -137,7 +163,7 @@ pub async fn use_model_with_prompt(
     let prompt = prompt.to_string();
 
     let gen_res = ollama
-        .generate(prompt)
+        .generate_detailed(prompt)
         .await
         .expect("Should generate response");
     let time_diff = get_current_time_nanos() - time;
@@ -152,9 +178,9 @@ mod tests {
 
     #[test]
     fn test_ollama_config() {
-        env::set_var("DKN_OLLAMA_HOST", "http://im-a-host");
-        env::set_var("DKN_OLLAMA_MODEL", "phi3");
-        env::remove_var("DKN_OLLAMA_PORT");
+        env::set_var("OLLAMA_HOST", "http://im-a-host");
+        env::set_var("OLLAMA_MODEL", "phi3");
+        env::remove_var("OLLAMA_PORT");
 
         // will use default port, but read host and model from env
         let ollama = OllamaClient::new(None, None, None);
