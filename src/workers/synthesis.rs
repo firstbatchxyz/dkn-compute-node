@@ -79,6 +79,8 @@ pub fn synthesis_worker(
                     // Set node to busy
                     node.set_busy(true);
 
+                    // sort tasks by deadline, closer deadline processed first
+                    tasks.sort_by(|a, b| a.deadline.cmp(&b.deadline));
                     for task in tasks {
                         // parse public key
                         let task_public_key = match hex::decode(&task.public_key) {

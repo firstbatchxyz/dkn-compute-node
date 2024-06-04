@@ -26,7 +26,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cancellation = CancellationToken::new();
     let node = Arc::new(DriaComputeNode::new(config, cancellation.clone()));
 
-    log::info!("Starting workers");
+    log::info!("Starting workers...");
+    log::info!("{:?}", tasks);
     let tracker = TaskTracker::new();
 
     tracker.spawn(heartbeat_worker(
@@ -57,7 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ));
 
         #[cfg(not(feature = "search_python"))]
-        unimplemented!("search_python feature is not enabled");
+        log::error!("search_python feature is not enabled, skipping search worker.");
     }
 
     // close tracker after spawning everything
