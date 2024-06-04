@@ -35,13 +35,21 @@ Dria Admin Node broadcasts heartbeat messages at a set interval, it is a require
 
 Compute nodes can technically do any arbitrary task, from computing the square root of a given number to finding LLM outputs from a given prompt. We currently have the following tasks:
 
-- **Synthesis**: Using [Ollama](https://github.com/ollama/ollama), nodes will generate synthetic data with respect to prompts given by the admin node.
+- **Synthesis**: Generate synthetic data with respect to prompts given by the admin node.
+- **Search**: Search the web using reasoning-and-action to answer a given query.
+- **Validation**: Validate a given query-response pair. _(WIP)_
 
-Each task can be enabled providing the task name as a feature to the executable.
+Tasks are enabled or disabled via the `DKN_TASKS` environment variable. Task names are to be provided in a list of comma-separated strings such as `DKN_TASKS=synthesis,search`.
 
 ### Waku
 
 We are using a reduced version of [nwaku-compose](https://github.com/waku-org/nwaku-compose) for the Waku node. It only uses the RELAY protocol, and STORE is disabled. The respective files are under the [waku](./waku/) folder.
+
+By default, there are no static peers, but you can specify them using duplicate `--staticnode` arguments within the `EXTRA_ARGS` variable which is passed to the Waku node, that is:
+
+```sh
+EXTRA_ARGS="--staticnode=/ip4/foobar/... --staticnode=/ip4/bazboo/..."
+```
 
 ## Usage
 

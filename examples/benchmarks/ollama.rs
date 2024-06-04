@@ -65,34 +65,25 @@ async fn main() {
     for (prompt_num, prompt) in prompts.iter().enumerate() {
         // println!("{}{}: {}", "Prompt #".blue(), prompt_num, prompt);
         for model in models {
-            // will loop until it can generate a result with "final data"
-            // TODO: waiting for issue https://github.com/pepperoni21/ollama-rs/pull/47
-            loop {
-                let (generation, duration) = use_model_with_prompt(model, prompt).await;
+            let (generation, duration) = use_model_with_prompt(model, prompt).await;
 
-                if let Some(gen_data) = generation.final_data {
-                    let result = BenchmarkResult {
-                        prompt_num,
-                        model: model.to_string(),
-                        api_duration: duration.as_nanos(),
-                        total_duration: gen_data.total_duration,
-                        prompt_eval_count: gen_data.prompt_eval_count,
-                        prompt_eval_duration: gen_data.prompt_eval_duration,
-                        eval_count: gen_data.eval_count,
-                        eval_duration: gen_data.eval_duration,
-                        tokens_per_second: ((gen_data.eval_count as f64)
-                            / (gen_data.eval_duration as f64)
-                            * 1_000_000_000f64),
-                    };
+            let result = BenchmarkResult {
+                prompt_num,
+                model: model.to_string(),
+                api_duration: duration.as_nanos(),
+                total_duration: generation.total_duration.unwrap_or_default(),
+                prompt_eval_count: generation.prompt_eval_count.unwrap_or_default(),
+                prompt_eval_duration: generation.prompt_eval_duration.unwrap_or(1),
+                eval_count: generation.eval_count.unwrap_or_default(),
+                eval_duration: generation.eval_duration.unwrap_or(1),
+                tokens_per_second: ((generation.eval_count.unwrap_or_default() as f64)
+                    / (generation.eval_duration.unwrap_or(1) as f64)
+                    * 1_000_000_000f64),
+            };
 
-                    println!("{}", result);
-                    results.push(result);
-                    num_prompts.insert(model, num_prompts.get(model).unwrap_or(&0) + 1);
-                    break;
-                } else {
-                    println!("{}: {}", "Warn".yellow(), "Could not get final data.");
-                }
-            }
+            println!("{}", result);
+            results.push(result);
+            num_prompts.insert(model, num_prompts.get(model).unwrap_or(&0) + 1);
         }
     }
 

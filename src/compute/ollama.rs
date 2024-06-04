@@ -110,7 +110,7 @@ impl OllamaClient {
     }
 
     /// Generates a result using the local LLM.
-    pub async fn generate(&self, prompt: String) -> Result<GenerationResponse, String> {
+    pub async fn generate(&self, prompt: String) -> Result<GenerationResponse, OllamaError> {
         log::debug!("Generating with prompt: {}", prompt);
 
         let gen_req = GenerationRequest::new(self.model.clone(), prompt);
@@ -152,13 +152,13 @@ mod tests {
 
     #[test]
     fn test_ollama_config() {
-        env::set_var("DKN_OLLAMA_HOST", "im-a-host");
+        env::set_var("DKN_OLLAMA_HOST", "http://im-a-host");
         env::set_var("DKN_OLLAMA_MODEL", "phi3");
         env::remove_var("DKN_OLLAMA_PORT");
 
         // will use default port, but read host and model from env
         let ollama = OllamaClient::new(None, None, None);
-        assert_eq!(ollama.client.uri(), "im-a-host:11434");
+        assert_eq!(ollama.client.url_str(), "http://im-a-host:11434/");
         assert_eq!(ollama.model, "phi3");
     }
 }

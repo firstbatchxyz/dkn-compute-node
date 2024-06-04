@@ -2,6 +2,7 @@ use crate::utils::http::BaseClient;
 use serde_json::json;
 use std::env;
 
+/// A wrapper for the Dria Search agent in Python: <https://github.com/firstbatchxyz/dria-searching-agent>.
 pub struct SearchPythonClient {
     pub client: BaseClient,
     /// URL at which the Python search agent is running.
