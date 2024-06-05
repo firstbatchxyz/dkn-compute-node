@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::{
-    compute::{ollama::OllamaClient, payload::TaskRequestPayload},
+    compute::{llm::create_llm, payload::TaskRequestPayload},
     node::DriaComputeNode,
     utils::get_current_time_nanos,
     waku::message::WakuMessage,
@@ -18,13 +18,19 @@ pub fn synthesis_worker(
     node: Arc<DriaComputeNode>,
     topic: &'static str,
     sleep_amount: Duration,
+    llm_type: Option<String>,
 ) -> tokio::task::JoinHandle<()> {
-    let ollama = OllamaClient::new(None, None, None);
-
     tokio::spawn(async move {
-        if let Err(e) = ollama.setup(node.cancellation.clone()).await {
-            log::error!("Could not setup Ollama: {}", e);
-        }
+        let llm_type = llm_type.unwrap_or_default().into();
+        log::info!("Using {} for {}", llm_type, topic);
+
+        let llm = match create_llm(llm_type, node.cancellation.clone()).await {
+            Ok(llm) => llm,
+            Err(e) => {
+                log::error!("Could not create LLM: {}", e);
+                return;
+            }
+        };
 
         node.subscribe_topic(topic).await;
 
@@ -92,7 +98,7 @@ pub fn synthesis_worker(
                         };
 
                         // get prompt result from Ollama
-                        let llm_result = match ollama.generate(task.input).await {
+                        let llm_result = match llm.invoke(&task.input).await {
                             Ok(result) => result,
                             Err(e) => {
                                 log::error!("Error generating prompt result: {}", e);
@@ -101,7 +107,7 @@ pub fn synthesis_worker(
                         };
 
                         // create h||s||e payload
-                        let payload = match node.create_payload(llm_result.response, &task_public_key) {
+                        let payload = match node.create_payload(llm_result, &task_public_key) {
                             Ok(payload) => payload,
                             Err(e) => {
                                 log::error!("Error creating payload: {}", e);

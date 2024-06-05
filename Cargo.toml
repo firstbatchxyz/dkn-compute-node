@@ -1,15 +1,12 @@
 [package]
 name = "dkn-compute"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "Apache-2.0"
 readme = "README.md"
 
 [features]
 default = []
-
-# search agent type
-search_python = [] # uses Python container for Search Agent
 
 # test features
 waku_test = []
@@ -46,12 +43,16 @@ fastbloom-rs = "0.5.9"
 sha2 = "0.10.8"
 sha3 = "0.10.8"
 
-# connects with Ollama running locally, uses latest master branch
-ollama-rs = { git = "https://github.com/pepperoni21/ollama-rs.git", branch = "master" }
+# llm stuff
+langchain-rust = { version = "4.2.0", features = ["ollama"] }
+ollama-rs = "0.1.9"
 
 [dev-dependencies]
 colored = "2.1.0"
 rand = "0.8.5"
+
+# TODO: fixed version of ollama-rs for benchmarks, remove this when the new version is released
+ollama-rs-master = { package = "ollama-rs", git = "https://github.com/pepperoni21/ollama-rs.git", branch = "master" }
 
 [[example]]
 name = "ollama"

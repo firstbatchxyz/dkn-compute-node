@@ -84,7 +84,7 @@ pub fn heartbeat_worker(
 #[cfg(test)]
 mod tests {
     use crate::{
-        config::DEFAULT_DKN_ADMIN_PUBLIC_KEY,
+        config::constants::DEFAULT_DKN_ADMIN_PUBLIC_KEY,
         node::DriaComputeNode,
         utils::{
             crypto::{sha256hash, to_address},

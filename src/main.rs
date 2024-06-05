@@ -1,16 +1,19 @@
-use dkn_compute::config::tasks::DriaComputeNodeTasks;
-use dkn_compute::utils::wait_for_termination;
-use dkn_compute::{config::DriaComputeNodeConfig, node::DriaComputeNode};
+use std::env;
 use std::sync::Arc;
-use tokio_util::sync::CancellationToken;
-use tokio_util::task::TaskTracker;
+use tokio_util::{sync::CancellationToken, task::TaskTracker};
+
+use dkn_compute::{
+    config::{
+        constants::DKN_SYNTHESIS_LLM_TYPE, tasks::DriaComputeNodeTasks, DriaComputeNodeConfig,
+    },
+    node::DriaComputeNode,
+    utils::wait_for_termination,
+};
 
 use dkn_compute::workers::diagnostic::*;
 use dkn_compute::workers::heartbeat::*;
-use dkn_compute::workers::synthesis::*;
-
-#[cfg(feature = "search_python")]
 use dkn_compute::workers::search_python::*;
+use dkn_compute::workers::synthesis::*;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -46,19 +49,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             node.clone(),
             "synthesis",
             tokio::time::Duration::from_millis(1000),
+            env::var(DKN_SYNTHESIS_LLM_TYPE).ok(),
         ));
     }
 
     if tasks.search {
-        #[cfg(feature = "search_python")]
+        // TODO: add a feature / env var to enable/disable search_python
+        // and use search_rust instead
         tracker.spawn(search_worker(
             node.clone(),
             "search_python",
             tokio::time::Duration::from_millis(1000),
         ));
-
-        #[cfg(not(feature = "search_python"))]
-        log::error!("search_python feature is not enabled, skipping search worker.");
     }
 
     // close tracker after spawning everything

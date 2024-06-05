@@ -45,10 +45,10 @@ Tasks are enabled or disabled via the `DKN_TASKS` environment variable. Task nam
 
 We are using a reduced version of [nwaku-compose](https://github.com/waku-org/nwaku-compose) for the Waku node. It only uses the RELAY protocol, and STORE is disabled. The respective files are under the [waku](./waku/) folder.
 
-By default, there are no static peers, but you can specify them using duplicate `--staticnode` arguments within the `EXTRA_ARGS` variable which is passed to the Waku node, that is:
+By default, there are no static peers, but you can specify them using duplicate `--staticnode` arguments within the `WAKU_EXTRA_ARGS` variable which is passed to the Waku node, that is:
 
 ```sh
-EXTRA_ARGS="--staticnode=/ip4/foobar/... --staticnode=/ip4/bazboo/..."
+WAKU_EXTRA_ARGS="--staticnode=/ip4/foobar/... --staticnode=/ip4/bazboo/..."
 ```
 
 ## Usage
@@ -82,7 +82,7 @@ You have several alternatives to use Ollama:
 - `docker compose --profile ollama-rocm up -d` will launch Ollama container with ROCM support, for AMD gpus.
 - For Apple Silicon, you must install Ollama (e.g. `brew install ollama`) and launch the server (`ollama serve`) in another terminal, and then simply `docker compose up -d`.
 
-You can decide on a model to use by changing `DKN_OLLAMA_MODEL` variable, such as `DKN_OLLAMA_MODEL=llama3`. See [Ollama library](https://ollama.com/library) for the catalog of models.
+You can decide on a model to use by changing `OLLAMA_MODEL` variable, such as `OLLAMA_MODEL=llama3`. See [Ollama library](https://ollama.com/library) for the catalog of models.
 
 ## Run from Source
 

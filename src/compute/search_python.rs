@@ -1,4 +1,4 @@
-use crate::utils::http::BaseClient;
+use crate::{config::constants::*, utils::http::BaseClient};
 use serde_json::json;
 use std::env;
 
@@ -19,15 +19,14 @@ impl Default for SearchPythonClient {
 
 impl SearchPythonClient {
     pub fn new() -> Self {
-        let url = env::var("SEARCH_AGENT_URL").unwrap_or_default();
-        let with_manager = match env::var("SEARCH_AGENT_MANAGER")
-            .unwrap_or_default()
-            .to_lowercase()
-            .as_str()
-        {
-            "1" | "true" | "yes" => true,
-            _ => false,
-        };
+        let url = env::var(SEARCH_AGENT_URL).unwrap_or_default();
+        let with_manager = matches!(
+            env::var(SEARCH_AGENT_MANAGER)
+                .unwrap_or_default()
+                .to_lowercase()
+                .as_str(),
+            "1" | "true" | "yes"
+        );
 
         let client = BaseClient::new(url.to_string());
 

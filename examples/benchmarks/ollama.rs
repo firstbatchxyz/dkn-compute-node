@@ -1,10 +1,12 @@
 use colored::Colorize;
-use dkn_compute::compute::ollama::use_model_with_prompt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
 use std::fs::File;
 use std::io::Read;
+
+#[path = "../common/ollama.rs"]
+mod common;
 
 /// A `println!` macro that only prints when the `debug_assertions` flag is set, i.e. it wont print when `--release` is used.
 #[allow(unused)]
@@ -60,12 +62,12 @@ async fn main() {
     };
 
     print_title();
-    let mut results = Vec::new();
+    let mut results: Vec<BenchmarkResult> = Vec::new();
     let mut num_prompts = HashMap::new();
     for (prompt_num, prompt) in prompts.iter().enumerate() {
         // println!("{}{}: {}", "Prompt #".blue(), prompt_num, prompt);
         for model in models {
-            let (generation, duration) = use_model_with_prompt(model, prompt).await;
+            let (generation, duration) = common::use_model_with_prompt(model, prompt).await;
 
             let result = BenchmarkResult {
                 prompt_num,
