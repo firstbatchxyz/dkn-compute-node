@@ -82,7 +82,8 @@ pub fn synthesis_worker(
                             }
                         }
                     }
-                    // Set node to busy
+
+                    // TODO: wait for busy lock
                     node.set_busy(true);
 
                     // sort tasks by deadline, closer deadline processed first
@@ -133,7 +134,6 @@ pub fn synthesis_worker(
                             }
                     }
 
-                    // Set node to not busy
                     node.set_busy(false);
                 }
             }

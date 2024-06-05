@@ -12,6 +12,7 @@ default = []
 waku_test = []
 ollama_test = []
 synthesis_aggregation_test = []
+heartbeats_test = []
 
 [dependencies]
 tokio-util = { version = "0.7.10", features = ["rt"] }
