@@ -1,10 +1,9 @@
 use std::env;
 
-use langchain_rust::language_models::LLMError;
+use langchain_rust::llm::openai::OpenAI;
 use langchain_rust::llm::OpenAIConfig;
-use langchain_rust::{language_models::llm::LLM, llm::openai::OpenAI};
 
-/// A wrapper for the OpenAI API, using LangChain.
+/// Creates an OpenAI langchain client.
 ///
 /// Will check for the following environment variables:
 ///
@@ -12,64 +11,29 @@ use langchain_rust::{language_models::llm::LLM, llm::openai::OpenAI};
 /// - `OPENAI_API_KEY`
 /// - `OPENAI_ORG_ID`
 /// - `OPENAI_PROJECT_ID`
-#[derive(Clone)]
-pub struct OpenAIClient {
-    pub(crate) client: OpenAI<OpenAIConfig>,
-}
+pub fn create_openai() -> OpenAI<OpenAIConfig> {
+    let mut config = OpenAIConfig::default();
 
-impl Default for OpenAIClient {
-    fn default() -> Self {
-        Self {
-            client: OpenAI::default(),
-        }
+    if let Ok(api_base) = env::var("OPENAI_API_BASE") {
+        config = config.with_api_base(api_base);
     }
-}
-
-impl OpenAIClient {
-    pub fn new() -> Self {
-        let mut config = OpenAIConfig::default();
-
-        match env::var("OPENAI_API_BASE") {
-            Ok(api_base) => {
-                config = config.with_api_base(api_base);
-            }
-            Err(_) => {}
-        }
-
-        match env::var("OPENAI_API_KEY") {
-            Ok(api_key) => {
-                config = config.with_api_key(api_key);
-            }
-            Err(_) => {}
-        }
-
-        match env::var("OPENAI_ORG_ID") {
-            Ok(org_id) => {
-                config = config.with_org_id(org_id);
-            }
-            Err(_) => {}
-        }
-
-        match env::var("OPENAI_PROJECT_ID") {
-            Ok(project_id) => {
-                config = config.with_project_id(project_id);
-            }
-            Err(_) => {}
-        }
-
-        Self {
-            client: OpenAI::new(config),
-        }
+    if let Ok(api_key) = env::var("OPENAI_API_KEY") {
+        config = config.with_api_key(api_key);
+    }
+    if let Ok(org_id) = env::var("OPENAI_ORG_ID") {
+        config = config.with_org_id(org_id);
+    }
+    if let Ok(project_id) = env::var("OPENAI_PROJECT_ID") {
+        config = config.with_project_id(project_id);
     }
 
-    pub async fn generate(&self, prompt: String) -> Result<String, LLMError> {
-        self.client.invoke(prompt.as_str()).await
-    }
+    OpenAI::new(config)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use langchain_rust::language_models::llm::LLM;
 
     #[tokio::test]
     #[ignore] // cargo test --package dkn-compute --lib --all-features -- compute::openai::tests::test_openai --exact --show-output --ignored
@@ -77,11 +41,10 @@ mod tests {
         let value = "FOOBARFOOBAR"; // use with your own key, with caution
         env::set_var("OPENAI_API_KEY", value);
 
-        let openai = OpenAIClient::new();
+        let openai = create_openai();
 
         let prompt = "Once upon a time, in a land far away, there was a dragon.";
         let response = openai
-            .client
             .invoke(prompt)
             .await
             .expect("Should generate response");

@@ -53,7 +53,12 @@ impl DriaComputeNodeConfig {
 
         let address = to_address(&public_key);
 
-        log::info!("Address: 0x{}", hex::encode(address));
+        log::info!(
+            "Admin Public Key: 0x{}",
+            hex::encode(admin_public_key.serialize_compressed())
+        );
+
+        log::info!("Node Address:     0x{}", hex::encode(address));
         log::info!(
             "Node Public Key:  0x{}",
             hex::encode(public_key.serialize_compressed())
@@ -62,10 +67,6 @@ impl DriaComputeNodeConfig {
             "Node Secret Key:  0x{}{}",
             hex::encode(&secret_key.serialize()[0..1]),
             ".".repeat(64)
-        );
-        log::info!(
-            "Admin Public Key: 0x{}",
-            hex::encode(admin_public_key.serialize_compressed())
         );
 
         Self {

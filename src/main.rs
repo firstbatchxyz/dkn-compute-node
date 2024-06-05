@@ -1,6 +1,7 @@
 use dkn_compute::config::tasks::DriaComputeNodeTasks;
 use dkn_compute::utils::wait_for_termination;
 use dkn_compute::{config::DriaComputeNodeConfig, node::DriaComputeNode};
+use std::env;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
@@ -44,6 +45,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             node.clone(),
             "synthesis",
             tokio::time::Duration::from_millis(1000),
+            env::var("DKN_SYNTHESIS_LLM_TYPE").ok(),
         ));
     }
 

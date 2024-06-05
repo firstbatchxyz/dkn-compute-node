@@ -29,14 +29,13 @@ impl DriaComputeNodeTasks {
         let mut synthesis = false;
         let mut search = false;
 
-        let tasks: Vec<&str> = vec.split(",").collect();
+        let tasks: Vec<&str> = vec.split(',').collect();
         for task in tasks {
             match task.trim().to_lowercase().as_str() {
                 TASK_SYNTHESIS => synthesis = true,
                 TASK_SEARCH => search = true,
                 _ => {
                     log::warn!("Unknown task: {}", task);
-                    ()
                 }
             }
         }
@@ -50,23 +49,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parser_1() {
+    fn test_parsers() {
         env::set_var("DKN_TASKS", "fsfdshk,SynthEsis,fkdshfjsdk");
         let tasks = DriaComputeNodeTasks::new();
         assert!(tasks.synthesis);
         assert!(!tasks.search);
-    }
 
-    #[test]
-    fn test_parser_2() {
         env::set_var("DKN_TASKS", "fsfdshk, fdgsdg, search ");
         let tasks = DriaComputeNodeTasks::new();
         assert!(!tasks.synthesis);
         assert!(tasks.search);
-    }
 
-    #[test]
-    fn test_parser_3() {
         env::set_var("DKN_TASKS", ",,,");
         let tasks = DriaComputeNodeTasks::new();
         assert!(!tasks.synthesis);
