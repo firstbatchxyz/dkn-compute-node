@@ -1,5 +1,7 @@
 use colored::Colorize;
-use dkn_compute::compute::ollama::use_model_with_prompt;
+
+#[path = "./common/ollama.rs"]
+mod common;
 
 #[tokio::main]
 async fn main() {
@@ -41,7 +43,7 @@ Please ensure that your generated examples are realistic, coherent, and free of 
 Output must be use only JSON-formatted synthetic datasets.
 Do not include instruction, only entry. Do not add any comment.";
 
-    let (generation, duration) = use_model_with_prompt(model, prompt).await;
+    let (generation, duration) = common::use_model_with_prompt(model, prompt).await;
     println!(
         "\n{} ({}: {}ms): {}",
         "Response".green(),

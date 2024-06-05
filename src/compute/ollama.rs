@@ -1,15 +1,13 @@
-use crate::utils::get_current_time_nanos;
 use langchain_rust::language_models::llm::LLM;
 use std::env;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
-use langchain_rust::llm::client::Ollama as OllamaLang;
-use ollama_rs_old::Ollama as OllamaOld;
+use langchain_rust::llm::client::Ollama as OllamaLang; // langchain Ollama client
+use ollama_rs::Ollama; // our Ollama-rs instance
+use ollama_rs_old::Ollama as OllamaOld; // langchain's Ollama-rs instance
 
-use ollama_rs::generation::completion::GenerationResponse;
-use ollama_rs::Ollama;
-use ollama_rs::{error::OllamaError, generation::completion::request::GenerationRequest};
+use ollama_rs::error::OllamaError;
 
 pub const DEFAULT_OLLAMA_HOST: &str = "http://127.0.0.1";
 pub const DEFAULT_OLLAMA_PORT: u16 = 11434;
@@ -18,7 +16,7 @@ pub const DEFAULT_OLLAMA_MODEL: &str = "orca-mini";
 /// A wrapper for the Ollama API.
 #[derive(Debug, Clone)]
 pub struct OllamaClient {
-    pub(crate) client: Ollama,
+    pub client: Ollama,
     pub(crate) langchain: OllamaLang,
     pub(crate) model: String,
 }
@@ -133,43 +131,6 @@ impl OllamaClient {
         log::debug!("Generated response: {}", response);
         Ok(response)
     }
-
-    /// Generates a result using the local LLM.
-    pub async fn generate_detailed(
-        &self,
-        prompt: String,
-    ) -> Result<GenerationResponse, OllamaError> {
-        log::debug!("Generating with prompt: {}", prompt);
-
-        let gen_req = GenerationRequest::new(self.model.clone(), prompt);
-        let gen_res = self.client.generate(gen_req).await?;
-
-        log::debug!("Generated response: {}", gen_res.response);
-        Ok(gen_res)
-    }
-}
-
-pub async fn use_model_with_prompt(
-    model: &str,
-    prompt: &str,
-) -> (GenerationResponse, tokio::time::Duration) {
-    let ollama = OllamaClient::new(None, None, Some(model.to_string()));
-    ollama
-        .setup(CancellationToken::default())
-        .await
-        .expect("Should pull model");
-
-    let time = get_current_time_nanos();
-    let prompt = prompt.to_string();
-
-    let gen_res = ollama
-        .generate_detailed(prompt)
-        .await
-        .expect("Should generate response");
-    let time_diff = get_current_time_nanos() - time;
-    let duration = tokio::time::Duration::from_nanos(time_diff as u64);
-
-    (gen_res, duration)
 }
 
 #[cfg(test)]
