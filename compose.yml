@@ -52,6 +52,7 @@ services:
       RLN_RELAY_CRED_PASSWORD: "${RLN_RELAY_CRED_PASSWORD}"
       ETH_CLIENT_ADDRESS: *eth_client_address
       EXTRA_ARGS: "${WAKU_EXTRA_ARGS}"
+      LOG_LEVEL: "${WAKU_LOG_LEVEL:-DEBUG}"
       <<:
         - *rln_env
     volumes:
