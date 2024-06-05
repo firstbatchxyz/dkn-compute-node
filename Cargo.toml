@@ -51,7 +51,7 @@ ollama-rs = "0.1.9"
 colored = "2.1.0"
 rand = "0.8.5"
 
-# fixed version of ollama-rs for benchmarks
+# TODO: fixed version of ollama-rs for benchmarks, remove this when the new version is released
 ollama-rs-master = { package = "ollama-rs", git = "https://github.com/pepperoni21/ollama-rs.git", branch = "master" }
 
 [[example]]

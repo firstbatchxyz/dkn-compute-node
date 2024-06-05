@@ -1,5 +1,5 @@
 use dkn_compute::{
-    compute::ollama::{DEFAULT_OLLAMA_HOST, DEFAULT_OLLAMA_PORT},
+    config::constants::{DEFAULT_OLLAMA_HOST, DEFAULT_OLLAMA_PORT},
     utils::get_current_time_nanos,
 };
 use ollama_rs_master::{

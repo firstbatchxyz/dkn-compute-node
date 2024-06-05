@@ -2,28 +2,15 @@ use std::env;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
-use langchain_rust::llm::client::Ollama as OllamaLang; // langchain Ollama client
-use ollama_rs::Ollama; // langchain's Ollama-rs instance
+use langchain_rust::llm::client::Ollama as OllamaLang;
+use ollama_rs::Ollama;
 
-pub const DEFAULT_OLLAMA_HOST: &str = "http://127.0.0.1";
-pub const DEFAULT_OLLAMA_PORT: u16 = 11434;
-pub const DEFAULT_OLLAMA_MODEL: &str = "orca-mini";
+use crate::config::constants::*; // langchain's Ollama-rs instance
 
-/// Creates an Ollama client, pulls the model if it does not exist locally.
+/// Creates an Ollama LangChain client, pulls the model if it does not exist locally.
 pub async fn create_ollama(cancellation: CancellationToken) -> Result<OllamaLang, String> {
-    let host = env::var("OLLAMA_HOST").unwrap_or(DEFAULT_OLLAMA_HOST.to_string());
-
-    let port = env::var("OLLAMA_PORT")
-        .and_then(|port_str| {
-            port_str
-                .parse::<u16>()
-                .map_err(|_| env::VarError::NotPresent)
-        })
-        .unwrap_or(DEFAULT_OLLAMA_PORT);
-
-    let model = env::var("OLLAMA_MODEL").unwrap_or(DEFAULT_OLLAMA_MODEL.to_string());
-
-    let client = Ollama::new(host, port);
+    let client = create_ollama_client();
+    let model = env::var(OLLAMA_MODEL).unwrap_or(DEFAULT_OLLAMA_MODEL.to_string());
     log::info!("Ollama URL: {}", client.uri());
     log::info!("Ollama Model: {}", model);
 
@@ -32,6 +19,23 @@ pub async fn create_ollama(cancellation: CancellationToken) -> Result<OllamaLang
     Ok(OllamaLang::new(Arc::new(client), model, None))
 }
 
+/// Creates the underlying OllamaRS client.
+fn create_ollama_client() -> Ollama {
+    let host = env::var(OLLAMA_HOST).unwrap_or(DEFAULT_OLLAMA_HOST.to_string());
+
+    let port = env::var(OLLAMA_PORT)
+        .and_then(|port_str| {
+            port_str
+                .parse::<u16>()
+                .map_err(|_| env::VarError::NotPresent)
+        })
+        .unwrap_or(DEFAULT_OLLAMA_PORT);
+
+    Ollama::new(host, port)
+}
+
+/// Pulls an LLM if it does not exist locally.
+/// Also prints the locally installed models.
 pub async fn pull_model(
     client: &Ollama,
     model: &str,
@@ -88,19 +92,21 @@ pub async fn pull_model(
     Ok(())
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-//     #[test]
-//     fn test_ollama_config() {
-//         env::set_var("OLLAMA_HOST", "http://im-a-host");
-//         env::set_var("OLLAMA_MODEL", "phi3");
-//         env::remove_var("OLLAMA_PORT");
+    #[test]
+    fn test_ollama_config() {
+        env::set_var(OLLAMA_HOST, "http://im-a-host");
+        env::set_var(OLLAMA_MODEL, "phi3");
+        env::remove_var(OLLAMA_PORT);
 
-//         // will use default port, but read host and model from env
-//         let ollama = OllamaClient::new(None, None, None);
-//         assert_eq!(ollama.client.url_str(), "http://im-a-host:11434/");
-//         assert_eq!(ollama.model, "phi3");
-//     }
-// }
+        // will use default port, but read host and model from env
+        let ollama = create_ollama_client();
+        assert_eq!(ollama.uri(), "http://im-a-host:11434");
+
+        let model = env::var(OLLAMA_MODEL).expect("should find model in env");
+        assert_eq!(model, "phi3");
+    }
+}

@@ -1,6 +1,10 @@
 #[cfg_attr(test, cfg(feature = "ollama_test"))]
 mod ollama_test {
+    use std::env;
+
+    use dkn_compute::compute::ollama::create_ollama;
     use langchain_rust::{language_models::llm::LLM, llm::client::Ollama};
+    use tokio_util::sync::CancellationToken;
 
     #[tokio::test]
     async fn test_ollama_prompt() {
@@ -19,16 +23,13 @@ mod ollama_test {
         println!("Prompt: {}\n\nResponse:{}", prompt, response);
     }
 
-    // TODO: move to pull model test
-    // #[tokio::test]
-    // async fn test_ollama_bad_model() {
-    //     let model = "thismodeldoesnotexistlol".to_string();
-    //     let ollama = OllamaClient::new(None, None, Some(model));
-
-    //     let setup_res = ollama.setup(CancellationToken::default()).await;
-    //     assert!(
-    //         setup_res.is_err(),
-    //         "Should give error due to non-existing model."
-    //     );
-    // }
+    #[tokio::test]
+    async fn test_ollama_bad_model() {
+        env::set_var("OLLAMA_MODEL", "thismodeldoesnotexistlol".to_string());
+        let setup_res = create_ollama(CancellationToken::default()).await;
+        assert!(
+            setup_res.is_err(),
+            "Should give error due to non-existing model."
+        );
+    }
 }

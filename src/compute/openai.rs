@@ -3,6 +3,8 @@ use std::env;
 use langchain_rust::llm::openai::OpenAI;
 use langchain_rust::llm::OpenAIConfig;
 
+use crate::config::constants::*;
+
 /// Creates an OpenAI langchain client.
 ///
 /// Will check for the following environment variables:
@@ -14,16 +16,16 @@ use langchain_rust::llm::OpenAIConfig;
 pub fn create_openai() -> OpenAI<OpenAIConfig> {
     let mut config = OpenAIConfig::default();
 
-    if let Ok(api_base) = env::var("OPENAI_API_BASE") {
+    if let Ok(api_base) = env::var(OPENAI_API_BASE_URL) {
         config = config.with_api_base(api_base);
     }
-    if let Ok(api_key) = env::var("OPENAI_API_KEY") {
+    if let Ok(api_key) = env::var(OPENAI_API_KEY) {
         config = config.with_api_key(api_key);
     }
-    if let Ok(org_id) = env::var("OPENAI_ORG_ID") {
+    if let Ok(org_id) = env::var(OPENAI_ORG_ID) {
         config = config.with_org_id(org_id);
     }
-    if let Ok(project_id) = env::var("OPENAI_PROJECT_ID") {
+    if let Ok(project_id) = env::var(OPENAI_PROJECT_ID) {
         config = config.with_project_id(project_id);
     }
 
@@ -39,7 +41,7 @@ mod tests {
     #[ignore] // cargo test --package dkn-compute --lib --all-features -- compute::openai::tests::test_openai --exact --show-output --ignored
     async fn test_openai() {
         let value = "FOOBARFOOBAR"; // use with your own key, with caution
-        env::set_var("OPENAI_API_KEY", value);
+        env::set_var(OPENAI_API_KEY, value);
 
         let openai = create_openai();
 

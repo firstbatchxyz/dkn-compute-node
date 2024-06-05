@@ -1,17 +1,11 @@
+pub mod constants;
 pub mod tasks;
 
 use crate::utils::crypto::to_address;
+use constants::*;
 use ecies::PublicKey;
 use libsecp256k1::{PublicKeyFormat, SecretKey};
 use std::env;
-
-/// 33 byte compressed public key of secret key from hex(b"dria) * 8, dummy only
-pub const DEFAULT_DKN_ADMIN_PUBLIC_KEY: &[u8; 33] =
-    &hex_literal::hex!("0208ef5e65a9c656a6f92fb2c770d5d5e2ecffe02a6aade19207f75110be6ae658");
-
-/// 32 byte secret key hex(b"node") * 8, dummy only
-pub const DEFAULT_DKN_WALLET_SECRET_KEY: &[u8; 32] =
-    &hex_literal::hex!("6e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f6465");
 
 #[allow(non_snake_case)]
 #[derive(Debug, Clone)]
@@ -28,7 +22,7 @@ pub struct DriaComputeNodeConfig {
 
 impl DriaComputeNodeConfig {
     pub fn new() -> Self {
-        let secret_key = match env::var("DKN_WALLET_SECRET_KEY") {
+        let secret_key = match env::var(DKN_WALLET_SECRET_KEY) {
             Ok(secret_env) => {
                 let secret_dec =
                     hex::decode(secret_env).expect("Secret key should be 32-bytes hex encoded.");
@@ -41,7 +35,7 @@ impl DriaComputeNodeConfig {
         let public_key = PublicKey::from_secret_key(&secret_key);
 
         let admin_public_key = PublicKey::parse_slice(
-            hex::decode(env::var("DKN_ADMIN_PUBLIC_KEY").unwrap_or_default())
+            hex::decode(env::var(DKN_ADMIN_PUBLIC_KEY).unwrap_or_default())
                 .unwrap_or_default()
                 .as_slice(),
             Some(PublicKeyFormat::Compressed),
@@ -91,7 +85,7 @@ mod tests {
     #[test]
     fn test_config() {
         env::set_var(
-            "DKN_WALLET_SECRET_KEY",
+            DKN_WALLET_SECRET_KEY,
             "6e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f6465",
         );
         let cfg = DriaComputeNodeConfig::new();

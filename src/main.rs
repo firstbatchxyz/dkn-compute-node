@@ -1,10 +1,14 @@
-use dkn_compute::config::tasks::DriaComputeNodeTasks;
-use dkn_compute::utils::wait_for_termination;
-use dkn_compute::{config::DriaComputeNodeConfig, node::DriaComputeNode};
 use std::env;
 use std::sync::Arc;
-use tokio_util::sync::CancellationToken;
-use tokio_util::task::TaskTracker;
+use tokio_util::{sync::CancellationToken, task::TaskTracker};
+
+use dkn_compute::{
+    config::{
+        constants::DKN_SYNTHESIS_LLM_TYPE, tasks::DriaComputeNodeTasks, DriaComputeNodeConfig,
+    },
+    node::DriaComputeNode,
+    utils::wait_for_termination,
+};
 
 use dkn_compute::workers::diagnostic::*;
 use dkn_compute::workers::heartbeat::*;
@@ -45,7 +49,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             node.clone(),
             "synthesis",
             tokio::time::Duration::from_millis(1000),
-            env::var("DKN_SYNTHESIS_LLM_TYPE").ok(),
+            env::var(DKN_SYNTHESIS_LLM_TYPE).ok(),
         ));
     }
 
