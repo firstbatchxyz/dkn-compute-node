@@ -5,17 +5,17 @@ use crate::{node::DriaComputeNode, utils::crypto::sha256hash, waku::message::Wak
 
 use serde::{Deserialize, Serialize};
 
-/// # Heartbeat Payload
-///
-/// A heartbeat is a message sent by a node to indicate that it is alive. Dria nodes request
-/// a heartbeat with a unique identifier, and the requester node will sign the identifier and send the signature back to a topic
-/// identified with the `uuid`.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct HeartbeatPayload {
     uuid: String,
     deadline: u128,
 }
 
+/// # Heartbeat
+///
+/// A heartbeat is a message sent by a node to indicate that it is alive. Dria nodes request
+/// a heartbeat with a unique identifier, and the requester node will sign the identifier and send the signature back to a topic
+/// identified with the `uuid`.
 pub fn heartbeat_worker(
     node: Arc<DriaComputeNode>,
     topic: &'static str,

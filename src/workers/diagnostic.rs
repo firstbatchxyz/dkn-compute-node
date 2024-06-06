@@ -3,9 +3,9 @@ use std::time::Duration;
 
 use crate::node::DriaComputeNode;
 
-/// # Diagnostic Worker
+/// # Diagnostic
 ///
-/// This is a simple worker that keeps track of the node information, and prints it at regular intervals.
+/// Diagnostics simply keep track of the node information, and print it at regular intervals.
 /// In particular, it will print the number of peers.
 pub fn diagnostic_worker(
     node: Arc<DriaComputeNode>,

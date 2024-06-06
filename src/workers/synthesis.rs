@@ -2,32 +2,37 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::{
-    compute::{llm::create_llm, payload::TaskRequestPayload},
+    compute::{
+        llm::common::{create_llm, ModelProvider},
+        payload::TaskRequestPayload,
+    },
+    config::constants::*,
     node::DriaComputeNode,
     utils::get_current_time_nanos,
     waku::message::WakuMessage,
 };
 
-/// # Synthesis Payload
+type SynthesisPayload = TaskRequestPayload<String>;
+
+/// # Synthesis
 ///
 /// A synthesis task is the task of putting a prompt to an LLM and obtaining many results, essentially growing the number of data points in a dataset,
 /// hence creating synthetic data.
-type SynthesisPayload = TaskRequestPayload<String>;
-
 pub fn synthesis_worker(
     node: Arc<DriaComputeNode>,
     topic: &'static str,
     sleep_amount: Duration,
-    llm_type: Option<String>,
+    model_provider: Option<String>,
+    model_name: Option<String>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
-        let llm_type = llm_type.unwrap_or_default().into();
-        log::info!("Using {} for {}", llm_type, topic);
+        let (model_provider, model_name) = parse_model_info(model_provider, model_name);
+        log::info!("Using {} with {}", model_provider, model_name);
 
-        let llm = match create_llm(llm_type, node.cancellation.clone()).await {
+        let llm = match create_llm(model_provider, model_name, node.cancellation.clone()).await {
             Ok(llm) => llm,
             Err(e) => {
-                log::error!("Could not create LLM: {}", e);
+                log::error!("Could not create LLM: {}, exiting worker.", e);
                 return;
             }
         };
@@ -139,4 +144,23 @@ pub fn synthesis_worker(
             }
         }
     })
+}
+
+pub fn parse_model_info(
+    model_provider: Option<String>,
+    model_name: Option<String>,
+) -> (ModelProvider, String) {
+    let model_provider: ModelProvider = model_provider
+        .unwrap_or(DEFAULT_DKN_SYNTHESIS_MODEL_PROVIDER.to_string())
+        .into();
+
+    let model_name = model_name.unwrap_or_else(|| {
+        match &model_provider {
+            ModelProvider::OpenAI => DEFAULT_DKN_SYNTHESIS_MODEL_NAME_OPENAI.to_string(),
+            ModelProvider::Ollama => DEFAULT_DKN_SYNTHESIS_MODEL_NAME_OLLAMA.to_string(),
+        }
+        .to_string()
+    });
+
+    (model_provider, model_name)
 }

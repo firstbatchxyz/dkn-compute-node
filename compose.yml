@@ -16,17 +16,14 @@ x-rln-environment: &rln_env
 services:
   # Compute Node
   compute:
-    build: "./"
+    build: "./" # TODO: use image from registry
+    env_file:
+      - .env
     environment:
-      DKN_WALLET_SECRET_KEY: ${ETH_TESTNET_KEY}
-      DKN_ADMIN_PUBLIC_KEY: "0208ef5e65a9c656a6f92fb2c770d5d5e2ecffe02a6aade19207f75110be6ae658"
-      DKN_TASKS: ${DKN_TASKS}
-      DKN_SYNTHESIS_LLM_TYPE: ${DKN_SYNTHESIS_LLM_TYPE:-Ollama} # Ollama | OpenAI
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-} # api key if using OpenAI
       WAKU_URL: "http://host.docker.internal:8645"
       OLLAMA_HOST: "http://host.docker.internal"
       OLLAMA_PORT: "11434"
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-phi3}
+      OLLAMA_KEEP_ALIVE: "${OLLAMA_KEEP_ALIVE:-5m}"
       RUST_LOG: "${RUST_LOGS:-info}"
       SEARCH_AGENT_URL: "http://host.docker.internal:5000"
       SEARCH_AGENT_MANAGER: true
@@ -56,7 +53,7 @@ services:
         - *rln_env
     volumes:
       - ${CERTS_DIR:-./waku/certs}:/etc/letsencrypt/:Z
-      - ./run_node.sh:/opt/run_node.sh:Z
+      - ./waku/run_node.sh:/opt/run_node.sh:Z
       - ./waku/rln_tree:/etc/rln_tree/:Z
       - ./waku/keystore:/keystore:Z
     entrypoint: sh
@@ -111,7 +108,7 @@ services:
       - ./qdrant_storage:/qdrant/storage:z
     profiles: [search-python]
 
-  # Browser automation
+  # Browser automation for Search Agent
   browserless:
     image: ghcr.io/browserless/chromium
     environment:
@@ -120,6 +117,7 @@ services:
       - "3030:3000"
     profiles: [search-python]
 
+  # Dria Search Agent (Python)
   search-agent:
     image: firstbatch/dria-searching-agent:latest
     ports:

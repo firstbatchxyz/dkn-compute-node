@@ -13,7 +13,7 @@ use crate::config::constants::*;
 /// - `OPENAI_API_KEY`
 /// - `OPENAI_ORG_ID`
 /// - `OPENAI_PROJECT_ID`
-pub fn create_openai() -> OpenAI<OpenAIConfig> {
+pub fn create_openai(model: String) -> OpenAI<OpenAIConfig> {
     let mut config = OpenAIConfig::default();
 
     if let Ok(api_base) = env::var(OPENAI_API_BASE_URL) {
@@ -29,7 +29,7 @@ pub fn create_openai() -> OpenAI<OpenAIConfig> {
         config = config.with_project_id(project_id);
     }
 
-    OpenAI::new(config)
+    OpenAI::new(config).with_model(model)
 }
 
 #[cfg(test)]
@@ -43,7 +43,7 @@ mod tests {
         let value = "FOOBARFOOBAR"; // use with your own key, with caution
         env::set_var(OPENAI_API_KEY, value);
 
-        let openai = create_openai();
+        let openai = create_openai("gpt-3.5-turbo".to_string());
 
         let prompt = "Once upon a time, in a land far away, there was a dragon.";
         let response = openai
