@@ -25,13 +25,10 @@ services:
       OLLAMA_HOST: "http://host.docker.internal"
       OLLAMA_PORT: "11434"
       OLLAMA_MODEL: ${OLLAMA_MODEL:-phi3}
-      RUST_LOG: "info"
-      SEARCH_AGENT_URL: "http://search-agent:5000"
+      RUST_LOG: "${RUST_LOGS:-info}"
+      SEARCH_AGENT_URL: "http://host.docker.internal:5000"
       SEARCH_AGENT_MANAGER: true
-    networks:
-      - dkn-search-node-python-network
     depends_on:
-      - search-agent
       - nwaku # TODO: in the future we may run Waku with a different compose, so this can be removed at that step
 
   # Waku Node
@@ -63,8 +60,6 @@ services:
     entrypoint: sh
     command:
       - /opt/run_node.sh
-    networks:
-      - dkn-search-node-python-network
     # profiles: [waku] # TODO: in the future we may run Waku with a different compose, keeping this comment here
 
   # Ollama Container (CPU)
@@ -73,9 +68,7 @@ services:
     ports:
       - 11434:11434
     volumes:
-      - ollama:~/.ollama
-    networks:
-      - dkn-search-node-python-network
+      - ~/.ollama:/root/.ollama
     profiles: [ollama-cpu]
 
   # Ollama Container (ROCM)
@@ -84,12 +77,10 @@ services:
     ports:
       - 11434:11434
     volumes:
-      - ollama:/root/.ollama
+      - ~/.ollama:/root/.ollama
     devices:
       - "/dev/kfd"
       - "/dev/dri"
-    networks:
-      - dkn-search-node-python-network
     profiles: [ollama-rocm]
 
   # Ollama Container (CUDA)
@@ -98,7 +89,7 @@ services:
     ports:
       - 11434:11434
     volumes:
-      - ollama:/root/.ollama
+      - ~/.ollama:/root/.ollama
     deploy:
       resources:
         reservations:
@@ -106,8 +97,6 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
-    networks:
-      - dkn-search-node-python-network
     profiles: [ollama-cuda]
 
   # Qdrant VectorDB for Search Agent
@@ -118,8 +107,6 @@ services:
       - "6334:6334"
     volumes:
       - ./qdrant_storage:/qdrant/storage:z
-    networks:
-      - dkn-search-node-python-network
     profiles: [search-python]
 
   # Browser automation
@@ -129,12 +116,10 @@ services:
       - TOKEN=${BROWSERLESS_TOKEN}
     ports:
       - "3030:3000"
-    networks:
-      - dkn-search-node-python-network
     profiles: [search-python]
 
   search-agent:
-    image: dria-searching-agent:server
+    image: firstbatch/dria-searching-agent:latest
     ports:
       - 5000:5000
     environment:
@@ -147,21 +132,9 @@ services:
       BROWSERLESS_TOKEN: ${BROWSERLESS_TOKEN}
 
       OLLAMA_URL: http://host.docker.internal:11434
-      QDRANT_URL: http://qdrant:6333
-      BROWSERLESS_URL: http://browserless:3000
-    networks:
-      dkn-search-node-python-network:
+      QDRANT_URL: http://host.docker.internal:6333
+      BROWSERLESS_URL: http://host.docker.internal:3000
     profiles: [search-python]
-
-networks:
-  dkn-search-node-python-network:
-    name: dkn-search-node-python-network
-    driver: bridge
-    ipam:
-      driver: default
-      config:
-        - subnet: 172.30.0.0/24
-          gateway: 172.30.0.1
 
 volumes:
   ollama:
