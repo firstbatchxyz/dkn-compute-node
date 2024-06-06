@@ -122,7 +122,7 @@ handle_waku_args() {
         echo "No waku peer found"
     else
         waku_peers=""
-        for peer in $parsed_response; do
+        for peer in ${parsed_response[@]}; do
             waku_peers="${waku_peers}--staticnode=${peer} "
         done
         WAKU_EXTRA_ARGS+=(${waku_peers})
@@ -133,8 +133,8 @@ handle_waku_args() {
 handle_waku_args
 
 # prepare docker-compose commands
-COMPOSE_PROFILES=$(IFS=,; echo "${COMPOSE_PROFILES[*]}")
-WAKU_EXTRA_ARGS=$(IFS=,; echo "${WAKU_EXTRA_ARGS[*]}")
+COMPOSE_PROFILES=$(IFS=","; echo "${COMPOSE_PROFILES[*]}")
+WAKU_EXTRA_ARGS=$(IFS=" "; echo "${WAKU_EXTRA_ARGS[*]}")
 TASKS=$(IFS=,; echo "${TASKS[*]}")
 
 compose_command="docker-compose"
@@ -148,7 +148,6 @@ compose_down="${compose_command} down"
 # run docker-compose up
 echo "\n"
 echo "Starting in ${START_MODE} mode..."
-# TODO: echo "$compose_up"
 eval "${compose_up}"
 compose_exit_code=$?
 
