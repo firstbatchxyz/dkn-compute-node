@@ -22,6 +22,7 @@ services:
       DKN_ADMIN_PUBLIC_KEY: "0208ef5e65a9c656a6f92fb2c770d5d5e2ecffe02a6aade19207f75110be6ae658"
       DKN_TASKS: ${DKN_TASKS}
       DKN_SYNTHESIS_LLM_TYPE: ${DKN_SYNTHESIS_LLM_TYPE:-Ollama} # Ollama | OpenAI
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-} # api key if using OpenAI
       WAKU_URL: "http://host.docker.internal:8645"
       OLLAMA_HOST: "http://host.docker.internal"
       OLLAMA_PORT: "11434"
