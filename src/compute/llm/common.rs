@@ -5,13 +5,13 @@ use super::ollama::create_ollama;
 use super::openai::create_openai;
 
 #[derive(Debug, Default)]
-pub enum LLMType {
+pub enum ModelProvider {
     #[default]
     Ollama,
     OpenAI,
 }
 
-impl From<String> for LLMType {
+impl From<String> for ModelProvider {
     fn from(value: String) -> Self {
         match value.to_lowercase().as_str().trim() {
             "ollama" => Self::Ollama,
@@ -24,16 +24,16 @@ impl From<String> for LLMType {
     }
 }
 
-impl From<&LLMType> for String {
-    fn from(value: &LLMType) -> Self {
+impl From<&ModelProvider> for String {
+    fn from(value: &ModelProvider) -> Self {
         match value {
-            LLMType::Ollama => "Ollama".to_string(),
-            LLMType::OpenAI => "OpenAI".to_string(),
+            ModelProvider::Ollama => "Ollama".to_string(),
+            ModelProvider::OpenAI => "OpenAI".to_string(),
         }
     }
 }
 
-impl std::fmt::Display for LLMType {
+impl std::fmt::Display for ModelProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", String::from(self))
     }
@@ -44,16 +44,17 @@ impl std::fmt::Display for LLMType {
 /// The respective setups of the LLMs are done within this function,
 /// e.g. Ollama will pull the model if it does not exist locally.
 pub async fn create_llm(
-    llm: LLMType,
+    llm: ModelProvider,
+    model: String,
     cancellation: CancellationToken,
 ) -> Result<Box<dyn LLM>, String> {
     match llm {
-        LLMType::Ollama => {
-            let client = create_ollama(cancellation.clone()).await?;
+        ModelProvider::Ollama => {
+            let client = create_ollama(cancellation, model).await?;
             Ok(Box::new(client))
         }
-        LLMType::OpenAI => {
-            let client = create_openai();
+        ModelProvider::OpenAI => {
+            let client = create_openai(model);
             Ok(Box::new(client))
         }
     }

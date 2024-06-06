@@ -5,12 +5,14 @@ use tokio_util::sync::CancellationToken;
 use langchain_rust::llm::client::Ollama as OllamaLang;
 use ollama_rs::Ollama;
 
-use crate::config::constants::*; // langchain's Ollama-rs instance
+use crate::config::constants::*;
 
 /// Creates an Ollama LangChain client, pulls the model if it does not exist locally.
-pub async fn create_ollama(cancellation: CancellationToken) -> Result<OllamaLang, String> {
+pub async fn create_ollama(
+    cancellation: CancellationToken,
+    model: String,
+) -> Result<OllamaLang, String> {
     let client = create_ollama_client();
-    let model = env::var(OLLAMA_MODEL).unwrap_or(DEFAULT_OLLAMA_MODEL.to_string());
     log::info!("Ollama URL: {}", client.uri());
     log::info!("Ollama Model: {}", model);
 
@@ -99,14 +101,10 @@ mod tests {
     #[test]
     fn test_ollama_config() {
         env::set_var(OLLAMA_HOST, "http://im-a-host");
-        env::set_var(OLLAMA_MODEL, "phi3");
         env::remove_var(OLLAMA_PORT);
 
         // will use default port, but read host and model from env
         let ollama = create_ollama_client();
         assert_eq!(ollama.uri(), "http://im-a-host:11434");
-
-        let model = env::var(OLLAMA_MODEL).expect("should find model in env");
-        assert_eq!(model, "phi3");
     }
 }

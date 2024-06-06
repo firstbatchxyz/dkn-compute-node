@@ -8,9 +8,12 @@ use crate::{
     waku::message::WakuMessage,
 };
 
-/// # Search Payload
 type SearchPayload = TaskRequestPayload<String>;
 
+/// # Search
+///
+/// A search task tells the agent to search an information on the Web with a set of tools provided, such
+/// as web scrapers and search engine APIs.
 pub fn search_worker(
     node: Arc<DriaComputeNode>,
     topic: &'static str,

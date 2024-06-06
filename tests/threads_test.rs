@@ -37,6 +37,7 @@ mod threads_test {
     /// cargo test --package dkn-compute --test threads_test --all-features -- threads_test::test_mutex --exact --show-output
     /// ```
     #[tokio::test]
+    #[ignore = "only run this for demonstration"]
     async fn test_mutex() {
         let _ = env_logger::try_init();
         let tracker = TaskTracker::new();

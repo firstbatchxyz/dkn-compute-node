@@ -3,9 +3,7 @@ use std::sync::Arc;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 use dkn_compute::{
-    config::{
-        constants::DKN_SYNTHESIS_LLM_TYPE, tasks::DriaComputeNodeTasks, DriaComputeNodeConfig,
-    },
+    config::{constants::*, tasks::DriaComputeNodeTasks, DriaComputeNodeConfig},
     node::DriaComputeNode,
     utils::wait_for_termination,
 };
@@ -49,7 +47,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             node.clone(),
             "synthesis",
             tokio::time::Duration::from_millis(1000),
-            env::var(DKN_SYNTHESIS_LLM_TYPE).ok(),
+            env::var(DKN_SYNTHESIS_MODEL_PROVIDER).ok(),
+            env::var(DKN_SYNTHESIS_MODEL_NAME).ok(),
         ));
     }
 
@@ -68,7 +67,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // wait for all workers
     wait_for_termination(cancellation).await?;
-    log::warn!("Stopping workers");
+    log::info!("Stopping workers");
     tracker.wait().await;
 
     Ok(())
