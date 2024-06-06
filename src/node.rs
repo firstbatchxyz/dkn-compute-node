@@ -2,13 +2,14 @@ use ecies::encrypt;
 use fastbloom_rs::{BloomFilter, Membership};
 use libsecp256k1::{sign, Message, RecoveryId, Signature};
 use parking_lot::RwLock;
+use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    compute::payload::TaskResponsePayload,
+    compute::payload::{TaskRequestPayload, TaskResponsePayload},
     config::DriaComputeNodeConfig,
     errors::NodeResult,
-    utils::{crypto::sha256hash, filter::FilterPayload},
+    utils::{crypto::sha256hash, filter::FilterPayload, get_current_time_nanos},
     waku::{message::WakuMessage, WakuClient},
 };
 
@@ -175,8 +176,10 @@ impl DriaComputeNode {
         Ok(())
     }
 
-    /// Process messages on a certain topic, and if they are expected to be signed by the admin
-    /// key of Dria, only keeps the ones that are authentic.
+    /// Process messages on a certain topic.
+    ///
+    /// If `signed=true` the messages are expected to be authentic, i.e. they
+    /// must be signed by Dria's public key.
     pub async fn process_topic(&self, topic: &str, signed: bool) -> NodeResult<Vec<WakuMessage>> {
         let content_topic = WakuMessage::create_content_topic(topic);
         let mut messages: Vec<WakuMessage> = self.waku.relay.get_messages(&content_topic).await?;
@@ -207,6 +210,55 @@ impl DriaComputeNode {
         messages.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
 
         Ok(messages)
+    }
+
+    /// Given a list of messages, this function:
+    ///
+    /// - parses them into their respective payloads
+    /// - filters out past-deadline & non-selected (with the Bloom Filter) tasks
+    /// - sorts the tasks by their deadline
+    pub fn parse_messages<T>(&self, messages: Vec<WakuMessage>) -> Vec<TaskRequestPayload<T>>
+    where
+        T: for<'a> Deserialize<'a>,
+    {
+        let mut tasks = messages
+            .iter()
+            .filter_map(|message| {
+                match message.parse_payload::<TaskRequestPayload<T>>(true) {
+                    Ok(task) => {
+                        // check if deadline is past or not
+                        if get_current_time_nanos() >= task.deadline {
+                            log::debug!("Skipping {} due to deadline.", task.task_id);
+                            return None;
+                        }
+
+                        // check task inclusion via the bloom filter
+                        match self.is_tasked(&task.filter) {
+                            Ok(is_tasked) => {
+                                if is_tasked {
+                                    log::debug!("Skipping {} due to filter.", task.task_id);
+                                    return None;
+                                }
+                            }
+                            Err(e) => {
+                                log::error!("Error checking task inclusion: {}", e);
+                                return None;
+                            }
+                        }
+
+                        return Some(task);
+                    }
+                    Err(e) => {
+                        log::error!("Error parsing payload: {}", e);
+                        None
+                    }
+                }
+            })
+            .collect::<Vec<TaskRequestPayload<T>>>();
+
+        tasks.sort_by(|a, b| a.deadline.cmp(&b.deadline));
+
+        tasks
     }
 }
 

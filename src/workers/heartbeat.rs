@@ -52,8 +52,7 @@ pub fn heartbeat_worker(
 
                         log::info!("Received: {}", message);
 
-                        let message = match message
-                        .parse_payload::<HeartbeatPayload>(true) {
+                        let message = match message.parse_payload::<HeartbeatPayload>(true) {
                             Ok(body) => {
                                 let uuid = body.uuid;
                                 let signature = node.sign_bytes(&sha256hash(uuid.as_bytes()));

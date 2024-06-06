@@ -2,13 +2,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::{
-    compute::{payload::TaskRequestPayload, search_python::SearchPythonClient},
-    node::DriaComputeNode,
-    utils::get_current_time_nanos,
-    waku::message::WakuMessage,
+    compute::search_python::SearchPythonClient, node::DriaComputeNode, waku::message::WakuMessage,
 };
-
-type SearchPayload = TaskRequestPayload<String>;
 
 /// # Search
 ///
@@ -33,51 +28,22 @@ pub fn search_worker(
                     break;
                 }
                 _ = tokio::time::sleep(sleep_amount) => {
-                    let mut tasks = Vec::new();
-                    if let Ok(messages) = node.process_topic(topic, true).await {
-                        if messages.is_empty() {
+                    let tasks = match node.process_topic(topic, true).await {
+                        Ok(messages) => {
+                            if messages.is_empty() {
+                                continue;
+                            }
+                            log::info!("Received {} {} messages.",  messages.len(), topic);
+                            node.parse_messages::<String>(messages)
+                        }
+                        Err(e) => {
+                            log::error!("Error processing topic {}: {}", topic, e);
                             continue;
                         }
-                        log::info!("Received {} search-python tasks.", messages.len());
+                    };
 
-                        for message in messages {
-                            match message.parse_payload::<SearchPayload>(true) {
-                                Ok(task) => {
-                                    // check deadline
-                                    if get_current_time_nanos() >= task.deadline {
-                                        log::debug!("{}", format!("Skipping {} due to deadline.", task.task_id));
-                                        continue;
-                                    }
-
-                                    // check task inclusion
-                                    match node.is_tasked(&task.filter) {
-                                        Ok(is_tasked) => {
-                                            if is_tasked {
-                                                log::debug!("{}", format!("Skipping {} due to filter.", task.task_id));
-                                                continue;
-                                            }
-                                        },
-                                        Err(e) => {
-                                            log::error!("Error checking task inclusion: {}", e);
-                                            continue;
-                                        }
-                                    }
-
-                                    tasks.push(task);
-                                },
-                                Err(e) => {
-                                    log::error!("Error parsing payload: {}", e);
-                                    continue;
-                                }
-                            }
-                        }
-                    }
-
-                   // TODO: wait for busy lock
+                    log::info!("Received {} {} tasks.",  tasks.len(), topic);
                     node.set_busy(true);
-
-                    // sort tasks by deadline, closer deadline processed first
-                    tasks.sort_by(|a, b| a.deadline.cmp(&b.deadline));
                     for task in tasks {
                         // parse public key
                         let task_public_key = match hex::decode(&task.public_key) {
