@@ -1,10 +1,7 @@
 use serde::{Deserialize, Serialize};
-use serde_json::{json, to_string};
 
 use crate::{errors::NodeResult, utils::filter::FilterPayload};
 
-/// # Dria Task Response
-///
 /// A computation task is the task of computing a result from a given input. The result is encrypted with the public key of the requester.
 /// Plain result is signed by the compute node's private key, and a commitment is computed from the signature and plain result.
 ///
@@ -22,12 +19,10 @@ pub struct TaskResponsePayload {
 
 impl TaskResponsePayload {
     pub fn to_string(&self) -> NodeResult<String> {
-        to_string(&json!(self)).map_err(|e| e.into())
+        serde_json::to_string(&serde_json::json!(self)).map_err(|e| e.into())
     }
 }
 
-/// # Dria Task Request
-///
 /// A generic task request, given by Dria.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -42,4 +37,11 @@ pub struct TaskRequestPayload<T> {
     pub(crate) filter: FilterPayload,
     /// The public key of the requester.
     pub(crate) public_key: String,
+}
+
+/// A parsed `TaskRequestPayload`.
+pub struct TaskRequest<T> {
+    pub(crate) task_id: String,
+    pub(crate) input: T,
+    pub(crate) public_key: Vec<u8>,
 }

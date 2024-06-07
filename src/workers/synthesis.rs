@@ -5,7 +5,6 @@ use crate::{
     compute::llm::common::{create_llm, ModelProvider},
     config::constants::*,
     node::DriaComputeNode,
-    waku::message::WakuMessage,
 };
 
 /// # Synthesis
@@ -56,19 +55,9 @@ pub fn synthesis_worker(
                         }
                     };
 
-                    log::info!("Received {} {} tasks.",  tasks.len(), topic);
                     node.set_busy(true);
+                    log::info!("Processing {} {} tasks.", tasks.len(), topic);
                     for task in tasks {
-                        // parse public key
-                        let task_public_key = match hex::decode(&task.public_key) {
-                            Ok(public_key) => public_key,
-                            Err(e) => {
-                                log::error!("Error parsing public key: {}", e);
-                                continue;
-                            }
-                        };
-
-                        // get prompt result from Ollama
                         let llm_result = match llm.invoke(&task.input).await {
                             Ok(result) => result,
                             Err(e) => {
@@ -77,31 +66,9 @@ pub fn synthesis_worker(
                             }
                         };
 
-                        // create h||s||e payload
-                        let payload = match node.create_payload(llm_result, &task_public_key) {
-                            Ok(payload) => payload,
-                            Err(e) => {
-                                log::error!("Error creating payload: {}", e);
-                                continue;
-                            }
+                        if let Err(e) = node.send_task_result(&task.task_id, &task.public_key, llm_result).await {
+                            log::error!("Error sending task result: {}", e);
                         };
-
-                        // stringify payload
-                        let payload_str = match payload.to_string() {
-                            Ok(payload_str) => payload_str,
-                            Err(e) => {
-                                log::error!("Error stringifying payload: {}", e);
-                                continue;
-                            }
-                        };
-
-                        // send result to Waku network
-                        let message = WakuMessage::new(payload_str, &task.task_id);
-                        if let Err(e) = node.send_message_once(message)
-                            .await {
-                                log::error!("Error sending message: {}", e);
-                                continue;
-                            }
                     }
 
                     node.set_busy(false);

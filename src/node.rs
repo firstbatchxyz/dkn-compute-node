@@ -6,7 +6,7 @@ use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    compute::payload::{TaskRequestPayload, TaskResponsePayload},
+    compute::payload::{TaskRequest, TaskRequestPayload, TaskResponsePayload},
     config::DriaComputeNodeConfig,
     errors::NodeResult,
     utils::{crypto::sha256hash, filter::FilterPayload, get_current_time_nanos},
@@ -217,11 +217,11 @@ impl DriaComputeNode {
     /// - parses them into their respective payloads
     /// - filters out past-deadline & non-selected (with the Bloom Filter) tasks
     /// - sorts the tasks by their deadline
-    pub fn parse_messages<T>(&self, messages: Vec<WakuMessage>) -> Vec<TaskRequestPayload<T>>
+    pub fn parse_messages<T>(&self, messages: Vec<WakuMessage>) -> Vec<TaskRequest<T>>
     where
         T: for<'a> Deserialize<'a>,
     {
-        let mut tasks = messages
+        let mut task_payloads = messages
             .iter()
             .filter_map(|message| {
                 match message.parse_payload::<TaskRequestPayload<T>>(true) {
@@ -256,9 +256,44 @@ impl DriaComputeNode {
             })
             .collect::<Vec<TaskRequestPayload<T>>>();
 
-        tasks.sort_by(|a, b| a.deadline.cmp(&b.deadline));
+        task_payloads.sort_by(|a, b| a.deadline.cmp(&b.deadline));
+
+        // convert to TaskRequest
+        let tasks = task_payloads
+            .into_iter()
+            .filter_map(|task| {
+                let task_public_key = match hex::decode(&task.public_key) {
+                    Ok(public_key) => public_key,
+                    Err(e) => {
+                        log::error!("Error parsing public key: {}", e);
+                        return None;
+                    }
+                };
+
+                Some(TaskRequest {
+                    task_id: task.task_id,
+                    input: task.input,
+                    public_key: task_public_key,
+                })
+            })
+            .collect();
 
         tasks
+    }
+
+    /// Given a task with `id` and respective `public_key`, encrypts the result and obtains
+    /// the `h || s || e` payload, and sends it to the Waku network.
+    pub async fn send_task_result<R: AsRef<[u8]>>(
+        &self,
+        id: &str,
+        public_key: &[u8],
+        result: R,
+    ) -> NodeResult<()> {
+        let payload = self.create_payload(result.as_ref(), &public_key)?;
+        let payload_str = payload.to_string()?;
+        let message = WakuMessage::new(payload_str, id);
+
+        self.send_message_once(message).await
     }
 }
 

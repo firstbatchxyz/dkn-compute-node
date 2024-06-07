@@ -1,9 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::{
-    compute::search_python::SearchPythonClient, node::DriaComputeNode, waku::message::WakuMessage,
-};
+use crate::{compute::search_python::SearchPythonClient, node::DriaComputeNode};
 
 /// # Search
 ///
@@ -42,51 +40,20 @@ pub fn search_worker(
                         }
                     };
 
-                    log::info!("Received {} {} tasks.",  tasks.len(), topic);
                     node.set_busy(true);
+                    log::info!("Received {} {} tasks.",  tasks.len(), topic);
                     for task in tasks {
-                        // parse public key
-                        let task_public_key = match hex::decode(&task.public_key) {
-                            Ok(public_key) => public_key,
-                            Err(e) => {
-                                log::error!("Error parsing public key: {}", e);
-                                continue;
-                            }
-                        };
-
-                        let search_result = match search_client.search(task.input).await {
-                            Ok(search_result) => search_result,
+                        let result = match search_client.search(task.input).await {
+                            Ok(result) => result,
                             Err(e) => {
                                 log::error!("Error searching: {}", e);
                                 continue;
                             }
                         };
 
-                        // create h||s||e payload
-                        let payload = match node.create_payload(search_result, &task_public_key) {
-                            Ok(payload) => payload,
-                            Err(e) => {
-                                log::error!("Error creating payload: {}", e);
-                                continue;
-                            }
+                        if let Err(e) = node.send_task_result(&task.task_id, &task.public_key, result).await {
+                            log::error!("Error sending task result: {}", e);
                         };
-
-                        // stringify payload
-                        let payload_str = match payload.to_string() {
-                            Ok(payload_str) => payload_str,
-                            Err(e) => {
-                                log::error!("Error stringifying payload: {}", e);
-                                continue;
-                            }
-                        };
-
-                        // send result to Waku network
-                        let message = WakuMessage::new(payload_str, &task.task_id);
-                        if let Err(e) = node.send_message_once(message)
-                            .await {
-                                log::error!("Error sending message: {}", e);
-                                continue;
-                            }
                     }
 
                     node.set_busy(false);
