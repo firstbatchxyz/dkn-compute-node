@@ -2,17 +2,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::{
-    compute::{
-        llm::common::{create_llm, ModelProvider},
-        payload::TaskRequestPayload,
-    },
+    compute::llm::common::{create_llm, ModelProvider},
     config::constants::*,
     node::DriaComputeNode,
-    utils::get_current_time_nanos,
-    waku::message::WakuMessage,
 };
-
-type SynthesisPayload = TaskRequestPayload<String>;
 
 /// # Synthesis
 ///
@@ -48,62 +41,23 @@ pub fn synthesis_worker(
                     break;
                 }
                 _ = tokio::time::sleep(sleep_amount) => {
-                    let mut tasks = Vec::new();
-                    if let Ok(messages) = node.process_topic(topic, true).await {
-                        if messages.is_empty() {
-                            continue;
-                        }
-                        log::info!("Received {} synthesis tasks.", messages.len());
-
-                        for message in messages {
-                            match message.parse_payload::<SynthesisPayload>(true) {
-                                Ok(task) => {
-                                    // check deadline
-                                    if get_current_time_nanos() >= task.deadline {
-                                        log::debug!("{}", format!("Skipping {} due to deadline.", task.task_id));
-                                        continue;
-                                    }
-
-                                    // check task inclusion
-                                    match node.is_tasked(&task.filter) {
-                                        Ok(is_tasked) => {
-                                            if is_tasked {
-                                                log::debug!("{}", format!("Skipping {} due to filter.", task.task_id));
-                                                continue;
-                                            }
-                                        },
-                                        Err(e) => {
-                                            log::error!("Error checking task inclusion: {}", e);
-                                            continue;
-                                        }
-                                    }
-
-                                    tasks.push(task);
-                                },
-                                Err(e) => {
-                                    log::error!("Error parsing payload: {}", e);
-                                    continue;
-                                }
-                            }
-                        }
-                    }
-
-                    // TODO: wait for busy lock
-                    node.set_busy(true);
-
-                    // sort tasks by deadline, closer deadline processed first
-                    tasks.sort_by(|a, b| a.deadline.cmp(&b.deadline));
-                    for task in tasks {
-                        // parse public key
-                        let task_public_key = match hex::decode(&task.public_key) {
-                            Ok(public_key) => public_key,
-                            Err(e) => {
-                                log::error!("Error parsing public key: {}", e);
+                    let tasks = match node.process_topic(topic, true).await {
+                        Ok(messages) => {
+                            if messages.is_empty() {
                                 continue;
                             }
-                        };
+                            log::info!("Received {} {} messages.",  messages.len(), topic);
+                            node.parse_messages::<String>(messages)
+                        }
+                        Err(e) => {
+                            log::error!("Error processing topic {}: {}", topic, e);
+                            continue;
+                        }
+                    };
 
-                        // get prompt result from Ollama
+                    node.set_busy(true);
+                    log::info!("Processing {} {} tasks.", tasks.len(), topic);
+                    for task in tasks {
                         let llm_result = match llm.invoke(&task.input).await {
                             Ok(result) => result,
                             Err(e) => {
@@ -112,31 +66,9 @@ pub fn synthesis_worker(
                             }
                         };
 
-                        // create h||s||e payload
-                        let payload = match node.create_payload(llm_result, &task_public_key) {
-                            Ok(payload) => payload,
-                            Err(e) => {
-                                log::error!("Error creating payload: {}", e);
-                                continue;
-                            }
+                        if let Err(e) = node.send_task_result(&task.task_id, &task.public_key, llm_result).await {
+                            log::error!("Error sending task result: {}", e);
                         };
-
-                        // stringify payload
-                        let payload_str = match payload.to_string() {
-                            Ok(payload_str) => payload_str,
-                            Err(e) => {
-                                log::error!("Error stringifying payload: {}", e);
-                                continue;
-                            }
-                        };
-
-                        // send result to Waku network
-                        let message = WakuMessage::new(payload_str, &task.task_id);
-                        if let Err(e) = node.send_message_once(message)
-                            .await {
-                                log::error!("Error sending message: {}", e);
-                                continue;
-                            }
                     }
 
                     node.set_busy(false);
@@ -146,6 +78,10 @@ pub fn synthesis_worker(
     })
 }
 
+/// Given a model provier option, and a model name option, return the model provider and model name.
+///
+/// - If model provider is `None`, it will default.
+/// - If model name is `None`, it will default to some model name with respect ot the model provider.
 pub fn parse_model_info(
     model_provider: Option<String>,
     model_name: Option<String>,
