@@ -99,7 +99,7 @@ chmod +x start.sh
   - There are three Docker Compose Ollama options: `ollama-cpu`, `ollama-cuda`, and `ollama-rocm`. The start script will decide which option to use based on the host machine's GPU specifications.
 - Start script will run the containers in the background. You can check their logs either via the terminal or from [Docker Desktop](https://www.docker.com/products/docker-desktop/).
 
-### (Alternative) Run from Source
+### Run from Source
 
 We are using Make as a wrapper for some scripts. You can see the available commands with:
 
