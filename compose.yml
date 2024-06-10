@@ -27,6 +27,9 @@ services:
       RUST_LOG: "${RUST_LOGS:-info}"
       SEARCH_AGENT_URL: "http://host.docker.internal:5000"
       SEARCH_AGENT_MANAGER: true
+      DKN_TASKS: "${DKN_TASKS}"
+      DKN_SYNTHESIS_MODEL_PROVIDER: "${DKN_SYNTHESIS_MODEL_PROVIDER}"
+      DKN_SYNTHESIS_MODEL_NAME: "${DKN_SYNTHESIS_MODEL_NAME}"
     depends_on:
       - nwaku # TODO: in the future we may run Waku with a different compose, so this can be removed at that step
 
