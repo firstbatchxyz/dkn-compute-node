@@ -2,8 +2,12 @@
 
 docs() {
     echo "
+        start.sh starts the compute node with given environment and parameters using docker-compose.
+        Loads the .env file as base environment and creates a .env.compose file for final environment to run with docker-compose.
+        Required environment variables in .env file; ETH_CLIENT_ADDRESS, ETH_TESTNET_KEY, RLN_RELAY_CRED_PASSWORD
+        
         Description of command-line arguments:
-            --synthesis: Runs the node for the synthesis tasks. Can be set as DKN_TASKS="synthesis" env-var along. (default: false, required for search tasks)
+            --synthesis: Runs the node for the synthesis tasks. Can be set as DKN_TASKS="synthesis" env-var (default: false, required for search tasks)
             --search: Runs the node for the search tasks. Can be set as DKN_TASKS="search" env-var (default: false, required for synthesis tasks)
 
             --synthesis-model-provider=<arg>: Indicates the model provider for synthesis tasks, ollama or openai. Can be set as DKN_SYNTHESIS_MODEL_PROVIDER env-var (required on synthesis tasks)
@@ -26,60 +30,77 @@ docs() {
     exit 0
 }
 
-echo "*** DKN - Compute Node ***"
+echo "************ DKN - Compute Node ************"
 
 # if .env exists, load it first
-if [ -f .env ]; then
+ENV_FILE=".env"
+ENV_COMPOSE_FILE=".env.compose"
+if [ -f "$ENV_FILE" ]; then
   set -o allexport
-  source .env
+  source "$ENV_FILE"
   set +o allexport
 fi
 
-START_MODE="FOREGROUND"
+# flag vars
 COMPUTE_SEARCH=false
 COMPUTE_SYNTHESIS=false
+START_MODE="FOREGROUND"
 LOCAL_OLLAMA=true
 LOGS="info"
+
+# script internal
 COMPOSE_PROFILES=()
-TASKS=()
+TASK_LIST=()
 LOCAL_OLLAMA_PID=""
+DOCKER_HOST="http://host.docker.internal"
 
 # handle command line arguments
 while [[ "$#" -gt 0 ]]; do
-    case $1 in
-        -b|--background) START_MODE="BACKGROUND" ;;
-        
-        --search) COMPUTE_SEARCH=true ;;
-        --synthesis) COMPUTE_SYNTHESIS=true ;;
+    case $1 in        
+        --search)
+            COMPUTE_SEARCH=true
+            COMPOSE_PROFILES+=("search-python")
+            TASK_LIST+=("search")
+        ;;
+        --synthesis)
+            COMPUTE_SYNTHESIS=true
+            TASK_LIST+=("synthesis")
+        ;;
 
         --synthesis-model-provider=*)
-        DKN_SYNTHESIS_MODEL_PROVIDER="$(echo "${1#*=}" | tr '[:upper:]' '[:lower:]')"
+            DKN_SYNTHESIS_MODEL_PROVIDER="$(echo "${1#*=}" | tr '[:upper:]' '[:lower:]')"
         ;;
         --search-model-provider=*)
-        AGENT_MODEL_PROVIDER="$(echo "${1#*=}" | tr '[:upper:]' '[:lower:]')"
+            AGENT_MODEL_PROVIDER="$(echo "${1#*=}" | tr '[:upper:]' '[:lower:]')"
         ;;
 
         --synthesis-model=*)
-        DKN_SYNTHESIS_MODEL_NAME="$(echo "${1#*=}" | tr '[:upper:]' '[:lower:]')"
+            DKN_SYNTHESIS_MODEL_NAME="$(echo "${1#*=}" | tr '[:upper:]' '[:lower:]')"
         ;;
         --search-model=*)
-        AGENT_MODEL_NAME="$(echo "${1#*=}" | tr '[:upper:]' '[:lower:]')"
+            AGENT_MODEL_NAME="$(echo "${1#*=}" | tr '[:upper:]' '[:lower:]')"
         ;;
 
         --local-ollama=*)
-        LOCAL_OLLAMA="$(echo "${1#*=}" | tr '[:upper:]' '[:lower:]')"
+            LOCAL_OLLAMA="$(echo "${1#*=}" | tr '[:upper:]' '[:lower:]')"
         ;;
-        --dev) LOGS="debug" ;;
+
+        -b|--background) START_MODE="BACKGROUND" ;;
+        --dev) RUST_LOG="debug" ;;
         -h|--help) docs ;;
         *) echo "ERROR: Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
 done
 
-echo "Handling the environment..."
-
 check_required_env_vars() {
-    local required_vars=("ETH_CLIENT_ADDRESS" "ETH_TESTNET_KEY" "RLN_RELAY_CRED_PASSWORD" "WAKU_URL")
+    local required_vars=(
+        "ETH_CLIENT_ADDRESS"
+        "ETH_TESTNET_KEY"
+        "RLN_RELAY_CRED_PASSWORD"
+        "DKN_WALLET_SECRET_KEY"
+        "DKN_ADMIN_PUBLIC_KEY"
+    )
     for var in "${required_vars[@]}"; 
     do
         if [ -z "${!var}" ]; 
@@ -91,15 +112,59 @@ check_required_env_vars() {
 }
 check_required_env_vars
 
-task_options() {
-    if [ "$COMPUTE_SEARCH" = true ]; then
-        TASKS+=("search")
-        COMPOSE_PROFILES+=("search-python") # start with search-agent profile for search dependencies
-    fi
-    if [ "$COMPUTE_SYNTHESIS" = true ]; then
-        TASKS+=("synthesis")
-    fi
-    if [ "$COMPUTE_SEARCH" = false ] && [ "$COMPUTE_SYNTHESIS" = false ]; then
+# helper function for writing given env-var pairs to .env.compose file as lines
+write_to_env_file() {
+  local input_pairs=("$@")
+
+  # Write pairs to the file
+  for pair in "${input_pairs[@]}"; do
+    echo "$pair" >> "$ENV_COMPOSE_FILE"
+  done
+  echo "" >> "$ENV_COMPOSE_FILE"
+}
+
+# helper function for converting a list of env-var name to a list of env-var name:value pairs
+as_pairs() {
+    local keys=("$@")
+    pairs=()
+    for i in "${!keys[@]}"; do
+        key="${keys[i]}"
+        value="$(eval echo \$$key)"
+        if [ -z "$value" ]; then
+            value=""
+        fi
+
+        pair="${key}=\"${value}\""
+        pairs+=(${pair})
+    done
+    echo "${pairs[@]}"
+}
+
+echo "Handling the environment..."
+
+# this function handles all compute related environment, compute_envs is a list of "name=value" env-var pairs
+compute_envs=()
+handle_compute_env() {
+    compute_env_vars=(
+        "DKN_WALLET_SECRET_KEY"
+        "DKN_ADMIN_PUBLIC_KEY"
+        "DKN_TASKS"
+        "DKN_SYNTHESIS_MODEL_PROVIDER"
+        "DKN_SYNTHESIS_MODEL_NAME"
+        "AGENT_MODEL_PROVIDER"
+        "AGENT_MODEL_NAME"
+        "OPENAI_API_KEY"
+        "SERPER_API_KEY"
+        "BROWSERLESS_TOKEN"
+        "ANTHROPIC_API_KEY"
+    )
+    compute_envs=($(as_pairs "${compute_env_vars[@]}"))
+
+    # handle DKN_TASKS
+    if [ ${#TASK_LIST[@]} -ne 0 ]; then
+        # if any task flag is given, pass it to env var
+        DKN_TASKS=$(IFS=","; echo "${TASK_LIST[*]}")
+    else
         # if no task type argument has given, check DKN_TASKS env var
         if [ -n "$DKN_TASKS" ]; then
             # split, iterate and validate given tasks in env var 
@@ -107,29 +172,28 @@ task_options() {
             for ts in "${tsks[@]}"; do
                 ts="$(echo "${ts#*=}" | tr '[:upper:]' '[:lower:]')" # make all lowercase
                 if [ "$ts" = "search" ] || [ "$ts" = "search-python" ]; then
-                    TASKS+=("search")
-                    COMPOSE_PROFILES+=("search-python")
+                    TASK_LIST+=("search")
                     COMPUTE_SEARCH=true
+                    COMPOSE_PROFILES+=("search-python")
                 elif [ "$ts" = "synthesis" ]; then
-                    TASKS+=("synthesis")
+                    TASK_LIST+=("synthesis")
                     COMPUTE_SYNTHESIS=true
                 fi
             done
-
         else
             echo "ERROR: No task type has given, --synthesis and/or --search flags are required"
             exit 1
         fi
     fi
-}
-task_options
 
-check_model_providers() {
+    # check model providers, they are required
     if [ "$COMPUTE_SEARCH" = true ]; then
         if [ -z "$AGENT_MODEL_PROVIDER" ]; then
             echo "ERROR: Search model provider is required on search tasks. Example usage; --search-model-provider=ollama"
             exit 1
         fi
+        # then all lowercase
+        AGENT_MODEL_PROVIDER="$(echo "${AGENT_MODEL_PROVIDER#*=}" | tr '[:upper:]' '[:lower:]')"
 
     fi
     if [ "$COMPUTE_SYNTHESIS" = true ]; then
@@ -137,14 +201,74 @@ check_model_providers() {
             echo "ERROR: Synthesis model provider is required on synthesis tasks. Example usage; --synthesis-model-provider=ollama"
             exit 1
         fi
+        # then all lowercase
+        DKN_SYNTHESIS_MODEL_PROVIDER="$(echo "${DKN_SYNTHESIS_MODEL_PROVIDER#*=}" | tr '[:upper:]' '[:lower:]')"
     fi
-}
-check_model_providers
 
-ollama_profiles() {
-    # if there is no task using ollama, do not add any ollama profile
-    DKN_SYNTHESIS_MODEL_PROVIDER="$(echo "${DKN_SYNTHESIS_MODEL_PROVIDER#*=}" | tr '[:upper:]' '[:lower:]')"
-    AGENT_MODEL_PROVIDER="$(echo "${AGENT_MODEL_PROVIDER#*=}" | tr '[:upper:]' '[:lower:]')"
+    # update envs
+    compute_envs=($(as_pairs "${compute_env_vars[@]}"))
+}
+handle_compute_env
+
+# this function handles all waku related environment, waku_envs is a list of "name=value" env-var pairs
+waku_envs=()
+handle_waku_env() {
+    waku_env_vars=(
+        "ETH_CLIENT_ADDRESS"
+        "ETH_TESTNET_KEY"
+        "RLN_RELAY_CRED_PASSWORD"
+        "WAKU_URL"
+        "WAKU_EXTRA_ARGS"
+        "WAKU_LOG_LEVEL"
+    )
+    waku_envs=($(as_pairs "${waku_env_vars[@]}"))
+
+    # default value for waku url
+    if [[ -z "$WAKU_URL" ]]; then
+        WAKU_URL="http://host.docker.internal:8645"
+    fi
+
+    handle_waku_extra_args() {
+        # get static waku peers
+        # --staticnode
+        WAKU_PEER_DISCOVERY_URL="" # TODO: url for getting a list of admin nodes in waku
+
+        extra_args_list=()
+        response=$(curl -s -X GET "$WAKU_PEER_DISCOVERY_URL" -d "param1=value1")
+        parsed_response=$(echo "$response" | jq -r '.[]')
+        if [[ -z "$parsed_response" ]]; then
+            echo "No static peer set for waku"
+        else
+            waku_peers=""
+            for peer in ${parsed_response[@]}; do
+                waku_peers="${waku_peers}--staticnode=${peer} "
+            done
+            extra_args_list+=(${waku_peers})
+        fi
+
+        # TODO: additional waku-extra-args here
+        extra_args=$(IFS=" "; echo "${extra_args_list[*]}")
+        if [ -n "$extra_args" ]; then
+            WAKU_EXTRA_ARGS="${WAKU_EXTRA_ARGS} ${extra_args}"
+        fi
+    }
+    handle_waku_extra_args
+
+    waku_envs=($(as_pairs "${waku_env_vars[@]}"))
+}
+handle_waku_env
+
+# this function handles all ollama related environment, ollama_envs is a list of "name=value" env-var pairs
+ollama_envs=()
+handle_ollama_env() {
+    ollama_env_vars=(
+        "OLLAMA_HOST"
+        "OLLAMA_PORT"
+        "OLLAMA_KEEP_ALIVE"
+    )
+    ollama_envs=($(as_pairs "${ollama_env_vars[@]}"))
+
+    # if there is no task using ollama, do not add any ollama compose profile
     ollama_needed=false
     if [ "$COMPUTE_SYNTHESIS" = true ] && [ "$DKN_SYNTHESIS_MODEL_PROVIDER" == "ollama" ]; then
         ollama_needed=true
@@ -161,6 +285,9 @@ ollama_profiles() {
         if command -v ollama &> /dev/null; then
             # prepare local ollama url
             OLLAMA_HOST="${OLLAMA_HOST:-http://localhost}"
+            if [ -z "$OLLAMA_HOST" ] || [ "$OLLAMA_HOST" == "$DOCKER_HOST" ]; then
+                OLLAMA_HOST="http://localhost"
+            fi
             OLLAMA_PORT="${OLLAMA_PORT:-11434}"
             ollama_url=$OLLAMA_HOST:$OLLAMA_PORT
 
@@ -171,6 +298,8 @@ ollama_profiles() {
 
             if [[ "$(check_ollama_server)" -eq 200 ]]; then
                 echo "Local Ollama is already up and running, using it"
+                OLLAMA_HOST=$DOCKER_HOST
+                ollama_envs=($(as_pairs "${ollama_env_vars[@]}"))
                 return
             else
                 echo "Local Ollama is not live, running ollama serve"
@@ -195,8 +324,9 @@ ollama_profiles() {
                     LOCAL_OLLAMA=false
                 else
                     LOCAL_OLLAMA_PID=$temp_pid
-                    OLLAMA_HOST=$temp_ollama_host
+                    OLLAMA_HOST=$DOCKER_HOST
                     echo "Local Ollama server is up and running with PID $LOCAL_OLLAMA_PID"
+                    ollama_envs=($(as_pairs "${ollama_env_vars[@]}"))
                     return
                 fi
             fi
@@ -227,71 +357,32 @@ ollama_profiles() {
     # if there are no local ollama and gpu, use docker-compose with cpu profile
     echo "No GPU found, using ollama-cpu"
     COMPOSE_PROFILES+=("ollama-cpu")
-    return
+    OLLAMA_HOST=$DOCKER_HOST
+    ollama_envs=($(as_pairs "${ollama_env_vars[@]}"))
 }
-ollama_profiles
+handle_ollama_env
 
-WAKU_EXTRA_ARGS=()
-WAKU_PEER_DISCOVERY_URL="" # TODO: url for getting a list of admin nodes in waku
-handle_waku_args() {
-    # --staticnode
-    # get waku peers
-    response=$(curl -s -X GET "$WAKU_PEER_DISCOVERY_URL" -d "param1=value1")
-    parsed_response=$(echo "$response" | jq -r '.[]')
-    if [[ -z "$parsed_response" ]]; then
-        echo "No static peer set for waku"
-    else
-        waku_peers=""
-        for peer in ${parsed_response[@]}; do
-            waku_peers="${waku_peers}--staticnode=${peer} "
-        done
-        WAKU_EXTRA_ARGS+=(${waku_peers})
-    fi
+# env-var lists are ready, now write them to .env.compose
+if [ -e "$ENV_COMPOSE_FILE" ]; then
+    # if already exists, clean it first
+    rm "$ENV_COMPOSE_FILE"
+fi
+write_to_env_file "${waku_envs[@]}"
+write_to_env_file "${compute_envs[@]}"
+write_to_env_file "${ollama_envs[@]}"
 
-    # TODO: additional waku args here
-}
-handle_waku_args
-
-# prepare env-vars
-ENVVARS=""
-handle_env_vars(){
-    COMPOSE_PROFILES=$(IFS=","; echo "${COMPOSE_PROFILES[*]}")
-    ENVVARS="COMPOSE_PROFILES=\"${COMPOSE_PROFILES}\" ${ENVVARS}"
-
-    WAKU_EXTRA_ARGS=$(IFS=" "; echo "${WAKU_EXTRA_ARGS[*]}")
-    ENVVARS="WAKU_EXTRA_ARGS=\"${WAKU_EXTRA_ARGS}\" ${ENVVARS}"
-
-    TASKS=$(IFS=,; echo "${TASKS[*]}")
-    ENVVARS="DKN_TASKS=${TASKS} ${ENVVARS}"
-
-    # set non-empty configs as env vars
-    if [ -n "$DKN_SYNTHESIS_MODEL_PROVIDER" ]; then
-        ENVVARS="DKN_SYNTHESIS_MODEL_PROVIDER=\"${DKN_SYNTHESIS_MODEL_PROVIDER}\" ${ENVVARS}"
-    fi
-    if [ -n "$AGENT_MODEL_PROVIDER" ]; then
-        ENVVARS="AGENT_MODEL_PROVIDER=\"${AGENT_MODEL_PROVIDER}\" ${ENVVARS}"
-    fi
-    if [ -n "$DKN_SYNTHESIS_MODEL_NAME" ]; then
-        ENVVARS="DKN_SYNTHESIS_MODEL_NAME=\"${DKN_SYNTHESIS_MODEL_NAME}\" ${ENVVARS}"
-    fi
-    if [ -n "$AGENT_MODEL_NAME" ]; then
-        ENVVARS="AGENT_MODEL_NAME=\"${AGENT_MODEL_NAME}\" ${ENVVARS}"
-    fi
-    ENVVARS="RUST_LOG=\"${LOGS}\" ${ENVVARS}"
-    # if [ "$LOCAL_OLLAMA" = true ]; then
-    #     ENVVARS="OLLAMA_HOST=\"http://host.docker.internal\" ${ENVVARS}"
-    # fi
-}
-handle_env_vars
+# prepare compose profiles
+COMPOSE_PROFILES=$(IFS=","; echo "${COMPOSE_PROFILES[*]}")
+COMPOSE_PROFILES="COMPOSE_PROFILES=\"${COMPOSE_PROFILES}\""
 
 # prepare compose commands
 COMPOSE_COMMAND="docker-compose"
-COMPOSE_UP="${ENVVARS} ${COMPOSE_COMMAND} up -d"
-COMPOSE_DOWN="${ENVVARS} ${COMPOSE_COMMAND} down"
+COMPOSE_UP="${COMPOSE_PROFILES} ${COMPOSE_COMMAND} up -d"
+COMPOSE_DOWN="${COMPOSE_PROFILES} ${COMPOSE_COMMAND} down"
 
 # run docker-compose up
-echo "\n"
-echo "Starting in ${START_MODE} mode..."
+echo "Starting in ${START_MODE} mode...\n"
+echo "${COMPOSE_UP}\n"
 eval "${COMPOSE_UP}"
 compose_exit_code=$?
 
@@ -308,6 +399,7 @@ if [ "$START_MODE" == "FOREGROUND" ]; then
     cleanup() {
         echo "\nShutting down..."
         eval "${COMPOSE_DOWN}"
+        rm "$ENV_COMPOSE_FILE"
         echo "\nbye"
         exit
     }
