@@ -296,8 +296,7 @@ COMPOSE_DOWN="${ENVVARS} ${COMPOSE_COMMAND} down"
 # run docker-compose up
 echo "\n"
 echo "Starting in ${START_MODE} mode..."
-echo "${COMPOSE_UP}"
-# eval "${COMPOSE_UP}"
+eval "${COMPOSE_UP}"
 compose_exit_code=$?
 
 # handle docker-compose error
@@ -306,16 +305,16 @@ if [ $compose_exit_code -ne 0 ]; then
     exit $compose_exit_code
 fi
 
-# # background/foreground mode
-# if [ "$START_MODE" == "FOREGROUND" ]; then
-#     echo "\nUse Control-C to exit"
+# background/foreground mode
+if [ "$START_MODE" == "FOREGROUND" ]; then
+    echo "\nUse Control-C to exit"
 
-#     cleanup() {
-#         echo "\nShutting down..."
-#         eval "${COMPOSE_DOWN}"
-#         echo "\nbye"
-#         exit
-#     }
-#     # wait for Ctrl-C
-#     ( trap cleanup SIGINT ; read -r -d '' _ </dev/tty )
-# fi
+    cleanup() {
+        echo "\nShutting down..."
+        eval "${COMPOSE_DOWN}"
+        echo "\nbye"
+        exit
+    }
+    # wait for Ctrl-C
+    ( trap cleanup SIGINT ; read -r -d '' _ </dev/tty )
+fi
