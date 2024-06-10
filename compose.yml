@@ -121,7 +121,7 @@ services:
   search-agent:
     image: firstbatch/dria-searching-agent:latest
     ports:
-      - 5000:5000
+      - 5059:5000
     environment:
       AGENT_MODEL_PROVIDER: ${AGENT_MODEL_PROVIDER-Ollama}
       AGENT_MODEL: ${AGENT_MODEL:-phi3}
