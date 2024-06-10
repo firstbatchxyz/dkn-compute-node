@@ -6,7 +6,7 @@ if test -f $(pwd)/keystore/keystore.json; then
   exit 1
 fi
 
-if test -f .env; then
+if test -f $(pwd)/../.env; then
   echo "Using .env file"  
   . $(pwd)/../.env
 fi
