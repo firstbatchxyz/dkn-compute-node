@@ -33,7 +33,6 @@ impl RelayClient {
     ///
     /// The content topic must have been subscribed to before.
     pub async fn get_messages(&self, content_topic: &str) -> NodeResult<Vec<WakuMessage>> {
-        log::debug!("Polling {}", content_topic);
         let content_topic_encoded = urlencoding::encode(content_topic).to_string();
         let res = self
             .base

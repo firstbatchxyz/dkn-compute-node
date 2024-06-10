@@ -1,5 +1,6 @@
 /target
-.env
+.env*
+!.env.example
 .vscode
 .DS_Store
 /qdrant_storage

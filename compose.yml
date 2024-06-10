@@ -24,7 +24,7 @@ services:
       OLLAMA_HOST: "http://host.docker.internal"
       OLLAMA_PORT: "11434"
       OLLAMA_KEEP_ALIVE: "${OLLAMA_KEEP_ALIVE:-5m}"
-      RUST_LOG: "${RUST_LOGS:-info}"
+      RUST_LOG: "${DKN_LOG_LEVEL:-info}"
       SEARCH_AGENT_URL: "http://host.docker.internal:5000"
       SEARCH_AGENT_MANAGER: true
     depends_on:
