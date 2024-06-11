@@ -122,16 +122,15 @@ services:
     image: firstbatch/dria-searching-agent:latest
     ports:
       - 5059:5000
+    env_file:
+      - .env.compose
     environment:
-      AGENT_MODEL_PROVIDER: ${AGENT_MODEL_PROVIDER-Ollama}
-      AGENT_MODEL: ${AGENT_MODEL:-phi3}
-
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       SERPER_API_KEY: ${SERPER_API_KEY}
       BROWSERLESS_TOKEN: ${BROWSERLESS_TOKEN}
 
-      OLLAMA_URL: http://host.docker.internal:11434
+      OLLAMA_URL: ${OLLAMA_HOST}:${OLLAMA_PORT}
       QDRANT_URL: http://host.docker.internal:6333
       BROWSERLESS_URL: http://host.docker.internal:3000
     profiles: [search-python]
