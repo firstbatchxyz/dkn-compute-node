@@ -57,7 +57,7 @@ services:
     entrypoint: sh
     command:
       - /opt/run_node.sh
-    profiles: [waku] # TODO: in the future we may run Waku with a different compose, keeping this comment here
+    profiles: [waku]
 
   # Ollama Container (CPU)
   ollama:
