@@ -47,6 +47,7 @@ COMPUTE_SYNTHESIS=false
 START_MODE="FOREGROUND"
 LOCAL_OLLAMA=true
 LOGS="info"
+EXTERNAL_WAKU=false
 
 # script internal
 COMPOSE_PROFILES=()
@@ -85,8 +86,14 @@ while [[ "$#" -gt 0 ]]; do
             LOCAL_OLLAMA="$(echo "${1#*=}" | tr '[:upper:]' '[:lower:]')"
         ;;
 
+        --waku-ext)
+            EXTERNAL_WAKU=true
+        ;;
+
+        --dev)
+            DKN_LOG_LEVEL="none,dkn_compute=debug"
+        ;;
         -b|--background) START_MODE="BACKGROUND" ;;
-        --dev) RUST_LOG="debug" ;;
         -h|--help) docs ;;
         *) echo "ERROR: Unknown parameter passed: $1"; exit 1 ;;
     esac
@@ -157,6 +164,7 @@ handle_compute_env() {
         "SERPER_API_KEY"
         "BROWSERLESS_TOKEN"
         "ANTHROPIC_API_KEY"
+        "DKN_LOG_LEVEL"
     )
     compute_envs=($(as_pairs "${compute_env_vars[@]}"))
 
@@ -221,11 +229,18 @@ handle_waku_env() {
         "WAKU_EXTRA_ARGS"
         "WAKU_LOG_LEVEL"
     )
-    waku_envs=($(as_pairs "${waku_env_vars[@]}"))
-
     # default value for waku url
     if [[ -z "$WAKU_URL" ]]; then
         WAKU_URL="http://host.docker.internal:8645"
+    fi
+    waku_envs=($(as_pairs "${waku_env_vars[@]}"))
+
+    # add waku profile depending on EXTERNAL_WAKU flag
+    if [ "$EXTERNAL_WAKU" == true ]; then
+        echo "External waku is true, not running the waku"
+        return
+    else
+        COMPOSE_PROFILES+=("waku")
     fi
 
     handle_waku_extra_args() {
