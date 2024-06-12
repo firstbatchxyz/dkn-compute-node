@@ -27,8 +27,6 @@ services:
       RUST_LOG: "${DKN_LOG_LEVEL:-info}"
       SEARCH_AGENT_URL: "http://host.docker.internal:5059"
       SEARCH_AGENT_MANAGER: true
-    depends_on:
-      - nwaku # TODO: in the future we may run Waku with a different compose, so this can be removed at that step
 
   # Waku Node
   nwaku:
@@ -59,7 +57,7 @@ services:
     entrypoint: sh
     command:
       - /opt/run_node.sh
-    # profiles: [waku] # TODO: in the future we may run Waku with a different compose, keeping this comment here
+    profiles: [waku]
 
   # Ollama Container (CPU)
   ollama:
