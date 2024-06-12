@@ -31,15 +31,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::info!("{:?}", tasks);
     let tracker = TaskTracker::new();
 
+    tracker.spawn(diagnostic_worker(
+        node.clone(),
+        tokio::time::Duration::from_secs(3),
+    ));
+
     tracker.spawn(heartbeat_worker(
         node.clone(),
         "heartbeat",
         tokio::time::Duration::from_millis(1000),
-    ));
-
-    tracker.spawn(diagnostic_worker(
-        node.clone(),
-        tokio::time::Duration::from_secs(60),
     ));
 
     if tasks.synthesis {

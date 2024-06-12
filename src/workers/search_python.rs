@@ -31,7 +31,6 @@ pub fn search_worker(
                             if messages.is_empty() {
                                 continue;
                             }
-                            log::info!("Received {} {} messages.",  messages.len(), topic);
                             node.parse_messages::<String>(messages)
                         }
                         Err(e) => {
@@ -42,6 +41,10 @@ pub fn search_worker(
 
                     node.set_busy(true);
                     log::info!("Received {} {} tasks.",  tasks.len(), topic);
+                    for task in &tasks {
+                        log::debug!("Task ID: {}", task.task_id);
+                    }
+
                     for task in tasks {
                         let result = match search_client.search(task.input).await {
                             Ok(result) => result,

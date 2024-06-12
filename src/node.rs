@@ -189,7 +189,7 @@ impl DriaComputeNode {
             return Ok(messages);
         }
 
-        log::debug!("Received {} messages on topic {}:", messages.len(), topic);
+        log::debug!("Received {} {} messages.", messages.len(), topic);
         for message in &messages {
             log::debug!("{}", message);
         }

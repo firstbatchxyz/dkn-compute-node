@@ -2,6 +2,8 @@ use crate::{config::constants::*, utils::http::BaseClient};
 use serde_json::json;
 use std::env;
 
+const DEFAULT_SEARCH_AGENT_URL: &str = "http://localhost:5059";
+
 /// A wrapper for the Dria Search agent in Python: <https://github.com/firstbatchxyz/dria-searching-agent>.
 pub struct SearchPythonClient {
     pub client: BaseClient,
@@ -19,7 +21,7 @@ impl Default for SearchPythonClient {
 
 impl SearchPythonClient {
     pub fn new() -> Self {
-        let url = env::var(SEARCH_AGENT_URL).unwrap_or_default();
+        let url = env::var(SEARCH_AGENT_URL).unwrap_or(DEFAULT_SEARCH_AGENT_URL.to_string());
         let with_manager = matches!(
             env::var(SEARCH_AGENT_MANAGER)
                 .unwrap_or_default()
@@ -45,7 +47,7 @@ impl SearchPythonClient {
         let r = match self.client.post("search", body).await {
             Ok(response) => response,
             Err(e) => {
-                eprintln!("Error sending search query to search-agent-python: {:?}", e);
+                log::error!("Error sending search query to search-agent-python: {}", e);
                 return Err(e);
             }
         };
@@ -53,7 +55,7 @@ impl SearchPythonClient {
         let search_result = match r.text().await {
             Ok(response) => response,
             Err(e) => {
-                eprintln!("Error parsing search-agent-python response: {:?}", e);
+                log::error!("Error parsing search-agent-python response: {}", e);
                 return Err(e);
             }
         };

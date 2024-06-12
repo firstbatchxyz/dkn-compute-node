@@ -1,9 +1,8 @@
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
 
 use crate::{node::DriaComputeNode, utils::crypto::sha256hash, waku::message::WakuMessage};
-
-use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct HeartbeatPayload {
@@ -34,7 +33,9 @@ pub fn heartbeat_worker(
                 }
                 _ = tokio::time::sleep(sleep_amount) => {
                     let messages = match node.process_topic(topic, true).await {
-                        Ok(messages) => messages,
+                        Ok(messages) => {
+                            messages
+                        },
                         Err(e) => {
                             log::error!("Error processing topic {}: {}", topic, e);
                             continue;
@@ -49,7 +50,7 @@ pub fn heartbeat_worker(
                         }
 
 
-                        log::info!("Received: {}", message);
+                        log::info!("Received heartbeat: {}", message);
 
                         let message = match message.parse_payload::<HeartbeatPayload>(true) {
                             Ok(body) => {
@@ -62,7 +63,6 @@ pub fn heartbeat_worker(
                                 continue;
                             }
                         };
-
 
                         // send message
                         if let Err(e) = node.send_message_once(message).await {

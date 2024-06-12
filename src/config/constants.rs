@@ -21,6 +21,10 @@ pub const DEFAULT_DKN_SYNTHESIS_MODEL_PROVIDER: &str = "Ollama";
 pub const DEFAULT_DKN_SYNTHESIS_MODEL_NAME_OPENAI: &str = "gtp-3.5-turbo";
 pub const DEFAULT_DKN_SYNTHESIS_MODEL_NAME_OLLAMA: &str = "phi3";
 
+///////////////////// Task: Search ///////////////////////
+pub const SEARCH_AGENT_URL: &str = "SEARCH_AGENT_URL";
+pub const SEARCH_AGENT_MANAGER: &str = "SEARCH_AGENT_MANAGER";
+
 //////////////////// Provider: Ollama ////////////////////
 pub const OLLAMA_HOST: &str = "OLLAMA_HOST";
 pub const OLLAMA_PORT: &str = "OLLAMA_PORT";
@@ -32,7 +36,3 @@ pub const OPENAI_API_BASE_URL: &str = "OPENAI_API_BASE_URL";
 pub const OPENAI_API_KEY: &str = "OPENAI_API_KEY";
 pub const OPENAI_ORG_ID: &str = "OPENAI_ORG_ID";
 pub const OPENAI_PROJECT_ID: &str = "OPENAI_PROJECT_ID";
-
-//////////////////// Task: Search ////////////////////
-pub const SEARCH_AGENT_URL: &str = "SEARCH_AGENT_URL";
-pub const SEARCH_AGENT_MANAGER: &str = "SEARCH_AGENT_MANAGER";
