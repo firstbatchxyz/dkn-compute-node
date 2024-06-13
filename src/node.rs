@@ -217,14 +217,14 @@ impl DriaComputeNode {
     /// - parses them into their respective payloads
     /// - filters out past-deadline & non-selected (with the Bloom Filter) tasks
     /// - sorts the tasks by their deadline
-    pub fn parse_messages<T>(&self, messages: Vec<WakuMessage>) -> Vec<TaskRequest<T>>
+    pub fn parse_messages<T>(&self, messages: Vec<WakuMessage>, signed: bool) -> Vec<TaskRequest<T>>
     where
         T: for<'a> Deserialize<'a>,
     {
         let mut task_payloads = messages
             .iter()
             .filter_map(|message| {
-                match message.parse_payload::<TaskRequestPayload<T>>(true) {
+                match message.parse_payload::<TaskRequestPayload<T>>(signed) {
                     Ok(task) => {
                         // check if deadline is past or not
                         if get_current_time_nanos() >= task.deadline {

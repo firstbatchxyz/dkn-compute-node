@@ -31,7 +31,7 @@ pub fn search_worker(
                             if messages.is_empty() {
                                 continue;
                             }
-                            node.parse_messages::<String>(messages)
+                            node.parse_messages::<String>(messages, true)
                         }
                         Err(e) => {
                             log::error!("Error processing topic {}: {}", topic, e);

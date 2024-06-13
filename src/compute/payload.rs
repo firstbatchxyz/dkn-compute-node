@@ -33,7 +33,7 @@ impl TaskResponsePayload {
 #[serde(rename_all = "camelCase")]
 pub struct TaskRequestPayload<T> {
     /// The unique identifier of the task.
-    pub(crate) task_id: String,
+    pub task_id: String,
     /// The deadline of the task in nanoseconds.
     pub(crate) deadline: u128,
     /// The input to the compute function.
@@ -45,10 +45,10 @@ pub struct TaskRequestPayload<T> {
 }
 
 impl<T> TaskRequestPayload<T> {
-    pub fn new(input: T, filter: BloomFilter) -> Self {
+    pub fn new(input: T, filter: BloomFilter, time_ns: u128) -> Self {
         Self {
             task_id: Uuid::new_v4().into(),
-            deadline: get_current_time_nanos(),
+            deadline: get_current_time_nanos() + time_ns,
             input,
             filter: filter.into(),
             public_key: "32".to_string(),
@@ -57,8 +57,9 @@ impl<T> TaskRequestPayload<T> {
 }
 
 /// A parsed `TaskRequestPayload`.
+#[derive(Debug, Clone)]
 pub struct TaskRequest<T> {
-    pub(crate) task_id: String,
+    pub task_id: String,
     pub(crate) input: T,
     pub(crate) public_key: Vec<u8>,
 }
