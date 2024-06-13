@@ -1,9 +1,25 @@
-#[cfg_attr(test, cfg(feature = "ollama_test"))]
-mod ollama_test {
-    use dkn_compute::compute::llm::ollama::create_ollama;
+mod compute_test {
+    use dkn_compute::compute::{llm::ollama::create_ollama, search_python::SearchPythonClient};
     use langchain_rust::{language_models::llm::LLM, llm::client::Ollama};
+    use std::env;
     use tokio_util::sync::CancellationToken;
 
+    #[cfg_attr(test, cfg(feature = "search_python_test"))]
+    #[tokio::test]
+    #[ignore = "run this manually"]
+    async fn test_search_python() {
+        env::set_var("RUST_LOG", "INFO");
+        let _ = env_logger::try_init();
+        let search_client = SearchPythonClient::new();
+
+        let result = search_client
+            .search("Who is the president of the United States?".to_string())
+            .await
+            .expect("should search");
+        println!("Result: {:?}", result);
+    }
+
+    #[cfg_attr(test, cfg(feature = "ollama_test"))]
     #[tokio::test]
     async fn test_ollama_prompt() {
         let model = "orca-mini".to_string();
@@ -21,6 +37,7 @@ mod ollama_test {
         println!("Prompt: {}\n\nResponse:{}", prompt, response);
     }
 
+    #[cfg_attr(test, cfg(feature = "ollama_test"))]
     #[tokio::test]
     async fn test_ollama_bad_model() {
         let model = "thismodeldoesnotexistlol".to_string();

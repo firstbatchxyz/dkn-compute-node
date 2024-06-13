@@ -1,6 +1,11 @@
+use fastbloom_rs::BloomFilter;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
-use crate::{errors::NodeResult, utils::filter::FilterPayload};
+use crate::{
+    errors::NodeResult,
+    utils::{filter::FilterPayload, get_current_time_nanos},
+};
 
 /// A computation task is the task of computing a result from a given input. The result is encrypted with the public key of the requester.
 /// Plain result is signed by the compute node's private key, and a commitment is computed from the signature and plain result.
@@ -37,6 +42,18 @@ pub struct TaskRequestPayload<T> {
     pub(crate) filter: FilterPayload,
     /// The public key of the requester.
     pub(crate) public_key: String,
+}
+
+impl<T> TaskRequestPayload<T> {
+    pub fn new(input: T, filter: BloomFilter) -> Self {
+        Self {
+            task_id: Uuid::new_v4().into(),
+            deadline: get_current_time_nanos(),
+            input,
+            filter: filter.into(),
+            public_key: "32".to_string(),
+        }
+    }
 }
 
 /// A parsed `TaskRequestPayload`.

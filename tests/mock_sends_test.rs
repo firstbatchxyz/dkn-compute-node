@@ -1,17 +1,45 @@
-#[cfg_attr(test, cfg(feature = "synthesis_aggregation_test"))]
-mod synthesis_aggregation_tests {
+mod mock_sends_test {
     use dkn_compute::{
-        compute::payload::TaskResponsePayload, node::DriaComputeNode, waku::message::WakuMessage,
+        compute::payload::TaskResponsePayload, node::DriaComputeNode, utils::crypto::sha256hash,
+        waku::message::WakuMessage,
     };
+    use std::{env, time::Duration};
 
     /// Sends pre-computed signatures on a specific task. This simulates a number of responses to a synthesis task.
     #[tokio::test]
-    async fn test_send() {
+    #[ignore = "run this manually"]
+    async fn test_send_multiple_heartbeats() {
+        env::set_var("RUST_LOG", "INFO");
+        let _ = env_logger::try_init();
+
+        let node = DriaComputeNode::default();
+        let timeout = Duration::from_millis(1000);
+        let num_heartbeats = 20;
+
+        let uuid = "59b93cb2-5738-4da4-992d-89a1835738d6"; // some random uuid
+
+        let signature = node.sign_bytes(&sha256hash(uuid.as_bytes()));
+        let message = WakuMessage::new(signature, &uuid);
+
+        for i in 1..=num_heartbeats {
+            println!("Sending heartbeat #{}", i);
+            if let Err(e) = node.send_message_once(message.clone()).await {
+                println!("Error sending message: {}", e);
+                continue;
+            }
+            tokio::time::sleep(timeout).await;
+        }
+    }
+
+    /// Sends pre-computed signatures on a specific task. This simulates a number of responses to a synthesis task.
+    #[tokio::test]
+    #[ignore = "run this manually"]
+    async fn test_send_hse_responses() {
         let _ = env_logger::try_init();
         let node = DriaComputeNode::default();
 
         let task_uid = "59b93cb2-5738-4da4-992d-89a1835738d6";
-        let payloads: Vec<TaskResponsePayload> = vec![
+        let payloads = vec![
             TaskResponsePayload {
                 ciphertext:"04418d872f94717351fa2f8e8b5de18182d05fc81818f6a0f7cb9df811931ede6fedb3180572bf6c3c5485628a23d5753efde59d5cb40df617e4c382aed15fbcc3b12dc07182aae21f7ef2a06f654f912a0c7a156dec148a186032b1b25551046612d1b304fc732192ca5665e016d9731b693e7f56e67d28b5fdb404e276c6bbadd23a3711697162dfa81f452d14c7073f8b7f81b5f208a71ee69ba44ba0023707ccbe5e0bf289bc08885e7d9636cb82e7c5e8b36caff2345379fa8a27595bc542668f54c1863b0d5e343b51b86ffd9985835165f4e78106df2024280cea356ffae661b5005473c3b186f5b1dcf27609ae417545ff04fa559a2d2c695fef9d11f9d7d71a323739553e6231289011b90c48c8cbfb0c89be5042724fa6338f40c534f2ac363fcd5e92735ba1c0a36a32b6febd28fb4455c8907dc76558328179749dcb945ebbcb8862ef04f4f783b3a3b86c12519afa8f042f87233aae421774034c564c5afac10b3082abaf47d5a7bf6207761d7907a0161f25e0fd48443d274eb5820ab2d290530fb5a398372931b2f226380263b7706a9c230716b3b0d9862ece1908d279edfe87796d9117096d9066bc4158165e150d54d558bc70452872436e941c673eb1c100adecfb49b233885e5026bfc688e50fbaf7ec7004cafb1ba40708e5b328c427272291cb47cc538b4e57aad5381cf19ab63af749c0792eb9706f286aae05580c36f0b91b09ba46be8e7f89fa253328785e2c61a660c3d794d0ed9ba77a18ac6a8b2d9be8ef35e0e77f3016ab6e506265b587d2a64edb8c0705ed5203c9685f2dff57efd17cf05193f6e77f6cbda04420fd265a9fce8f75bdac2a2dc6d7371fd26206490befb52c51560af8d0a75e9d7d898b84ebabc2367ba3431b5f74e87bb1593273c6e741a7c59de231d5060c2c7317c5d64740c17f7503f6e254a196f6fe95751f9151d64e5549764d066046b7229c23a311cce9aa387c50bda2f73fc5f82426c1d0f5f313c191107a3798890fd70237d248aef8b1f70827e94ec240229f60bfb7135bff6e5a6e9538bff1abfbc781b106c51b8b2f20df837c4837523fd7fa56a7ee3d9643b9d842ca98faf009c467a0dcb28c86f333e2bde0151e174e401edbefe10d8d5aedc7da32a8a3e7c942fac31a76aa726350a2005804862f624f1c164c866d291c33447595a873c62ff31489fc288b34c799465b1e79d2da1ac3af5dc7abaa3722ccfe9d58d91e46623be83dd9c0a4547dca76da38f289ddc7a3e5ca93182548694959e07afc57c8e989635efbbf6c5947170470cd62dd16e8e037c21c77d77d05d59cd052d72ba8e6dea579f650de9791f7140db98173b1031327d461a43beec51c8e0cfed95a2933ab7a7b8a4d4a6e4317d353704b54a87a1986185e99f268a1e653a549aec1e0fd377ada65b2f49e84090cce2a8d2f8adc9ba0dfda96421ff8e972ab6fe6a3ed79ee6b45eaa2e9267769138d385c8390d6cffd90a4081cf6b617443438f7e1050bff15fc842d8717a669463cc5aa91c72dd319b1893492410a4379256c7322ce99efe8aaec9593f4b8c367a68464d9ba0f5eae906320de632fefadb99bef1833a7b8acfc044fff0e4af9eb6111da02c3e7f1af591eae335b7741f94a5ef0cd6f81265f61952e1b07d13e019edabf864c13426713d6b66edaba6ad980e9f9dfa78b654d9d60ed89bdb5e56cf4d4d626b50d3176792c27c4d478a4245b598d56ee34a1e5d51aaa26af8ad5d4508462d892acb1b14694c98a4650a7c315ac8224b5db0190b8e86f7c9195833a5593f5be6d6205325ce90ceaaa94d692b8d51c0deba7b3e378991f0d0059fc92603e085a9949ba5bc56e4ee24b53be28fc792012813500774bcc00ca406c010981976a67038a20a39080ac36e77a4505fe0fe54a76bb99943a84d58b8b6852724a61138076b2321814c85c75aa5ce8d9b7b0d92eee7e3faa19ce0f96912fdf19c0d382e48da9699a525c0fcc141f5a59fc23b77aca35ffd64d50709caa1c3e9854c2036aa421454e9a1b9bf70d9911920c2a53a404a0d541d4f98cb117605ac9350405fec788e3119732805af13e64b585e49cb710446744d2d4c4901258acebab4dbb5ac3c04334ddc0a5345b0d63e18032f44a35215bb68d4fb49375f0521d4f1b4602eb12a62f80dfac186dacff44ce72844fdfd325a80798308144c427cb70666c12572d3f3e6cd7f40e7544a027893eed0f7ef6fb72a58d91f370a311955512c7d85ed875c66c82fcd77fb960863c58671de393d14f9b88cbe29ac4349f5dca646d79dcadb0885632e567a8ec8793880be18acfd02e0b2a651014fa3e2f273715c100438d75776707bd89c0dc6dd52c90bb95e270d0698d5697a1e16b8a9e9d983a9ecc34318eac5d1bb3be4ee5d078120b97a4923a55a8a4909e1069e8899785805300b9d764f8ffae46ad9ad4f8505f4a04579015b1f3f8a24a828f37bf5f30fa41cb84ebfda4336294a1c40affb627ed9013a3f2861d57f8af6ae8eae809cf7bf42d00f47b09653e30518dadfe62e98bf1039b9d1fba1c7436524370b49668295045d6274fcb313997eec1c93c0975ebe784019d59394b4451a753d23165ab303078a4cf575ce7e5638cea06d06a286d1afb35637814036a6edce3f757e5e23ff333142bc4e9b9475ab70e250c1cafe1c11a1735521ec5acdebb450ae8afc0896d8d0124cd7c48d90168850504916ad6fab5d740".to_string(),
                 commitment:"0e45a393e8140d062dd0162e074dda83efe268fb2ae34e29fcca46a33a5e2476".to_string(),

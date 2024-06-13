@@ -235,7 +235,7 @@ impl DriaComputeNode {
                         // check task inclusion via the bloom filter
                         match self.is_tasked(&task.filter) {
                             Ok(is_tasked) => {
-                                if is_tasked {
+                                if !is_tasked {
                                     log::debug!("Skipping {} due to filter.", task.task_id);
                                     return None;
                                 }

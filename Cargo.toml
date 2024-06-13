@@ -11,8 +11,6 @@ default = []
 # test features
 waku_test = []
 ollama_test = []
-synthesis_aggregation_test = []
-heartbeats_test = []
 search_python_test = []
 
 [dependencies]
@@ -48,6 +46,7 @@ sha3 = "0.10.8"
 # llm stuff
 langchain-rust = { version = "4.2.0", features = ["ollama"] }
 ollama-rs = "0.1.9"
+uuid = { version = "1.8.0", features = ["v4"] }
 
 [dev-dependencies]
 colored = "2.1.0"

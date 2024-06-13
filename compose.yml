@@ -127,6 +127,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       SERPER_API_KEY: ${SERPER_API_KEY}
       BROWSERLESS_TOKEN: ${BROWSERLESS_TOKEN}
+      AGENT_MAX_ITER: 1
 
       OLLAMA_URL: ${OLLAMA_HOST}:${OLLAMA_PORT}
       QDRANT_URL: http://host.docker.internal:6333
