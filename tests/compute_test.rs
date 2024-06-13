@@ -1,3 +1,5 @@
+#![allow(unused_imports)]
+
 mod compute_test {
     use dkn_compute::compute::{llm::ollama::create_ollama, search_python::SearchPythonClient};
     use langchain_rust::{language_models::llm::LLM, llm::client::Ollama};

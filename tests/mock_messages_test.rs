@@ -4,7 +4,7 @@ mod mock_messages_test {
     };
     use fastbloom_rs::{FilterBuilder, Membership};
     use serde::{Deserialize, Serialize};
-    use std::{env, time::Duration};
+    use std::time::Duration;
     use uuid::Uuid;
 
     #[derive(Serialize, Deserialize, Clone, Debug)]

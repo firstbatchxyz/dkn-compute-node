@@ -246,7 +246,7 @@ impl DriaComputeNode {
                             }
                         }
 
-                        return Some(task);
+                        Some(task)
                     }
                     Err(e) => {
                         log::error!("Error parsing payload: {}", e);
@@ -259,7 +259,7 @@ impl DriaComputeNode {
         task_payloads.sort_by(|a, b| a.deadline.cmp(&b.deadline));
 
         // convert to TaskRequest
-        let tasks = task_payloads
+        task_payloads
             .into_iter()
             .filter_map(|task| {
                 let task_public_key = match hex::decode(&task.public_key) {
@@ -276,9 +276,7 @@ impl DriaComputeNode {
                     public_key: task_public_key,
                 })
             })
-            .collect();
-
-        tasks
+            .collect()
     }
 
     /// Given a task with `id` and respective `public_key`, encrypts the result and obtains
@@ -289,7 +287,7 @@ impl DriaComputeNode {
         public_key: &[u8],
         result: R,
     ) -> NodeResult<()> {
-        let payload = self.create_payload(result.as_ref(), &public_key)?;
+        let payload = self.create_payload(result.as_ref(), public_key)?;
         let payload_str = payload.to_string()?;
         let message = WakuMessage::new(payload_str, id);
 
