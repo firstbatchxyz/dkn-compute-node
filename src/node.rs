@@ -215,6 +215,7 @@ impl DriaComputeNode {
     /// Given a list of messages, this function:
     ///
     /// - parses them into their respective payloads
+    /// - checks the signatures (if `signed = true`) w.r.t admin public key
     /// - filters out past-deadline & non-selected (with the Bloom Filter) tasks
     /// - sorts the tasks by their deadline
     pub fn parse_messages<T>(&self, messages: Vec<WakuMessage>, signed: bool) -> Vec<TaskRequest<T>>

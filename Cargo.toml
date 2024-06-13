@@ -46,6 +46,8 @@ sha3 = "0.10.8"
 # llm stuff
 langchain-rust = { version = "4.2.0", features = ["ollama"] }
 ollama-rs = "0.1.9"
+ollama-workflows = { git = "https://github.com/andthattoo/ollama-workflows", branch = "main" }
+
 uuid = { version = "1.8.0", features = ["v4"] }
 
 [dev-dependencies]

@@ -45,13 +45,13 @@ pub struct TaskRequestPayload<T> {
 }
 
 impl<T> TaskRequestPayload<T> {
-    pub fn new(input: T, filter: BloomFilter, time_ns: u128) -> Self {
+    pub fn new(input: T, filter: BloomFilter, time_ns: u128, public_key: Option<String>) -> Self {
         Self {
             task_id: Uuid::new_v4().into(),
             deadline: get_current_time_nanos() + time_ns,
             input,
             filter: filter.into(),
-            public_key: "32".to_string(),
+            public_key: public_key.unwrap_or_default(),
         }
     }
 }

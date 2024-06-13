@@ -24,7 +24,7 @@ mod mock_messages_test {
         let mut filter = FilterBuilder::new(128, 0.01).build_bloom_filter();
         filter.add(&node.address());
 
-        let payload_tasked = TaskRequestPayload::new(input.clone(), filter, time);
+        let payload_tasked = TaskRequestPayload::new(input.clone(), filter, time, None);
         let payload_str = serde_json::to_string(&payload_tasked).unwrap();
         messages.push(WakuMessage::new(payload_str, topic));
 
@@ -32,7 +32,7 @@ mod mock_messages_test {
         let mut filter = FilterBuilder::new(128, 0.01).build_bloom_filter();
         filter.add(&Uuid::new_v4().to_string().as_bytes()); // something dummy
 
-        let payload_not_tasked = TaskRequestPayload::new(input, filter, time);
+        let payload_not_tasked = TaskRequestPayload::new(input, filter, time, None);
         let payload_str = serde_json::to_string(&payload_not_tasked).unwrap();
         messages.push(WakuMessage::new(payload_str, topic));
 
