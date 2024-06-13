@@ -34,10 +34,6 @@ test-ollama:
 test-waku:
 		cargo test waku_test --features=waku_test
 
-.PHONY: test-synth-aggr
-test-synth-aggr:
-		RUST_LOG=info cargo test synthesis_aggregation_test --features=synthesis_aggregation_test
-
 ############################################################################### 
 .PHONY: prompt #       | Run a single prompt on a model
 prompt:

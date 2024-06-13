@@ -13,6 +13,12 @@ use crate::config::constants::*;
 /// - `OPENAI_API_KEY`
 /// - `OPENAI_ORG_ID`
 /// - `OPENAI_PROJECT_ID`
+///
+/// ### Examples
+///
+/// ```rs
+/// fdsjkjfds
+/// ```
 pub fn create_openai(model: String) -> OpenAI<OpenAIConfig> {
     let mut config = OpenAIConfig::default();
 
