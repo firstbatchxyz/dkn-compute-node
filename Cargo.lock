@@ -2185,19 +2185,7 @@ dependencies = [
 [[package]]
 name = "ollama-rs"
 version = "0.1.9"
-source = "git+https://github.com/pepperoni21/ollama-rs.git?branch=master#56e8157d98d4185bc171fe9468d3d09bc56e9dd3"
-dependencies = [
- "reqwest 0.12.4",
- "serde",
- "serde_json",
- "url",
-]
-
-[[package]]
-name = "ollama-rs"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "255252ec57e13d2d6ae074c7b7cd8c004d17dafb1e03f954ba2fd5cc226f8f49"
+source = "git+https://github.com/andthattoo/ollama-rs?branch=master#426b6d698a58a737f145054cd12555658b5e5e4b"
 dependencies = [
  "async-trait",
  "log",
@@ -2211,9 +2199,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "ollama-rs"
+version = "0.1.9"
+source = "git+https://github.com/pepperoni21/ollama-rs.git?branch=master#56e8157d98d4185bc171fe9468d3d09bc56e9dd3"
+dependencies = [
+ "reqwest 0.12.4",
+ "serde",
+ "serde_json",
+ "url",
+]
+
+[[package]]
 name = "ollama-workflows"
 version = "0.1.0"
-source = "git+https://github.com/andthattoo/ollama-workflows?branch=main#fe24157a0997f6a1966b6da4751ee556cd21c233"
+source = "git+https://github.com/andthattoo/ollama-workflows?branch=main#eeac2a6c104d9f46794995511c09ce58e204e2b6"
 dependencies = [
  "async-trait",
  "colored",
@@ -2222,7 +2221,7 @@ dependencies = [
  "html2text",
  "langchain-rust",
  "log",
- "ollama-rs 0.2.0",
+ "ollama-rs 0.1.9 (git+https://github.com/andthattoo/ollama-rs?branch=master)",
  "parking_lot",
  "rand 0.8.5",
  "regex",

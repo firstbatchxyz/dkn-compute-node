@@ -26,10 +26,6 @@ build-all:
 test:
 		cargo test
 
-.PHONY: test-ollama #  | Run Ollama integration tests only
-test-ollama:
-		cargo test ollama_test --features=ollama_test
-
 .PHONY: test-waku #    | Run Waku integration tests only
 test-waku:
 		cargo test waku_test --features=waku_test

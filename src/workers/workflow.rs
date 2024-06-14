@@ -10,6 +10,7 @@ pub fn workflow_worker(
     sleep_amount: Duration,
     model: Option<String>,
 ) -> tokio::task::JoinHandle<()> {
+    // TODO: decide the model based on workflow
     let model = if let Some(model) = model {
         Model::try_from(model).unwrap_or_else(|model| {
             log::error!("Invalid model provided: {}, defaulting.", model);
@@ -18,14 +19,13 @@ pub fn workflow_worker(
     } else {
         Model::default()
     };
+    log::info!("Using model: {:?}", model);
 
     // this ID is given in the workflow itself, but within Dria we always
     // use "final_result" for this ID.
     let final_result_id = "final_result".to_string();
 
     tokio::spawn(async move {
-        let exe = Executor::new(model);
-
         node.subscribe_topic(topic).await;
 
         loop {
@@ -59,6 +59,7 @@ pub fn workflow_worker(
                         }
 
                         for task in tasks {
+                            let exe = Executor::new(model.clone()); // TODO: model shall be workflow specific
                             let mut memory = ProgramMemory::new();
                             exe.execute(None, task.input, &mut memory).await;
 
@@ -68,8 +69,8 @@ pub fn workflow_worker(
                                     log::error!("No final result found in memory for task {}", task.task_id);
                                     continue;
                                 },
-
                             };
+
                             if let Err(e) = node.send_task_result(&task.task_id, &task.public_key, result).await {
                                 log::error!("Error sending task result: {}", e);
                             };
@@ -77,8 +78,6 @@ pub fn workflow_worker(
 
                         node.set_busy(false);
                     }
-
-
                 }
             }
         }
