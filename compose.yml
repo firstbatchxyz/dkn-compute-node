@@ -96,43 +96,5 @@ services:
               capabilities: [gpu]
     profiles: [ollama-cuda]
 
-  # Qdrant VectorDB for Search Agent
-  qdrant:
-    image: qdrant/qdrant
-    ports:
-      - "6333:6333"
-      - "6334:6334"
-    volumes:
-      - ./qdrant_storage:/qdrant/storage:z
-    profiles: [search-python]
-
-  # Browser automation for Search Agent
-  browserless:
-    image: ghcr.io/browserless/chromium
-    environment:
-      - TOKEN=${BROWSERLESS_TOKEN}
-    ports:
-      - "3030:3000"
-    profiles: [search-python]
-
-  # Dria Search Agent (Python)
-  search-agent:
-    image: firstbatch/dria-searching-agent:latest
-    ports:
-      - 5059:5000
-    env_file:
-      - .env.compose
-    environment:
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      SERPER_API_KEY: ${SERPER_API_KEY}
-      BROWSERLESS_TOKEN: ${BROWSERLESS_TOKEN}
-      AGENT_MAX_ITER: 3
-
-      OLLAMA_URL: ${OLLAMA_HOST}:${OLLAMA_PORT}
-      QDRANT_URL: http://host.docker.internal:6333
-      BROWSERLESS_URL: http://host.docker.internal:3000
-    profiles: [search-python]
-
 volumes:
   ollama:

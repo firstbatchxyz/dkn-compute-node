@@ -1,26 +1,22 @@
-use ollama_workflows::{Executor, Model, ProgramMemory, Workflow};
+use ollama_workflows::{Entry, Executor, Model, ProgramMemory, Workflow};
+use serde::Deserialize;
 use std::sync::Arc;
 use std::time::Duration;
 
 use crate::node::DriaComputeNode;
 
+#[derive(Debug, Deserialize)]
+struct WorkflowPayload {
+    pub(crate) workflow: Workflow,
+    pub(crate) model: String,
+    pub(crate) prompt: String,
+}
+
 pub fn workflow_worker(
     node: Arc<DriaComputeNode>,
     topic: &'static str,
     sleep_amount: Duration,
-    model: Option<String>,
 ) -> tokio::task::JoinHandle<()> {
-    // TODO: decide the model based on workflow
-    let model = if let Some(model) = model {
-        Model::try_from(model).unwrap_or_else(|model| {
-            log::error!("Invalid model provided: {}, defaulting.", model);
-            Model::default()
-        })
-    } else {
-        Model::default()
-    };
-    log::info!("Using model: {:?}", model);
-
     // this ID is given in the workflow itself, but within Dria we always
     // use "final_result" for this ID.
     let final_result_id = "final_result".to_string();
@@ -42,7 +38,7 @@ pub fn workflow_worker(
                             if messages.is_empty() {
                                 continue;
                             }
-                            node.parse_messages::<Workflow>(messages, true)
+                            node.parse_messages::<WorkflowPayload>(messages, true)
                         }
                         Err(e) => {
                             log::error!("Error processing topic {}: {}", topic, e);
@@ -59,10 +55,20 @@ pub fn workflow_worker(
                         }
 
                         for task in tasks {
-                            let exe = Executor::new(model.clone()); // TODO: model shall be workflow specific
-                            let mut memory = ProgramMemory::new();
-                            exe.execute(None, task.input, &mut memory).await;
+                            // read model from the task
+                            let model = Model::try_from(task.input.model.clone()).unwrap_or_else(|model| {
+                                log::error!("Invalid model provided: {}, defaulting.", model);
+                                Model::default()
+                            });
+                            log::info!("Using model {}", model);
 
+                            // execute workflow
+                            let executor = Executor::new(model);
+                            let mut memory = ProgramMemory::new();
+                            let entry = Entry::String(task.input.prompt);
+                            executor.execute(Some(&entry), task.input.workflow, &mut memory).await;
+
+                            // read final result from memory
                             let result = match memory.read(&final_result_id) {
                                 Some(entry) => entry.to_string(),
                                 None => {

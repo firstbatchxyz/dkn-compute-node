@@ -1,25 +1,11 @@
 #![allow(unused_imports)]
 
 mod compute_test {
-    use dkn_compute::compute::{llm::ollama::create_ollama, search_python::SearchPythonClient};
+    use dkn_compute::compute::llm::ollama::create_ollama;
     use langchain_rust::{language_models::llm::LLM, llm::client::Ollama};
     use ollama_workflows::{Entry, Executor, Model, ProgramMemory, Workflow};
     use std::env;
     use tokio_util::sync::CancellationToken;
-
-    #[tokio::test]
-    #[ignore = "run this manually"]
-    async fn test_search_python() {
-        env::set_var("RUST_LOG", "INFO");
-        let _ = env_logger::try_init();
-        let search_client = SearchPythonClient::new();
-
-        let result = search_client
-            .search("Who is the president of the United States?".to_string())
-            .await
-            .expect("should search");
-        println!("Result: {:?}", result);
-    }
 
     #[tokio::test]
     #[ignore = "run this manually"]
@@ -59,7 +45,7 @@ mod compute_test {
     "config": {
         "max_steps": 5,
         "max_time": 100,
-        "tools": []
+        "tools": [],
     },
     "tasks":[
         {

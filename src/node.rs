@@ -40,16 +40,10 @@ impl DriaComputeNode {
         }
     }
 
-    /// Returns the wallet address of the node.
-    #[inline]
-    pub fn address(&self) -> [u8; 20] {
-        self.config.DKN_WALLET_ADDRESS
-    }
-
     /// Shorthand to sign a digest with node's secret key and return signature & recovery id.
     #[inline]
     pub fn sign(&self, message: &Message) -> (Signature, RecoveryId) {
-        sign(message, &self.config.DKN_WALLET_SECRET_KEY)
+        sign(message, &self.config.secret_key)
     }
 
     /// Returns the state of the node, whether it is busy or not.
@@ -69,7 +63,7 @@ impl DriaComputeNode {
     #[inline]
     pub fn sign_bytes(&self, message: &[u8; 32]) -> String {
         let message = Message::parse(message);
-        let (signature, recid) = sign(&message, &self.config.DKN_WALLET_SECRET_KEY);
+        let (signature, recid) = sign(&message, &self.config.secret_key);
 
         format!(
             "{}{}",
@@ -85,7 +79,7 @@ impl DriaComputeNode {
     pub fn is_tasked(&self, filter: &FilterPayload) -> NodeResult<bool> {
         let filter = BloomFilter::try_from(filter)?;
 
-        Ok(filter.contains(&self.address()))
+        Ok(filter.contains(&self.config.address))
     }
 
     /// Creates the payload of a computation result, as per Dria Whitepaper section 5.1 algorithm 2:
@@ -101,7 +95,7 @@ impl DriaComputeNode {
         // sign result
         let result_digest: [u8; 32] = sha256hash(result.as_ref());
         let result_msg = Message::parse(&result_digest);
-        let (signature, recid) = sign(&result_msg, &self.config.DKN_WALLET_SECRET_KEY);
+        let (signature, recid) = sign(&result_msg, &self.config.secret_key);
         let signature: [u8; 64] = signature.serialize();
         let recid: [u8; 1] = [recid.serialize()];
 
@@ -198,7 +192,7 @@ impl DriaComputeNode {
         if signed {
             messages.retain(|message| {
                 message
-                    .is_signed(&self.config.DKN_ADMIN_PUBLIC_KEY)
+                    .is_signed(&self.config.admin_public_key)
                     .unwrap_or_else(|e| {
                         log::warn!("Could not verify message signature: {}", e);
                         false
@@ -344,7 +338,7 @@ mod tests {
         let result_digest = sha256hash(result);
         let message = Message::parse(&result_digest);
         assert!(
-            verify(&message, &signature, &node.config.DKN_WALLET_PUBLIC_KEY),
+            verify(&message, &signature, &node.config.public_key),
             "Could not verify"
         );
 
@@ -352,7 +346,7 @@ mod tests {
         let recovered_public_key =
             libsecp256k1::recover(&message, &signature, &recid).expect("Could not recover");
         assert_eq!(
-            node.config.DKN_WALLET_PUBLIC_KEY, recovered_public_key,
+            node.config.public_key, recovered_public_key,
             "Public key mismatch"
         );
 

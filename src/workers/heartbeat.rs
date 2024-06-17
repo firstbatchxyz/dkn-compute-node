@@ -23,6 +23,9 @@ pub fn heartbeat_worker(
     tokio::spawn(async move {
         node.subscribe_topic(topic).await;
 
+        // TODO: respond with models_str
+        // let models_str = serde_json::to_string(&node.config.models).unwrap();
+
         loop {
             tokio::select! {
                 _ = node.cancellation.cancelled() => {
@@ -33,9 +36,7 @@ pub fn heartbeat_worker(
                 }
                 _ = tokio::time::sleep(sleep_amount) => {
                     let messages = match node.process_topic(topic, true).await {
-                        Ok(messages) => {
-                            messages
-                        },
+                        Ok(messages) => messages,
                         Err(e) => {
                             log::error!("Error processing topic {}: {}", topic, e);
                             continue;
@@ -49,9 +50,7 @@ pub fn heartbeat_worker(
                             continue;
                         }
 
-
                         log::info!("Received heartbeat: {}", message);
-
                         let message = match message.parse_payload::<HeartbeatPayload>(true) {
                             Ok(body) => {
                                 let uuid = body.uuid;
@@ -68,11 +67,7 @@ pub fn heartbeat_worker(
                         if let Err(e) = node.send_message_once(message).await {
                             log::error!("Error sending message: {}", e);
                         }
-
                     }
-
-
-
                 }
             }
         }
@@ -132,11 +127,11 @@ mod tests {
             recover(&heartbeat_message, &heartbeat_signature, &heartbeat_recid)
                 .expect("Could not recover");
         assert_eq!(
-            node.config.DKN_WALLET_PUBLIC_KEY, recovered_public_key,
+            node.config.public_key, recovered_public_key,
             "Public key mismatch"
         );
         let address = to_address(&recovered_public_key);
-        assert_eq!(address, node.address(), "Address mismatch");
+        assert_eq!(address, node.config.address, "Address mismatch");
 
         // admin node assigns the task to the compute node via Bloom Filter
         let mut bloom = FilterBuilder::new(100, 0.01).build_bloom_filter();

@@ -22,7 +22,7 @@ mod mock_messages_test {
 
         // create filter with your own address
         let mut filter = FilterBuilder::new(128, 0.01).build_bloom_filter();
-        filter.add(&node.address());
+        filter.add(&node.config.address);
 
         let payload_tasked = TaskRequestPayload::new(input.clone(), filter, time, None);
         let payload_str = serde_json::to_string(&payload_tasked).unwrap();
