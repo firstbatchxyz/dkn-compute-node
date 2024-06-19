@@ -2212,7 +2212,7 @@ dependencies = [
 [[package]]
 name = "ollama-workflows"
 version = "0.1.0"
-source = "git+https://github.com/andthattoo/ollama-workflows?branch=main#eeac2a6c104d9f46794995511c09ce58e204e2b6"
+source = "git+https://github.com/andthattoo/ollama-workflows?branch=main#18996ec26adfab02ef1b3397c478e3b068eeeaf1"
 dependencies = [
  "async-trait",
  "colored",

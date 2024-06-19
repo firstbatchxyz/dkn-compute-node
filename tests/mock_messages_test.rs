@@ -1,6 +1,6 @@
 mod mock_messages_test {
     use dkn_compute::{
-        compute::payload::TaskRequestPayload, node::DriaComputeNode, waku::message::WakuMessage,
+        node::DriaComputeNode, utils::payload::TaskRequestPayload, waku::message::WakuMessage,
     };
     use fastbloom_rs::{FilterBuilder, Membership};
     use serde::{Deserialize, Serialize};

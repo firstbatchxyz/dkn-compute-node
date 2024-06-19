@@ -1,6 +1,7 @@
 pub mod crypto;
 pub mod filter;
 pub mod http;
+pub mod payload;
 
 use std::time::{Duration, SystemTime};
 use tokio::signal::unix::{signal, SignalKind};

@@ -12,9 +12,11 @@ struct WorkflowPayload {
     pub(crate) prompt: String,
 }
 
+const REQUEST_TOPIC: &str = "workflow";
+const RESPONSE_TOPIC: &str = "results";
+
 pub fn workflow_worker(
     node: Arc<DriaComputeNode>,
-    topic: &'static str,
     sleep_amount: Duration,
 ) -> tokio::task::JoinHandle<()> {
     // this ID is given in the workflow itself, but within Dria we always
@@ -22,18 +24,14 @@ pub fn workflow_worker(
     let final_result_id = "final_result".to_string();
 
     tokio::spawn(async move {
-        node.subscribe_topic(topic).await;
+        node.subscribe_topic(REQUEST_TOPIC).await;
+        node.subscribe_topic(RESPONSE_TOPIC).await;
 
         loop {
             tokio::select! {
-                _ = node.cancellation.cancelled() => {
-                    if let Err(e) = node.unsubscribe_topic(topic).await {
-                        log::error!("Error unsubscribing from {}: {}\nContinuing anyway.", topic, e);
-                    }
-                    break;
-                }
+                _ = node.cancellation.cancelled() => break,
                 _ = tokio::time::sleep(sleep_amount) => {
-                    let tasks = match node.process_topic(topic, true).await {
+                    let tasks = match node.process_topic(REQUEST_TOPIC, true).await {
                         Ok(messages) => {
                             if messages.is_empty() {
                                 continue;
@@ -41,15 +39,16 @@ pub fn workflow_worker(
                             node.parse_messages::<WorkflowPayload>(messages, true)
                         }
                         Err(e) => {
-                            log::error!("Error processing topic {}: {}", topic, e);
+                            log::error!("Error processing topic {}: {}", REQUEST_TOPIC, e);
                             continue;
                         }
                     };
                     if tasks.is_empty() {
-                        log::info!("No {} tasks.", topic);
+                        log::info!("No {} tasks.", REQUEST_TOPIC);
                     } else {
                         node.set_busy(true);
-                        log::info!("Processing {} {} tasks.", tasks.len(), topic);
+
+                        log::info!("Processing {} {} tasks.", tasks.len(), REQUEST_TOPIC);
                         for task in &tasks {
                             log::debug!("Task ID: {}", task.task_id);
                         }
@@ -77,8 +76,9 @@ pub fn workflow_worker(
                                 },
                             };
 
-                            if let Err(e) = node.send_task_result(&task.task_id, &task.public_key, result).await {
+                            if let Err(e) = node.send_result(&task.task_id, &task.public_key, result).await {
                                 log::error!("Error sending task result: {}", e);
+                                continue;
                             };
                         }
 
@@ -87,5 +87,8 @@ pub fn workflow_worker(
                 }
             }
         }
+
+        node.unsubscribe_topic_ignored(REQUEST_TOPIC).await;
+        node.unsubscribe_topic_ignored(RESPONSE_TOPIC).await;
     })
 }

@@ -1,6 +1,6 @@
 mod mock_sends_test {
     use dkn_compute::{
-        compute::payload::TaskResponsePayload, node::DriaComputeNode, utils::crypto::sha256hash,
+        node::DriaComputeNode, utils::crypto::sha256hash, utils::payload::TaskResponsePayload,
         waku::message::WakuMessage,
     };
     use std::{env, time::Duration};

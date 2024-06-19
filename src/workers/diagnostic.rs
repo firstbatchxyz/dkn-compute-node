@@ -17,6 +17,7 @@ pub fn diagnostic_worker(
     tokio::spawn(async move {
         let mut num_peers: usize = 0;
         let mut num_checks: usize = 0;
+
         loop {
             tokio::select! {
                 _ = node.cancellation.cancelled() => break,
@@ -24,6 +25,7 @@ pub fn diagnostic_worker(
 
                     match node.waku.peers().await {
                         Ok(peers) => {
+                            // if peer count changes, print it
                             if num_peers != peers.len() {
                                 num_peers = peers.len();
                                 log::info!("Active number of peers: {}", num_peers);

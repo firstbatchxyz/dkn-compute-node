@@ -33,13 +33,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracker.spawn(heartbeat_worker(
         node.clone(),
-        "heartbeat",
         tokio::time::Duration::from_millis(1000),
     ));
 
     tracker.spawn(workflow_worker(
         node.clone(),
-        "workflow",
         tokio::time::Duration::from_millis(1000),
     ));
 

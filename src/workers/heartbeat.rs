@@ -1,3 +1,4 @@
+use ollama_workflows::{Model, ModelProvider};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
@@ -10,6 +11,15 @@ struct HeartbeatPayload {
     deadline: u128,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct HeartbeatResponse {
+    pub(crate) uuid: String,
+    pub(crate) models: Vec<(ModelProvider, Model)>,
+}
+
+const REQUEST_TOPIC: &str = "heartbeat";
+const RESPONSE_TOPIC: &str = "pong";
+
 /// # Heartbeat
 ///
 /// A heartbeat is a message sent by a node to indicate that it is alive. Dria nodes request
@@ -17,28 +27,21 @@ struct HeartbeatPayload {
 /// identified with the `uuid`.
 pub fn heartbeat_worker(
     node: Arc<DriaComputeNode>,
-    topic: &'static str,
     sleep_amount: Duration,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
-        node.subscribe_topic(topic).await;
-
-        // TODO: respond with models_str
-        // let models_str = serde_json::to_string(&node.config.models).unwrap();
+        node.subscribe_topic(REQUEST_TOPIC).await;
+        node.subscribe_topic(RESPONSE_TOPIC).await;
 
         loop {
             tokio::select! {
-                _ = node.cancellation.cancelled() => {
-                    if let Err(e) = node.unsubscribe_topic(topic).await {
-                        log::error!("Error unsubscribing from {}: {}\nContinuing anyway.", topic, e);
-                    }
-                    break;
-                }
+                _ = node.cancellation.cancelled() => break,
                 _ = tokio::time::sleep(sleep_amount) => {
-                    let messages = match node.process_topic(topic, true).await {
+
+                    let messages = match node.process_topic(REQUEST_TOPIC, true).await {
                         Ok(messages) => messages,
                         Err(e) => {
-                            log::error!("Error processing topic {}: {}", topic, e);
+                            log::error!("Error processing {}: {}", REQUEST_TOPIC, e);
                             continue;
                         }
                     };
@@ -52,10 +55,13 @@ pub fn heartbeat_worker(
 
                         log::info!("Received heartbeat: {}", message);
                         let message = match message.parse_payload::<HeartbeatPayload>(true) {
-                            Ok(body) => {
-                                let uuid = body.uuid;
-                                let signature = node.sign_bytes(&sha256hash(uuid.as_bytes()));
-                                WakuMessage::new(signature, &uuid)
+                            Ok(request_body) => {
+                                let response_body = HeartbeatResponse {
+                                    uuid: request_body.uuid.clone(),
+                                    models: node.config.models.clone(),
+                                };
+                                let signature = node.sign_bytes(&sha256hash(serde_json::json!(response_body).to_string()));
+                                WakuMessage::new(signature, RESPONSE_TOPIC)
                             }
                             Err(e) => {
                                 log::error!("Error parsing payload: {}", e);
@@ -63,14 +69,17 @@ pub fn heartbeat_worker(
                             }
                         };
 
-                        // send message
-                        if let Err(e) = node.send_message_once(message).await {
-                            log::error!("Error sending message: {}", e);
+                        if let Err(e) = node.send_message(message).await {
+                            log::error!("Error responding heartbeat: {}", e);
+                            continue;
                         }
                     }
                 }
             }
         }
+
+        node.unsubscribe_topic_ignored(REQUEST_TOPIC).await;
+        node.unsubscribe_topic_ignored(RESPONSE_TOPIC).await;
     })
 }
 

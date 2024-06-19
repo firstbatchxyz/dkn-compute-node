@@ -1,21 +1,19 @@
-use ollama_workflows::Model;
+use ollama_workflows::{Model, ModelProvider};
 
-pub fn parse_dkn_models(models_str: String) -> Vec<Model> {
-    let tasks: Vec<Model> = models_str
+pub fn parse_dkn_models(models_str: String) -> Vec<(ModelProvider, Model)> {
+    models_str
         .split(',')
         .filter_map(|s| {
             let s = s.trim().to_lowercase();
             match Model::try_from(s) {
-                Ok(model) => Some(model),
+                Ok(model) => Some((model.clone().into(), model)),
                 Err(e) => {
-                    log::warn!("Invalid model: {}", e);
+                    log::warn!("Invalid model: '{}'k", e);
                     None
                 }
             }
         })
-        .collect();
-
-    tasks
+        .collect()
 }
 
 #[cfg(test)]

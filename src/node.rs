@@ -6,9 +6,9 @@ use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    compute::payload::{TaskRequest, TaskRequestPayload, TaskResponsePayload},
     config::DriaComputeNodeConfig,
     errors::NodeResult,
+    utils::payload::{TaskRequest, TaskRequestPayload, TaskResponsePayload},
     utils::{crypto::sha256hash, filter::FilterPayload, get_current_time_nanos},
     waku::{message::WakuMessage, WakuClient},
 };
@@ -154,6 +154,17 @@ impl DriaComputeNode {
         Ok(())
     }
 
+    /// Unsubscribe from a certain task with its topic, ignoring the error.
+    pub async fn unsubscribe_topic_ignored(&self, topic: &str) {
+        if let Err(e) = self.unsubscribe_topic(topic).await {
+            log::error!(
+                "Error unsubscribing from {}: {}\nContinuing anyway.",
+                topic,
+                e
+            );
+        }
+    }
+
     /// Send a message via Waku Relay, assuming the content is subscribed to already.
     pub async fn send_message(&self, message: WakuMessage) -> NodeResult<()> {
         self.waku.relay.send_message(message).await
@@ -276,15 +287,15 @@ impl DriaComputeNode {
 
     /// Given a task with `id` and respective `public_key`, encrypts the result and obtains
     /// the `h || s || e` payload, and sends it to the Waku network.
-    pub async fn send_task_result<R: AsRef<[u8]>>(
+    pub async fn send_result<R: AsRef<[u8]>>(
         &self,
-        id: &str,
+        response_topic: &str,
         public_key: &[u8],
         result: R,
     ) -> NodeResult<()> {
         let payload = self.create_payload(result.as_ref(), public_key)?;
         let payload_str = payload.to_string()?;
-        let message = WakuMessage::new(payload_str, id);
+        let message = WakuMessage::new(payload_str, response_topic);
 
         self.send_message_once(message).await
     }

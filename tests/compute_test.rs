@@ -1,7 +1,6 @@
 #![allow(unused_imports)]
 
 mod compute_test {
-    use dkn_compute::compute::llm::ollama::create_ollama;
     use langchain_rust::{language_models::llm::LLM, llm::client::Ollama};
     use ollama_workflows::{Entry, Executor, Model, ProgramMemory, Workflow};
     use std::env;
@@ -29,7 +28,8 @@ mod compute_test {
     #[ignore = "run this manually"]
     async fn test_ollama_bad_model() {
         let model = "thismodeldoesnotexistlol".to_string();
-        let setup_res = create_ollama(CancellationToken::default(), model).await;
+        let ollama = Ollama::default().with_model(model);
+        let setup_res = ollama.invoke("hola").await;
         assert!(
             setup_res.is_err(),
             "Should give error due to non-existing model."
@@ -45,7 +45,6 @@ mod compute_test {
     "config": {
         "max_steps": 5,
         "max_time": 100,
-        "tools": [],
     },
     "tasks":[
         {
@@ -53,7 +52,6 @@ mod compute_test {
             "name": "Random Poem",
             "description": "Writes a poem about Kapadokya.",
             "prompt": "Please write a poem about Kapadokya.",
-            "inputs":[],
             "operator": "generation",
             "outputs": [
                 {
@@ -68,9 +66,7 @@ mod compute_test {
             "name": "end",
             "description": "End of the task",
             "prompt": "End of the task",
-            "inputs": [],
             "operator": "end",
-            "outputs": []
         }
     ],
     "steps":[

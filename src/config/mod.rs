@@ -6,7 +6,7 @@ use constants::*;
 use ecies::PublicKey;
 use libsecp256k1::{PublicKeyFormat, SecretKey};
 use models::parse_dkn_models;
-use ollama_workflows::Model;
+use ollama_workflows::{Model, ModelProvider};
 use std::env;
 
 #[allow(non_snake_case)]
@@ -21,7 +21,7 @@ pub struct DriaComputeNodeConfig {
     /// Admin public key, used for message authenticity.
     pub admin_public_key: PublicKey,
     /// Available models for the node.
-    pub models: Vec<Model>,
+    pub models: Vec<(ModelProvider, Model)>,
 }
 
 impl DriaComputeNodeConfig {
@@ -67,8 +67,12 @@ impl DriaComputeNodeConfig {
 
         let models = parse_dkn_models(env::var(DKN_MODELS).unwrap_or_default());
         log::info!(
-            "Models: {:?}",
-            models.iter().map(|m| m.to_string()).collect::<Vec<_>>()
+            "Models: {}",
+            serde_json::to_string(&models).unwrap_or_default()
+        );
+        assert!(
+            !models.is_empty(),
+            "At least one model should be provided in the configuration."
         );
 
         Self {
