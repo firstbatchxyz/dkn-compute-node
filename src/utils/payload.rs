@@ -14,12 +14,10 @@ use crate::{
 /// and compute the digest using SHA256. That digest will then be used for the signature check.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TaskResponsePayload {
-    /// A signature on the digest of plaintext result.
+    /// A signature on the digest of plaintext result, prepended with task id.
     pub signature: String,
     /// Computation result encrypted with the public key of the task.
     pub ciphertext: String,
-    /// A commitment to `signature || result`.
-    pub commitment: String,
 }
 
 impl TaskResponsePayload {

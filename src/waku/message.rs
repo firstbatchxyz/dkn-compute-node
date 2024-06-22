@@ -1,11 +1,15 @@
 use crate::{
     errors::NodeResult,
-    utils::{crypto::sha256hash, get_current_time_nanos},
+    utils::{
+        crypto::{sha256hash, sign_bytes_recoverable},
+        get_current_time_nanos,
+    },
 };
 
 use base64::{prelude::BASE64_STANDARD, Engine};
 use core::fmt;
 use ecies::PublicKey;
+use libsecp256k1::SecretKey;
 use serde::{Deserialize, Serialize};
 
 /// Within Waku Message and Content Topic we specify version to be 0 since
@@ -51,12 +55,10 @@ pub struct WakuMessage {
 ///
 /// When recovery is not required and only verification is being done, we omit the recovery id
 /// and therefore use 128 characters: SIGNATURE_SIZE - 2.
-const SIGNATURE_SIZE: usize = 130;
+const SIGNATURE_SIZE_HEX: usize = 130;
 
 impl WakuMessage {
     /// Creates a new ephemeral Waku message with current timestamp, version 0.
-    ///
-    /// ## Parameters
     ///
     /// - `payload` is gives as bytes. It is base64 encoded internally.
     /// - `topic` is the name of the topic itself within the full content topic. The rest of the content topic
@@ -71,6 +73,20 @@ impl WakuMessage {
         }
     }
 
+    /// Creates a new Waku Message by signing the SHA256 of the payload, and prepending the signature.
+    pub fn new_signed(
+        payload: impl AsRef<[u8]> + Clone,
+        topic: &str,
+        signing_key: &SecretKey,
+    ) -> Self {
+        let signature_bytes = sign_bytes_recoverable(&sha256hash(payload.clone()), signing_key);
+
+        let mut signed_payload = Vec::new();
+        signed_payload.extend_from_slice(hex::decode(signature_bytes).unwrap().as_slice());
+        signed_payload.extend_from_slice(payload.as_ref());
+        WakuMessage::new(signed_payload, topic)
+    }
+
     /// Decodes the base64 payload into bytes.
     pub fn decode_payload(&self) -> Result<Vec<u8>, base64::DecodeError> {
         BASE64_STANDARD.decode(&self.payload)
@@ -82,7 +98,7 @@ impl WakuMessage {
 
         let body = if signed {
             // skips the 65 byte hex signature
-            &payload[SIGNATURE_SIZE..]
+            &payload[SIGNATURE_SIZE_HEX..]
         } else {
             &payload[..]
         };
@@ -96,7 +112,10 @@ impl WakuMessage {
         let payload = self.decode_payload()?;
 
         // parse signature (64 bytes = 128 hex chars, although the full 65-byte RSV signature is given)
-        let (signature, body) = (&payload[..SIGNATURE_SIZE - 2], &payload[SIGNATURE_SIZE..]);
+        let (signature, body) = (
+            &payload[..SIGNATURE_SIZE_HEX - 2],
+            &payload[SIGNATURE_SIZE_HEX..],
+        );
         let signature = hex::decode(signature).expect("could not decode");
         let signature =
             libsecp256k1::Signature::parse_standard_slice(&signature).expect("could not parse");

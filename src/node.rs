@@ -58,20 +58,6 @@ impl DriaComputeNode {
         *self.busy_lock.write() = busy;
     }
 
-    /// Shorthand to sign a digest (bytes) with node's secret key and return signature & recovery id
-    /// serialized to 65 byte hex-string.
-    #[inline]
-    pub fn sign_bytes(&self, message: &[u8; 32]) -> String {
-        let message = Message::parse(message);
-        let (signature, recid) = sign(&message, &self.config.secret_key);
-
-        format!(
-            "{}{}",
-            hex::encode(signature.serialize()),
-            hex::encode([recid.serialize()])
-        )
-    }
-
     /// Given a hex-string serialized Bloom Filter of a task, checks if this node is selected to do the task.
     ///
     /// This is done by checking if the address of this node is in the filter.
@@ -84,33 +70,27 @@ impl DriaComputeNode {
 
     /// Creates the payload of a computation result, as per Dria Whitepaper section 5.1 algorithm 2:
     ///
-    /// - Sign result with node `self.secret_key`
-    /// - Encrypt `(signature || result)` with `task_public_key`
-    /// - Commit to `(signature || result)` using SHA256.
+    /// - Sign `task_id || result` with node `self.secret_key`
+    /// - Encrypt `result` with `task_public_key`
     pub fn create_payload(
         &self,
         result: impl AsRef<[u8]>,
+        task_id: impl AsRef<[u8]>,
         task_pubkey: &[u8],
     ) -> NodeResult<TaskResponsePayload> {
         // sign result
-        let result_digest: [u8; 32] = sha256hash(result.as_ref());
-        let result_msg = Message::parse(&result_digest);
-        let (signature, recid) = sign(&result_msg, &self.config.secret_key);
+        let mut preimage = Vec::new();
+        preimage.extend_from_slice(task_id.as_ref());
+        preimage.extend_from_slice(result.as_ref());
+        let digest = Message::parse(&sha256hash(preimage));
+        let (signature, recid) = sign(&digest, &self.config.secret_key);
         let signature: [u8; 64] = signature.serialize();
         let recid: [u8; 1] = [recid.serialize()];
 
         // encrypt result
         let ciphertext = encrypt(task_pubkey, result.as_ref())?;
 
-        // concatenate `signature_bytes` and `digest_bytes`
-        let mut preimage = Vec::new();
-        preimage.extend_from_slice(&signature);
-        preimage.extend_from_slice(&recid);
-        preimage.extend_from_slice(&result_digest);
-        let commitment: [u8; 32] = sha256hash(preimage);
-
         Ok(TaskResponsePayload {
-            commitment: hex::encode(commitment),
             ciphertext: hex::encode(ciphertext),
             signature: format!("{}{}", hex::encode(signature), hex::encode(recid)),
         })
@@ -285,19 +265,19 @@ impl DriaComputeNode {
             .collect()
     }
 
-    /// Given a task with `id` and respective `public_key`, encrypts the result and obtains
-    /// the `h || s || e` payload, and sends it to the Waku network.
+    /// Given a task with `id` and respective `public_key`, sign-then-encrypt the result.
     pub async fn send_result<R: AsRef<[u8]>>(
         &self,
         response_topic: &str,
         public_key: &[u8],
+        task_id: &str,
         result: R,
     ) -> NodeResult<()> {
-        let payload = self.create_payload(result.as_ref(), public_key)?;
+        let payload = self.create_payload(result.as_ref(), task_id, public_key)?;
         let payload_str = payload.to_string()?;
         let message = WakuMessage::new(payload_str, response_topic);
 
-        self.send_message_once(message).await
+        self.send_message(message).await
     }
 }
 
@@ -314,6 +294,7 @@ mod tests {
     #[test]
     fn test_payload_generation_verification() {
         const ADMIN_PRIV_KEY: &[u8; 32] = b"aaaabbbbccccddddddddccccbbbbaaaa";
+        const TASK_ID: &str = "12345678abcdef";
         const RESULT: &[u8; 28] = b"this is some result you know";
 
         let node = DriaComputeNode::default();
@@ -322,7 +303,7 @@ mod tests {
 
         // create payload
         let payload = node
-            .create_payload(RESULT, &public_key.serialize())
+            .create_payload(RESULT, TASK_ID, &public_key.serialize())
             .expect("Should create payload");
 
         // (here we assume the payload is sent to Waku network, and picked up again)
@@ -359,19 +340,6 @@ mod tests {
         assert_eq!(
             node.config.public_key, recovered_public_key,
             "Public key mismatch"
-        );
-
-        // verify commitments (algorithm 4 in whitepaper)
-        let mut preimage = Vec::new();
-        preimage.extend_from_slice(&signature_bytes);
-        preimage.extend_from_slice(&recid_bytes);
-        preimage.extend_from_slice(&result_digest);
-        assert_eq!(
-            sha256hash(preimage),
-            hex::decode(payload.commitment)
-                .expect("Should decode")
-                .as_slice(),
-            "Commitment mismatch"
         );
     }
 }

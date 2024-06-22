@@ -76,7 +76,8 @@ pub fn workflow_worker(
                                 },
                             };
 
-                            if let Err(e) = node.send_result(&task.task_id, &task.public_key, result).await {
+                            // send result to the response
+                            if let Err(e) = node.send_result(RESPONSE_TOPIC, &task.public_key, &task.task_id, result).await {
                                 log::error!("Error sending task result: {}", e);
                                 continue;
                             };

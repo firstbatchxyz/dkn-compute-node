@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::{node::DriaComputeNode, utils::crypto::sha256hash, waku::message::WakuMessage};
+use crate::{node::DriaComputeNode, waku::message::WakuMessage};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct HeartbeatPayload {
@@ -60,8 +60,7 @@ pub fn heartbeat_worker(
                                     uuid: request_body.uuid.clone(),
                                     models: node.config.models.clone(),
                                 };
-                                let signature = node.sign_bytes(&sha256hash(serde_json::json!(response_body).to_string()));
-                                WakuMessage::new(signature, RESPONSE_TOPIC)
+                                WakuMessage::new_signed(serde_json::json!(response_body).to_string(), RESPONSE_TOPIC, &node.config.secret_key)
                             }
                             Err(e) => {
                                 log::error!("Error parsing payload: {}", e);

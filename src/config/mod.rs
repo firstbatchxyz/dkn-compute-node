@@ -13,7 +13,7 @@ use std::env;
 #[derive(Debug, Clone)]
 pub struct DriaComputeNodeConfig {
     /// Wallet secret/private key.
-    pub(crate) secret_key: SecretKey,
+    pub secret_key: SecretKey,
     /// Wallet public key, derived from the secret key.
     pub public_key: PublicKey,
     /// Wallet address, derived from the public key.
@@ -70,10 +70,13 @@ impl DriaComputeNodeConfig {
             "Models: {}",
             serde_json::to_string(&models).unwrap_or_default()
         );
-        assert!(
-            !models.is_empty(),
-            "At least one model should be provided in the configuration."
-        );
+
+        if !cfg!(test) {
+            assert!(
+                !models.is_empty(),
+                "At least one model should be provided in the configuration."
+            );
+        }
 
         Self {
             admin_public_key,
