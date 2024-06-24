@@ -7,25 +7,17 @@ docs() {
         Required environment variables in .env file; ETH_CLIENT_ADDRESS, ETH_TESTNET_KEY, RLN_RELAY_CRED_PASSWORD
         
         Description of command-line arguments:
-            --synthesis: Runs the node for the synthesis tasks. Can be set as DKN_TASKS="synthesis" env-var (default: false, required for search tasks)
-            --search: Runs the node for the search tasks. Can be set as DKN_TASKS="search" env-var (default: false, required for synthesis tasks)
-
-            --synthesis-model-provider=<arg>: Indicates the model provider for synthesis tasks, ollama or openai. Can be set as DKN_SYNTHESIS_MODEL_PROVIDER env-var (required on synthesis tasks)
-            --search-model-provider=<arg>: Indicates the model provider for search tasks, ollama or openai. Can be set as AGENT_MODEL_PROVIDER env-var (required on search tasks)
-
-            --synthesis-model: Indicates the model for synthesis tasks, model needs to be compatible with the given provider. Can be set as DKN_SYNTHESIS_MODEL_NAME env-var (required on synthesis tasks) 
-            --search-model: Indicates the model for search tasks, model needs to be compatible with the given provider. Can be set as AGENT_MODEL_NAME env-var (required on search tasks) 
+            -m | --model: Indicates the model to be used within the compute node. Multiple models can be given
 
             --local-ollama=<true/false>: Indicates the local Ollama environment is being used (default: true)
+            --waku-ext: Will disable the waku execution within the compute node docker-compose. (default: false)
 
             --dev: Sets the logging level to debug (default: info)
-            -b, --background: Enables background mode for running the node (default: FOREGROUND)
-            -h, --help: Displays this help message
-
-        At least one of --search or --synthesis is required
+            -b | --background: Enables background mode for running the node (default: FOREGROUND)
+            -h | --help: Displays this help message
 
         Example usage:
-            ./start.sh --search --synthesis --local-ollama=false  --dev
+            ./start.sh -m=nous-hermes2theta-llama3-8b --model=phi3:medium --local-ollama=false  --dev
     "
     exit 0
 }
@@ -42,8 +34,6 @@ if [ -f "$ENV_FILE" ]; then
 fi
 
 # flag vars
-COMPUTE_SEARCH=false
-COMPUTE_SYNTHESIS=false
 START_MODE="FOREGROUND"
 LOCAL_OLLAMA=true
 LOGS="info"
@@ -51,35 +41,17 @@ EXTERNAL_WAKU=false
 
 # script internal
 COMPOSE_PROFILES=()
-TASK_LIST=()
+MODELS_LIST=()
 LOCAL_OLLAMA_PID=""
 DOCKER_HOST="http://host.docker.internal"
 
 # handle command line arguments
 while [[ "$#" -gt 0 ]]; do
-    case $1 in        
-        --search)
-            COMPUTE_SEARCH=true
-            COMPOSE_PROFILES+=("search-python")
-            TASK_LIST+=("search")
-        ;;
-        --synthesis)
-            COMPUTE_SYNTHESIS=true
-            TASK_LIST+=("synthesis")
-        ;;
-
-        --synthesis-model-provider=*)
-            DKN_SYNTHESIS_MODEL_PROVIDER="$(echo "${1#*=}" | tr '[:upper:]' '[:lower:]')"
-        ;;
-        --search-model-provider=*)
-            AGENT_MODEL_PROVIDER="$(echo "${1#*=}" | tr '[:upper:]' '[:lower:]')"
-        ;;
-
-        --synthesis-model=*)
-            DKN_SYNTHESIS_MODEL_NAME="$(echo "${1#*=}" | tr '[:upper:]' '[:lower:]')"
-        ;;
-        --search-model=*)
-            AGENT_MODEL_NAME="$(echo "${1#*=}" | tr '[:upper:]' '[:lower:]')"
+    case $1 in
+        -m=*|--model=*)
+            # shift
+            model="$(echo "${1#*=}" | tr '[:upper:]' '[:lower:]')"
+            MODELS_LIST+=($model)
         ;;
 
         --local-ollama=*)
@@ -155,62 +127,19 @@ handle_compute_env() {
     compute_env_vars=(
         "DKN_WALLET_SECRET_KEY"
         "DKN_ADMIN_PUBLIC_KEY"
-        "DKN_TASKS"
-        "DKN_SYNTHESIS_MODEL_PROVIDER"
-        "DKN_SYNTHESIS_MODEL_NAME"
-        "AGENT_MODEL_PROVIDER"
-        "AGENT_MODEL_NAME"
         "OPENAI_API_KEY"
         "SERPER_API_KEY"
         "BROWSERLESS_TOKEN"
         "ANTHROPIC_API_KEY"
         "DKN_LOG_LEVEL"
+        "DKN_MODELS"
     )
     compute_envs=($(as_pairs "${compute_env_vars[@]}"))
 
-    # handle DKN_TASKS
-    if [ ${#TASK_LIST[@]} -ne 0 ]; then
-        # if any task flag is given, pass it to env var
-        DKN_TASKS=$(IFS=","; echo "${TASK_LIST[*]}")
-    else
-        # if no task type argument has given, check DKN_TASKS env var
-        if [ -n "$DKN_TASKS" ]; then
-            # split, iterate and validate given tasks in env var 
-            IFS=',' read -ra tsks <<< "$DKN_TASKS"
-            for ts in "${tsks[@]}"; do
-                ts="$(echo "${ts#*=}" | tr '[:upper:]' '[:lower:]')" # make all lowercase
-                if [ "$ts" = "search" ] || [ "$ts" = "search-python" ]; then
-                    TASK_LIST+=("search")
-                    COMPUTE_SEARCH=true
-                    COMPOSE_PROFILES+=("search-python")
-                elif [ "$ts" = "synthesis" ]; then
-                    TASK_LIST+=("synthesis")
-                    COMPUTE_SYNTHESIS=true
-                fi
-            done
-        else
-            echo "ERROR: No task type has given, --synthesis and/or --search flags are required"
-            exit 1
-        fi
-    fi
-
-    # check model providers, they are required
-    if [ "$COMPUTE_SEARCH" = true ]; then
-        if [ -z "$AGENT_MODEL_PROVIDER" ]; then
-            echo "ERROR: Search model provider is required on search tasks. Example usage; --search-model-provider=ollama"
-            exit 1
-        fi
-        # then all lowercase
-        AGENT_MODEL_PROVIDER="$(echo "${AGENT_MODEL_PROVIDER#*=}" | tr '[:upper:]' '[:lower:]')"
-
-    fi
-    if [ "$COMPUTE_SYNTHESIS" = true ]; then
-        if [ -z "$DKN_SYNTHESIS_MODEL_PROVIDER" ]; then
-            echo "ERROR: Synthesis model provider is required on synthesis tasks. Example usage; --synthesis-model-provider=ollama"
-            exit 1
-        fi
-        # then all lowercase
-        DKN_SYNTHESIS_MODEL_PROVIDER="$(echo "${DKN_SYNTHESIS_MODEL_PROVIDER#*=}" | tr '[:upper:]' '[:lower:]')"
+    # handle DKN_MODELS
+    if [ ${#MODELS_LIST[@]} -ne 0 ]; then
+        # if model flag is given, pass it to env var
+        DKN_MODELS=$(IFS=","; echo "${MODELS_LIST[*]}")
     fi
 
     # update envs
@@ -283,15 +212,18 @@ handle_ollama_env() {
     )
     ollama_envs=($(as_pairs "${ollama_env_vars[@]}"))
 
-    # if there is no task using ollama, do not add any ollama compose profile
+    # if there is no ollama model given, do not add any ollama compose profile
     ollama_needed=false
-    if [ "$COMPUTE_SYNTHESIS" = true ] && [ "$DKN_SYNTHESIS_MODEL_PROVIDER" == "ollama" ]; then
-        ollama_needed=true
-    fi
-    if [ "$COMPUTE_SEARCH" = true ] && [ "$AGENT_MODEL_PROVIDER" == "ollama" ]; then
-        ollama_needed=true
-    fi
+    ollama_models=("nous-hermes2theta-llama3-8b" "phi3:medium" "phi3:medium-128k" "phi3:3.8b")
+    IFS=',' read -r -a models <<< "$DKN_MODELS"
+    for m in "${models[@]}"; do
+        if [[ " ${ollama_models[@]} " =~ " ${m} " ]]; then
+            ollama_needed=true
+            break
+        fi
+    done
     if [ "$ollama_needed" = false ]; then
+        echo "No Ollama model provided. Skipping the Ollama execution"
         return
     fi
 
