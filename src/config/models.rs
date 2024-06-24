@@ -8,7 +8,7 @@ pub fn parse_dkn_models(models_str: String) -> Vec<(ModelProvider, Model)> {
             match Model::try_from(s) {
                 Ok(model) => Some((model.clone().into(), model)),
                 Err(e) => {
-                    log::warn!("Invalid model: '{}'k", e);
+                    log::warn!("Error parsing model: {}", e);
                     None
                 }
             }

@@ -7,17 +7,17 @@ docs() {
         Required environment variables in .env file; ETH_CLIENT_ADDRESS, ETH_TESTNET_KEY, RLN_RELAY_CRED_PASSWORD
         
         Description of command-line arguments:
-            -m | --model: Indicates the model to be used within the compute node. Multiple models can be given
+            -m | --model: Indicates the model to be used within the compute node. Argument can be given multiple times for multiple models.
 
             --local-ollama=<true/false>: Indicates the local Ollama environment is being used (default: true)
-            --waku-ext: Will disable the waku execution within the compute node docker-compose. (default: false)
+            --waku-ext: Will assume Waku is running in another container already, and will not launch it. (default: false)
 
             --dev: Sets the logging level to debug (default: info)
             -b | --background: Enables background mode for running the node (default: FOREGROUND)
             -h | --help: Displays this help message
 
         Example usage:
-            ./start.sh -m=nous-hermes2theta-llama3-8b --model=phi3:medium --local-ollama=false  --dev
+            ./start.sh -m=nous-hermes2theta-llama3-8b --model=phi3:medium --local-ollama=false --dev
     "
     exit 0
 }
