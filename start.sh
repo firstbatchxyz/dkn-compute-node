@@ -17,7 +17,7 @@ docs() {
             -h | --help: Displays this help message
 
         Example usage:
-            ./start.sh -m nous-hermes2theta-llama3-8b --model phi3:medium --local-ollama=false  --dev
+            ./start.sh -m=nous-hermes2theta-llama3-8b --model=phi3:medium --local-ollama=false  --dev
     "
     exit 0
 }
@@ -48,8 +48,8 @@ DOCKER_HOST="http://host.docker.internal"
 # handle command line arguments
 while [[ "$#" -gt 0 ]]; do
     case $1 in
-        -m|--model)
-            shift
+        -m=*|--model=*)
+            # shift
             model="$(echo "${1#*=}" | tr '[:upper:]' '[:lower:]')"
             MODELS_LIST+=($model)
         ;;
