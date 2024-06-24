@@ -61,11 +61,17 @@ pub fn workflow_worker(
                             });
                             log::info!("Using model {}", model);
 
-                            // execute workflow
+                            // execute workflow with cancellation
                             let executor = Executor::new(model);
                             let mut memory = ProgramMemory::new();
                             let entry = Entry::String(task.input.prompt);
-                            executor.execute(Some(&entry), task.input.workflow, &mut memory).await;
+                            tokio::select! {
+                                _ = node.cancellation.cancelled() => {
+                                    log::info!("Received cancellation, quitting all tasks.");
+                                    break;
+                                },
+                                _ = executor.execute(Some(&entry), task.input.workflow, &mut memory) => ()
+                            }
 
                             // read final result from memory
                             let result = match memory.read(&final_result_id) {
