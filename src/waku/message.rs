@@ -82,7 +82,7 @@ impl WakuMessage {
         let signature_bytes = sign_bytes_recoverable(&sha256hash(payload.clone()), signing_key);
 
         let mut signed_payload = Vec::new();
-        signed_payload.extend_from_slice(hex::decode(signature_bytes).unwrap().as_slice());
+        signed_payload.extend_from_slice(signature_bytes.as_ref());
         signed_payload.extend_from_slice(payload.as_ref());
         WakuMessage::new(signed_payload, topic)
     }
@@ -160,7 +160,7 @@ impl fmt::Display for WakuMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use libsecp256k1::{Message, SecretKey};
+    use libsecp256k1::SecretKey;
     use rand::thread_rng;
     use serde_json::json;
 
@@ -218,18 +218,12 @@ mod tests {
     fn test_signed_message() {
         let mut rng = thread_rng();
         let sk = SecretKey::random(&mut rng);
+        let pk = PublicKey::from_secret_key(&sk);
 
         // create payload & message with signature & body
         let body = TestStruct::default();
-        let body_str = serde_json::to_string(&json!(body)).expect("Should stringify");
-        let (signature, recid) = libsecp256k1::sign(&Message::parse(&sha256hash(&body_str)), &sk);
-        let signature_str = format!(
-            "{}{}",
-            hex::encode(signature.serialize()),
-            hex::encode([recid.serialize()])
-        );
-        let payload = format!("{}{}", signature_str, body_str);
-        let message = WakuMessage::new(payload, TOPIC);
+        let body_str = serde_json::to_string(&body).unwrap();
+        let message = WakuMessage::new_signed(body_str, TOPIC, &sk);
 
         // decode message
         let message_body = message.decode_payload().expect("Should decode");
@@ -244,8 +238,6 @@ mod tests {
         assert_eq!(message.ephemeral, true);
         assert!(message.timestamp > 0);
 
-        // check signature
-        let pk = PublicKey::from_secret_key(&sk);
         assert!(message.is_signed(&pk).expect("Should check signature"));
 
         let parsed_body = message.parse_payload(true).expect("Should decode");

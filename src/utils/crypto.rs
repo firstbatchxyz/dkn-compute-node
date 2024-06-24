@@ -32,7 +32,7 @@ pub fn to_address(public_key: &PublicKey) -> [u8; 20] {
 #[inline]
 pub fn sign_bytes_recoverable(message: &[u8; 32], secret_key: &SecretKey) -> String {
     let message = Message::parse(message);
-    let (signature, recid) = sign(&message, &secret_key);
+    let (signature, recid) = sign(&message, secret_key);
 
     format!(
         "{}{}",
