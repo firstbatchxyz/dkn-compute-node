@@ -31,13 +31,9 @@ A **Dria Compute Node** is a unit of computation within the Dria Knowledge Netwo
 
 Compute nodes can technically do any arbitrary task, from computing the square root of a given number to finding LLM outputs from a given prompt, or validating an LLM's output with respect to knowledge available on the web accessed via tools.
 
-#### Heartbeats
+- **Heartbeats**: Dria Admin Node broadcasts **heartbeat** messages at a set interval, it is a required duty of the compute node to respond to these so that they can be included in the list of available nodes for task assignment. These tasks will respect the type of model provided, e.g. if a task requires `gpt-4o` and you are running `phi3`, you won't be selected for that task.
 
-Dria Admin Node broadcasts **heartbeat** messages at a set interval, it is a required duty of the compute node to respond to these so that they can be included in the list of available nodes for task assignment. These tasks will respect the type of model provided, e.g. if a task requires GTP4o and you are running Phi3, you won't be selected for that task.
-
-#### Workflows
-
-Each task is given in the form of a workflow, based on [Ollama Workflows](https://github.com/andthattoo/ollama-workflows). See the respective repository for more information.
+- **Workflows**: Each task is given in the form of a workflow, based on [Ollama Workflows](https://github.com/andthattoo/ollama-workflows) (see repository for more information). In simple terms, each workflow defines the agentic behavior of an LLM, all captured in a single JSON file, and can represent things ranging from simple LLM generations to iterative web searching.
 
 ### Waku
 
