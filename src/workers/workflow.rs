@@ -9,7 +9,7 @@ use crate::node::DriaComputeNode;
 struct WorkflowPayload {
     pub(crate) workflow: Workflow,
     pub(crate) model: String,
-    pub(crate) prompt: String,
+    pub(crate) prompt: Option<String>,
 }
 
 const REQUEST_TOPIC: &str = "workflow";
@@ -64,13 +64,13 @@ pub fn workflow_worker(
                             // execute workflow with cancellation
                             let executor = Executor::new(model);
                             let mut memory = ProgramMemory::new();
-                            let entry = Entry::String(task.input.prompt);
+                            let entry: Option<Entry> = task.input.prompt.map(|prompt| Entry::String(prompt));
                             tokio::select! {
                                 _ = node.cancellation.cancelled() => {
                                     log::info!("Received cancellation, quitting all tasks.");
                                     break;
                                 },
-                                _ = executor.execute(Some(&entry), task.input.workflow, &mut memory) => ()
+                                _ = executor.execute(entry.as_ref(), task.input.workflow, &mut memory) => ()
                             }
 
                             // read final result from memory

@@ -75,9 +75,7 @@ chmod +x start.sh
 ./start.sh --help
 ```
 
-Based on the resources of your machine, you must decide which models that you will be running locally. For example, you can simple use OpenAI with theirs models, not running anything locally at all; or you can use Ollama with several models loaded to disk, and only one loaded to memory during its respective task. See [here](https://github.com/andthattoo/ollama-workflows/blob/main/src/program/atomics.rs#L269) for the latest list of available models.
-
-Available models are:
+Based on the resources of your machine, you must decide which models that you will be running locally. For example, you can simple use OpenAI with theirs models, not running anything locally at all; or you can use Ollama with several models loaded to disk, and only one loaded to memory during its respective task. Available models (see [here](https://github.com/andthattoo/ollama-workflows/blob/main/src/program/atomics.rs#L269) for latest) are:
 
 - `adrienbrault/nous-hermes2theta-llama3-8b:q8_0` (Ollama)
 - `phi3:14b-medium-4k-instruct-q4_1` (Ollama)

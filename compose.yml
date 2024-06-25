@@ -27,6 +27,7 @@ services:
       RUST_LOG: "${DKN_LOG_LEVEL:-info}"
       SEARCH_AGENT_URL: "http://host.docker.internal:5059"
       SEARCH_AGENT_MANAGER: true
+    restart: "on-failure"
 
   # Waku Node
   nwaku:

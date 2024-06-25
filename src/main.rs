@@ -23,6 +23,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cancellation = CancellationToken::new();
     let node = Arc::new(DriaComputeNode::new(config, cancellation.clone()));
 
+    log::info!("Checking required services...");
+    if let Err(e) = node.check_services().await {
+        log::error!("{}", e);
+        return Err(e.into());
+    }
+
     log::info!("Starting workers...");
     let tracker = TaskTracker::new();
 

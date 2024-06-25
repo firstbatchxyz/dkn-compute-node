@@ -1,6 +1,7 @@
 use ecies::encrypt;
 use fastbloom_rs::{BloomFilter, Membership};
 use libsecp256k1::{sign, Message, RecoveryId, Signature};
+use ollama_workflows::ModelProvider;
 use parking_lot::RwLock;
 use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
@@ -8,8 +9,13 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     config::DriaComputeNodeConfig,
     errors::NodeResult,
-    utils::payload::{TaskRequest, TaskRequestPayload, TaskResponsePayload},
-    utils::{crypto::sha256hash, filter::FilterPayload, get_current_time_nanos},
+    utils::{
+        crypto::sha256hash,
+        filter::FilterPayload,
+        get_current_time_nanos,
+        payload::{TaskRequest, TaskRequestPayload, TaskResponsePayload},
+        provider::{check_ollama, check_openai},
+    },
     waku::{message::WakuMessage, WakuClient},
 };
 
@@ -143,6 +149,32 @@ impl DriaComputeNode {
                 e
             );
         }
+    }
+
+    /// Check if the required compute services are running, e.g. if Ollama
+    /// is detected as a provider for the chosen models, it will check that
+    /// Ollama is running.
+    pub async fn check_services(&self) -> NodeResult<()> {
+        let unique_providers: Vec<ModelProvider> =
+            self.config
+                .models
+                .iter()
+                .fold(Vec::new(), |mut unique, (provider, _)| {
+                    if !unique.contains(provider) {
+                        unique.push(provider.clone());
+                    }
+                    unique
+                });
+
+        if unique_providers.contains(&ModelProvider::Ollama) {
+            check_ollama().await?;
+        }
+
+        if unique_providers.contains(&ModelProvider::OpenAI) {
+            check_openai()?;
+        }
+
+        Ok(())
     }
 
     /// Send a message via Waku Relay, assuming the content is subscribed to already.
