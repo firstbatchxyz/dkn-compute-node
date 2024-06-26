@@ -19,10 +19,6 @@ pub fn workflow_worker(
     node: Arc<DriaComputeNode>,
     sleep_amount: Duration,
 ) -> tokio::task::JoinHandle<()> {
-    // this ID is given in the workflow itself, but within Dria we always
-    // use "final_result" for this ID.
-    let final_result_id = "final_result".to_string();
-
     tokio::spawn(async move {
         node.subscribe_topic(REQUEST_TOPIC).await;
         node.subscribe_topic(RESPONSE_TOPIC).await;
@@ -67,40 +63,32 @@ pub fn workflow_worker(
                             // execute workflow with cancellation
                             let executor = Executor::new(model);
                             let mut memory = ProgramMemory::new();
-                            let entry: Option<Entry> = task.input.prompt.map(|prompt| Entry::String(prompt));
+                            let entry: Option<Entry> = task.input.prompt.map(Entry::String);
+                            let result: Option<String>;
                             tokio::select! {
                                 _ = node.cancellation.cancelled() => {
                                     log::info!("Received cancellation, quitting all tasks.");
                                     break;
                                 },
-                                _ = executor.execute(entry.as_ref(), task.input.workflow, &mut memory) => ()
-                            }
-
-                            // read final result from memory
-                            // let result = match memory.read(&final_result_id) {
-                            //     Some(entry) => entry.to_string(),
-                            //     None => {
-                            //         log::error!("No final result found in memory for task {}", task.task_id);
-                            //         continue;
-                            //     },
-                            // };
-                            // TODO: temporary for fix, for Workflow 1 (w1)
-                            let res: Option<Vec<Entry>> = memory.get_all(&"history".to_string());
-                            let mut vars_all: Vec<String> = vec![];
-                            if let Some(res) = res {
-                                for entry in res {
-                                    let sstr = entry.to_string();
-                                    let vars: Vec<String> = sstr.split("\n").map(|s| s.to_string()).collect();
-                                    vars_all.extend(vars);
+                                exec_result = executor.execute(entry.as_ref(), task.input.workflow, &mut memory) => {
+                                    result = Some(exec_result);
                                 }
                             }
-                            let result = serde_json::to_string(&vars_all).unwrap();
 
-                            // send result to the response
-                            if let Err(e) = node.send_result(RESPONSE_TOPIC, &task.public_key, &task.task_id, result).await {
-                                log::error!("Error sending task result: {}", e);
-                                continue;
-                            };
+                            match result {
+                                Some(result) => {
+                                    // send result to the network
+                                    if let Err(e) = node.send_result(RESPONSE_TOPIC, &task.public_key, &task.task_id, result).await {
+                                        log::error!("Error sending task result: {}", e);
+                                        continue;
+                                    };
+                                }
+                                None => {
+                                    log::error!("No result for task {}", task.task_id);
+                                    continue;
+                                }
+                            }
+
                         }
 
                         node.set_busy(false);

@@ -43,7 +43,7 @@ sha2 = "0.10.8"
 sha3 = "0.10.8"
 
 # llm stuff 
-ollama-workflows = { git = "https://github.com/andthattoo/ollama-workflows", rev = "394d34cb536a0e2c8f18c0539f51130c63a64fc9" }
+ollama-workflows = { git = "https://github.com/andthattoo/ollama-workflows", rev = "049f19bb975eecd457f2889bd8a28b626c33f6da" }
 
 [dev-dependencies]
 colored = "2.1.0"

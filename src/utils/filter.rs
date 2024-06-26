@@ -89,6 +89,17 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "this panics, its a bug within the filter library"]
+    fn test_filter_empty() {
+        let filter_payload = FilterPayload {
+            hex: "".to_string(),
+            hashes: 0,
+        };
+
+        BloomFilter::try_from(&filter_payload).expect("Should parse filter");
+    }
+
+    #[test]
     fn test_filter_read_3() {
         const FILTER_HEX: &str = "e7799ef73dcff3bc";
         let filter_payload = FilterPayload {
