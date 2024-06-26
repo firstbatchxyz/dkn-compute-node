@@ -22,7 +22,6 @@ pub fn diagnostic_worker(
             tokio::select! {
                 _ = node.cancellation.cancelled() => break,
                 _ = tokio::time::sleep(sleep_amount) => {
-
                     match node.waku.peers().await {
                         Ok(peers) => {
                             // if peer count changes, print it

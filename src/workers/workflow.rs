@@ -55,11 +55,14 @@ pub fn workflow_worker(
 
                         for task in tasks {
                             // read model from the task
-                            let model = Model::try_from(task.input.model.clone()).unwrap_or_else(|model| {
-                                log::error!("Invalid model provided: {}, defaulting.", model);
-                                Model::default()
-                            });
-                            log::info!("Using model {}", model);
+                            let model = match Model::try_from(task.input.model) {
+                                Ok(model) => model,
+                                Err(e) => {
+                                    log::error!("Could not read model: {}\nSkipping task {}", e, task.task_id);
+                                    continue;
+                                }
+                            };
+                            log::info!("Using model {} for task {}", model, task.task_id);
 
                             // execute workflow with cancellation
                             let executor = Executor::new(model);
@@ -74,13 +77,24 @@ pub fn workflow_worker(
                             }
 
                             // read final result from memory
-                            let result = match memory.read(&final_result_id) {
-                                Some(entry) => entry.to_string(),
-                                None => {
-                                    log::error!("No final result found in memory for task {}", task.task_id);
-                                    continue;
-                                },
-                            };
+                            // let result = match memory.read(&final_result_id) {
+                            //     Some(entry) => entry.to_string(),
+                            //     None => {
+                            //         log::error!("No final result found in memory for task {}", task.task_id);
+                            //         continue;
+                            //     },
+                            // };
+                            // TODO: temporary for fix, for Workflow 1 (w1)
+                            let res: Option<Vec<Entry>> = memory.get_all(&"history".to_string());
+                            let mut vars_all: Vec<String> = vec![];
+                            if let Some(res) = res {
+                                for entry in res {
+                                    let sstr = entry.to_string();
+                                    let vars: Vec<String> = sstr.split("\n").map(|s| s.to_string()).collect();
+                                    vars_all.extend(vars);
+                                }
+                            }
+                            let result = serde_json::to_string(&vars_all).unwrap();
 
                             // send result to the response
                             if let Err(e) = node.send_result(RESPONSE_TOPIC, &task.public_key, &task.task_id, result).await {
