@@ -63,7 +63,7 @@ pub fn workflow_worker(
                             // execute workflow with cancellation
                             let executor = Executor::new(model);
                             let mut memory = ProgramMemory::new();
-                            let entry: Option<Entry> = task.input.prompt.map(Entry::String);
+                            let entry: Option<Entry> = task.input.prompt.map(|prompt| Entry::try_value_or_str(&prompt));
                             let result: Option<String>;
                             tokio::select! {
                                 _ = node.cancellation.cancelled() => {
