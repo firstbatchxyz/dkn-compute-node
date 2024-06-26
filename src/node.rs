@@ -81,7 +81,7 @@ impl DriaComputeNode {
     pub fn create_payload(
         &self,
         result: impl AsRef<[u8]>,
-        task_id: impl AsRef<[u8]>,
+        task_id: &str,
         task_pubkey: &[u8],
     ) -> NodeResult<TaskResponsePayload> {
         // sign result
@@ -99,6 +99,7 @@ impl DriaComputeNode {
         Ok(TaskResponsePayload {
             ciphertext: hex::encode(ciphertext),
             signature: format!("{}{}", hex::encode(signature), hex::encode(recid)),
+            task_id: task_id.to_string(),
         })
     }
 

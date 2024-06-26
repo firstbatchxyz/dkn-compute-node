@@ -13,11 +13,14 @@ use crate::{
 /// To check the commitment, one must decrypt the ciphertext and parse plaintext from it,
 /// and compute the digest using SHA256. That digest will then be used for the signature check.
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct TaskResponsePayload {
     /// A signature on the digest of plaintext result, prepended with task id.
     pub signature: String,
     /// Computation result encrypted with the public key of the task.
     pub ciphertext: String,
+    /// The unique identifier of the task.
+    pub task_id: String,
 }
 
 impl TaskResponsePayload {
