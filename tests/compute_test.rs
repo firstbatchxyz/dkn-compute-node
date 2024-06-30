@@ -79,8 +79,6 @@ async fn test_workflow() {
     let exe = Executor::new(Model::Phi3Mini);
     let mut memory = ProgramMemory::new();
 
-    exe.execute(None, workflow, &mut memory).await;
-
-    let result = memory.read(&"final_result".to_string()).unwrap();
+    let result = exe.execute(None, workflow, &mut memory).await;
     println!("Result: {}", result);
 }
