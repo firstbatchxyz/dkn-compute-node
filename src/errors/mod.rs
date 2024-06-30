@@ -81,8 +81,8 @@ impl From<hex::FromHexError> for NodeError {
     }
 }
 
-impl From<ecies::SecpError> for NodeError {
-    fn from(value: ecies::SecpError) -> Self {
+impl From<libsecp256k1::Error> for NodeError {
+    fn from(value: libsecp256k1::Error) -> Self {
         Self {
             message: value.to_string(),
             source: "secp256k1".to_string(),

@@ -1,14 +1,24 @@
+use ollama_workflows::{Model, ModelProvider};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::{node::DriaComputeNode, utils::crypto::sha256hash, waku::message::WakuMessage};
+use crate::{node::DriaComputeNode, waku::message::WakuMessage};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct HeartbeatPayload {
     uuid: String,
     deadline: u128,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct HeartbeatResponse {
+    pub(crate) uuid: String,
+    pub(crate) models: Vec<(ModelProvider, Model)>,
+}
+
+const REQUEST_TOPIC: &str = "heartbeat";
+const RESPONSE_TOPIC: &str = "pong";
 
 /// # Heartbeat
 ///
@@ -17,27 +27,21 @@ struct HeartbeatPayload {
 /// identified with the `uuid`.
 pub fn heartbeat_worker(
     node: Arc<DriaComputeNode>,
-    topic: &'static str,
     sleep_amount: Duration,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
-        node.subscribe_topic(topic).await;
+        node.subscribe_topic(REQUEST_TOPIC).await;
+        node.subscribe_topic(RESPONSE_TOPIC).await;
 
         loop {
             tokio::select! {
-                _ = node.cancellation.cancelled() => {
-                    if let Err(e) = node.unsubscribe_topic(topic).await {
-                        log::error!("Error unsubscribing from {}: {}\nContinuing anyway.", topic, e);
-                    }
-                    break;
-                }
+                _ = node.cancellation.cancelled() => break,
                 _ = tokio::time::sleep(sleep_amount) => {
-                    let messages = match node.process_topic(topic, true).await {
-                        Ok(messages) => {
-                            messages
-                        },
+
+                    let messages = match node.process_topic(REQUEST_TOPIC, true).await {
+                        Ok(messages) => messages,
                         Err(e) => {
-                            log::error!("Error processing topic {}: {}", topic, e);
+                            log::error!("Error processing {}: {}", REQUEST_TOPIC, e);
                             continue;
                         }
                     };
@@ -49,14 +53,14 @@ pub fn heartbeat_worker(
                             continue;
                         }
 
-
                         log::info!("Received heartbeat: {}", message);
-
                         let message = match message.parse_payload::<HeartbeatPayload>(true) {
-                            Ok(body) => {
-                                let uuid = body.uuid;
-                                let signature = node.sign_bytes(&sha256hash(uuid.as_bytes()));
-                                WakuMessage::new(signature, &uuid)
+                            Ok(request_body) => {
+                                let response_body = HeartbeatResponse {
+                                    uuid: request_body.uuid.clone(),
+                                    models: node.config.models.clone(),
+                                };
+                                WakuMessage::new_signed(serde_json::json!(response_body).to_string(), RESPONSE_TOPIC, &node.config.secret_key)
                             }
                             Err(e) => {
                                 log::error!("Error parsing payload: {}", e);
@@ -64,18 +68,17 @@ pub fn heartbeat_worker(
                             }
                         };
 
-                        // send message
-                        if let Err(e) = node.send_message_once(message).await {
-                            log::error!("Error sending message: {}", e);
+                        if let Err(e) = node.send_message(message).await {
+                            log::error!("Error responding heartbeat: {}", e);
+                            continue;
                         }
-
                     }
-
-
-
                 }
             }
         }
+
+        node.unsubscribe_topic_ignored(REQUEST_TOPIC).await;
+        node.unsubscribe_topic_ignored(RESPONSE_TOPIC).await;
     })
 }
 
@@ -132,11 +135,11 @@ mod tests {
             recover(&heartbeat_message, &heartbeat_signature, &heartbeat_recid)
                 .expect("Could not recover");
         assert_eq!(
-            node.config.DKN_WALLET_PUBLIC_KEY, recovered_public_key,
+            node.config.public_key, recovered_public_key,
             "Public key mismatch"
         );
         let address = to_address(&recovered_public_key);
-        assert_eq!(address, node.address(), "Address mismatch");
+        assert_eq!(address, node.config.address, "Address mismatch");
 
         // admin node assigns the task to the compute node via Bloom Filter
         let mut bloom = FilterBuilder::new(100, 0.01).build_bloom_filter();
