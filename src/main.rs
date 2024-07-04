@@ -29,7 +29,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err(e.into());
     }
 
-    log::info!("Starting workers...");
+    // start workers after waiting a bit because Waku takes time to launch
+    log::info!("Starting workers in 5 seconds...");
+    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
     let tracker = TaskTracker::new();
 
     tracker.spawn(diagnostic_worker(

@@ -4,7 +4,7 @@ docs() {
     echo "
         start.sh starts the compute node with given environment and parameters using docker-compose.
         Loads the .env file as base environment and creates a .env.compose file for final environment to run with docker-compose.
-        Required environment variables in .env file; ETH_CLIENT_ADDRESS, ETH_TESTNET_KEY, RLN_RELAY_CRED_PASSWORD
+        Required environment variables in .env file; RLN_RELAY_ETH_CLIENT_ADDRESS, ETH_TESTNET_KEY, RLN_RELAY_CRED_PASSWORD
         
         Description of command-line arguments:
             -m | --model: Indicates the model to be used within the compute node. Argument can be given multiple times for multiple models.
@@ -74,7 +74,7 @@ done
 
 check_required_env_vars() {
     local required_vars=(
-        "ETH_CLIENT_ADDRESS"
+        "RLN_RELAY_ETH_CLIENT_ADDRESS"
         "ETH_TESTNET_KEY"
         "RLN_RELAY_CRED_PASSWORD"
         "DKN_WALLET_SECRET_KEY"
@@ -151,7 +151,7 @@ handle_compute_env
 waku_envs=()
 handle_waku_env() {
     waku_env_vars=(
-        "ETH_CLIENT_ADDRESS"
+        "RLN_RELAY_ETH_CLIENT_ADDRESS"
         "ETH_TESTNET_KEY"
         "RLN_RELAY_CRED_PASSWORD"
         "WAKU_URL"
@@ -208,7 +208,6 @@ handle_ollama_env() {
     ollama_env_vars=(
         "OLLAMA_HOST"
         "OLLAMA_PORT"
-        "OLLAMA_KEEP_ALIVE"
     )
     ollama_envs=($(as_pairs "${ollama_env_vars[@]}"))
 
