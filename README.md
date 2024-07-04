@@ -45,33 +45,39 @@ By default, there are no static peers, but you can specify them using duplicate 
 WAKU_EXTRA_ARGS="--staticnode=/ip4/foobar/... --staticnode=/ip4/bazboo/..."
 ```
 
-## Usage
+## Setup
 
-Dria Compute Node is mainly expected to be executed using `./start.sh`. To start running a node, you must do the following:
-
-### Initial Setup
-
-1. **Clone the repo**
+**Clone the repository**: This repository has the necessary setup to run the node, so start by cloning it using the command below:
 
 ```bash
 git clone https://github.com/firstbatchxyz/dkn-compute-node
 ```
 
-2. **Prepare Environment Variables**: Dria Compute Node makes use of several environment variables, some of which used by Waku itself as well. Create a `.env` file, and prepare you environment variables as given in [.env.example](./.env.example).
+**Prepare Environment Variables**: Dria Compute Node makes use of several environment variables, some of which used by Waku itself as well. Create a `.env` file, and prepare you environment variables as given in [.env.example](./.env.example).
 
-3. **Fund an Ethereum Wallet with 0.1 Sepolia ETH (+ gas fees)**: Waku and Dria makes use of the same Ethereum wallet, and Waku uses RLN Relay protocol for further security within the network. If you have not registered to RLN protocol yet, register by running `./waku/register_rln.sh`. If you have already registered, you will have a `keystore.json` which you can place under `./waku/keystore/keystore.json` in this directory. Your secret key will be provided at `ETH_TESTNET_KEY` variable. You can set an optional password at `RLN_RELAY_CRED_PASSWORD` as well to encrypt the keystore file, or to decrypt it if you already have one.
+**Fund an Ethereum Wallet with 0.1 Sepolia ETH (+ gas fees)**: Waku and Dria makes use of the same Ethereum wallet. We require a bit of ether for the next step, so you should fund your wallet using a faucet such as [Infura](https://www.infura.io/faucet/sepolia) or [Alchemy](https://www.alchemy.com/faucets/ethereum-sepolia). Place your private key at `ETH_TESTNET_KEY` in `.env` without the 0x prefix.
 
-4. **Ethereum Client RPC**: To communicate with Sepolia, you need an RPC URL. You can use [Infura](https://app.infura.io/) or [Alchemy](https://www.alchemy.com/). Your URL will be provided at `ETH_CLIENT_ADDRESS` variable.
+**Ethereum Client RPC**: To communicate with Ethereum, you need an RPC URL. You can use [Infura](https://app.infura.io/) or [Alchemy](https://www.alchemy.com/) providers for this. Place your URL at the `RLN_RELAY_ETH_CLIENT_ADDRESS` variable in `.env`.
 
-### Start the node
-
-With all setup steps completed, you should be able to start a node with `./start.sh`
+**Register to RLN Contract**: Waku uses Rate-Limiting Nullifier (RLN) for further security within the network. To register your wallet to RLN, first set a password at `RLN_RELAY_CRED_PASSWORD`. Then, register with the following commands which will create a file at `./waku/keystore/keystore.json`.
 
 ```sh
-# Give exec permissions
-chmod +x start.sh
+cd waku
+./register.rln
+```
 
-# Check the available commands
+> [!TIP]
+>
+> If you have already registered before, you will have a `keystore.json` which you can place under `./waku/keystore/keystore.json` in this directory. Note that the private key and RLN password must be the same so that this keystore file can be decrypted.
+
+These setup steps are all to be able to use Waku network. You can find it at [nwaku-compose](https://github.com/waku-org/nwaku-compose/).
+
+## Usage
+
+With all setup steps completed, you should be able to start a node with `./start.sh`. See the available commands with:
+
+```sh
+chmod +x start.sh
 ./start.sh --help
 ```
 
@@ -86,7 +92,6 @@ Based on the resources of your machine, you must decide which models that you wi
 - `gpt-4o` (OpenAI)
 
 ```sh
-# Run with models
 ./start.sh -m=llama3 -m=gpt-3.5-turbo
 ```
 
@@ -94,12 +99,21 @@ Based on the resources of your machine, you must decide which models that you wi
 >
 > Start script will run the containers in the background. You can check their logs either via the terminal or from [Docker Desktop](https://www.docker.com/products/docker-desktop/).
 
-#### Using with Local Ollama
+### Using Ollama
 
-With the `--local-ollama=true` option (default), the compute node will use the local Ollama server on the host machine. If the server is not running, the start script will initiate it with `ollama serve` and terminate it when stopping the node.
+> If you don't have Ollama installed, you can ignore this section.
+
+If you have Ollama installed already (e.g. via `brew install ollama`) then you must indicate that you will be using that Ollama, instead of a Docker container.
+
+To do this, we set the provide the argument `--local-ollama=true` which is `true` by default. With this, the compute node will use the Ollama server on your machine, instead of a Docker container.
+
+If the Ollama server is not running, the start script will initiate it with `ollama serve` and terminate it when the node is being stopped.
 
 - If `--local-ollama=false` or the local Ollama server is reachable, the compute node will use a Docker Compose service for it.
-- There are three Docker Compose Ollama options: `ollama-cpu`, `ollama-cuda`, and `ollama-rocm`. The start script will decide which option to use based on the host machine's GPU specifications.
+
+> [!TIP]
+>
+> There are three Docker Compose Ollama options: `ollama-cpu`, `ollama-cuda`, and `ollama-rocm`. The start script will decide which option to use based on the host machine's GPU specifications.
 
 ```sh
 # Run with local ollama
