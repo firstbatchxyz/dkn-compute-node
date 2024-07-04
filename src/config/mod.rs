@@ -71,11 +71,6 @@ impl DriaComputeNodeConfig {
             serde_json::to_string(&models).unwrap_or_default()
         );
 
-        if models.is_empty() {
-            log::error!("No models were provided, you will not be able to get any tasks!");
-            log::error!("Please restart with at least one model provided within DKN_MODELS.");
-        }
-
         Self {
             admin_public_key,
             secret_key,

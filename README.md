@@ -57,7 +57,7 @@ Dria Compute Node is mainly expected to be executed using `./start.sh`. To start
 git clone https://github.com/firstbatchxyz/dkn-compute-node
 ```
 
-2. **Prepare Environment Variables**: Dria Compute Node makes use of several environment variables, some of which used by Waku itself as well. First, prepare you environment variable as given in [.env.example](./.env.example).
+2. **Prepare Environment Variables**: Dria Compute Node makes use of several environment variables, some of which used by Waku itself as well. Create a `.env` file, and prepare you environment variables as given in [.env.example](./.env.example).
 
 3. **Fund an Ethereum Wallet with 0.1 Sepolia ETH (+ gas fees)**: Waku and Dria makes use of the same Ethereum wallet, and Waku uses RLN Relay protocol for further security within the network. If you have not registered to RLN protocol yet, register by running `./waku/register_rln.sh`. If you have already registered, you will have a `keystore.json` which you can place under `./waku/keystore/keystore.json` in this directory. Your secret key will be provided at `ETH_TESTNET_KEY` variable. You can set an optional password at `RLN_RELAY_CRED_PASSWORD` as well to encrypt the keystore file, or to decrypt it if you already have one.
 

@@ -127,6 +127,7 @@ impl DriaComputeNode {
             } else {
                 log::error!("Error subscribing to {}: {}\nAborting.", topic, e);
                 self.cancellation.cancel();
+                return;
             }
         }
 
