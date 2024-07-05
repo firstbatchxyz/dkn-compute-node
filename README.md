@@ -47,6 +47,15 @@ By default, there are no static peers, but you can specify them using duplicate 
 WAKU_EXTRA_ARGS="--staticnode=/ip4/foobar/... --staticnode=/ip4/bazboo/..."
 ```
 
+## Requirements
+
+Your machine should have **at least 2GB** memory, along with a stable internet connection.
+
+You need the following applications to run compute node:
+
+- **Git**: We will use `git` to clone the repository from GitHub, and pull latest changes for updates later.
+- **Docker**: Our services will make use of Docker so that the node can run on any machine.
+
 ## Setup
 
 To be able to run a node, we need to make a few preparations. Follow the steps below one by one.
