@@ -1,16 +1,14 @@
 #!/bin/sh
 
-
-if test -f ./keystore/keystore.json; then
-  echo "keystore/keystore.json already exists. Use it instead of creating a new one."
+if test -f $(pwd)/keystore/keystore.json; then
+  echo "Keystore already exists. Use it instead of creating a new one."
   echo "Exiting"
   exit 1
 fi
 
-
-if test -f .env; then
-  echo "Using .env file"
-  . $(pwd)/.env
+if test -f ../.env; then
+  echo "Using .env file from parent directory"
+  . $(pwd)/../.env
 fi
 
 # TODO: Set nwaku release when ready instead of quay
