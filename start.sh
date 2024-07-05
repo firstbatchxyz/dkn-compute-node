@@ -338,6 +338,8 @@ if [ $compose_exit_code -ne 0 ]; then
     exit $compose_exit_code
 fi
 
+echo "All good! Compute node is up and running."
+
 # background/foreground mode
 if [ "$START_MODE" == "FOREGROUND" ]; then
     echo "\nUse Control-C to exit"

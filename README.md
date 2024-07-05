@@ -109,7 +109,7 @@ Waku uses Rate-Limiting Nullifier (RLN) for further security within the network.
 
 ```sh
 cd waku
-./register.rln
+./register_rln.sh
 ```
 
 If all goes well, you should be able to see your transaction at the block explorer under the [RLN contract](https://sepolia.etherscan.io/address/0xCB33Aa5B38d79E3D9Fa8B10afF38AA201399a7e3).
