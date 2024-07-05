@@ -21,11 +21,12 @@ if test -n "${ETH_CLIENT_ADDRESS}"; then
   exit 1
 fi
 
+# changes here: rln-relay-user-message-limit=100 instead of 20
 docker run -v $(pwd)/keystore:/keystore/:Z harbor.status.im/wakuorg/nwaku:v0.30.1 generateRlnKeystore \
 --rln-relay-eth-client-address=${RLN_RELAY_ETH_CLIENT_ADDRESS} \
 --rln-relay-eth-private-key=${ETH_TESTNET_KEY} \
 --rln-relay-eth-contract-address=0xCB33Aa5B38d79E3D9Fa8B10afF38AA201399a7e3 \
 --rln-relay-cred-path=/keystore/keystore.json \
 --rln-relay-cred-password="${RLN_RELAY_CRED_PASSWORD}" \
---rln-relay-user-message-limit=20 \
+--rln-relay-user-message-limit=100 \
 --execute
