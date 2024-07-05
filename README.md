@@ -153,6 +153,34 @@ Start script will run the containers in the background. You can check their logs
 ./start.sh -m=<model-name> --dev
 ```
 
+### Looking at Logs
+
+To see your logs, you can go to [Docker Desktop](https://www.docker.com/products/docker-desktop/) and see the running containers and find `dkn-compute-node`. There, open the containers within the compose (click on `>` to the left) and click on any of the container to see its logs.
+
+Alternatively, you can use `docker compose logs` such as below:
+
+```sh
+# follow Dria logs
+docker compose logs -f compute
+
+# follow Waku logs
+docker compose logs -f nwaku
+```
+
+Instead of following with `-f`, you can check the latest commands like:
+
+```sh
+# logs from last 1 hour
+docker compose logs --since=1h compute
+
+# logs from last 30 minutes
+docker compose logs --since=30m compute
+```
+
+### Stopping the Node
+
+When you use `./start.sh`, it will wait for you in the same terminal to do CTRL+C before stopping. Once you do that, the containers will be stopped and removed. You can also kill the containers manually, doing CTRL+C afterwards will do nothing in such a case.
+
 ### Persistent Waku
 
 To persist your Waku session between runs, you can opt to run Waku elsewhere (such as with [nwaku-compose](https://github.com/waku-org/nwaku-compose/)) and then have the compute node connect to the existing Waku node. For such cases, we have `--waku-ext` flag (meaning Waku is externally hosted):
