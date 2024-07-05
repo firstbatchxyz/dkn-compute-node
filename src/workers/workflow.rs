@@ -1,4 +1,4 @@
-use ollama_workflows::{Entry, Executor, Model, ProgramMemory, Workflow};
+use ollama_workflows::{Entry, Executor, Model, ModelProvider, ProgramMemory, Workflow};
 use serde::Deserialize;
 use std::sync::Arc;
 use std::time::Duration;
@@ -19,6 +19,8 @@ pub fn workflow_worker(
     node: Arc<DriaComputeNode>,
     sleep_amount: Duration,
 ) -> tokio::task::JoinHandle<()> {
+    let (ollama_host, ollama_port) = get_ollama_config();
+
     tokio::spawn(async move {
         node.subscribe_topic(REQUEST_TOPIC).await;
         node.subscribe_topic(RESPONSE_TOPIC).await;
@@ -59,9 +61,14 @@ pub fn workflow_worker(
                                 }
                             };
                             log::info!("Using model {} for task {}", model, task.task_id);
+                            let model_provider = ModelProvider::from(model.clone());
 
                             // execute workflow with cancellation
-                            let executor = Executor::new(model);
+                            let executor = if model_provider == ModelProvider::Ollama {
+                                Executor::new_at(model, &ollama_host, ollama_port)
+                            } else {
+                                Executor::new(model)
+                            };
                             let mut memory = ProgramMemory::new();
                             let entry: Option<Entry> = task.input.prompt.map(|prompt| Entry::try_value_or_str(&prompt));
                             let result: Option<String>;
@@ -100,4 +107,20 @@ pub fn workflow_worker(
         node.unsubscribe_topic_ignored(REQUEST_TOPIC).await;
         node.unsubscribe_topic_ignored(RESPONSE_TOPIC).await;
     })
+}
+
+fn get_ollama_config() -> (String, u16) {
+    const DEFAULT_OLLAMA_HOST: &str = "http://127.0.0.1";
+    const DEFAULT_OLLAMA_PORT: u16 = 11434;
+
+    let ollama_host = std::env::var("OLLAMA_HOST").unwrap_or(DEFAULT_OLLAMA_HOST.to_string());
+    let ollama_port = std::env::var("OLLAMA_PORT")
+        .and_then(|port_str| {
+            port_str
+                .parse::<u16>()
+                .map_err(|_| std::env::VarError::NotPresent)
+        })
+        .unwrap_or(DEFAULT_OLLAMA_PORT);
+
+    (ollama_host, ollama_port)
 }
