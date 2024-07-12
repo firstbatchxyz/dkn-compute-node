@@ -1,6 +1,6 @@
 [package]
 name = "dkn-compute"
-version = "0.1.1"
+version = "0.3.0"
 edition = "2021"
 license = "Apache-2.0"
 readme = "README.md"
@@ -10,8 +10,6 @@ default = []
 
 # test features
 waku_test = []
-ollama_test = []
-search_python_test = []
 
 [dependencies]
 tokio-util = { version = "0.7.10", features = ["rt"] }
@@ -27,6 +25,7 @@ hex = "0.4.3"
 hex-literal = "0.4.1"
 url = "2.5.0"
 urlencoding = "2.1.3"
+uuid = { version = "1.8.0", features = ["v4"] }
 
 # logging
 env_logger = "0.11.3"
@@ -43,17 +42,16 @@ fastbloom-rs = "0.5.9"
 sha2 = "0.10.8"
 sha3 = "0.10.8"
 
-# llm stuff
-langchain-rust = { version = "4.2.0", features = ["ollama"] }
-ollama-rs = "0.1.9"
-uuid = { version = "1.8.0", features = ["v4"] }
+# llm stuff 
+ollama-workflows = { git = "https://github.com/andthattoo/ollama-workflows", rev = "4720e16" }
 
 [dev-dependencies]
 colored = "2.1.0"
 rand = "0.8.5"
 
-# TODO: fixed version of ollama-rs for benchmarks, remove this when the new version is released
-ollama-rs-master = { package = "ollama-rs", git = "https://github.com/pepperoni21/ollama-rs.git", branch = "master" }
+# we dont use these anymore, Ollama Workflows does it for us
+langchain-rust = { version = "4.3.0", features = ["ollama"] }
+ollama-rs = "0.2.0"
 
 [[example]]
 name = "ollama"

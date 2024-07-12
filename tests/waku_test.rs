@@ -36,18 +36,22 @@ mod waku_tests {
         let _ = env_logger::try_init();
 
         let node = DriaComputeNode::default();
-        let topic = "test-topic-msr";
+        let topic = "test-topic-dria";
 
         node.subscribe_topic(topic).await;
 
-        let message = WakuMessage::new("hello world".to_string(), topic);
+        // this test checks if we get stuck at the nonce limit of RLNv2
+        for i in 1..=20 {
+            println!("Sending message #{}", i);
+            let message = WakuMessage::new("hello world".to_string(), topic);
 
-        node.send_message(message)
-            .await
-            .expect("Should send message");
+            node.send_message(message)
+                .await
+                .expect("Should send message");
 
-        // wait a bit for the message
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            // wait a bit for the message
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        }
 
         let messages = node
             .process_topic(topic, false)
@@ -55,5 +59,7 @@ mod waku_tests {
             .expect("Should receive");
 
         assert!(messages.len() > 0, "Should have received message");
+
+        node.unsubscribe_topic_ignored(topic).await;
     }
 }

@@ -1,15 +1,21 @@
 use ecies::encrypt;
 use fastbloom_rs::{BloomFilter, Membership};
 use libsecp256k1::{sign, Message, RecoveryId, Signature};
+use ollama_workflows::ModelProvider;
 use parking_lot::RwLock;
 use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    compute::payload::{TaskRequest, TaskRequestPayload, TaskResponsePayload},
     config::DriaComputeNodeConfig,
     errors::NodeResult,
-    utils::{crypto::sha256hash, filter::FilterPayload, get_current_time_nanos},
+    utils::{
+        crypto::sha256hash,
+        filter::FilterPayload,
+        get_current_time_nanos,
+        payload::{TaskRequest, TaskRequestPayload, TaskResponsePayload},
+        provider::{check_ollama, check_openai},
+    },
     waku::{message::WakuMessage, WakuClient},
 };
 
@@ -40,16 +46,10 @@ impl DriaComputeNode {
         }
     }
 
-    /// Returns the wallet address of the node.
-    #[inline]
-    pub fn address(&self) -> [u8; 20] {
-        self.config.DKN_WALLET_ADDRESS
-    }
-
     /// Shorthand to sign a digest with node's secret key and return signature & recovery id.
     #[inline]
     pub fn sign(&self, message: &Message) -> (Signature, RecoveryId) {
-        sign(message, &self.config.DKN_WALLET_SECRET_KEY)
+        sign(message, &self.config.secret_key)
     }
 
     /// Returns the state of the node, whether it is busy or not.
@@ -64,20 +64,6 @@ impl DriaComputeNode {
         *self.busy_lock.write() = busy;
     }
 
-    /// Shorthand to sign a digest (bytes) with node's secret key and return signature & recovery id
-    /// serialized to 65 byte hex-string.
-    #[inline]
-    pub fn sign_bytes(&self, message: &[u8; 32]) -> String {
-        let message = Message::parse(message);
-        let (signature, recid) = sign(&message, &self.config.DKN_WALLET_SECRET_KEY);
-
-        format!(
-            "{}{}",
-            hex::encode(signature.serialize()),
-            hex::encode([recid.serialize()])
-        )
-    }
-
     /// Given a hex-string serialized Bloom Filter of a task, checks if this node is selected to do the task.
     ///
     /// This is done by checking if the address of this node is in the filter.
@@ -85,40 +71,35 @@ impl DriaComputeNode {
     pub fn is_tasked(&self, filter: &FilterPayload) -> NodeResult<bool> {
         let filter = BloomFilter::try_from(filter)?;
 
-        Ok(filter.contains(&self.address()))
+        Ok(filter.contains(&self.config.address))
     }
 
     /// Creates the payload of a computation result, as per Dria Whitepaper section 5.1 algorithm 2:
     ///
-    /// - Sign result with node `self.secret_key`
-    /// - Encrypt `(signature || result)` with `task_public_key`
-    /// - Commit to `(signature || result)` using SHA256.
+    /// - Sign `task_id || result` with node `self.secret_key`
+    /// - Encrypt `result` with `task_public_key`
     pub fn create_payload(
         &self,
         result: impl AsRef<[u8]>,
+        task_id: &str,
         task_pubkey: &[u8],
     ) -> NodeResult<TaskResponsePayload> {
         // sign result
-        let result_digest: [u8; 32] = sha256hash(result.as_ref());
-        let result_msg = Message::parse(&result_digest);
-        let (signature, recid) = sign(&result_msg, &self.config.DKN_WALLET_SECRET_KEY);
+        let mut preimage = Vec::new();
+        preimage.extend_from_slice(task_id.as_ref());
+        preimage.extend_from_slice(result.as_ref());
+        let digest = Message::parse(&sha256hash(preimage));
+        let (signature, recid) = sign(&digest, &self.config.secret_key);
         let signature: [u8; 64] = signature.serialize();
         let recid: [u8; 1] = [recid.serialize()];
 
         // encrypt result
         let ciphertext = encrypt(task_pubkey, result.as_ref())?;
 
-        // concatenate `signature_bytes` and `digest_bytes`
-        let mut preimage = Vec::new();
-        preimage.extend_from_slice(&signature);
-        preimage.extend_from_slice(&recid);
-        preimage.extend_from_slice(&result_digest);
-        let commitment: [u8; 32] = sha256hash(preimage);
-
         Ok(TaskResponsePayload {
-            commitment: hex::encode(commitment),
             ciphertext: hex::encode(ciphertext),
             signature: format!("{}{}", hex::encode(signature), hex::encode(recid)),
+            task_id: task_id.to_string(),
         })
     }
 
@@ -146,6 +127,7 @@ impl DriaComputeNode {
             } else {
                 log::error!("Error subscribing to {}: {}\nAborting.", topic, e);
                 self.cancellation.cancel();
+                return;
             }
         }
 
@@ -157,6 +139,43 @@ impl DriaComputeNode {
         let content_topic = WakuMessage::create_content_topic(topic);
         self.waku.relay.unsubscribe(&content_topic).await?;
         log::info!("Unsubscribed from {}", topic);
+        Ok(())
+    }
+
+    /// Unsubscribe from a certain task with its topic, ignoring the error.
+    pub async fn unsubscribe_topic_ignored(&self, topic: &str) {
+        if let Err(e) = self.unsubscribe_topic(topic).await {
+            log::error!(
+                "Error unsubscribing from {}: {}\nContinuing anyway.",
+                topic,
+                e
+            );
+        }
+    }
+
+    /// Check if the required compute services are running, e.g. if Ollama
+    /// is detected as a provider for the chosen models, it will check that
+    /// Ollama is running.
+    pub async fn check_services(&self) -> NodeResult<()> {
+        let unique_providers: Vec<ModelProvider> =
+            self.config
+                .models
+                .iter()
+                .fold(Vec::new(), |mut unique, (provider, _)| {
+                    if !unique.contains(provider) {
+                        unique.push(provider.clone());
+                    }
+                    unique
+                });
+
+        if unique_providers.contains(&ModelProvider::Ollama) {
+            check_ollama().await?;
+        }
+
+        if unique_providers.contains(&ModelProvider::OpenAI) {
+            check_openai()?;
+        }
+
         Ok(())
     }
 
@@ -198,7 +217,7 @@ impl DriaComputeNode {
         if signed {
             messages.retain(|message| {
                 message
-                    .is_signed(&self.config.DKN_ADMIN_PUBLIC_KEY)
+                    .is_signed(&self.config.admin_public_key)
                     .unwrap_or_else(|e| {
                         log::warn!("Could not verify message signature: {}", e);
                         false
@@ -215,6 +234,7 @@ impl DriaComputeNode {
     /// Given a list of messages, this function:
     ///
     /// - parses them into their respective payloads
+    /// - checks the signatures (if `signed = true`) w.r.t admin public key
     /// - filters out past-deadline & non-selected (with the Bloom Filter) tasks
     /// - sorts the tasks by their deadline
     pub fn parse_messages<T>(&self, messages: Vec<WakuMessage>, signed: bool) -> Vec<TaskRequest<T>>
@@ -279,93 +299,18 @@ impl DriaComputeNode {
             .collect()
     }
 
-    /// Given a task with `id` and respective `public_key`, encrypts the result and obtains
-    /// the `h || s || e` payload, and sends it to the Waku network.
-    pub async fn send_task_result<R: AsRef<[u8]>>(
+    /// Given a task with `id` and respective `public_key`, sign-then-encrypt the result.
+    pub async fn send_result<R: AsRef<[u8]>>(
         &self,
-        id: &str,
+        response_topic: &str,
         public_key: &[u8],
+        task_id: &str,
         result: R,
     ) -> NodeResult<()> {
-        let payload = self.create_payload(result.as_ref(), public_key)?;
+        let payload = self.create_payload(result.as_ref(), task_id, public_key)?;
         let payload_str = payload.to_string()?;
-        let message = WakuMessage::new(payload_str, id);
+        let message = WakuMessage::new(payload_str, response_topic);
 
-        self.send_message_once(message).await
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use ecies::decrypt;
-    use libsecp256k1::{verify, PublicKey, SecretKey};
-
-    /// This test demonstrates the creation and parsing of a payload.
-    ///
-    /// In DKN, the payload is created by Compute Node but parsed by the Admin Node.
-    /// At the end, there is also the verification step for the commitments.
-    #[test]
-    fn test_payload_generation_verification() {
-        const ADMIN_PRIV_KEY: &[u8; 32] = b"aaaabbbbccccddddddddccccbbbbaaaa";
-        const RESULT: &[u8; 28] = b"this is some result you know";
-
-        let node = DriaComputeNode::default();
-        let secret_key = SecretKey::parse(ADMIN_PRIV_KEY).expect("Should parse secret key");
-        let public_key = PublicKey::from_secret_key(&secret_key);
-
-        // create payload
-        let payload = node
-            .create_payload(RESULT, &public_key.serialize())
-            .expect("Should create payload");
-
-        // (here we assume the payload is sent to Waku network, and picked up again)
-
-        // decrypt result
-        let result = decrypt(
-            &secret_key.serialize(),
-            hex::decode(payload.ciphertext)
-                .expect("Should decode")
-                .as_slice(),
-        )
-        .expect("Could not decrypt");
-        assert_eq!(result, RESULT, "Result mismatch");
-
-        // verify signature
-        let rsv = hex::decode(payload.signature).expect("Should decode");
-        let mut signature_bytes = [0u8; 64];
-        signature_bytes.copy_from_slice(&rsv[0..64]);
-        let recid_bytes: [u8; 1] = [rsv[64]];
-        let signature =
-            Signature::parse_standard(&signature_bytes).expect("Should parse signature");
-        let recid = RecoveryId::parse(recid_bytes[0]).expect("Should parse recovery id");
-
-        let result_digest = sha256hash(result);
-        let message = Message::parse(&result_digest);
-        assert!(
-            verify(&message, &signature, &node.config.DKN_WALLET_PUBLIC_KEY),
-            "Could not verify"
-        );
-
-        // recover verifying key (public key) from signature
-        let recovered_public_key =
-            libsecp256k1::recover(&message, &signature, &recid).expect("Could not recover");
-        assert_eq!(
-            node.config.DKN_WALLET_PUBLIC_KEY, recovered_public_key,
-            "Public key mismatch"
-        );
-
-        // verify commitments (algorithm 4 in whitepaper)
-        let mut preimage = Vec::new();
-        preimage.extend_from_slice(&signature_bytes);
-        preimage.extend_from_slice(&recid_bytes);
-        preimage.extend_from_slice(&result_digest);
-        assert_eq!(
-            sha256hash(preimage),
-            hex::decode(payload.commitment)
-                .expect("Should decode")
-                .as_slice(),
-            "Commitment mismatch"
-        );
+        self.send_message(message).await
     }
 }

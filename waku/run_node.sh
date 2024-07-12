@@ -2,7 +2,13 @@
 
 echo "I am a nwaku node"
 
-if [ -z "${ETH_CLIENT_ADDRESS}" ]; then
+if test -n "${ETH_CLIENT_ADDRESS}" -o ; then
+  echo "ETH_CLIENT_ADDRESS variable was renamed to RLN_RELAY_ETH_CLIENT_ADDRESS"
+  echo "Please update your .env file"
+  exit 1
+fi
+
+if [ -z "${RLN_RELAY_ETH_CLIENT_ADDRESS}" ]; then
     echo "Missing Eth client address, please refer to README.md for detailed instructions"
     exit 1
 fi
@@ -59,8 +65,6 @@ if [ -n "${STORAGE_SIZE}" ]; then
     STORE_RETENTION_POLICY=--store-message-retention-policy=size:"${STORAGE_SIZE}"
 fi
 
-# we have disabled store for DKN, using --store=false
-
 exec /usr/bin/wakunode\
   --relay=true\
   --filter=true\
@@ -71,7 +75,7 @@ exec /usr/bin/wakunode\
   --discv5-discovery=true\
   --discv5-udp-port=9005\
   --discv5-enr-auto-update=True\
-  --log-level=${LOG_LEVEL}\
+  --log-level=DEBUG\
   --tcp-port=30304\
   --metrics-server=True\
   --metrics-server-port=8003\
@@ -81,10 +85,11 @@ exec /usr/bin/wakunode\
   --rest-address=0.0.0.0\
   --rest-port=8645\
   --rest-allow-origin="waku-org.github.io"\
+  --rest-allow-origin="localhost:*"\
   --nat=extip:"${MY_EXT_IP}"\
   --store=false\
   --store-message-db-url="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/postgres"\
-  --rln-relay-eth-client-address="${ETH_CLIENT_ADDRESS}"\
+  --rln-relay-eth-client-address="${RLN_RELAY_ETH_CLIENT_ADDRESS}"\
   --rln-relay-tree-path="/etc/rln_tree"\
   ${RLN_RELAY_CRED_PATH}\
   ${RLN_RELAY_CRED_PASSWORD}\

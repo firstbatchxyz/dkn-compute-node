@@ -1,4 +1,5 @@
 use crate::{errors::NodeResult, utils::http::BaseClient};
+use serde_json::json;
 use urlencoding;
 
 use super::message::WakuMessage;
@@ -7,7 +8,7 @@ use super::message::WakuMessage;
 ///
 /// The relay client is used to send and receive messages to Waku network. It works as follows:
 ///
-/// 1. A node subscribes to a content topic
+/// 1. A node subscribes to a content topic.
 /// 2. Nodes that are subscribed to the same content topic can send and receive messages via the network.
 /// 3. On termination, the node unsubscribes from the content topic.
 #[derive(Debug, Clone)]
@@ -23,7 +24,7 @@ impl RelayClient {
     /// Send a message.
     pub async fn send_message(&self, message: WakuMessage) -> NodeResult<()> {
         log::info!("Sending: {}", message);
-        let message = serde_json::json!(message);
+        let message = json!(message);
         self.base.post("relay/v1/auto/messages", message).await?;
 
         Ok(())
@@ -52,10 +53,7 @@ impl RelayClient {
     pub async fn subscribe(&self, content_topic: &str) -> NodeResult<()> {
         log::debug!("Subscribing to {}", content_topic);
         self.base
-            .post(
-                "relay/v1/auto/subscriptions",
-                serde_json::json!(vec![content_topic]),
-            )
+            .post("relay/v1/auto/subscriptions", json!(vec![content_topic]))
             .await?;
 
         Ok(())
@@ -65,10 +63,7 @@ impl RelayClient {
     pub async fn unsubscribe(&self, content_topic: &str) -> NodeResult<()> {
         log::debug!("Unsubscribing from {}", content_topic);
         self.base
-            .delete(
-                "relay/v1/auto/subscriptions",
-                serde_json::json!(vec![content_topic]),
-            )
+            .delete("relay/v1/auto/subscriptions", json!(vec![content_topic]))
             .await?;
 
         Ok(())

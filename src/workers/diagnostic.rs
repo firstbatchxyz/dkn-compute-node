@@ -15,15 +15,16 @@ pub fn diagnostic_worker(
     sleep_amount: Duration,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
-        let mut num_peers: usize = 0;
-        let mut num_checks: usize = 0;
+        let mut num_peers = 0;
+        let mut num_checks = NUM_CHECKS_INTERVAL;
+
         loop {
             tokio::select! {
                 _ = node.cancellation.cancelled() => break,
                 _ = tokio::time::sleep(sleep_amount) => {
-
                     match node.waku.peers().await {
                         Ok(peers) => {
+                            // if peer count changes, print it
                             if num_peers != peers.len() {
                                 num_peers = peers.len();
                                 log::info!("Active number of peers: {}", num_peers);
@@ -33,8 +34,9 @@ pub fn diagnostic_worker(
                             else if num_checks == NUM_CHECKS_INTERVAL {
                                 num_checks = 0;
                                 log::info!("Active number of peers: {}", num_peers);
+                            } else {
+                                num_checks += 1;
                             }
-                            num_checks += 1;
                         },
                         Err(e) => {
                             log::error!("Error getting peers: {}", e);

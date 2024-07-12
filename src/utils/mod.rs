@@ -1,6 +1,8 @@
 pub mod crypto;
 pub mod filter;
 pub mod http;
+pub mod payload;
+pub mod provider;
 
 use std::time::{Duration, SystemTime};
 use tokio::signal::unix::{signal, SignalKind};
@@ -27,6 +29,10 @@ pub async fn wait_for_termination(cancellation: CancellationToken) -> std::io::R
     tokio::select! {
         _ = sigterm.recv() => log::warn!("Recieved SIGTERM"),
         _ = sigint.recv() => log::warn!("Recieved SIGINT"),
+        _ = cancellation.cancelled() => {
+            // no need to wait if cancelled anyways
+            return Ok(());
+        }
     };
 
     cancellation.cancel();

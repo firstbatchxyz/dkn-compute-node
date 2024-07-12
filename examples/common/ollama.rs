@@ -1,8 +1,5 @@
-use dkn_compute::{
-    config::constants::{DEFAULT_OLLAMA_HOST, DEFAULT_OLLAMA_PORT},
-    utils::get_current_time_nanos,
-};
-use ollama_rs_master::{
+use dkn_compute::utils::get_current_time_nanos;
+use ollama_rs::{
     generation::completion::{request::GenerationRequest, GenerationResponse},
     Ollama,
 };
@@ -12,7 +9,7 @@ pub async fn use_model_with_prompt(
     model: &str,
     prompt: &str,
 ) -> (GenerationResponse, tokio::time::Duration) {
-    let ollama = Ollama::new(DEFAULT_OLLAMA_HOST, DEFAULT_OLLAMA_PORT);
+    let ollama = Ollama::default();
 
     let time = get_current_time_nanos();
     let prompt = prompt.to_string();

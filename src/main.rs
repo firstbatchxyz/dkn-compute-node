@@ -3,15 +3,12 @@ use std::sync::Arc;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 use dkn_compute::{
-    config::{constants::*, tasks::DriaComputeNodeTasks, DriaComputeNodeConfig},
-    node::DriaComputeNode,
-    utils::wait_for_termination,
+    config::DriaComputeNodeConfig, node::DriaComputeNode, utils::wait_for_termination,
 };
 
 use dkn_compute::workers::diagnostic::*;
 use dkn_compute::workers::heartbeat::*;
-use dkn_compute::workers::search_python::*;
-use dkn_compute::workers::synthesis::*;
+use dkn_compute::workers::workflow::*;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -22,13 +19,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     const VERSION: &str = env!("CARGO_PKG_VERSION");
     log::info!("Using Dria Compute Node v{}", VERSION);
 
-    let tasks = DriaComputeNodeTasks::new();
     let config = DriaComputeNodeConfig::new();
     let cancellation = CancellationToken::new();
     let node = Arc::new(DriaComputeNode::new(config, cancellation.clone()));
 
-    log::info!("Starting workers...");
-    log::info!("{:?}", tasks);
+    log::info!("Checking required services...");
+    if let Err(e) = node.check_services().await {
+        log::error!("{}", e);
+        return Err(e.into());
+    }
+
+    // start workers after waiting a bit because Waku takes time to launch
+    log::info!("Starting workers in 5 seconds...");
+    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
     let tracker = TaskTracker::new();
 
     tracker.spawn(diagnostic_worker(
@@ -38,29 +41,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracker.spawn(heartbeat_worker(
         node.clone(),
-        "heartbeat",
         tokio::time::Duration::from_millis(1000),
     ));
 
-    if tasks.synthesis {
-        tracker.spawn(synthesis_worker(
-            node.clone(),
-            "synthesis",
-            tokio::time::Duration::from_millis(1000),
-            env::var(DKN_SYNTHESIS_MODEL_PROVIDER).ok(),
-            env::var(DKN_SYNTHESIS_MODEL_NAME).ok(),
-        ));
-    }
-
-    if tasks.search {
-        // TODO: add a feature / env var to enable/disable search_python
-        // and use search_rust instead
-        tracker.spawn(search_worker(
-            node.clone(),
-            "search_python",
-            tokio::time::Duration::from_millis(1000),
-        ));
-    }
+    tracker.spawn(workflow_worker(
+        node.clone(),
+        tokio::time::Duration::from_millis(1000),
+    ));
 
     // close tracker after spawning everything
     tracker.close();
