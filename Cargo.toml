@@ -45,6 +45,28 @@ sha3 = "0.10.8"
 # llm stuff 
 ollama-workflows = { git = "https://github.com/andthattoo/ollama-workflows", rev = "4720e16" }
 
+# peer-to-peer stuff
+libp2p = { version = "0.53", features = [
+    "dcutr",
+    "ping",
+    "relay",
+    "autonat",
+    "identify",
+    "tokio",
+    "gossipsub",
+    "mdns",
+    "noise",
+    "macros",
+    "tcp",
+    "yamux",
+    "quic",
+    "kad",
+] }
+libp2p-identity = { version = "0.2.9", features = ["secp256k1", "ed25519"] }
+tracing = { version = "0.1.40" }
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+public-ip = "0.2.2"
+
 [dev-dependencies]
 colored = "2.1.0"
 rand = "0.8.5"
