@@ -9,7 +9,7 @@ use libp2p::{
     StreamProtocol,
 };
 
-const DRIA_PROTO_NAME: StreamProtocol = StreamProtocol::new("/dria/kad/1.0.0");
+use crate::p2p::DRIA_PROTO_NAME;
 
 #[derive(NetworkBehaviour)]
 pub struct DriaBehaviour {

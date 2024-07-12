@@ -1,3 +1,5 @@
+use libp2p::futures::StreamExt;
+use libp2p::kad::{GetClosestPeersError, GetClosestPeersOk, QueryResult};
 // TODO:
 use libp2p::{
     autonat, dcutr, gossipsub, identify, kad, multiaddr::Protocol, noise, relay,
@@ -8,11 +10,16 @@ use libp2p_identity::{Keypair, PublicKey};
 use std::error::Error;
 use std::time::Duration;
 
+use crate::p2p::behaviour::DriaBehaviourEvent;
+
 use super::behaviour::DriaBehaviour;
+use super::DRIA_PROTO_NAME;
 
 pub struct P2PClient {
     swarm: Swarm<DriaBehaviour>,
 }
+
+// FIXME: lots of map_err to strings, should be handled better
 
 impl P2PClient {
     // TODO: change error type
@@ -66,8 +73,9 @@ impl P2PClient {
             }
         }
 
-        log::info!("Searching for closest peers.");
-        let random_peer: PeerId = Keypair::generate_secp256k1().public().into();
+        log::info!("Searching for random peers.");
+        // let random_peer: PeerId = Keypair::generate_secp256k1().public().into(); // FIXME: do as below?
+        let random_peer = PeerId::random();
         swarm
             .behaviour_mut()
             .kademlia
@@ -125,4 +133,124 @@ impl P2PClient {
             .unsubscribe(&topic)
             .expect("todo handle error");
     }
+
+    /// Publish a message to a topic.
+    pub fn publish(&mut self, topic_name: &str, message_bytes: Vec<u8>) {
+        log::debug!("Publishing to {}", topic_name);
+
+        let topic = gossipsub::IdentTopic::new(topic_name);
+        let _message_id = self
+            .swarm
+            .behaviour_mut()
+            .gossipsub
+            .publish(topic, message_bytes)
+            .expect("todo handle error");
+
+        // TODO: return message id
+    }
+
+    /// Listens to the Swarm for incoming messages.
+    /// This method should be called in a loop to keep the client running.
+    /// When a message is received, it will be returned.
+    pub async fn process_events(&mut self) {
+        loop {
+            tokio::select! {
+                // Handle network events such as peer connections, messages, and DHT operations
+                event = self.swarm.select_next_some() => match event {
+                    SwarmEvent::Behaviour(DriaBehaviourEvent::Kademlia(kad::Event::OutboundQueryProgressed {
+                        result: QueryResult::GetClosestPeers(result),
+                        ..
+                    })) => self.handle_closest_peers_result(result),
+                    SwarmEvent::Behaviour(DriaBehaviourEvent::Identify(identify::Event::Received {
+                        peer_id,
+                        info,
+                    })) => self.handle_identify_event(peer_id, info),
+                    SwarmEvent::Behaviour(DriaBehaviourEvent::Gossipsub(gossipsub::Event::Message {
+                        propagation_source: peer_id,
+                        message_id,
+                        message,
+                    })) => {
+                        log::info!(
+                            "Got message: '{}' with id: {} from peer: {}",
+                            String::from_utf8_lossy(&message.data),
+                            message_id,
+                            peer_id,
+                        );
+                        let random_peer_id = PeerId::random();
+
+                        log::debug!("Searching for peers close to {:?}", random_peer_id);
+                        self.swarm
+                            .behaviour_mut()
+                            .kademlia
+                            .get_closest_peers(random_peer_id);
+                    },
+                    SwarmEvent::NewListenAddr { address, .. } => {
+                        log::info!("Local node is listening on {address}");
+                    },
+                    _ => log::debug!("Unhandled swarm Event {:?}", event),
+                }
+            }
+        }
+    }
+
+    /// Handles identify events to add peer addresses to Kademlia, if protocols match.
+    fn handle_identify_event(&mut self, peer_id: PeerId, info: identify::Info) {
+        let protocol_match = info.protocols.iter().any(|p| *p == DRIA_PROTO_NAME);
+        for addr in info.listen_addrs {
+            let prefix = if protocol_match {
+                "received"
+            } else {
+                "Incoming from different protocol"
+            };
+            log::info!(
+                "{prefix} addr {addr} through identify. Peer is {:?}",
+                peer_id
+            );
+            if protocol_match {
+                self.swarm
+                    .behaviour_mut()
+                    .kademlia
+                    .add_address(&peer_id, addr);
+            }
+        }
+    }
+
+    /// Handles the results of a Kademlia closest peers search, either adding peers to Gossipsub or logging timeout errors.
+    fn handle_closest_peers_result(
+        &mut self,
+        result: Result<GetClosestPeersOk, GetClosestPeersError>,
+    ) {
+        match result {
+            Ok(GetClosestPeersOk { peers, .. }) => {
+                if !peers.is_empty() {
+                    log::info!("Query finished with closest peers: {:#?}", peers);
+                    for peer in peers {
+                        log::info!("gossipsub adding peer {peer}");
+                        self.swarm
+                            .behaviour_mut()
+                            .gossipsub
+                            .add_explicit_peer(&peer);
+                    }
+                } else {
+                    log::info!("Query finished with no closest peers.");
+                }
+            }
+            Err(GetClosestPeersError::Timeout { peers, .. }) => {
+                if !peers.is_empty() {
+                    log::warn!("Query timed out with closest peers: {:#?}", peers);
+                    for peer in peers {
+                        log::info!("gossipsub adding peer {peer}");
+                        self.swarm
+                            .behaviour_mut()
+                            .gossipsub
+                            .add_explicit_peer(&peer);
+                    }
+                } else {
+                    log::warn!("Query timed out with no closest peers.");
+                }
+            }
+        }
+    }
+
+    // TODO: add method to get peers (specifically their count) from Kademlia
 }
