@@ -1,6 +1,8 @@
 use reqwest::Client;
 use std::collections::HashMap;
 
+// TODO: this may not be used atm
+
 /// A wrapper for GET, POST and DELETE requests.
 #[derive(Debug, Clone)]
 pub struct BaseClient {

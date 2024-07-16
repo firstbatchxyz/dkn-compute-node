@@ -1,9 +1,7 @@
 use std::env;
 use tokio_util::sync::CancellationToken;
 
-use dkn_compute::{
-    config::DriaComputeNodeConfig, node::DriaComputeNode, utils::wait_for_termination,
-};
+use dkn_compute::{config::DriaComputeNodeConfig, node::DriaComputeNode};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -18,14 +16,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cancellation = CancellationToken::new();
 
     log::info!("Initializing Dria Compute Node...");
+
     let mut node = DriaComputeNode::new(config, cancellation.clone())?;
-
-    // start handling tasks
-    node.launch().await;
-
-    // wait for all workers
-    wait_for_termination(cancellation).await?;
-    log::info!("Terminating the node...");
+    node.check_services().await?;
+    node.launch().await?;
 
     Ok(())
 }

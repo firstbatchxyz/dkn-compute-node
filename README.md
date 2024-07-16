@@ -181,14 +181,6 @@ docker compose logs --since=30m compute
 
 When you use `./start.sh`, it will wait for you in the same terminal to do CTRL+C before stopping. Once you do that, the containers will be stopped and removed. You can also kill the containers manually, doing CTRL+C afterwards will do nothing in such a case.
 
-### Persistent Waku
-
-To persist your Waku session between runs, you can opt to run Waku elsewhere (such as with [nwaku-compose](https://github.com/waku-org/nwaku-compose/)) and then have the compute node connect to the existing Waku node. For such cases, we have `--waku-ext` flag (meaning Waku is externally hosted):
-
-```sh
-./start.sh -m=<model-name> --waku-ext
-```
-
 ### Using Ollama
 
 > If you don't have Ollama installed, you can ignore this section.
@@ -235,7 +227,6 @@ Besides the unit tests, there are separate tests for Waku network, and for compu
 
 ```sh
 make test         # unit tests
-make test-waku    # Waku tests (requires a running Waku node)
 make test-ollama  # Ollama tests (requires a running Ollama client)
 ```
 

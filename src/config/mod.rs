@@ -1,8 +1,6 @@
-pub mod constants;
 pub mod models;
 
 use crate::utils::crypto::to_address;
-use constants::*;
 use ecies::PublicKey;
 use libsecp256k1::{PublicKeyFormat, SecretKey};
 use models::parse_dkn_models;
@@ -26,7 +24,11 @@ pub struct DriaComputeNodeConfig {
 
 impl DriaComputeNodeConfig {
     pub fn new() -> Self {
-        let secret_key = match env::var(DKN_WALLET_SECRET_KEY) {
+        /// 32 byte secret key hex(b"node") * 8, dummy only
+        pub const DEFAULT_DKN_WALLET_SECRET_KEY: &[u8; 32] =
+            &hex_literal::hex!("6e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f6465");
+
+        let secret_key = match env::var("DKN_WALLET_SECRET_KEY") {
             Ok(secret_env) => {
                 let secret_dec =
                     hex::decode(secret_env).expect("Secret key should be 32-bytes hex encoded.");
@@ -47,8 +49,12 @@ impl DriaComputeNodeConfig {
             hex::encode(public_key.serialize_compressed())
         );
 
+        /// 33 byte compressed public key of secret key from hex(b"dria) * 8, dummy only
+        const DEFAULT_DKN_ADMIN_PUBLIC_KEY: &[u8; 33] = &hex_literal::hex!(
+            "0208ef5e65a9c656a6f92fb2c770d5d5e2ecffe02a6aade19207f75110be6ae658"
+        );
         let admin_public_key = PublicKey::parse_slice(
-            hex::decode(env::var(DKN_ADMIN_PUBLIC_KEY).unwrap_or_default())
+            hex::decode(env::var("DKN_ADMIN_PUBLIC_KEY").unwrap_or_default())
                 .unwrap_or_default()
                 .as_slice(),
             Some(PublicKeyFormat::Compressed),
@@ -65,7 +71,7 @@ impl DriaComputeNodeConfig {
         let address = to_address(&public_key);
         log::info!("Node Address:     0x{}", hex::encode(address));
 
-        let models = parse_dkn_models(env::var(DKN_MODELS).unwrap_or_default());
+        let models = parse_dkn_models(env::var("DKN_MODELS").unwrap_or_default());
         log::info!(
             "Models: {}",
             serde_json::to_string(&models).unwrap_or_default()
@@ -94,7 +100,7 @@ mod tests {
     #[test]
     fn test_config() {
         env::set_var(
-            DKN_WALLET_SECRET_KEY,
+            "DKN_WALLET_SECRET_KEY",
             "6e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f6465",
         );
         let cfg = DriaComputeNodeConfig::new();

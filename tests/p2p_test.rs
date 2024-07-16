@@ -1,6 +1,6 @@
 #[cfg_attr(test, cfg(feature = "waku_test"))]
 mod waku_tests {
-    use dkn_compute::{node::DriaComputeNode, waku::message::P2PMessage};
+    use dkn_compute::{node::DriaComputeNode, p2p::P2PMessage};
 
     #[tokio::test]
     async fn test_base_waku() {

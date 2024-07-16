@@ -4,6 +4,7 @@ use libp2p::gossipsub;
 use libsecp256k1::{sign, Message, RecoveryId, Signature};
 use ollama_workflows::ModelProvider;
 use serde::Deserialize;
+use tokio::signal::unix::{signal, SignalKind};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -88,15 +89,23 @@ impl DriaComputeNode {
 
     /// Subscribe to a certain task with its topic.
     pub fn subscribe(&mut self, topic: &str) -> NodeResult<()> {
-        self.p2p.subscribe(topic)?;
-        log::info!("Subscribed to {}", topic);
+        let ok = self.p2p.subscribe(topic)?;
+        if ok {
+            log::info!("Subscribed to {}", topic);
+        } else {
+            log::info!("Already subscribed to {}", topic);
+        }
         Ok(())
     }
 
     /// Unsubscribe from a certain task with its topic.
     pub fn unsubscribe(&mut self, topic: &str) -> NodeResult<()> {
-        self.p2p.unsubscribe(&topic)?;
-        log::info!("Unsubscribed from {}", topic);
+        let ok = self.p2p.unsubscribe(&topic)?;
+        if ok {
+            log::info!("Unsubscribed from {}", topic);
+        } else {
+            log::info!("Already unsubscribed from {}", topic);
+        }
         Ok(())
     }
 
@@ -179,12 +188,14 @@ impl DriaComputeNode {
                         );
 
                         // first, parse the raw gossipsub message to a prepared message
+                        // TODO: change name of this function
                         let message = match self.parse_message_to_topiced_message(message).await {
+                            // TODO: refactor this
                             Some(message) => message,
                             None => continue,
                         };
 
-                        //
+                        // handle message w.r.t topic
                         match message.topic.as_str() {
                             WORKFLOW_LISTEN_TOPIC => {
                                 self.handle_workflow(message, WORKFLOW_RESPONSE_TOPIC).await.unwrap_or_else(|e| {
@@ -202,7 +213,7 @@ impl DriaComputeNode {
                         }
                     }
                 },
-                _ = self.cancellation.cancelled() => break,
+                _ = wait_for_termination(self.cancellation.clone()) => break,
             }
         }
 
@@ -231,6 +242,7 @@ impl DriaComputeNode {
         };
 
         // check dria signature
+        // TODO: when we have many public keys, we should check the signature against all of them
         if !message
             .is_signed(&self.config.admin_public_key)
             .unwrap_or_else(|e| {
@@ -311,4 +323,22 @@ impl DriaComputeNode {
 
         self.publish(message)
     }
+}
+
+/// Waits for SIGTERM or SIGINT, and cancels the given token when the signal is received.
+async fn wait_for_termination(cancellation: CancellationToken) -> std::io::Result<()> {
+    let mut sigterm = signal(SignalKind::terminate())?; // Docker sends SIGTERM
+    let mut sigint = signal(SignalKind::interrupt())?; // Ctrl+C sends SIGINT
+    tokio::select! {
+        _ = sigterm.recv() => log::warn!("Recieved SIGTERM"),
+        _ = sigint.recv() => log::warn!("Recieved SIGINT"),
+        _ = cancellation.cancelled() => {
+            // no need to wait if cancelled anyways
+            return Ok(());
+        }
+    };
+
+    log::info!("Terminating the node...");
+    cancellation.cancel();
+    Ok(())
 }

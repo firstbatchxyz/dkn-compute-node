@@ -1,7 +1,6 @@
 use libp2p::futures::StreamExt;
 use libp2p::gossipsub::{Message, MessageId, PublishError, SubscriptionError};
 use libp2p::kad::{GetClosestPeersError, GetClosestPeersOk, QueryResult};
-// TODO:
 use libp2p::{gossipsub, identify, kad, multiaddr::Protocol, noise, swarm::SwarmEvent, tcp, yamux};
 use libp2p::{Multiaddr, PeerId, Swarm, SwarmBuilder};
 use libp2p_identity::Keypair;
@@ -42,11 +41,11 @@ impl P2PClient {
 
         log::info!("My peer addr is {:?}", local_peer_id);
 
-        // FIXME: can this be done in behaviour settings?
+        // set mode to server so that RPC nodes add us to the DHT
         swarm
             .behaviour_mut()
             .kademlia
-            .set_mode(Some(libp2p::kad::Mode::Server)); // TODO: is this safe?
+            .set_mode(Some(libp2p::kad::Mode::Server));
 
         log::info!("Initiating bootstrap.");
         let bootstrap_nodes = vec![
@@ -184,13 +183,13 @@ impl P2PClient {
     fn handle_identify_event(&mut self, peer_id: PeerId, info: identify::Info) {
         let protocol_match = info.protocols.iter().any(|p| *p == DRIA_PROTO_NAME);
         for addr in info.listen_addrs {
-            let prefix = if protocol_match {
-                "received"
-            } else {
-                "Incoming from different protocol"
-            };
             log::info!(
-                "{prefix} addr {addr} through identify. Peer is {:?}",
+                "{} address {addr} through Identify. Peer is {:?}",
+                if protocol_match {
+                    "Received"
+                } else {
+                    "Incoming from different protocol"
+                },
                 peer_id
             );
             if protocol_match {

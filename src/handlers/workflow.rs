@@ -23,7 +23,7 @@ impl HandlesWorkflow for DriaComputeNode {
     async fn handle_workflow(&mut self, message: P2PMessage, result_topic: &str) -> NodeResult<()> {
         let task = self
             .parse_topiced_message_to_task_request::<WorkflowPayload>(message)
-            .expect("TODO ERROR");
+            .expect("TODO ERROR"); // TODO: handle error
 
         // read model from the task
         let model = Model::try_from(task.input.model)?;
