@@ -1,7 +1,7 @@
 use dkn_compute::{
     node::DriaComputeNode,
     utils::crypto::{sha256hash, sign_bytes_recoverable},
-    waku::message::WakuMessage,
+    waku::message::P2PMessage,
 };
 use std::{env, time::Duration};
 
@@ -19,7 +19,7 @@ async fn test_send_multiple_heartbeats() {
     let uuid = "59b93cb2-5738-4da4-992d-89a1835738d6"; // some random uuid
 
     let signature = sign_bytes_recoverable(&sha256hash(uuid.as_bytes()), &node.config.secret_key);
-    let message = WakuMessage::new(signature, &uuid);
+    let message = P2PMessage::new(signature, &uuid);
 
     for i in 1..=num_heartbeats {
         println!("Sending heartbeat #{}", i);

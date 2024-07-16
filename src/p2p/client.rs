@@ -1,14 +1,12 @@
 use libp2p::futures::StreamExt;
+use libp2p::gossipsub::{Message, MessageId, PublishError, SubscriptionError};
 use libp2p::kad::{GetClosestPeersError, GetClosestPeersOk, QueryResult};
 // TODO:
-use libp2p::{
-    autonat, dcutr, gossipsub, identify, kad, multiaddr::Protocol, noise, relay,
-    swarm::NetworkBehaviour, swarm::SwarmEvent, tcp, yamux,
-};
+use libp2p::{gossipsub, identify, kad, multiaddr::Protocol, noise, swarm::SwarmEvent, tcp, yamux};
 use libp2p::{Multiaddr, PeerId, Swarm, SwarmBuilder};
-use libp2p_identity::{Keypair, PublicKey};
-use std::error::Error;
+use libp2p_identity::Keypair;
 use std::time::Duration;
+use tokio_util::sync::CancellationToken;
 
 use crate::p2p::behaviour::DriaBehaviourEvent;
 
@@ -88,7 +86,9 @@ impl P2PClient {
 
         // Listen on all interfaces for incoming connections
         // FIXME: configure this address
-        let p2p_addr = "/ip4/0.0.0.0/tcp/4001".parse().unwrap();
+        let p2p_addr = "/ip4/0.0.0.0/tcp/4001"
+            .parse()
+            .expect("Provided p2p address should be parsable");
         log::info!("Listening p2p network on: {}", p2p_addr);
         swarm.listen_on(p2p_addr).map_err(|e| e.to_string())?;
 
@@ -111,56 +111,52 @@ impl P2PClient {
     }
 
     /// Subscribe to a topic.
-    pub fn subscribe(&mut self, topic_name: &str) {
+    pub fn subscribe(&mut self, topic_name: &str) -> Result<bool, SubscriptionError> {
         log::debug!("Subscribing to {}", topic_name);
 
         let topic = gossipsub::IdentTopic::new(topic_name);
-        self.swarm
-            .behaviour_mut()
-            .gossipsub
-            .subscribe(&topic)
-            .expect("todo handle error");
+        self.swarm.behaviour_mut().gossipsub.subscribe(&topic)
     }
 
     /// Unsubscribe from a topic.
-    pub fn unsubscribe(&mut self, topic_name: &str) {
+    pub fn unsubscribe(&mut self, topic_name: &str) -> Result<bool, PublishError> {
         log::debug!("Unsubscribing from {}", topic_name);
+
+        let topic = gossipsub::IdentTopic::new(topic_name);
+        self.swarm.behaviour_mut().gossipsub.unsubscribe(&topic)
+    }
+
+    /// Publish a message to a topic.
+    pub fn publish(
+        &mut self,
+        topic_name: &str,
+        message_bytes: Vec<u8>,
+    ) -> Result<MessageId, PublishError> {
+        log::debug!("Publishing to {}", topic_name);
 
         let topic = gossipsub::IdentTopic::new(topic_name);
         self.swarm
             .behaviour_mut()
             .gossipsub
-            .unsubscribe(&topic)
-            .expect("todo handle error");
-    }
-
-    /// Publish a message to a topic.
-    pub fn publish(&mut self, topic_name: &str, message_bytes: Vec<u8>) {
-        log::debug!("Publishing to {}", topic_name);
-
-        let topic = gossipsub::IdentTopic::new(topic_name);
-        let _message_id = self
-            .swarm
-            .behaviour_mut()
-            .gossipsub
             .publish(topic, message_bytes)
-            .expect("todo handle error");
-
-        // TODO: return message id
     }
 
     /// Listens to the Swarm for incoming messages.
     /// This method should be called in a loop to keep the client running.
     /// When a message is received, it will be returned.
-    pub async fn process_events(&mut self) {
+    pub async fn process_events(
+        &mut self,
+        cancellation: CancellationToken,
+    ) -> Option<(PeerId, MessageId, Message)> {
         loop {
             tokio::select! {
-                // Handle network events such as peer connections, messages, and DHT operations
                 event = self.swarm.select_next_some() => match event {
-                    SwarmEvent::Behaviour(DriaBehaviourEvent::Kademlia(kad::Event::OutboundQueryProgressed {
-                        result: QueryResult::GetClosestPeers(result),
-                        ..
-                    })) => self.handle_closest_peers_result(result),
+                    SwarmEvent::Behaviour(DriaBehaviourEvent::Kademlia(
+                        kad::Event::OutboundQueryProgressed {
+                            result: QueryResult::GetClosestPeers(result),
+                            ..
+                        },
+                    )) => self.handle_closest_peers_result(result),
                     SwarmEvent::Behaviour(DriaBehaviourEvent::Identify(identify::Event::Received {
                         peer_id,
                         info,
@@ -170,24 +166,15 @@ impl P2PClient {
                         message_id,
                         message,
                     })) => {
-                        log::info!(
-                            "Got message: '{}' with id: {} from peer: {}",
-                            String::from_utf8_lossy(&message.data),
-                            message_id,
-                            peer_id,
-                        );
-                        let random_peer_id = PeerId::random();
-
-                        log::debug!("Searching for peers close to {:?}", random_peer_id);
-                        self.swarm
-                            .behaviour_mut()
-                            .kademlia
-                            .get_closest_peers(random_peer_id);
-                    },
+                        return Some((peer_id, message_id, message));
+                    }
                     SwarmEvent::NewListenAddr { address, .. } => {
                         log::info!("Local node is listening on {address}");
-                    },
+                    }
                     _ => log::debug!("Unhandled swarm Event {:?}", event),
+                },
+                _ = cancellation.cancelled() => {
+                    return None;
                 }
             }
         }

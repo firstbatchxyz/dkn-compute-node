@@ -1,5 +1,5 @@
 use dkn_compute::{
-    node::DriaComputeNode, utils::payload::TaskRequestPayload, waku::message::WakuMessage,
+    node::DriaComputeNode, utils::payload::TaskRequestPayload, waku::message::P2PMessage,
 };
 use fastbloom_rs::{FilterBuilder, Membership};
 use serde::{Deserialize, Serialize};
@@ -16,8 +16,8 @@ async fn test_two_tasks() {
     let topic = "testing";
     let time = Duration::from_secs(10).as_nanos();
     let input = MockPayload { number: 42 };
-    let node = DriaComputeNode::default();
-    let mut messages: Vec<WakuMessage> = Vec::new();
+    let node = DriaComputeNode::new();
+    let mut messages: Vec<P2PMessage> = Vec::new();
 
     // create filter with your own address
     let mut filter = FilterBuilder::new(128, 0.01).build_bloom_filter();
@@ -25,7 +25,7 @@ async fn test_two_tasks() {
 
     let payload_tasked = TaskRequestPayload::new(input.clone(), filter, time, None);
     let payload_str = serde_json::to_string(&payload_tasked).unwrap();
-    messages.push(WakuMessage::new(payload_str, topic));
+    messages.push(P2PMessage::new(payload_str, topic));
 
     // create another filter without your own address
     let mut filter = FilterBuilder::new(128, 0.01).build_bloom_filter();
@@ -33,7 +33,7 @@ async fn test_two_tasks() {
 
     let payload_not_tasked = TaskRequestPayload::new(input, filter, time, None);
     let payload_str = serde_json::to_string(&payload_not_tasked).unwrap();
-    messages.push(WakuMessage::new(payload_str, topic));
+    messages.push(P2PMessage::new(payload_str, topic));
 
     let tasks = node.parse_messages::<MockPayload>(messages.clone(), false);
     assert_eq!(tasks.len(), 1);

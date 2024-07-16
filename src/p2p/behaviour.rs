@@ -4,10 +4,7 @@ use std::time::Duration;
 
 use libp2p::identity::{Keypair, PublicKey};
 use libp2p::kad::store::MemoryStore;
-use libp2p::{
-    autonat, dcutr, gossipsub, identify, kad, relay, swarm::NetworkBehaviour, PeerId,
-    StreamProtocol,
-};
+use libp2p::{autonat, dcutr, gossipsub, identify, kad, relay, swarm::NetworkBehaviour, PeerId};
 
 use crate::p2p::DRIA_PROTO_NAME;
 
@@ -20,8 +17,6 @@ pub struct DriaBehaviour {
     pub(crate) autonat: autonat::Behaviour,
     pub(crate) dcutr: dcutr::Behaviour,
 }
-
-pub use DriaBehaviourEvent as DriaEvent;
 
 impl DriaBehaviour {
     pub fn new(key: &Keypair, relay_behavior: relay::client::Behaviour) -> Self {

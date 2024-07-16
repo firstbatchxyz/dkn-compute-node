@@ -1,12 +1,7 @@
-use serde::Deserialize;
-
+/// Alias for `Result<T, NodeError>`.
 pub type NodeResult<T> = std::result::Result<T, NodeError>;
 
-/// # Node Error
-///
-/// A generic error within the Compute Node. This may originate from serde, reqwest and such. The source is
-/// included along the error message, and `From` traits are implemented for expected errors.
-#[derive(Deserialize)]
+#[derive(serde::Deserialize)]
 pub struct NodeError {
     #[serde(rename = "error")]
     pub message: String,
@@ -86,6 +81,24 @@ impl From<libsecp256k1::Error> for NodeError {
         Self {
             message: value.to_string(),
             source: "secp256k1".to_string(),
+        }
+    }
+}
+
+impl From<libp2p::gossipsub::SubscriptionError> for NodeError {
+    fn from(value: libp2p::gossipsub::SubscriptionError) -> Self {
+        Self {
+            message: value.to_string(),
+            source: "gossipsub::subscription".to_string(),
+        }
+    }
+}
+
+impl From<libp2p::gossipsub::PublishError> for NodeError {
+    fn from(value: libp2p::gossipsub::PublishError) -> Self {
+        Self {
+            message: value.to_string(),
+            source: "gossipsub::publish".to_string(),
         }
     }
 }

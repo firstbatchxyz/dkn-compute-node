@@ -1,6 +1,6 @@
 #[cfg_attr(test, cfg(feature = "waku_test"))]
 mod waku_tests {
-    use dkn_compute::{node::DriaComputeNode, waku::message::WakuMessage};
+    use dkn_compute::{node::DriaComputeNode, waku::message::P2PMessage};
 
     #[tokio::test]
     async fn test_base_waku() {
@@ -43,7 +43,7 @@ mod waku_tests {
         // this test checks if we get stuck at the nonce limit of RLNv2
         for i in 1..=20 {
             println!("Sending message #{}", i);
-            let message = WakuMessage::new("hello world".to_string(), topic);
+            let message = P2PMessage::new("hello world".to_string(), topic);
 
             node.send_message(message)
                 .await

@@ -1,67 +1,50 @@
 use ecies::encrypt;
 use fastbloom_rs::{BloomFilter, Membership};
+use libp2p::gossipsub;
 use libsecp256k1::{sign, Message, RecoveryId, Signature};
 use ollama_workflows::ModelProvider;
-use parking_lot::RwLock;
 use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
     config::DriaComputeNodeConfig,
     errors::NodeResult,
+    p2p::{P2PClient, P2PMessage},
     utils::{
-        crypto::sha256hash,
+        crypto::{secret_to_keypair, sha256hash},
         filter::FilterPayload,
         get_current_time_nanos,
         payload::{TaskRequest, TaskRequestPayload, TaskResponsePayload},
         provider::{check_ollama, check_openai},
     },
-    waku::{message::WakuMessage, WakuClient},
+    workers::{heartbeat::HandlesHeartbeat, workflow::HandlesWorkflow},
 };
 
-#[allow(unused)]
-#[derive(Debug)]
 pub struct DriaComputeNode {
     pub config: DriaComputeNodeConfig,
-    pub waku: WakuClient,
+    pub p2p: P2PClient,
     pub cancellation: CancellationToken,
-    pub busy_lock: RwLock<bool>,
-}
-
-impl Default for DriaComputeNode {
-    fn default() -> Self {
-        DriaComputeNode::new(DriaComputeNodeConfig::new(), CancellationToken::default())
-    }
 }
 
 impl DriaComputeNode {
-    pub fn new(config: DriaComputeNodeConfig, cancellation: CancellationToken) -> Self {
-        let waku = WakuClient::new(None);
-        let busy_lock = RwLock::new(false);
-        DriaComputeNode {
+    pub fn new(
+        config: DriaComputeNodeConfig,
+        cancellation: CancellationToken,
+    ) -> Result<Self, String> {
+        let keypair = secret_to_keypair(&config.secret_key);
+        let p2p = P2PClient::new(keypair)?;
+
+        Ok(DriaComputeNode {
             config,
-            waku,
+            p2p,
             cancellation,
-            busy_lock,
-        }
+        })
     }
 
     /// Shorthand to sign a digest with node's secret key and return signature & recovery id.
     #[inline]
     pub fn sign(&self, message: &Message) -> (Signature, RecoveryId) {
         sign(message, &self.config.secret_key)
-    }
-
-    /// Returns the state of the node, whether it is busy or not.
-    #[inline]
-    pub fn is_busy(&self) -> bool {
-        *self.busy_lock.read()
-    }
-
-    /// Set the state of the node, whether it is busy or not.
-    #[inline]
-    pub fn set_busy(&self, busy: bool) {
-        *self.busy_lock.write() = busy;
     }
 
     /// Given a hex-string serialized Bloom Filter of a task, checks if this node is selected to do the task.
@@ -104,47 +87,22 @@ impl DriaComputeNode {
     }
 
     /// Subscribe to a certain task with its topic.
-    pub async fn subscribe_topic(&self, topic: &str) {
-        let content_topic = WakuMessage::create_content_topic(topic);
-
-        const MAX_RETRIES: usize = 30;
-        let mut retry_count = 0; // retry count for edge case
-        while let Err(e) = self.waku.relay.subscribe(&content_topic).await {
-            if retry_count < MAX_RETRIES {
-                log::error!(
-                    "Error subscribing to {}: {}\nRetrying in 5 seconds ({}/{}).",
-                    topic,
-                    e,
-                    retry_count,
-                    MAX_RETRIES
-                );
-                tokio::select! {
-                    _ = self.cancellation.cancelled() => return,
-                    _ = tokio::time::sleep(tokio::time::Duration::from_secs(5)) => {
-                        retry_count += 1; // Increment the retry counter
-                    }
-                }
-            } else {
-                log::error!("Error subscribing to {}: {}\nAborting.", topic, e);
-                self.cancellation.cancel();
-                return;
-            }
-        }
-
+    pub fn subscribe(&mut self, topic: &str) -> NodeResult<()> {
+        self.p2p.subscribe(topic)?;
         log::info!("Subscribed to {}", topic);
+        Ok(())
     }
 
     /// Unsubscribe from a certain task with its topic.
-    pub async fn unsubscribe_topic(&self, topic: &str) -> NodeResult<()> {
-        let content_topic = WakuMessage::create_content_topic(topic);
-        self.waku.relay.unsubscribe(&content_topic).await?;
+    pub fn unsubscribe(&mut self, topic: &str) -> NodeResult<()> {
+        self.p2p.unsubscribe(&topic)?;
         log::info!("Unsubscribed from {}", topic);
         Ok(())
     }
 
     /// Unsubscribe from a certain task with its topic, ignoring the error.
-    pub async fn unsubscribe_topic_ignored(&self, topic: &str) {
-        if let Err(e) = self.unsubscribe_topic(topic).await {
+    pub fn unsubscribe_ignored(&mut self, topic: &str) {
+        if let Err(e) = self.unsubscribe(topic) {
             log::error!(
                 "Error unsubscribing from {}: {}\nContinuing anyway.",
                 topic,
@@ -179,129 +137,154 @@ impl DriaComputeNode {
         Ok(())
     }
 
-    /// Send a message via Waku Relay, assuming the content is subscribed to already.
-    pub async fn send_message(&self, message: WakuMessage) -> NodeResult<()> {
-        self.waku.relay.send_message(message).await
-    }
-
-    /// Send a message via Waku Relay on a topic, where
-    /// the topic is subscribed, the message is sent, and
-    /// the topic is unsubscribed right afterwards.
-    pub async fn send_message_once(&self, message: WakuMessage) -> NodeResult<()> {
-        let content_topic = message.content_topic.clone();
-        self.waku.relay.subscribe(&content_topic).await?;
-        self.waku.relay.send_message(message).await?;
-        self.waku.relay.unsubscribe(&content_topic).await?;
+    pub fn publish(&mut self, message: P2PMessage) -> NodeResult<()> {
+        let message_bytes = message.payload.as_bytes().to_vec();
+        self.p2p.publish(&message.topic, message_bytes)?;
         Ok(())
     }
 
-    /// Process messages on a certain topic.
-    ///
-    /// If `signed=true` the messages are expected to be authentic, i.e. they
-    /// must be signed by Dria's public key.
-    pub async fn process_topic(&self, topic: &str, signed: bool) -> NodeResult<Vec<WakuMessage>> {
-        let content_topic = WakuMessage::create_content_topic(topic);
-        let mut messages: Vec<WakuMessage> = self.waku.relay.get_messages(&content_topic).await?;
-
-        // dont bother if there are no messages
-        if messages.is_empty() {
-            return Ok(messages);
-        }
-
-        log::debug!("Received {} {} messages.", messages.len(), topic);
-        for message in &messages {
-            log::debug!("{}", message);
-        }
-
-        // if signed, only keep messages that are authentic to Dria
-        if signed {
-            messages.retain(|message| {
-                message
-                    .is_signed(&self.config.admin_public_key)
-                    .unwrap_or_else(|e| {
-                        log::warn!("Could not verify message signature: {}", e);
-                        false
-                    })
-            });
-        }
-
-        // sort messages with respect to their timestamp
-        messages.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
-
-        Ok(messages)
+    #[deprecated = "not used anymore"]
+    pub fn send_message_once(&mut self, message: P2PMessage) -> NodeResult<()> {
+        let topic = message.topic.clone();
+        self.subscribe(&topic)?;
+        self.publish(message)?;
+        self.unsubscribe(&topic)?;
+        Ok(())
     }
 
-    /// Given a list of messages, this function:
-    ///
-    /// - parses them into their respective payloads
-    /// - checks the signatures (if `signed = true`) w.r.t admin public key
-    /// - filters out past-deadline & non-selected (with the Bloom Filter) tasks
-    /// - sorts the tasks by their deadline
-    pub fn parse_messages<T>(&self, messages: Vec<WakuMessage>, signed: bool) -> Vec<TaskRequest<T>>
+    /// Launches the main loop of the compute node. This method is not expected to return until cancellation occurs.
+    pub async fn launch(&mut self) {
+        const HEARTBEAT_LISTEN_TOPIC: &str = "heartbeat";
+        const HEARTBEAT_RESPONSE_TOPIC: &str = "pong";
+
+        const WORKFLOW_LISTEN_TOPIC: &str = "task";
+        const WORKFLOW_RESPONSE_TOPIC: &str = "results";
+
+        loop {
+            tokio::select! {
+                event = self.p2p.process_events(self.cancellation.clone()) => {
+                    if let Some((peer_id, message_id, message)) = event {
+                        log::debug!(
+                            "Received message id {} from {}:\n{}",
+                            message_id,
+                            peer_id,
+                            String::from_utf8_lossy(&message.data),
+                        );
+
+                        // first, parse the raw gossipsub message to a prepared message
+                        let message = match self.parse_message_to_topiced_message(message).await {
+                            Some(message) => message,
+                            None => continue,
+                        };
+
+                        //
+                        match message.topic.as_str() {
+                            WORKFLOW_LISTEN_TOPIC => {
+                                self.handle_workflow(message, WORKFLOW_RESPONSE_TOPIC).await.unwrap_or_else(|e| {
+                                    log::error!("Error handling workflow: {}", e);
+                                });
+                            }
+                            HEARTBEAT_LISTEN_TOPIC => {
+                                self.handle_heartbeat(message, HEARTBEAT_RESPONSE_TOPIC).unwrap_or_else(|e| {
+                                    log::error!("Error handling heartbeat: {}", e);
+                                });
+                            }
+                            topic => {
+                                log::warn!("Unhandled topic: {}", topic);
+                            }
+                        }
+                    }
+                },
+                _ = self.cancellation.cancelled() => break,
+            }
+        }
+    }
+
+    /// Process messages on a certain topic.
+    pub async fn parse_message_to_topiced_message(
+        &self,
+        message: gossipsub::Message,
+    ) -> Option<P2PMessage> {
+        // the received message is expected to use IdentHash for the topic, so we can see the name of the topic immediately.
+        log::debug!("Parsing {} message.", message.topic.as_str());
+        let message = match P2PMessage::try_from(message) {
+            Ok(message) => message,
+            Err(e) => {
+                log::error!("Could not parse message: {}", e);
+                return None;
+            }
+        };
+
+        // check dria signature
+        if !message
+            .is_signed(&self.config.admin_public_key)
+            .unwrap_or_else(|e| {
+                log::error!("Could not check signature: {}", e);
+                false
+            })
+        {
+            log::warn!("Skipping due to invalid signature.");
+            return None;
+        }
+
+        Some(message)
+    }
+
+    pub fn parse_topiced_message_to_task_request<T>(
+        &self,
+        message: P2PMessage,
+    ) -> Option<TaskRequest<T>>
     where
         T: for<'a> Deserialize<'a>,
     {
-        let mut task_payloads = messages
-            .iter()
-            .filter_map(|message| {
-                match message.parse_payload::<TaskRequestPayload<T>>(signed) {
-                    Ok(task) => {
-                        // check if deadline is past or not
-                        if get_current_time_nanos() >= task.deadline {
-                            log::debug!("Skipping {} due to deadline.", task.task_id);
-                            return None;
-                        }
+        // TODO: can remove `true` param here
+        let task = match message.parse_payload::<TaskRequestPayload<T>>(true) {
+            Ok(task) => task,
+            Err(err) => {
+                log::error!("Could not parse payload: {}", err);
+                return None;
+            }
+        };
 
-                        // check task inclusion via the bloom filter
-                        match self.is_tasked(&task.filter) {
-                            Ok(is_tasked) => {
-                                if !is_tasked {
-                                    log::debug!("Skipping {} due to filter.", task.task_id);
-                                    return None;
-                                }
-                            }
-                            Err(e) => {
-                                log::error!("Error checking task inclusion: {}", e);
-                                return None;
-                            }
-                        }
+        // check if deadline is past or not
+        if get_current_time_nanos() >= task.deadline {
+            log::debug!("Skipping {} due to deadline.", task.task_id);
+            return None;
+        }
 
-                        Some(task)
-                    }
-                    Err(e) => {
-                        log::error!("Error parsing payload: {}", e);
-                        None
-                    }
+        // check task inclusion via the bloom filter
+        match self.is_tasked(&task.filter) {
+            Ok(is_tasked) => {
+                if !is_tasked {
+                    log::debug!("Skipping {} due to filter.", task.task_id);
+                    return None;
                 }
-            })
-            .collect::<Vec<TaskRequestPayload<T>>>();
+            }
+            Err(e) => {
+                log::error!("Error checking task inclusion: {}", e);
+                return None;
+            }
+        }
 
-        task_payloads.sort_by(|a, b| a.deadline.cmp(&b.deadline));
+        // obtain public key from the payload
+        let task_public_key = match hex::decode(&task.public_key) {
+            Ok(public_key) => public_key,
+            Err(e) => {
+                log::error!("Error parsing public key: {}", e);
+                return None;
+            }
+        };
 
-        // convert to TaskRequest
-        task_payloads
-            .into_iter()
-            .filter_map(|task| {
-                let task_public_key = match hex::decode(&task.public_key) {
-                    Ok(public_key) => public_key,
-                    Err(e) => {
-                        log::error!("Error parsing public key: {}", e);
-                        return None;
-                    }
-                };
-
-                Some(TaskRequest {
-                    task_id: task.task_id,
-                    input: task.input,
-                    public_key: task_public_key,
-                })
-            })
-            .collect()
+        Some(TaskRequest {
+            task_id: task.task_id,
+            input: task.input,
+            public_key: task_public_key,
+        })
     }
 
     /// Given a task with `id` and respective `public_key`, sign-then-encrypt the result.
-    pub async fn send_result<R: AsRef<[u8]>>(
-        &self,
+    pub fn send_result<R: AsRef<[u8]>>(
+        &mut self,
         response_topic: &str,
         public_key: &[u8],
         task_id: &str,
@@ -309,8 +292,8 @@ impl DriaComputeNode {
     ) -> NodeResult<()> {
         let payload = self.create_payload(result.as_ref(), task_id, public_key)?;
         let payload_str = payload.to_string()?;
-        let message = WakuMessage::new(payload_str, response_topic);
+        let message = P2PMessage::new(payload_str, response_topic);
 
-        self.send_message(message).await
+        self.publish(message)
     }
 }

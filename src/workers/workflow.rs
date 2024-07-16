@@ -1,9 +1,12 @@
+use async_trait::async_trait;
 use ollama_workflows::{Entry, Executor, Model, ModelProvider, ProgramMemory, Workflow};
 use serde::Deserialize;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::errors::NodeResult;
 use crate::node::DriaComputeNode;
+use crate::p2p::P2PMessage;
 
 #[derive(Debug, Deserialize)]
 struct WorkflowPayload {
@@ -12,101 +15,63 @@ struct WorkflowPayload {
     pub(crate) prompt: Option<String>,
 }
 
-const REQUEST_TOPIC: &str = "workflow";
-const RESPONSE_TOPIC: &str = "results";
+#[async_trait]
+pub trait HandlesWorkflow {
+    async fn handle_workflow(&mut self, message: P2PMessage, result_topic: &str) -> NodeResult<()>;
+}
 
-pub fn workflow_worker(
-    node: Arc<DriaComputeNode>,
-    sleep_amount: Duration,
-) -> tokio::task::JoinHandle<()> {
-    let (ollama_host, ollama_port) = get_ollama_config();
+#[async_trait]
+impl HandlesWorkflow for DriaComputeNode {
+    async fn handle_workflow(&mut self, message: P2PMessage, result_topic: &str) -> NodeResult<()> {
+        let task = self
+            .parse_topiced_message_to_task_request::<WorkflowPayload>(message)
+            .expect("TODO ERROR");
 
-    tokio::spawn(async move {
-        node.subscribe_topic(REQUEST_TOPIC).await;
-        node.subscribe_topic(RESPONSE_TOPIC).await;
+        // read model from the task
+        let model = Model::try_from(task.input.model)?;
+        let model_provider = ModelProvider::from(model.clone());
+        log::info!("Using model {} for task {}", model, task.task_id);
 
-        loop {
-            tokio::select! {
-                _ = node.cancellation.cancelled() => break,
-                _ = tokio::time::sleep(sleep_amount) => {
-                    let tasks = match node.process_topic(REQUEST_TOPIC, true).await {
-                        Ok(messages) => {
-                            if messages.is_empty() {
-                                continue;
-                            }
-                            node.parse_messages::<WorkflowPayload>(messages, true)
-                        }
-                        Err(e) => {
-                            log::error!("Error processing topic {}: {}", REQUEST_TOPIC, e);
-                            continue;
-                        }
-                    };
-                    if tasks.is_empty() {
-                        log::info!("No {} tasks.", REQUEST_TOPIC);
-                    } else {
-                        node.set_busy(true);
-
-                        log::info!("Processing {} {} tasks.", tasks.len(), REQUEST_TOPIC);
-                        for task in &tasks {
-                            log::debug!("Task ID: {}", task.task_id);
-                        }
-
-                        for task in tasks {
-                            // read model from the task
-                            let model = match Model::try_from(task.input.model) {
-                                Ok(model) => model,
-                                Err(e) => {
-                                    log::error!("Could not read model: {}\nSkipping task {}", e, task.task_id);
-                                    continue;
-                                }
-                            };
-                            log::info!("Using model {} for task {}", model, task.task_id);
-                            let model_provider = ModelProvider::from(model.clone());
-
-                            // execute workflow with cancellation
-                            let executor = if model_provider == ModelProvider::Ollama {
-                                Executor::new_at(model, &ollama_host, ollama_port)
-                            } else {
-                                Executor::new(model)
-                            };
-                            let mut memory = ProgramMemory::new();
-                            let entry: Option<Entry> = task.input.prompt.map(|prompt| Entry::try_value_or_str(&prompt));
-                            let result: Option<String>;
-                            tokio::select! {
-                                _ = node.cancellation.cancelled() => {
-                                    log::info!("Received cancellation, quitting all tasks.");
-                                    break;
-                                },
-                                exec_result = executor.execute(entry.as_ref(), task.input.workflow, &mut memory) => {
-                                    result = Some(exec_result);
-                                }
-                            }
-
-                            match result {
-                                Some(result) => {
-                                    // send result to the network
-                                    if let Err(e) = node.send_result(RESPONSE_TOPIC, &task.public_key, &task.task_id, result).await {
-                                        log::error!("Error sending task result: {}", e);
-                                        continue;
-                                    };
-                                }
-                                None => {
-                                    log::error!("No result for task {}", task.task_id);
-                                    continue;
-                                }
-                            }
-
-                        }
-
-                        node.set_busy(false);
-                    }
-                }
+        // execute workflow with cancellation
+        let executor = if model_provider == ModelProvider::Ollama {
+            // TODO: memoize this guy
+            let (ollama_host, ollama_port) = get_ollama_config();
+            Executor::new_at(model, &ollama_host, ollama_port)
+        } else {
+            Executor::new(model)
+        };
+        let mut memory = ProgramMemory::new();
+        let entry: Option<Entry> = task
+            .input
+            .prompt
+            .map(|prompt| Entry::try_value_or_str(&prompt));
+        let result: Option<String>;
+        tokio::select! {
+            _ = self.cancellation.cancelled() => {
+                log::info!("Received cancellation, quitting all tasks.");
+                return Ok(())
+            },
+            exec_result = executor.execute(entry.as_ref(), task.input.workflow, &mut memory) => {
+                result = Some(exec_result);
             }
         }
 
-        node.unsubscribe_topic_ignored(REQUEST_TOPIC).await;
-        node.unsubscribe_topic_ignored(RESPONSE_TOPIC).await;
-    })
+        match result {
+            Some(result) => {
+                // send result to the network
+                let response =
+                    P2PMessage::new_signed(result, result_topic, &self.config.secret_key);
+                self.publish(response)?;
+            }
+
+            // TODO: this should be error
+            None => {
+                log::error!("No result for task {}", task.task_id);
+            }
+        }
+
+        Ok(())
+    }
 }
 
 fn get_ollama_config() -> (String, u16) {
