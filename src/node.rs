@@ -9,6 +9,7 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     config::DriaComputeNodeConfig,
     errors::NodeResult,
+    handlers::{heartbeat::HandlesHeartbeat, workflow::HandlesWorkflow},
     p2p::{P2PClient, P2PMessage},
     utils::{
         crypto::{secret_to_keypair, sha256hash},
@@ -17,7 +18,6 @@ use crate::{
         payload::{TaskRequest, TaskRequestPayload, TaskResponsePayload},
         provider::{check_ollama, check_openai},
     },
-    workers::{heartbeat::HandlesHeartbeat, workflow::HandlesWorkflow},
 };
 
 pub struct DriaComputeNode {
@@ -153,13 +153,20 @@ impl DriaComputeNode {
     }
 
     /// Launches the main loop of the compute node. This method is not expected to return until cancellation occurs.
-    pub async fn launch(&mut self) {
+    pub async fn launch(&mut self) -> NodeResult<()> {
         const HEARTBEAT_LISTEN_TOPIC: &str = "heartbeat";
         const HEARTBEAT_RESPONSE_TOPIC: &str = "pong";
-
         const WORKFLOW_LISTEN_TOPIC: &str = "task";
         const WORKFLOW_RESPONSE_TOPIC: &str = "results";
 
+        // subscribe to topics
+        self.subscribe(HEARTBEAT_LISTEN_TOPIC)?;
+        self.subscribe(HEARTBEAT_RESPONSE_TOPIC)?;
+        self.subscribe(WORKFLOW_LISTEN_TOPIC)?;
+        self.subscribe(WORKFLOW_RESPONSE_TOPIC)?;
+
+        // main loop, listens for message events in particular
+        // the underlying p2p client is expected to handle the rest within its own loop
         loop {
             tokio::select! {
                 event = self.p2p.process_events(self.cancellation.clone()) => {
@@ -198,6 +205,14 @@ impl DriaComputeNode {
                 _ = self.cancellation.cancelled() => break,
             }
         }
+
+        // unsubscribe from topics
+        self.unsubscribe_ignored(HEARTBEAT_LISTEN_TOPIC);
+        self.unsubscribe_ignored(HEARTBEAT_RESPONSE_TOPIC);
+        self.unsubscribe_ignored(WORKFLOW_LISTEN_TOPIC);
+        self.unsubscribe_ignored(WORKFLOW_RESPONSE_TOPIC);
+
+        Ok(())
     }
 
     /// Process messages on a certain topic.

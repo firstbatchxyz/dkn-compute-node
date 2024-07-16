@@ -20,13 +20,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::info!("Initializing Dria Compute Node...");
     let mut node = DriaComputeNode::new(config, cancellation.clone())?;
 
-    // move this within setup?
-    log::info!("Checking required services...");
-    if let Err(e) = node.check_services().await {
-        log::error!("{}", e);
-        return Err(e.into());
-    }
-
     // start handling tasks
     node.launch().await;
 
