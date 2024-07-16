@@ -3,6 +3,7 @@ use crate::{
     utils::{
         crypto::{sha256hash, sign_bytes_recoverable},
         get_current_time_nanos,
+        payload::TaskResponsePayload,
     },
 };
 
@@ -57,6 +58,35 @@ impl P2PMessage {
         signed_payload.extend_from_slice(signature_bytes.as_ref());
         signed_payload.extend_from_slice(payload.as_ref());
         Self::new(signed_payload, topic)
+    }
+
+    /// Creates the payload of a computation result, as per Dria Whitepaper section 5.1 algorithm 2:
+    ///
+    /// - Sign `task_id || payload` with node `self.secret_key`
+    /// - Encrypt `result` with `task_public_key`
+    pub fn new_signed_encrypted_payload(
+        payload: impl AsRef<[u8]>,
+        task_id: &str,
+        encrypting_public_key: &[u8],
+        signing_secret_key: &SecretKey,
+    ) -> NodeResult<TaskResponsePayload> {
+        // sign payload
+        let mut preimage = Vec::new();
+        preimage.extend_from_slice(task_id.as_ref());
+        preimage.extend_from_slice(payload.as_ref());
+        let digest = libsecp256k1::Message::parse(&sha256hash(preimage));
+        let (signature, recid) = libsecp256k1::sign(&digest, signing_secret_key);
+        let signature: [u8; 64] = signature.serialize();
+        let recid: [u8; 1] = [recid.serialize()];
+
+        // encrypt payload
+        let ciphertext = ecies::encrypt(encrypting_public_key, payload.as_ref())?;
+
+        Ok(TaskResponsePayload {
+            ciphertext: hex::encode(ciphertext),
+            signature: format!("{}{}", hex::encode(signature), hex::encode(recid)),
+            task_id: task_id.to_string(),
+        })
     }
 
     /// Decodes the base64 payload into bytes.

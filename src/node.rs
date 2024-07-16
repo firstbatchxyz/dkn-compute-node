@@ -1,4 +1,3 @@
-use ecies::encrypt;
 use fastbloom_rs::{BloomFilter, Membership};
 use libp2p::gossipsub;
 use libsecp256k1::{sign, Message, RecoveryId, Signature};
@@ -13,10 +12,10 @@ use crate::{
     handlers::{heartbeat::HandlesHeartbeat, workflow::HandlesWorkflow},
     p2p::{P2PClient, P2PMessage},
     utils::{
-        crypto::{secret_to_keypair, sha256hash},
+        crypto::secret_to_keypair,
         filter::FilterPayload,
         get_current_time_nanos,
-        payload::{TaskRequest, TaskRequestPayload, TaskResponsePayload},
+        payload::{TaskRequest, TaskRequestPayload},
         provider::{check_ollama, check_openai},
     },
 };
@@ -56,35 +55,6 @@ impl DriaComputeNode {
         let filter = BloomFilter::try_from(filter)?;
 
         Ok(filter.contains(&self.config.address))
-    }
-
-    /// Creates the payload of a computation result, as per Dria Whitepaper section 5.1 algorithm 2:
-    ///
-    /// - Sign `task_id || result` with node `self.secret_key`
-    /// - Encrypt `result` with `task_public_key`
-    pub fn create_payload(
-        &self,
-        result: impl AsRef<[u8]>,
-        task_id: &str,
-        task_pubkey: &[u8],
-    ) -> NodeResult<TaskResponsePayload> {
-        // sign result
-        let mut preimage = Vec::new();
-        preimage.extend_from_slice(task_id.as_ref());
-        preimage.extend_from_slice(result.as_ref());
-        let digest = Message::parse(&sha256hash(preimage));
-        let (signature, recid) = sign(&digest, &self.config.secret_key);
-        let signature: [u8; 64] = signature.serialize();
-        let recid: [u8; 1] = [recid.serialize()];
-
-        // encrypt result
-        let ciphertext = encrypt(task_pubkey, result.as_ref())?;
-
-        Ok(TaskResponsePayload {
-            ciphertext: hex::encode(ciphertext),
-            signature: format!("{}{}", hex::encode(signature), hex::encode(recid)),
-            task_id: task_id.to_string(),
-        })
     }
 
     /// Subscribe to a certain task with its topic.
@@ -260,49 +230,31 @@ impl DriaComputeNode {
     pub fn parse_topiced_message_to_task_request<T>(
         &self,
         message: P2PMessage,
-    ) -> Option<TaskRequest<T>>
+    ) -> NodeResult<TaskRequest<T>>
     where
         T: for<'a> Deserialize<'a>,
     {
-        // TODO: can remove `true` param here
-        let task = match message.parse_payload::<TaskRequestPayload<T>>(true) {
-            Ok(task) => task,
-            Err(err) => {
-                log::error!("Could not parse payload: {}", err);
-                return None;
-            }
-        };
+        let task = message.parse_payload::<TaskRequestPayload<T>>(true)?;
 
         // check if deadline is past or not
         if get_current_time_nanos() >= task.deadline {
-            log::debug!("Skipping {} due to deadline.", task.task_id);
-            return None;
+            return Err(format!("Task {} is past the deadline.", task.task_id).into());
         }
 
         // check task inclusion via the bloom filter
-        match self.is_tasked(&task.filter) {
-            Ok(is_tasked) => {
-                if !is_tasked {
-                    log::debug!("Skipping {} due to filter.", task.task_id);
-                    return None;
-                }
-            }
-            Err(e) => {
-                log::error!("Error checking task inclusion: {}", e);
-                return None;
-            }
+        let is_tasked = self.is_tasked(&task.filter)?;
+        if !is_tasked {
+            return Err(format!(
+                "Task {} does not include the node within the filter.",
+                task.task_id
+            )
+            .into());
         }
 
         // obtain public key from the payload
-        let task_public_key = match hex::decode(&task.public_key) {
-            Ok(public_key) => public_key,
-            Err(e) => {
-                log::error!("Error parsing public key: {}", e);
-                return None;
-            }
-        };
+        let task_public_key = hex::decode(&task.public_key)?;
 
-        Some(TaskRequest {
+        Ok(TaskRequest {
             task_id: task.task_id,
             input: task.input,
             public_key: task_public_key,
@@ -317,7 +269,12 @@ impl DriaComputeNode {
         task_id: &str,
         result: R,
     ) -> NodeResult<()> {
-        let payload = self.create_payload(result.as_ref(), task_id, public_key)?;
+        let payload = P2PMessage::new_signed_encrypted_payload(
+            result.as_ref(),
+            task_id,
+            public_key,
+            &self.config.secret_key,
+        )?;
         let payload_str = payload.to_string()?;
         let message = P2PMessage::new(payload_str, response_topic);
 

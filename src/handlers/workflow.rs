@@ -21,9 +21,7 @@ pub trait HandlesWorkflow {
 #[async_trait]
 impl HandlesWorkflow for DriaComputeNode {
     async fn handle_workflow(&mut self, message: P2PMessage, result_topic: &str) -> NodeResult<()> {
-        let task = self
-            .parse_topiced_message_to_task_request::<WorkflowPayload>(message)
-            .expect("TODO ERROR"); // TODO: handle error
+        let task = self.parse_topiced_message_to_task_request::<WorkflowPayload>(message)?;
 
         // read model from the task
         let model = Model::try_from(task.input.model)?;
@@ -32,8 +30,7 @@ impl HandlesWorkflow for DriaComputeNode {
 
         // execute workflow with cancellation
         let executor = if model_provider == ModelProvider::Ollama {
-            // TODO: memoize this guy
-            let (ollama_host, ollama_port) = get_ollama_config();
+            let (ollama_host, ollama_port) = get_ollama_config(); // TODO: memoize this guy
             Executor::new_at(model, &ollama_host, ollama_port)
         } else {
             Executor::new(model)
@@ -56,10 +53,7 @@ impl HandlesWorkflow for DriaComputeNode {
 
         match result {
             Some(result) => {
-                // send result to the network
-                let response =
-                    P2PMessage::new_signed(result, result_topic, &self.config.secret_key);
-                self.publish(response)?;
+                self.send_result(result_topic, &task.public_key, &task.task_id, result)?;
             }
 
             // TODO: this should be error

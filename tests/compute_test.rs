@@ -37,7 +37,7 @@ async fn test_ollama_bad_model() {
 
 #[tokio::test]
 #[ignore = "run this manually"]
-async fn test_workflow() {
+async fn test_ollama_workflow() {
     let workflow = r#"{
     "name": "Simple",
     "description": "This is a simple workflow",
