@@ -20,6 +20,8 @@ pub struct DriaComputeNodeConfig {
     pub admin_public_key: PublicKey,
     /// Available models for the node.
     pub models: Vec<(ModelProvider, Model)>,
+    /// P2P listen address as a string, e.g. `/ip4/0.0.0.0/tcp/4001`.
+    pub p2p_listen_addr: String,
 }
 
 /// 32 byte secret key hex(b"node") * 8, dummy only
@@ -29,6 +31,9 @@ pub(crate) const DEFAULT_DKN_WALLET_SECRET_KEY: &[u8; 32] =
 /// 33 byte compressed public key of secret key from hex(b"dria) * 8, dummy only
 pub(crate) const DEFAULT_DKN_ADMIN_PUBLIC_KEY: &[u8; 33] =
     &hex_literal::hex!("0208ef5e65a9c656a6f92fb2c770d5d5e2ecffe02a6aade19207f75110be6ae658");
+
+/// The default P2P network listen address.
+pub(crate) const DEFAULT_P2P_LISTEN_ADDR: &str = "/ip4/0.0.0.0/tcp/4001";
 
 impl DriaComputeNodeConfig {
     pub fn new() -> Self {
@@ -77,12 +82,16 @@ impl DriaComputeNodeConfig {
             serde_json::to_string(&models).unwrap_or_default()
         );
 
+        let p2p_listen_addr =
+            env::var("DKN_P2P_LISTEN_ADDR").unwrap_or(DEFAULT_P2P_LISTEN_ADDR.to_string());
+
         Self {
             admin_public_key,
             secret_key,
             public_key,
             address,
             models,
+            p2p_listen_addr,
         }
     }
 }

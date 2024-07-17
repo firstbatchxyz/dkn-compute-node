@@ -3,27 +3,27 @@ use ollama_workflows::{Model, ModelProvider};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-struct HeartbeatPayload {
+struct PingpongPayload {
     uuid: String,
     deadline: u128,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-struct HeartbeatResponse {
+struct PingpongResponse {
     pub(crate) uuid: String,
     pub(crate) models: Vec<(ModelProvider, Model)>,
 }
 
-/// A heartbeat is a message sent by a node to indicate that it is alive. Dria nodes request
-/// a heartbeat with a unique identifier, and the requester node will sign the identifier and send the signature back to a specific topic.
-pub trait HandlesHeartbeat {
+/// A ping-pong is a message sent by a node to indicate that it is alive.
+/// Compute nodes listen to `pong` topic, and respond to `ping` topic.
+pub trait HandlesPingpong {
     fn handle_heartbeat(&mut self, message: P2PMessage, result_topic: &str) -> NodeResult<()>;
 }
 
-impl HandlesHeartbeat for DriaComputeNode {
+impl HandlesPingpong for DriaComputeNode {
     fn handle_heartbeat(&mut self, message: P2PMessage, result_topic: &str) -> NodeResult<()> {
-        let request_body = message.parse_payload::<HeartbeatPayload>(true)?;
-        let response_body = HeartbeatResponse {
+        let request_body = message.parse_payload::<PingpongPayload>(true)?;
+        let response_body = PingpongResponse {
             uuid: request_body.uuid.clone(),
             models: self.config.models.clone(),
         };
@@ -51,7 +51,7 @@ mod tests {
     use fastbloom_rs::{FilterBuilder, Membership};
     use libsecp256k1::{recover, Message, PublicKey};
 
-    use super::HeartbeatPayload;
+    use super::PingpongPayload;
 
     #[test]
     fn test_heartbeat_payload() {
@@ -67,7 +67,7 @@ mod tests {
         assert!(message.is_signed(&pk).expect("Should check signature"));
 
         let obj = message
-            .parse_payload::<HeartbeatPayload>(true)
+            .parse_payload::<PingpongPayload>(true)
             .expect("Should parse payload");
         assert_eq!(obj.uuid, "81a63a34-96c6-4e5a-99b5-6b274d9de175");
         assert_eq!(obj.deadline, 1714128792);

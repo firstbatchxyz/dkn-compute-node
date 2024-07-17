@@ -7,23 +7,32 @@ use libp2p_identity::Keypair;
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
-use crate::p2p::behaviour::DriaBehaviourEvent;
+use super::{DriaBehaviour, DriaBehaviourEvent, DRIA_PROTO_NAME};
 
-use super::behaviour::DriaBehaviour;
-use super::DRIA_PROTO_NAME;
-
+/// Underlying libp2p client.
 pub struct P2PClient {
     swarm: Swarm<DriaBehaviour>,
 }
 
-// FIXME: lots of map_err to strings, should be handled better
+/// Number of seconds before an idle connection is closed.
+const IDLE_CONNECTION_TIMEOUT_SECS: u64 = 60;
+
+/// Static bootstrap nodes for the Kademlia DHT bootstrap step.
+const STATIC_BOOTSTRAP_NODES: [&str; 1] =
+    ["/ip4/18.156.200.161/tcp/4001/p2p/16Uiu2HAkxwSrnDLZMjhm6JpdTv7h36eNh84Abao3aXVxytQDDrm4"];
+
+/// Static relay nodes for the `P2pCircuit`.
+const STATIC_RELAY_NODES: [&str; 1] =
+    ["/ip4/3.74.233.98/tcp/4001/p2p/16Uiu2HAm75ZYbLS2h7xRxZgKXxKZrWSGxz2nAL5ESo7GbQYDkWWA"];
 
 impl P2PClient {
-    // TODO: change error type
-    pub fn new(local_key: Keypair) -> Result<Self, String> {
-        let local_peer_id = local_key.public().to_peer_id();
+    /// Creates a new P2P client with the given keypair and listen address.
+    pub fn new(keypair: Keypair, listen_addr: Multiaddr) -> Result<Self, String> {
+        // this is our peerId
+        let node_peerid = keypair.public().to_peer_id();
+        log::warn!("Compute node peer address: {}", node_peerid);
 
-        let mut swarm = SwarmBuilder::with_existing_identity(local_key.clone())
+        let mut swarm = SwarmBuilder::with_existing_identity(keypair)
             .with_tokio()
             .with_tcp(
                 tcp::Config::default().port_reuse(true),
@@ -36,10 +45,10 @@ impl P2PClient {
             .map_err(|e| e.to_string())?
             .with_behaviour(|key, relay_behavior| Ok(DriaBehaviour::new(key, relay_behavior)))
             .map_err(|e| e.to_string())?
-            .with_swarm_config(|c| c.with_idle_connection_timeout(Duration::from_secs(60)))
+            .with_swarm_config(|c| {
+                c.with_idle_connection_timeout(Duration::from_secs(IDLE_CONNECTION_TIMEOUT_SECS))
+            })
             .build();
-
-        log::warn!("Compute node peer address: {}", local_peer_id);
 
         // set mode to server so that RPC nodes add us to the DHT
         swarm
@@ -48,9 +57,8 @@ impl P2PClient {
             .set_mode(Some(libp2p::kad::Mode::Server));
 
         log::info!("Initiating bootstrap.");
-        let bootstrap_nodes = vec![
-                "/ip4/18.156.200.161/tcp/4001/p2p/16Uiu2HAkxwSrnDLZMjhm6JpdTv7h36eNh84Abao3aXVxytQDDrm4",
-            ];
+        // TODO: allow additional nodes from env
+        let bootstrap_nodes = Vec::from(STATIC_BOOTSTRAP_NODES);
         for addr in bootstrap_nodes {
             if let Ok(addr) = addr.parse::<Multiaddr>() {
                 if let Some(peer_id) = addr.iter().find_map(|p| match p {
@@ -70,8 +78,8 @@ impl P2PClient {
             }
         }
 
+        // do a random-walk on the DHT with a random peer
         log::info!("Searching for random peers.");
-        // let random_peer: PeerId = Keypair::generate_secp256k1().public().into(); // FIXME: do as below?
         let random_peer = PeerId::random();
         swarm
             .behaviour_mut()
@@ -83,25 +91,20 @@ impl P2PClient {
             .bootstrap()
             .map_err(|e| e.to_string())?;
 
-        // Listen on all interfaces for incoming connections
-        // FIXME: configure this address
-        let p2p_addr = "/ip4/0.0.0.0/tcp/4001"
-            .parse()
-            .expect("Provided p2p address should be parsable");
-        log::info!("Listening p2p network on: {}", p2p_addr);
-        swarm.listen_on(p2p_addr).map_err(|e| e.to_string())?;
+        // listen on all interfaces for incoming connections
+        log::info!("Listening p2p network on: {}", listen_addr);
+        swarm.listen_on(listen_addr).map_err(|e| e.to_string())?;
 
         log::info!("Listening to relays nodes.");
-        let relay_nodes = vec![
-            "/ip4/3.74.233.98/tcp/4001/p2p/16Uiu2HAm75ZYbLS2h7xRxZgKXxKZrWSGxz2nAL5ESo7GbQYDkWWA",
-        ];
+        // TODO: allow additional nodes from env
+        let relay_nodes = Vec::from(STATIC_RELAY_NODES);
         for addr in relay_nodes {
             if let Ok(addr) = addr.parse::<Multiaddr>() {
                 swarm
                     .listen_on(addr.with(Protocol::P2pCircuit))
                     .map_err(|e| e.to_string())?;
             } else {
-                // TODO: this should not happen for static addresses
+                // this is not expected happen for static addresses
                 log::warn!("Failed to parse address: {}", addr);
             }
         }

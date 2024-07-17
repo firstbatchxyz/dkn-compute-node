@@ -1,4 +1,6 @@
-use libp2p::gossipsub;
+use std::str::FromStr;
+
+use libp2p::{gossipsub, Multiaddr};
 use ollama_workflows::ModelProvider;
 use serde::Deserialize;
 use tokio::signal::unix::{signal, SignalKind};
@@ -7,7 +9,7 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     config::DriaComputeNodeConfig,
     errors::NodeResult,
-    handlers::{heartbeat::HandlesHeartbeat, workflow::HandlesWorkflow},
+    handlers::{HandlesPingpong, HandlesWorkflow},
     p2p::{P2PClient, P2PMessage},
     utils::{
         crypto::secret_to_keypair,
@@ -53,7 +55,9 @@ impl DriaComputeNode {
         cancellation: CancellationToken,
     ) -> Result<Self, String> {
         let keypair = secret_to_keypair(&config.secret_key);
-        let p2p = P2PClient::new(keypair)?;
+        let listen_addr =
+            Multiaddr::from_str(config.p2p_listen_addr.as_str()).map_err(|e| e.to_string())?;
+        let p2p = P2PClient::new(keypair, listen_addr)?;
 
         Ok(DriaComputeNode {
             config,
@@ -61,12 +65,6 @@ impl DriaComputeNode {
             cancellation,
         })
     }
-
-    /// Shorthand to sign a digest with node's secret key and return signature & recovery id.
-    // #[inline]
-    // pub fn sign(&self, message: &Message) -> (Signature, RecoveryId) {
-    //     sign(message, &self.config.secret_key)
-    // }
 
     /// Subscribe to a certain task with its topic.
     pub fn subscribe(&mut self, topic: &str) -> NodeResult<()> {
@@ -132,22 +130,16 @@ impl DriaComputeNode {
         Ok(())
     }
 
+    /// Publishes a given message to the network.
+    /// The topic is expected to be provided within the message struct.
     pub fn publish(&mut self, message: P2PMessage) -> NodeResult<()> {
         let message_bytes = message.payload.as_bytes().to_vec();
         self.p2p.publish(&message.topic, message_bytes)?;
         Ok(())
     }
 
-    #[deprecated = "not used anymore"]
-    pub fn send_message_once(&mut self, message: P2PMessage) -> NodeResult<()> {
-        let topic = message.topic.clone();
-        self.subscribe(&topic)?;
-        self.publish(message)?;
-        self.unsubscribe(&topic)?;
-        Ok(())
-    }
-
-    /// Launches the main loop of the compute node. This method is not expected to return until cancellation occurs.
+    /// Launches the main loop of the compute node.
+    /// This method is not expected to return until cancellation occurs.
     pub async fn launch(&mut self) -> NodeResult<()> {
         const PINGPONG_LISTEN_TOPIC: &str = "ping";
         const PINGPONG_RESPONSE_TOPIC: &str = "pong";
@@ -312,7 +304,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "run this manually"]
-    async fn test_publish() {
+    async fn test_publish_message() {
         env::set_var("RUST_LOG", "info");
         let _ = env_logger::try_init();
 

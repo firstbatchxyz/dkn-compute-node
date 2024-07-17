@@ -33,13 +33,13 @@ To get started, [setup](#setup) your envrionment and then see [usage](#usage) to
 
 Compute nodes can technically do any arbitrary task, from computing the square root of a given number to finding LLM outputs from a given prompt, or validating an LLM's output with respect to knowledge available on the web accessed via tools.
 
-- **Heartbeats**: Dria Admin Node broadcasts **heartbeat** messages at a set interval, it is a required duty of the compute node to respond to these so that they can be included in the list of available nodes for task assignment. These tasks will respect the type of model provided, e.g. if a task requires `gpt-4o` and you are running `phi3`, you won't be selected for that task.
+- **Ping/Pong**: Dria Admin Node broadcasts **ping** messages at a set interval, it is a required duty of the compute node to respond with a **pong** to these so that they can be included in the list of available nodes for task assignment. These tasks will respect the type of model provided within the pong message, e.g. if a task requires `gpt-4o` and you are running `phi3`, you won't be selected for that task.
 
 - **Workflows**: Each task is given in the form of a workflow, based on [Ollama Workflows](https://github.com/andthattoo/ollama-workflows) (see repository for more information). In simple terms, each workflow defines the agentic behavior of an LLM, all captured in a single JSON file, and can represent things ranging from simple LLM generations to iterative web searching.
 
 ## Requirements
 
-The compute node is a very lightweight process, with few MBs of memory usage along with an image size of less than ~65MBs. If you are using Ollama, you will need the memory to run large models locally, which depend on the model size.
+The compute node is a very lightweight process, with few MBs of memory usage along with an image size of less than ~65MBs. If you are using Ollama, you will need the memory to run large models locally, which depend on the model's size that you are willing to.
 
 You need the following applications to run compute node:
 
@@ -140,10 +140,11 @@ To see your logs, you can go to [Docker Desktop](https://www.docker.com/products
 Alternatively, you can use `docker compose logs` such as below:
 
 ```sh
-docker compose logs -f compute
+docker compose logs -f compute  # compute node logs
+docker compose logs -f ollama   # ollama logs
 ```
 
-Instead of following with `-f`, you can check the latest commands like:
+The `-f` option is so that you can track the logs from terminal. If you prefer to simply check the latest logs, you can use a command such as:
 
 ```sh
 # logs from last 1 hour
