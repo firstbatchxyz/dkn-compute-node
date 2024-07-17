@@ -1,4 +1,5 @@
-#![doc = include_str!("../README.md")]
+// #![doc = include_str!("../README.md")]
+// TODO: this line breaks docker, find a way to ignore during compose?
 
 pub(crate) mod config;
 pub(crate) mod errors;

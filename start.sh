@@ -2,21 +2,19 @@
 
 docs() {
     echo "
-        start.sh starts the compute node with given environment and parameters using docker-compose.
-        Loads the .env file as base environment and creates a .env.compose file for final environment to run with docker-compose.
-        Required environment variables in .env file; DKN_WALLET_SECRET_KEY
+    start.sh starts the compute node with given environment and parameters using docker-compose.
+    Loads the .env file as base environment and creates a .env.compose file for final environment to run with docker-compose.
+    Required environment variables in .env file; DKN_WALLET_SECRET_KEY
         
-        Description of command-line arguments:
-            -m | --model: Indicates the model to be used within the compute node. Argument can be given multiple times for multiple models.
+    Arguments:
+        -h | --help: Displays this help message
+        -m | --model: Indicates the model to be used within the compute node. Argument can be given multiple times for multiple models.
+        -b | --background: Enables background mode for running the node (default: FOREGROUND)
+        --dev: Sets the logging level to debug (default: info)
+        --local-ollama=<true/false>: Indicates the local Ollama environment is being used (default: true)
 
-            --local-ollama=<true/false>: Indicates the local Ollama environment is being used (default: true)
-
-            --dev: Sets the logging level to debug (default: info)
-            -b | --background: Enables background mode for running the node (default: FOREGROUND)
-            -h | --help: Displays this help message
-
-        Example usage:
-            ./start.sh -m=nous-hermes2theta-llama3-8b --model=phi3:medium --local-ollama=false --dev
+    Example:
+        ./start.sh -m=nous-hermes2theta-llama3-8b --model=phi3:medium --local-ollama=false --dev
     "
     exit 0
 }

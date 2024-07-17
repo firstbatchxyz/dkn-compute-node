@@ -120,14 +120,14 @@ impl DriaComputeNode {
 
     /// Launches the main loop of the compute node. This method is not expected to return until cancellation occurs.
     pub async fn launch(&mut self) -> NodeResult<()> {
-        const HEARTBEAT_LISTEN_TOPIC: &str = "heartbeat";
-        const HEARTBEAT_RESPONSE_TOPIC: &str = "pong";
+        const PINGPONG_LISTEN_TOPIC: &str = "ping";
+        const PINGPONG_RESPONSE_TOPIC: &str = "pong";
         const WORKFLOW_LISTEN_TOPIC: &str = "task";
         const WORKFLOW_RESPONSE_TOPIC: &str = "results";
 
         // subscribe to topics
-        self.subscribe(HEARTBEAT_LISTEN_TOPIC)?;
-        self.subscribe(HEARTBEAT_RESPONSE_TOPIC)?;
+        self.subscribe(PINGPONG_LISTEN_TOPIC)?;
+        self.subscribe(PINGPONG_RESPONSE_TOPIC)?;
         self.subscribe(WORKFLOW_LISTEN_TOPIC)?;
         self.subscribe(WORKFLOW_RESPONSE_TOPIC)?;
 
@@ -160,8 +160,8 @@ impl DriaComputeNode {
                                     log::error!("Error handling workflow: {}", e);
                                 }
                             }
-                            HEARTBEAT_LISTEN_TOPIC => {
-                                if let Err(e) =  self.handle_heartbeat(message, HEARTBEAT_RESPONSE_TOPIC) {
+                            PINGPONG_LISTEN_TOPIC => {
+                                if let Err(e) =  self.handle_heartbeat(message, PINGPONG_RESPONSE_TOPIC) {
                                     log::error!("Error handling heartbeat: {}", e);
                                 }
                             }
@@ -176,8 +176,8 @@ impl DriaComputeNode {
         }
 
         // unsubscribe from topics
-        self.unsubscribe_ignored(HEARTBEAT_LISTEN_TOPIC);
-        self.unsubscribe_ignored(HEARTBEAT_RESPONSE_TOPIC);
+        self.unsubscribe_ignored(PINGPONG_LISTEN_TOPIC);
+        self.unsubscribe_ignored(PINGPONG_RESPONSE_TOPIC);
         self.unsubscribe_ignored(WORKFLOW_LISTEN_TOPIC);
         self.unsubscribe_ignored(WORKFLOW_RESPONSE_TOPIC);
 
