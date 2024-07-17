@@ -1,6 +1,4 @@
-use fastbloom_rs::{BloomFilter, Membership};
 use libp2p::gossipsub;
-use libsecp256k1::{sign, Message, RecoveryId, Signature};
 use ollama_workflows::ModelProvider;
 use serde::Deserialize;
 use tokio::signal::unix::{signal, SignalKind};
@@ -13,7 +11,6 @@ use crate::{
     p2p::{P2PClient, P2PMessage},
     utils::{
         crypto::secret_to_keypair,
-        filter::FilterPayload,
         get_current_time_nanos,
         payload::{TaskRequest, TaskRequestPayload},
         provider::{check_ollama, check_openai},
@@ -42,20 +39,10 @@ impl DriaComputeNode {
     }
 
     /// Shorthand to sign a digest with node's secret key and return signature & recovery id.
-    #[inline]
-    pub fn sign(&self, message: &Message) -> (Signature, RecoveryId) {
-        sign(message, &self.config.secret_key)
-    }
-
-    /// Given a hex-string serialized Bloom Filter of a task, checks if this node is selected to do the task.
-    ///
-    /// This is done by checking if the address of this node is in the filter.
-    #[inline]
-    pub fn is_tasked(&self, filter: &FilterPayload) -> NodeResult<bool> {
-        let filter = BloomFilter::try_from(filter)?;
-
-        Ok(filter.contains(&self.config.address))
-    }
+    // #[inline]
+    // pub fn sign(&self, message: &Message) -> (Signature, RecoveryId) {
+    //     sign(message, &self.config.secret_key)
+    // }
 
     /// Subscribe to a certain task with its topic.
     pub fn subscribe(&mut self, topic: &str) -> NodeResult<()> {
@@ -70,7 +57,7 @@ impl DriaComputeNode {
 
     /// Unsubscribe from a certain task with its topic.
     pub fn unsubscribe(&mut self, topic: &str) -> NodeResult<()> {
-        let ok = self.p2p.unsubscribe(&topic)?;
+        let ok = self.p2p.unsubscribe(topic)?;
         if ok {
             log::info!("Unsubscribed from {}", topic);
         } else {
@@ -158,24 +145,25 @@ impl DriaComputeNode {
                         );
 
                         // first, parse the raw gossipsub message to a prepared message
-                        // TODO: change name of this function
-                        let message = match self.parse_message_to_topiced_message(message).await {
-                            // TODO: refactor this
-                            Some(message) => message,
-                            None => continue,
+                        let message = match self.parse_message_to_topiced_message(message) {
+                            Ok(message) => message,
+                            Err(e) => {
+                                log::error!("Error parsing message: {}", e);
+                                continue;
+                            }
                         };
 
                         // handle message w.r.t topic
                         match message.topic.as_str() {
                             WORKFLOW_LISTEN_TOPIC => {
-                                self.handle_workflow(message, WORKFLOW_RESPONSE_TOPIC).await.unwrap_or_else(|e| {
+                                if let Err(e) = self.handle_workflow(message, WORKFLOW_RESPONSE_TOPIC).await {
                                     log::error!("Error handling workflow: {}", e);
-                                });
+                                }
                             }
                             HEARTBEAT_LISTEN_TOPIC => {
-                                self.handle_heartbeat(message, HEARTBEAT_RESPONSE_TOPIC).unwrap_or_else(|e| {
+                                if let Err(e) =  self.handle_heartbeat(message, HEARTBEAT_RESPONSE_TOPIC) {
                                     log::error!("Error handling heartbeat: {}", e);
-                                });
+                                }
                             }
                             topic => {
                                 log::warn!("Unhandled topic: {}", topic);
@@ -197,34 +185,21 @@ impl DriaComputeNode {
     }
 
     /// Process messages on a certain topic.
-    pub async fn parse_message_to_topiced_message(
+    pub fn parse_message_to_topiced_message(
         &self,
         message: gossipsub::Message,
-    ) -> Option<P2PMessage> {
+    ) -> NodeResult<P2PMessage> {
         // the received message is expected to use IdentHash for the topic, so we can see the name of the topic immediately.
         log::debug!("Parsing {} message.", message.topic.as_str());
-        let message = match P2PMessage::try_from(message) {
-            Ok(message) => message,
-            Err(e) => {
-                log::error!("Could not parse message: {}", e);
-                return None;
-            }
-        };
+        let message = P2PMessage::try_from(message)?;
 
         // check dria signature
-        // TODO: when we have many public keys, we should check the signature against all of them
-        if !message
-            .is_signed(&self.config.admin_public_key)
-            .unwrap_or_else(|e| {
-                log::error!("Could not check signature: {}", e);
-                false
-            })
-        {
-            log::warn!("Skipping due to invalid signature.");
-            return None;
+        // NOTE: when we have many public keys, we should check the signature against all of them
+        if !message.is_signed(&self.config.admin_public_key)? {
+            return Err("Invalid signature.".into());
         }
 
-        Some(message)
+        Ok(message)
     }
 
     pub fn parse_topiced_message_to_task_request<T>(
@@ -242,7 +217,7 @@ impl DriaComputeNode {
         }
 
         // check task inclusion via the bloom filter
-        let is_tasked = self.is_tasked(&task.filter)?;
+        let is_tasked = task.filter.contains(&self.config.address)?;
         if !is_tasked {
             return Err(format!(
                 "Task {} does not include the node within the filter.",

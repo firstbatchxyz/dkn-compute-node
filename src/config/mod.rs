@@ -22,12 +22,16 @@ pub struct DriaComputeNodeConfig {
     pub models: Vec<(ModelProvider, Model)>,
 }
 
+/// 32 byte secret key hex(b"node") * 8, dummy only
+pub(crate) const DEFAULT_DKN_WALLET_SECRET_KEY: &[u8; 32] =
+    &hex_literal::hex!("6e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f6465");
+
+/// 33 byte compressed public key of secret key from hex(b"dria) * 8, dummy only
+pub(crate) const DEFAULT_DKN_ADMIN_PUBLIC_KEY: &[u8; 33] =
+    &hex_literal::hex!("0208ef5e65a9c656a6f92fb2c770d5d5e2ecffe02a6aade19207f75110be6ae658");
+
 impl DriaComputeNodeConfig {
     pub fn new() -> Self {
-        /// 32 byte secret key hex(b"node") * 8, dummy only
-        pub const DEFAULT_DKN_WALLET_SECRET_KEY: &[u8; 32] =
-            &hex_literal::hex!("6e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f6465");
-
         let secret_key = match env::var("DKN_WALLET_SECRET_KEY") {
             Ok(secret_env) => {
                 let secret_dec =
@@ -49,10 +53,6 @@ impl DriaComputeNodeConfig {
             hex::encode(public_key.serialize_compressed())
         );
 
-        /// 33 byte compressed public key of secret key from hex(b"dria) * 8, dummy only
-        const DEFAULT_DKN_ADMIN_PUBLIC_KEY: &[u8; 33] = &hex_literal::hex!(
-            "0208ef5e65a9c656a6f92fb2c770d5d5e2ecffe02a6aade19207f75110be6ae658"
-        );
         let admin_public_key = PublicKey::parse_slice(
             hex::decode(env::var("DKN_ADMIN_PUBLIC_KEY").unwrap_or_default())
                 .unwrap_or_default()

@@ -1,6 +1,5 @@
 pub mod crypto;
 pub mod filter;
-pub mod http;
 pub mod payload;
 pub mod provider;
 

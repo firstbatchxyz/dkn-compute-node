@@ -1,4 +1,5 @@
-use dkn_compute::utils::get_current_time_nanos;
+use std::time::SystemTime;
+
 use ollama_rs::{
     generation::completion::{request::GenerationRequest, GenerationResponse},
     Ollama,
@@ -25,4 +26,12 @@ pub async fn use_model_with_prompt(
     let duration = tokio::time::Duration::from_nanos(time_diff as u64);
 
     (gen_res, duration)
+}
+
+#[inline(always)]
+fn get_current_time_nanos() -> u128 {
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos()
 }

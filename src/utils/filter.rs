@@ -1,4 +1,4 @@
-use fastbloom_rs::{BloomFilter, Hashes};
+use fastbloom_rs::{BloomFilter, Hashes, Membership};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, to_string};
 
@@ -9,6 +9,14 @@ use serde_json::{json, to_string};
 pub struct FilterPayload {
     pub(crate) hex: String,
     pub(crate) hashes: u32,
+}
+
+impl FilterPayload {
+    /// Shorthand function to create the underlying `BloomFilter` and check if it contains the given address.
+    #[inline]
+    pub fn contains(&self, address: &[u8]) -> Result<bool, hex::FromHexError> {
+        BloomFilter::try_from(self).and_then(|filter| Ok(filter.contains(address)))
+    }
 }
 
 impl TryFrom<&FilterPayload> for String {

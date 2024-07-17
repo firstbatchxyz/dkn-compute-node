@@ -1,8 +1,15 @@
 #![doc = include_str!("../README.md")]
 
-pub mod config;
-pub mod errors;
-pub mod handlers;
-pub mod node;
-pub mod p2p;
-pub mod utils;
+pub(crate) mod config;
+pub(crate) mod errors;
+pub(crate) mod handlers;
+pub(crate) mod node;
+pub(crate) mod p2p;
+pub(crate) mod utils;
+
+/// Crate version of the compute node.
+/// This value is attached within the published messages.
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+pub use config::DriaComputeNodeConfig;
+pub use node::DriaComputeNode;

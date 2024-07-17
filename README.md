@@ -37,16 +37,6 @@ Compute nodes can technically do any arbitrary task, from computing the square r
 
 - **Workflows**: Each task is given in the form of a workflow, based on [Ollama Workflows](https://github.com/andthattoo/ollama-workflows) (see repository for more information). In simple terms, each workflow defines the agentic behavior of an LLM, all captured in a single JSON file, and can represent things ranging from simple LLM generations to iterative web searching.
 
-### Waku
-
-We are using a reduced version of [nwaku-compose](https://github.com/waku-org/nwaku-compose) for the Waku node. It only uses the Relay protocol, and Store is disabled. The respective files are under the [waku](./waku/) folder.
-
-By default, there are no static peers, but you can specify them using duplicate `--staticnode` arguments within the `WAKU_EXTRA_ARGS` variable which is passed to the Waku node, that is:
-
-```sh
-WAKU_EXTRA_ARGS="--staticnode=/ip4/foobar/... --staticnode=/ip4/bazboo/..."
-```
-
 ## Requirements
 
 Your machine should have **at least 2GB** memory, along with a stable internet connection.

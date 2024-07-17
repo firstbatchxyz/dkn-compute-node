@@ -170,7 +170,7 @@ impl P2PClient {
                     SwarmEvent::NewListenAddr { address, .. } => {
                         log::info!("Local node is listening on {address}");
                     }
-                    _ => log::debug!("Unhandled swarm Event {:?}", event),
+                    _ => log::debug!("Unhandled Swarm Event {:?}", event),
                 },
                 _ = cancellation.cancelled() => {
                     return None;
