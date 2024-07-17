@@ -23,7 +23,31 @@ pub struct DriaComputeNode {
     pub cancellation: CancellationToken,
 }
 
+impl Default for DriaComputeNode {
+    /// Default `unwrap`s the `new` method, which should not fail.
+    /// To handle the error, use `new` instead.
+    fn default() -> Self {
+        let config = DriaComputeNodeConfig::default();
+        let cancellation = CancellationToken::default();
+
+        Self::new(config, cancellation).expect("should create default node")
+    }
+}
+
 impl DriaComputeNode {
+    /// Create a new compute node with the given configuration and cancellation token.
+    ///
+    /// Internally, the node will create a new P2P client with the given secret key.
+    /// This P2P client, although created synchronously, requires a tokio runtime.
+    ///
+    /// ### Example
+    ///
+    /// ```rs
+    /// let config = DriaComputeNodeConfig::new();
+    /// let mut node = DriaComputeNode::new(config, CancellationToken::new())?;
+    /// node.check_services().await?;
+    /// node.launch().await?;
+    /// ```
     pub fn new(
         config: DriaComputeNodeConfig,
         cancellation: CancellationToken,
@@ -75,6 +99,11 @@ impl DriaComputeNode {
                 e
             );
         }
+    }
+
+    /// Returns the list of connected peers.
+    pub fn peers(&self) -> Vec<(&libp2p_identity::PeerId, Vec<&gossipsub::TopicHash>)> {
+        self.p2p.peers()
     }
 
     /// Check if the required compute services are running, e.g. if Ollama
@@ -273,4 +302,38 @@ async fn wait_for_termination(cancellation: CancellationToken) -> std::io::Resul
     log::info!("Terminating the node...");
     cancellation.cancel();
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{p2p::P2PMessage, DriaComputeNode, DriaComputeNodeConfig};
+    use std::env;
+    use tokio_util::sync::CancellationToken;
+
+    #[tokio::test]
+    #[ignore = "run this manually"]
+    async fn test_publish() {
+        env::set_var("RUST_LOG", "info");
+        let _ = env_logger::try_init();
+
+        // create node
+        let cancellation = CancellationToken::new();
+        let mut node = DriaComputeNode::new(DriaComputeNodeConfig::default(), cancellation.clone())
+            .expect("should create node");
+
+        // launch & wait for a while for connections
+        log::info!("Waiting a bit for peer setup.");
+        tokio::select! {
+            _ = node.launch() => (),
+            _ = tokio::time::sleep(tokio::time::Duration::from_secs(20)) => cancellation.cancel(),
+        }
+        log::info!("Connected Peers:\n{:#?}", node.peers());
+
+        // publish a dummy message
+        let topic = "foo";
+        let message = P2PMessage::new("hello from the other side", topic);
+        node.subscribe(topic).expect("should subscribe");
+        node.publish(message).expect("should publish");
+        node.unsubscribe(topic).expect("should unsubscribe");
+    }
 }

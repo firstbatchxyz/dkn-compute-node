@@ -1,5 +1,5 @@
 use libp2p::futures::StreamExt;
-use libp2p::gossipsub::{Message, MessageId, PublishError, SubscriptionError};
+use libp2p::gossipsub::{Message, MessageId, PublishError, SubscriptionError, TopicHash};
 use libp2p::kad::{GetClosestPeersError, GetClosestPeersOk, QueryResult};
 use libp2p::{gossipsub, identify, kad, multiaddr::Protocol, noise, swarm::SwarmEvent, tcp, yamux};
 use libp2p::{Multiaddr, PeerId, Swarm, SwarmBuilder};
@@ -39,7 +39,7 @@ impl P2PClient {
             .with_swarm_config(|c| c.with_idle_connection_timeout(Duration::from_secs(60)))
             .build();
 
-        log::info!("My peer addr is {:?}", local_peer_id);
+        log::warn!("Compute node peer address: {}", local_peer_id);
 
         // set mode to server so that RPC nodes add us to the DHT
         swarm
@@ -57,12 +57,12 @@ impl P2PClient {
                     Protocol::P2p(peer_id) => Some(peer_id),
                     _ => None,
                 }) {
-                    log::info!("Dialling peer {}.", addr);
+                    log::info!("Dialling peer: {}", addr);
                     swarm.dial(addr.clone()).map_err(|e| e.to_string())?;
-                    log::info!("Adding address to Kademlia routing table.");
+                    log::info!("Adding address to Kademlia routing table");
                     swarm.behaviour_mut().kademlia.add_address(&peer_id, addr);
                 } else {
-                    log::warn!("Missing peer ID in address: {}", addr);
+                    log::warn!("Missing peerID in address: {}", addr);
                 }
             } else {
                 // TODO: this should not happen for static addresses
@@ -138,6 +138,15 @@ impl P2PClient {
             .behaviour_mut()
             .gossipsub
             .publish(topic, message_bytes)
+    }
+
+    /// Returns the list of connected peers within Gossipsub, with a list of subscribed topic hashes by each peer.
+    pub fn peers(&self) -> Vec<(&PeerId, Vec<&TopicHash>)> {
+        self.swarm
+            .behaviour()
+            .gossipsub
+            .all_peers()
+            .collect::<Vec<_>>()
     }
 
     /// Listens to the Swarm for incoming messages.
@@ -237,6 +246,4 @@ impl P2PClient {
             }
         }
     }
-
-    // TODO: add method to get peers (specifically their count) from Kademlia
 }

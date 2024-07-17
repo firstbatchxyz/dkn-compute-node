@@ -10,8 +10,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     log::info!("Initializing Dria Compute Node {}...", dkn_compute::VERSION);
     let config = DriaComputeNodeConfig::new();
-    let cancellation = CancellationToken::new();
-    let mut node = DriaComputeNode::new(config, cancellation.clone())?;
+    let mut node = DriaComputeNode::new(config, CancellationToken::new())?;
     node.check_services().await?;
     node.launch().await?;
 
