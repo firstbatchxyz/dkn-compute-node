@@ -1,4 +1,5 @@
 use ecies::PublicKey;
+use libp2p_identity::Keypair;
 use libsecp256k1::{sign, Message, SecretKey};
 use sha2::{Digest, Sha256};
 use sha3::Keccak256;
@@ -39,6 +40,17 @@ pub fn sign_bytes_recoverable(message: &[u8; 32], secret_key: &SecretKey) -> Str
         hex::encode(signature.serialize()),
         hex::encode([recid.serialize()])
     )
+}
+
+/// Converts a `libsecp256k1::SecretKey` to a `libp2p_identity::secp256k1::Keypair`.
+/// To do this, we serialize the secret key and create a new keypair from it.
+#[inline]
+pub fn secret_to_keypair(secret_key: &SecretKey) -> Keypair {
+    let bytes = secret_key.serialize();
+
+    let secret_key = libp2p_identity::secp256k1::SecretKey::try_from_bytes(bytes)
+        .expect("Failed to create secret key");
+    libp2p_identity::secp256k1::Keypair::from(secret_key).into()
 }
 
 #[cfg(test)]

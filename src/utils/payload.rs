@@ -46,6 +46,7 @@ pub struct TaskRequestPayload<T> {
 }
 
 impl<T> TaskRequestPayload<T> {
+    #[allow(unused)]
     pub fn new(input: T, filter: BloomFilter, time_ns: u128, public_key: Option<String>) -> Self {
         Self {
             task_id: Uuid::new_v4().into(),

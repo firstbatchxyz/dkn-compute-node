@@ -2,22 +2,19 @@
 
 docs() {
     echo "
-        start.sh starts the compute node with given environment and parameters using docker-compose.
-        Loads the .env file as base environment and creates a .env.compose file for final environment to run with docker-compose.
-        Required environment variables in .env file; RLN_RELAY_ETH_CLIENT_ADDRESS, ETH_TESTNET_KEY, RLN_RELAY_CRED_PASSWORD
+    start.sh starts the compute node with given environment and parameters using docker-compose.
+    Loads the .env file as base environment and creates a .env.compose file for final environment to run with docker-compose.
+    Required environment variables in .env file; DKN_WALLET_SECRET_KEY
         
-        Description of command-line arguments:
-            -m | --model: Indicates the model to be used within the compute node. Argument can be given multiple times for multiple models.
+    Arguments:
+        -h | --help: Displays this help message
+        -m | --model: Indicates the model to be used within the compute node. Argument can be given multiple times for multiple models.
+        -b | --background: Enables background mode for running the node (default: FOREGROUND)
+        --dev: Sets the logging level to debug (default: info)
+        --local-ollama=<true/false>: Indicates the local Ollama environment is being used (default: true)
 
-            --local-ollama=<true/false>: Indicates the local Ollama environment is being used (default: true)
-            --waku-ext: Will assume Waku is running in another container already, and will not launch it. (default: false)
-
-            --dev: Sets the logging level to debug (default: info)
-            -b | --background: Enables background mode for running the node (default: FOREGROUND)
-            -h | --help: Displays this help message
-
-        Example usage:
-            ./start.sh -m=nous-hermes2theta-llama3-8b --model=phi3:medium --local-ollama=false --dev
+    Example:
+        ./start.sh -m=nous-hermes2theta-llama3-8b --model=phi3:medium --local-ollama=false --dev
     "
     exit 0
 }
@@ -37,7 +34,6 @@ fi
 START_MODE="FOREGROUND"
 LOCAL_OLLAMA=true
 LOGS="info"
-EXTERNAL_WAKU=false
 
 # script internal
 COMPOSE_PROFILES=()
@@ -58,10 +54,6 @@ while [[ "$#" -gt 0 ]]; do
             LOCAL_OLLAMA="$(echo "${1#*=}" | tr '[:upper:]' '[:lower:]')"
         ;;
 
-        --waku-ext)
-            EXTERNAL_WAKU=true
-        ;;
-
         --dev)
             DKN_LOG_LEVEL="none,dkn_compute=debug"
         ;;
@@ -74,9 +66,6 @@ done
 
 check_required_env_vars() {
     local required_vars=(
-        "RLN_RELAY_ETH_CLIENT_ADDRESS"
-        "ETH_TESTNET_KEY"
-        "RLN_RELAY_CRED_PASSWORD"
         "DKN_WALLET_SECRET_KEY"
         "DKN_ADMIN_PUBLIC_KEY"
     )
@@ -146,61 +135,6 @@ handle_compute_env() {
     compute_envs=($(as_pairs "${compute_env_vars[@]}"))
 }
 handle_compute_env
-
-# this function handles all waku related environment, waku_envs is a list of "name=value" env-var pairs
-waku_envs=()
-handle_waku_env() {
-    waku_env_vars=(
-        "RLN_RELAY_ETH_CLIENT_ADDRESS"
-        "ETH_TESTNET_KEY"
-        "RLN_RELAY_CRED_PASSWORD"
-        "WAKU_URL"
-        "WAKU_EXTRA_ARGS"
-        "WAKU_LOG_LEVEL"
-    )
-    # default value for waku url
-    if [[ -z "$WAKU_URL" ]]; then
-        WAKU_URL="http://host.docker.internal:8645"
-    fi
-    waku_envs=($(as_pairs "${waku_env_vars[@]}"))
-
-    # add waku profile depending on EXTERNAL_WAKU flag
-    if [ "$EXTERNAL_WAKU" == true ]; then
-        echo "External waku is true, not running the waku"
-        return
-    else
-        COMPOSE_PROFILES+=("waku")
-    fi
-
-    handle_waku_extra_args() {
-        # get static waku peers
-        # --staticnode
-        WAKU_PEER_DISCOVERY_URL="" # TODO: url for getting a list of admin nodes in waku
-
-        extra_args_list=()
-        response=$(curl -s -X GET "$WAKU_PEER_DISCOVERY_URL" -d "param1=value1")
-        parsed_response=$(echo "$response" | jq -r '.[]')
-        if [[ -z "$parsed_response" ]]; then
-            echo "No static peer set for waku"
-        else
-            waku_peers=""
-            for peer in ${parsed_response[@]}; do
-                waku_peers="${waku_peers}--staticnode=${peer} "
-            done
-            extra_args_list+=(${waku_peers})
-        fi
-
-        # TODO: additional waku-extra-args here
-        extra_args=$(IFS=" "; echo "${extra_args_list[*]}")
-        if [ -n "$extra_args" ]; then
-            WAKU_EXTRA_ARGS="${WAKU_EXTRA_ARGS} ${extra_args}"
-        fi
-    }
-    handle_waku_extra_args
-
-    waku_envs=($(as_pairs "${waku_env_vars[@]}"))
-}
-handle_waku_env
 
 # this function handles all ollama related environment, ollama_envs is a list of "name=value" env-var pairs
 ollama_envs=()
@@ -313,7 +247,6 @@ if [ -e "$ENV_COMPOSE_FILE" ]; then
     # if already exists, clean it first
     rm "$ENV_COMPOSE_FILE"
 fi
-write_to_env_file "${waku_envs[@]}"
 write_to_env_file "${compute_envs[@]}"
 write_to_env_file "${ollama_envs[@]}"
 

@@ -1,17 +1,4 @@
 version: "3.7"
-x-logging: &logging
-  logging:
-    driver: json-file
-    options:
-      max-size: 1000m
-
-# Environment variable definitions
-x-rln-relay-eth-client-address: &rln_relay_eth_client_address ${RLN_RELAY_ETH_CLIENT_ADDRESS:-}
-
-x-rln-environment: &rln_env
-  RLN_RELAY_CONTRACT_ADDRESS: ${RLN_RELAY_CONTRACT_ADDRESS:-0xCB33Aa5B38d79E3D9Fa8B10afF38AA201399a7e3}
-  RLN_RELAY_CRED_PATH: ${RLN_RELAY_CRED_PATH:-} # Optional: Add your RLN_RELAY_CRED_PATH after the "-"
-  RLN_RELAY_CRED_PASSWORD: ${RLN_RELAY_CRED_PASSWORD:-} # Optional: Add your RLN_RELAY_CRED_PASSWORD after the "-"
 
 services:
   # Compute Node
@@ -20,44 +7,10 @@ services:
     env_file:
       - .env.compose
     environment:
-      WAKU_URL: "http://host.docker.internal:8645"
       OLLAMA_HOST: "http://host.docker.internal"
       OLLAMA_PORT: "11434"
       RUST_LOG: "${DKN_LOG_LEVEL:-info}"
-      SEARCH_AGENT_URL: "http://host.docker.internal:5059"
-      SEARCH_AGENT_MANAGER: true
     restart: "on-failure"
-
-  # Waku Node
-  nwaku:
-    image: harbor.status.im/wakuorg/nwaku:v0.30.1
-    restart: on-failure
-    ports:
-      - 30304:30304/tcp
-      - 30304:30304/udp
-      - 9005:9005/udp
-      - 127.0.0.1:8003:8003
-      - 80:80 # Let's Encrypt
-      - 8000:8000/tcp # WSS
-      - 8645:8645 # instead of: 127.0.0.1:8645:8645
-    <<:
-      - *logging
-    environment:
-      RLN_RELAY_CRED_PASSWORD: "${RLN_RELAY_CRED_PASSWORD}"
-      RLN_RELAY_ETH_CLIENT_ADDRESS: *rln_relay_eth_client_address
-      EXTRA_ARGS: "${WAKU_EXTRA_ARGS}"
-      LOG_LEVEL: "${WAKU_LOG_LEVEL:-DEBUG}"
-      <<:
-        - *rln_env
-    volumes:
-      - ${CERTS_DIR:-./waku/certs}:/etc/letsencrypt/:Z
-      - ./waku/run_node.sh:/opt/run_node.sh:Z
-      - ./waku/rln_tree:/etc/rln_tree/:Z
-      - ./waku/keystore:/keystore:Z
-    entrypoint: sh
-    command:
-      - /opt/run_node.sh
-    profiles: [waku]
 
   # Ollama Container (CPU)
   ollama:

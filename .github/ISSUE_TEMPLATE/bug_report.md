@@ -10,7 +10,7 @@ assignees: ""
 
 A clear and concise description of what the bug is.
 
-### To reproduce
+### How to Reproduce
 
 If you can reproduce the behavior, steps to reproduce:
 
@@ -19,7 +19,7 @@ If you can reproduce the behavior, steps to reproduce:
 3. Scroll down to '....'
 4. See error
 
-### Expected behavior
+### Expected Behaviour
 
 A clear and concise description of what you expected to happen.
 
@@ -32,5 +32,3 @@ Please note down the version, it can be seen in the the first log of Dria Comput
 ### Additional context
 
 Add any other context about the problem here.
-
-<!-- based on https://github.com/waku-org/nwaku/blob/master/.github/ISSUE_TEMPLATE/bug_report.md -->
