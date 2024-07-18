@@ -161,19 +161,19 @@ impl DriaComputeNode {
                         let topic = message.topic.clone();
                         let topic_str = topic.as_str();
 
-                        log::info!(
-                            "Received {} message ({}) from {}",
-                            topic_str,
-                            message_id,
-                            peer_id,
-                        );
-                        log::debug!(
-                            "Message data: {}", String::from_utf8_lossy(&message.data)
-                        );
-
                         // handle message w.r.t topic
-
                         if std::matches!(topic_str, PINGPONG_LISTEN_TOPIC | WORKFLOW_LISTEN_TOPIC) {
+                            log::info!(
+                                "Received {} message ({})\nHop:{}\nSource: {}",
+                                topic_str,
+                                message_id,
+                                peer_id,
+                                message.source.and_then(|p| Some(p.to_string())).unwrap_or("None".to_string())
+                            );
+                            log::debug!(
+                                "Message data: {}", String::from_utf8_lossy(&message.data)
+                            );
+
                             // first, parse the raw gossipsub message to a prepared message
                             let message = match self.parse_message_to_prepared_message(message) {
                                 Ok(message) => message,
@@ -184,7 +184,7 @@ impl DriaComputeNode {
                             };
 
                             // then handle the preapred message
-                            if let Err(err) = match topic_str{
+                            if let Err(err) = match topic_str {
                                 WORKFLOW_LISTEN_TOPIC => {
                                     self.handle_workflow(message, WORKFLOW_RESPONSE_TOPIC).await
                                 }
@@ -197,7 +197,8 @@ impl DriaComputeNode {
                                 log::error!("Error handling {} message: {}", topic_str, err);
                             }
                         } else {
-                            log::debug!("Unhandled topic: {}", topic_str);
+                            // TODO: change log level later
+                            log::info!("Received unhandled message for topic {}", topic_str);
                         }
 
                     }
