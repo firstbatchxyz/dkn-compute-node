@@ -197,8 +197,7 @@ impl DriaComputeNode {
                                 log::error!("Error handling {} message: {}", topic_str, err);
                             }
                         } else {
-                            // TODO: change log level later
-                            log::info!("Received unhandled message for topic {}", topic_str);
+                            log::debug!("Received unhandled message for topic {}", topic_str);
                         }
 
                     }
