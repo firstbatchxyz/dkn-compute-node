@@ -57,7 +57,7 @@ impl DriaComputeNode {
         let keypair = secret_to_keypair(&config.secret_key);
         let listen_addr =
             Multiaddr::from_str(config.p2p_listen_addr.as_str()).map_err(|e| e.to_string())?;
-        let p2p = P2PClient::new(keypair, listen_addr)?;
+        let p2p = P2PClient::new(keypair, listen_addr, cancellation.clone())?;
 
         Ok(DriaComputeNode {
             config,
@@ -156,40 +156,50 @@ impl DriaComputeNode {
         // the underlying p2p client is expected to handle the rest within its own loop
         loop {
             tokio::select! {
-                event = self.p2p.process_events(self.cancellation.clone()) => {
+                event = self.p2p.process_events() => {
                     if let Some((peer_id, message_id, message)) = event {
-                        log::debug!(
-                            "Received message id {} from {}:\n{}",
+                        let topic = message.topic.clone();
+                        let topic_str = topic.as_str();
+
+                        log::info!(
+                            "Received {} message ({}) from {}",
+                            topic_str,
                             message_id,
                             peer_id,
-                            String::from_utf8_lossy(&message.data),
+                        );
+                        log::debug!(
+                            "Message data: {}", String::from_utf8_lossy(&message.data)
                         );
 
-                        // first, parse the raw gossipsub message to a prepared message
-                        let message = match self.parse_message_to_topiced_message(message) {
-                            Ok(message) => message,
-                            Err(e) => {
-                                log::error!("Error parsing message: {}", e);
-                                continue;
-                            }
-                        };
-
                         // handle message w.r.t topic
-                        match message.topic.as_str() {
-                            WORKFLOW_LISTEN_TOPIC => {
-                                if let Err(e) = self.handle_workflow(message, WORKFLOW_RESPONSE_TOPIC).await {
-                                    log::error!("Error handling workflow: {}", e);
+
+                        if std::matches!(topic_str, PINGPONG_LISTEN_TOPIC | WORKFLOW_LISTEN_TOPIC) {
+                            // first, parse the raw gossipsub message to a prepared message
+                            let message = match self.parse_message_to_prepared_message(message) {
+                                Ok(message) => message,
+                                Err(e) => {
+                                    log::error!("Error parsing message: {}", e);
+                                    continue;
                                 }
-                            }
-                            PINGPONG_LISTEN_TOPIC => {
-                                if let Err(e) =  self.handle_heartbeat(message, PINGPONG_RESPONSE_TOPIC) {
-                                    log::error!("Error handling heartbeat: {}", e);
+                            };
+
+                            // then handle the preapred message
+                            if let Err(err) = match topic_str{
+                                WORKFLOW_LISTEN_TOPIC => {
+                                    self.handle_workflow(message, WORKFLOW_RESPONSE_TOPIC).await
                                 }
+                                PINGPONG_LISTEN_TOPIC => {
+                                    self.handle_heartbeat(message, PINGPONG_RESPONSE_TOPIC)
+                                }
+                                // TODO: can we do this in a nicer way?
+                                _ => unreachable!()
+                            } {
+                                log::error!("Error handling {} message: {}", topic_str, err);
                             }
-                            topic => {
-                                log::warn!("Unhandled topic: {}", topic);
-                            }
+                        } else {
+                            log::debug!("Unhandled topic: {}", topic_str);
                         }
+
                     }
                 },
                 _ = wait_for_termination(self.cancellation.clone()) => break,
@@ -205,8 +215,9 @@ impl DriaComputeNode {
         Ok(())
     }
 
-    /// Process messages on a certain topic.
-    pub fn parse_message_to_topiced_message(
+    /// Parses a given raw Gossipsub message to a prepared P2PMessage object.
+    /// This prepared message includes the topic, payload, version and timestamp.
+    pub fn parse_message_to_prepared_message(
         &self,
         message: gossipsub::Message,
     ) -> NodeResult<P2PMessage> {
