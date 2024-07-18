@@ -3,7 +3,7 @@ pub mod models;
 use crate::utils::crypto::to_address;
 use ecies::PublicKey;
 use libsecp256k1::{PublicKeyFormat, SecretKey};
-use models::parse_dkn_models;
+use models::parse_models_string;
 use ollama_workflows::{Model, ModelProvider};
 use std::env;
 
@@ -76,7 +76,7 @@ impl DriaComputeNodeConfig {
         let address = to_address(&public_key);
         log::info!("Node Address:     0x{}", hex::encode(address));
 
-        let models = parse_dkn_models(env::var("DKN_MODELS").unwrap_or_default());
+        let models = parse_models_string(env::var("DKN_MODELS").ok());
         log::info!(
             "Models: {}",
             serde_json::to_string(&models).unwrap_or_default()

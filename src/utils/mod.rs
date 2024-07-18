@@ -18,3 +18,21 @@ pub fn get_current_time_nanos() -> u128 {
         })
         .as_nanos()
 }
+
+/// Utility to parse comma-separated string values, mostly read from the environment.
+pub fn split_comma_separated(input: Option<String>) -> Vec<String> {
+    match input {
+        Some(s) => s
+            .trim_matches('"')
+            .split(',')
+            .filter_map(|s| {
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s.trim().to_string())
+                }
+            })
+            .collect::<Vec<_>>(),
+        None => vec![],
+    }
+}

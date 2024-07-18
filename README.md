@@ -158,7 +158,7 @@ docker compose logs --since=30m compute
 
 When you use `./start.sh`, it will wait for you in the same terminal to do CTRL+C before stopping. Once you do that, the containers will be stopped and removed. You can also kill the containers manually, doing CTRL+C afterwards will do nothing in such a case.
 
-## Using Ollama
+### Using Ollama
 
 > If you don't have Ollama installed, you can ignore this section.
 
@@ -176,6 +176,10 @@ If the Ollama server is not running, the start script will initiate it with `oll
 # Run with local ollama
 ./start.sh -m=phi3 --local-ollama=true
 ```
+
+### Additional Static Nodes
+
+You can add additional relay nodes & bootstrap nodes from environment, using the `DKN_RELAY_NODES` and `DKN_BOOTSTRAP_NODES` variables respectively. Simply write the `Multiaddr` string of the static nodes as comma-separated values, and the compute node will pick them up at the start.
 
 ## Development
 

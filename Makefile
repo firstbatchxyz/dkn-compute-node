@@ -13,13 +13,13 @@ run:
 debug:
 		RUST_LOG=none,dkn_compute=debug cargo run
 
+.PHONY: trace #        | Run with crate-level trace level logging
+trace:
+		RUST_LOG=none,dkn_compute=trace cargo run
+
 .PHONY: build #        | Build
 build:
 		cargo build
-
-.PHONY: build-all #    | Build with all features
-build-all:
-		cargo build --all-features
 
 ###############################################################################
 .PHONY: test #         | Run tests
