@@ -22,8 +22,8 @@ docs() {
 echo "************ DKN - Compute Node ************"
 
 # if .env exists, load it first
-ENV_FILE=".env"
-ENV_COMPOSE_FILE=".env.compose"
+ENV_FILE="./.env"
+ENV_COMPOSE_FILE="./.env.compose"
 if [ -f "$ENV_FILE" ]; then
   set -o allexport
   source "$ENV_FILE"
