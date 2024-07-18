@@ -18,8 +18,8 @@ pub fn keccak256hash(data: impl AsRef<[u8]>) -> [u8; 32] {
 
 /// Given a secp256k1 public key, finds the corresponding Ethereum address.
 ///
-/// The public key is serialized in uncompressed format at 65 bytes (0x04 || x || y), and then (x || y)
-/// is hashed using Keccak256. The last 20 bytes of this hash is taken as the address.
+/// Internally, the public key is serialized in uncompressed format at 65 bytes (0x04 || x || y),
+/// and then (x || y) is hashed using Keccak256. The last 20 bytes of this hash is taken as the address.
 #[inline]
 pub fn to_address(public_key: &PublicKey) -> [u8; 20] {
     let public_key_serial = &public_key.serialize()[1..];
@@ -27,6 +27,8 @@ pub fn to_address(public_key: &PublicKey) -> [u8; 20] {
     addr.copy_from_slice(&keccak256hash(public_key_serial)[12..32]);
     addr
 }
+
+// TODO: add peerId
 
 /// Shorthand to sign a digest (bytes) with node's secret key and return signature & recovery id
 /// serialized to 65 byte hex-string.
