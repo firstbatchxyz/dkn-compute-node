@@ -30,8 +30,7 @@ impl HandlesWorkflow for DriaComputeNode {
 
         // execute workflow with cancellation
         let executor = if model_provider == ModelProvider::Ollama {
-            let (ollama_host, ollama_port) = get_ollama_config(); // TODO: memoize this guy
-            Executor::new_at(model, &ollama_host, ollama_port)
+            Executor::new_at(model, &self.config.ollama.host, self.config.ollama.port)
         } else {
             Executor::new(model)
         };
@@ -64,20 +63,4 @@ impl HandlesWorkflow for DriaComputeNode {
 
         Ok(())
     }
-}
-
-fn get_ollama_config() -> (String, u16) {
-    const DEFAULT_OLLAMA_HOST: &str = "http://127.0.0.1";
-    const DEFAULT_OLLAMA_PORT: u16 = 11434;
-
-    let ollama_host = std::env::var("OLLAMA_HOST").unwrap_or(DEFAULT_OLLAMA_HOST.to_string());
-    let ollama_port = std::env::var("OLLAMA_PORT")
-        .and_then(|port_str| {
-            port_str
-                .parse::<u16>()
-                .map_err(|_| std::env::VarError::NotPresent)
-        })
-        .unwrap_or(DEFAULT_OLLAMA_PORT);
-
-    (ollama_host, ollama_port)
 }

@@ -1118,7 +1118,6 @@ dependencies = [
  "fastbloom-rs",
  "hex",
  "hex-literal",
- "langchain-rust",
  "libp2p",
  "libp2p-identity",
  "libsecp256k1",
@@ -2454,7 +2453,6 @@ dependencies = [
  "log",
  "lopdf",
  "mockito",
- "ollama-rs 0.2.0",
  "readability",
  "regex",
  "reqwest 0.12.5",
@@ -3611,8 +3609,6 @@ dependencies = [
  "reqwest 0.12.5",
  "serde",
  "serde_json",
- "tokio 1.38.0",
- "tokio-stream",
  "url",
 ]
 

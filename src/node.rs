@@ -88,15 +88,13 @@ impl DriaComputeNode {
         Ok(())
     }
 
-    /// Unsubscribe from a certain task with its topic, ignoring the error.
-    pub fn unsubscribe_ignored(&mut self, topic: &str) {
-        if let Err(e) = self.unsubscribe(topic) {
-            log::error!(
-                "Error unsubscribing from {}: {}\nContinuing anyway.",
-                topic,
-                e
-            );
-        }
+    /// Publishes a given message to the network.
+    /// The topic is expected to be provided within the message struct.
+    pub fn publish(&mut self, message: P2PMessage) -> NodeResult<()> {
+        let message_bytes = message.payload.as_bytes().to_vec();
+        self.p2p.publish(&message.topic, message_bytes)?;
+        log::info!("Published message to {}", message.topic);
+        Ok(())
     }
 
     /// Returns the list of connected peers.
@@ -120,21 +118,13 @@ impl DriaComputeNode {
                 });
 
         if unique_providers.contains(&ModelProvider::Ollama) {
-            check_ollama().await?;
+            check_ollama(&self.config.ollama.host, self.config.ollama.port).await?;
         }
 
         if unique_providers.contains(&ModelProvider::OpenAI) {
             check_openai()?;
         }
 
-        Ok(())
-    }
-
-    /// Publishes a given message to the network.
-    /// The topic is expected to be provided within the message struct.
-    pub fn publish(&mut self, message: P2PMessage) -> NodeResult<()> {
-        let message_bytes = message.payload.as_bytes().to_vec();
-        self.p2p.publish(&message.topic, message_bytes)?;
         Ok(())
     }
 
@@ -207,10 +197,10 @@ impl DriaComputeNode {
         }
 
         // unsubscribe from topics
-        self.unsubscribe_ignored(PINGPONG_LISTEN_TOPIC);
-        self.unsubscribe_ignored(PINGPONG_RESPONSE_TOPIC);
-        self.unsubscribe_ignored(WORKFLOW_LISTEN_TOPIC);
-        self.unsubscribe_ignored(WORKFLOW_RESPONSE_TOPIC);
+        self.unsubscribe(PINGPONG_LISTEN_TOPIC)?;
+        self.unsubscribe(PINGPONG_RESPONSE_TOPIC)?;
+        self.unsubscribe(WORKFLOW_LISTEN_TOPIC)?;
+        self.unsubscribe(WORKFLOW_RESPONSE_TOPIC)?;
 
         Ok(())
     }

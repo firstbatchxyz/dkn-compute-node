@@ -66,8 +66,7 @@ async-trait = "0.1.81"
 colored = "2.1.0"
 rand = "0.8.5"
 
-# we dont use these anymore, Ollama Workflows does it for us
-langchain-rust = { version = "4.3.0", features = ["ollama"] }
+# used for benchmarking
 ollama-rs = "0.2.0"
 
 [[example]]

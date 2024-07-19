@@ -13,10 +13,10 @@ pub fn check_openai() -> Result<(), String> {
 }
 
 /// Checks for Ollama running at the default port.
-pub async fn check_ollama() -> Result<(), String> {
-    const OLLAMA_URL: &str = "http://127.0.0.1:11434";
+pub async fn check_ollama(host: &str, port: u16) -> Result<(), String> {
+    let ollama_url = format!("{}:{}", host, port);
 
-    let response = get(OLLAMA_URL).await.map_err(|e| format!("{}", e))?;
+    let response = get(&ollama_url).await.map_err(|e| format!("{}", e))?;
 
     if let Ok(text) = response.text().await {
         // Ollama returns this text specifically
@@ -26,6 +26,6 @@ pub async fn check_ollama() -> Result<(), String> {
     }
     Err(format!(
         "Something is running at {} but its not Ollama?",
-        OLLAMA_URL
+        ollama_url
     ))
 }

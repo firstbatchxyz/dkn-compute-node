@@ -1,13 +1,14 @@
 pub mod models;
+pub mod ollama;
 
 use crate::utils::crypto::to_address;
 use ecies::PublicKey;
 use libsecp256k1::{PublicKeyFormat, SecretKey};
 use models::parse_models_string;
+use ollama::OllamaConfig;
 use ollama_workflows::{Model, ModelProvider};
 use std::env;
 
-#[allow(non_snake_case)]
 #[derive(Debug, Clone)]
 pub struct DriaComputeNodeConfig {
     /// Wallet secret/private key.
@@ -22,6 +23,10 @@ pub struct DriaComputeNodeConfig {
     pub models: Vec<(ModelProvider, Model)>,
     /// P2P listen address as a string, e.g. `/ip4/0.0.0.0/tcp/4001`.
     pub p2p_listen_addr: String,
+    /// Ollama configuration.
+    /// Even if Ollama is not used, we store the host & port her.
+    /// If Ollama is used, this config will be respected.
+    pub ollama: OllamaConfig,
 }
 
 /// 32 byte secret key hex(b"node") * 8, dummy only
@@ -85,6 +90,8 @@ impl DriaComputeNodeConfig {
         let p2p_listen_addr =
             env::var("DKN_P2P_LISTEN_ADDR").unwrap_or(DEFAULT_P2P_LISTEN_ADDR.to_string());
 
+        let ollama = OllamaConfig::new();
+
         Self {
             admin_public_key,
             secret_key,
@@ -92,6 +99,7 @@ impl DriaComputeNodeConfig {
             address,
             models,
             p2p_listen_addr,
+            ollama,
         }
     }
 }

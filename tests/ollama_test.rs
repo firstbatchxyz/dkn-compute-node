@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
 
-use langchain_rust::{language_models::llm::LLM, llm::client::Ollama};
+use ollama_rs::{generation::completion::request::GenerationRequest, Ollama};
 use ollama_workflows::{Entry, Executor, Model, ProgramMemory, Workflow};
 use std::env;
 use tokio_util::sync::CancellationToken;
@@ -9,7 +9,8 @@ use tokio_util::sync::CancellationToken;
 #[ignore = "run this manually"]
 async fn test_ollama_prompt() {
     let model = "orca-mini".to_string();
-    let ollama = Ollama::default().with_model(model);
+    let ollama = Ollama::default();
+    ollama.pull_model(model.clone(), false).await.unwrap();
     let prompt = "The sky appears blue during the day because of a process called scattering. \
                 When sunlight enters the Earth's atmosphere, it collides with air molecules such as oxygen and nitrogen. \
                 These collisions cause some of the light to be absorbed or reflected, which makes the colors we see appear more vivid and vibrant. \
@@ -17,20 +18,19 @@ async fn test_ollama_prompt() {
                 What may be the question this answer?".to_string();
 
     let response = ollama
-        .invoke(&prompt)
+        .generate(GenerationRequest::new(model, prompt.clone()))
         .await
         .expect("Should generate response");
-    println!("Prompt: {}\n\nResponse:{}", prompt, response);
+    println!("Prompt: {}\n\nResponse:{}", prompt, response.response);
 }
 
 #[tokio::test]
 #[ignore = "run this manually"]
 async fn test_ollama_bad_model() {
     let model = "thismodeldoesnotexistlol".to_string();
-    let ollama = Ollama::default().with_model(model);
-    let setup_res = ollama.invoke("hola").await;
+    let ollama = Ollama::default();
     assert!(
-        setup_res.is_err(),
+        ollama.pull_model(model, false).await.is_err(),
         "Should give error due to non-existing model."
     );
 }
