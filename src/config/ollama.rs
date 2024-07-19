@@ -5,6 +5,7 @@ const DEFAULT_OLLAMA_PORT: u16 = 11434;
 pub struct OllamaConfig {
     pub host: String,
     pub port: u16,
+    pub hardcoded_models: Vec<String>,
 }
 
 impl OllamaConfig {
@@ -21,6 +22,16 @@ impl OllamaConfig {
             })
             .unwrap_or(DEFAULT_OLLAMA_PORT);
 
-        OllamaConfig { host, port }
+        // Ollama workflows may require specific models to be loaded regardless of the choices
+        let hardcoded_models = vec!["hellord/mxbai-embed-large-v1:f16"]
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect();
+
+        OllamaConfig {
+            host,
+            port,
+            hardcoded_models,
+        }
     }
 }

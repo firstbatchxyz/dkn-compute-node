@@ -11,7 +11,6 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
 parking_lot = "0.12.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-reqwest = { version = "0.12.4", features = ["json"] }
 async-trait = "0.1.81"
 
 # utilities
@@ -26,17 +25,16 @@ uuid = { version = "1.8.0", features = ["v4"] }
 env_logger = "0.11.3"
 log = "0.4.21"
 
-# encryption (ecies) & signatures (ecdsa) & hashing
+# encryption (ecies) & signatures (ecdsa) & hashing & bloom-filters
 ecies = { version = "0.2", default-features = false, features = ["pure"] }
 libsecp256k1 = "0.7.1"
 sha2 = "0.10.8"
 sha3 = "0.10.8"
-
-# bloom filters
 fastbloom-rs = "0.5.9"
 
 # workflows
 ollama-workflows = { git = "https://github.com/andthattoo/ollama-workflows", rev = "2e045b9" }
+ollama-rs = "0.2.0"
 
 # peer-to-peer
 libp2p = { version = "0.53", features = [
@@ -65,8 +63,6 @@ public-ip = "0.2.2"
 colored = "2.1.0"
 rand = "0.8.5"
 
-# used for benchmarking
-ollama-rs = "0.2.0"
 
 [[example]]
 name = "ollama"

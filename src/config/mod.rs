@@ -1,5 +1,6 @@
 pub mod models;
 pub mod ollama;
+pub mod providers;
 
 use crate::utils::crypto::to_address;
 use libsecp256k1::{PublicKey, SecretKey};

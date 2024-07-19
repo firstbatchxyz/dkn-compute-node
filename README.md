@@ -82,6 +82,23 @@ DKN_WALLET_SECRET_KEY=ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4
 >
 > Always make sure your private key is within the .gitignore'd `.env` file, nowhere else! To be even safer, you can use a throwaway wallet, you can always transfer your rewards to a main wallet afterwards.
 
+### 4. Setup Ollama (for Ollama users)
+
+If you will be using locally served models via Ollama, you must **first pull a small embedding model that is used internally**.
+
+```sh
+ollama pull hellord/mxbai-embed-large-v1:f16
+```
+
+For the models that you choose (see list of models just below [here](#1-choose-models)) you can download them with same command.
+
+```sh
+# example for phi3:3.8b
+ollama pull phi3:3.8b
+```
+
+Note that if your model size is large, pulling them may take a while.
+
 ## Usage
 
 With all setup steps above completed, we are ready to start a node!
@@ -98,6 +115,10 @@ Based on the resources of your machine, you must decide which models that you wi
 - `gpt-4-turbo` (OpenAI)
 - `gpt-4o` (OpenAI)
 - `gpt-4o-mini` (OpenAI)
+
+> [!TIP]
+>
+> If you are using Ollama, make sure you have pulled the required models, as specified in the [section above](#4-setup-ollama-for-ollama-users!
 
 ### 2. Start Docker
 

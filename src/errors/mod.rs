@@ -1,3 +1,5 @@
+use ollama_rs::error::OllamaError;
+
 /// Alias for `Result<T, NodeError>`.
 pub type NodeResult<T> = std::result::Result<T, NodeError>;
 
@@ -40,11 +42,11 @@ impl From<&str> for NodeError {
     }
 }
 
-impl From<reqwest::Error> for NodeError {
-    fn from(value: reqwest::Error) -> Self {
+impl From<OllamaError> for NodeError {
+    fn from(value: OllamaError) -> Self {
         Self {
             message: value.to_string(),
-            source: "reqwest".to_string(),
+            source: "ollama-rs".to_string(),
         }
     }
 }

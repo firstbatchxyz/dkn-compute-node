@@ -7,7 +7,10 @@ use tokio::signal::unix::{signal, SignalKind};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    config::DriaComputeNodeConfig,
+    config::{
+        providers::{check_ollama, check_openai},
+        DriaComputeNodeConfig,
+    },
     errors::NodeResult,
     handlers::{HandlesPingpong, HandlesWorkflow},
     p2p::{P2PClient, P2PMessage},
@@ -15,7 +18,6 @@ use crate::{
         crypto::secret_to_keypair,
         get_current_time_nanos,
         payload::{TaskRequest, TaskRequestPayload},
-        provider::{check_ollama, check_openai},
     },
 };
 
@@ -107,10 +109,24 @@ impl DriaComputeNode {
                 });
 
         if unique_providers.contains(&ModelProvider::Ollama) {
-            check_ollama(&self.config.ollama.host, self.config.ollama.port).await?;
+            log::info!("Checking Ollama requirements");
+            let mut required_models = self.config.ollama.hardcoded_models.clone();
+            required_models.extend(
+                self.config
+                    .models
+                    .iter()
+                    .map(|(_, model)| model.to_string()),
+            );
+            check_ollama(
+                &self.config.ollama.host,
+                self.config.ollama.port,
+                required_models,
+            )
+            .await?;
         }
 
         if unique_providers.contains(&ModelProvider::OpenAI) {
+            log::info!("Checking OpenAI requirements");
             check_openai()?;
         }
 
