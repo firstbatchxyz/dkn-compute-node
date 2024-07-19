@@ -66,6 +66,10 @@ Dria Compute Node makes use of several environment variables. Create a `.env` fi
 cp .env.example .env
 ```
 
+> [!NOTE]
+>
+> `DKN_ADMIN_PUBLIC_KEY` is used to verify that the tasks are given by certain nodes, so that your node does not work for tasks given to the network by untrusted people. You don't need to change this, simply copy and paste it to your `.env`.
+
 ### 3. Prepare Ethereum Wallet
 
 Dria makes use of the same Ethereum wallet, that is the recipient of your hard-earned rewards! Place your private key at `DKN_WALLET_SECRET_KEY` in `.env` without the 0x prefix. It should look something like:
