@@ -40,7 +40,6 @@ impl HandlesPingpong for DriaComputeNode {
 #[cfg(test)]
 mod tests {
     use crate::{
-        config::DEFAULT_DKN_ADMIN_PUBLIC_KEY,
         p2p::P2PMessage,
         utils::{
             crypto::{sha256hash, to_address},
@@ -55,8 +54,10 @@ mod tests {
 
     #[test]
     fn test_heartbeat_payload() {
-        let pk = PublicKey::parse_compressed(DEFAULT_DKN_ADMIN_PUBLIC_KEY)
-            .expect("Should parse public key");
+        let pk = PublicKey::parse_compressed(&hex_literal::hex!(
+            "0208ef5e65a9c656a6f92fb2c770d5d5e2ecffe02a6aade19207f75110be6ae658"
+        ))
+        .expect("Should parse public key");
         let message = P2PMessage {
             payload: "Y2RmODcyNDlhY2U3YzQ2MDIzYzNkMzBhOTc4ZWY3NjViMWVhZDlmNWJhMDUyY2MxMmY0NzIzMjQyYjc0YmYyODFjMDA1MTdmMGYzM2VkNTgzMzk1YWUzMTY1ODQ3NWQyNDRlODAxYzAxZDE5MjYwMDM1MTRkNzEwMThmYTJkNjEwMXsidXVpZCI6ICI4MWE2M2EzNC05NmM2LTRlNWEtOTliNS02YjI3NGQ5ZGUxNzUiLCAiZGVhZGxpbmUiOiAxNzE0MTI4NzkyfQ==".to_string(),
             topic: "heartbeat".to_string(),

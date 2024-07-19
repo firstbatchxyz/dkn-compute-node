@@ -93,6 +93,7 @@ Based on the resources of your machine, you must decide which models that you wi
 - `gpt-3.5-turbo` (OpenAI)
 - `gpt-4-turbo` (OpenAI)
 - `gpt-4o` (OpenAI)
+- `gpt-4o-mini` (OpenAI)
 
 ### 2. Start Docker
 

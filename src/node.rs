@@ -25,17 +25,6 @@ pub struct DriaComputeNode {
     pub cancellation: CancellationToken,
 }
 
-impl Default for DriaComputeNode {
-    /// Default `unwrap`s the `new` method, which should not fail.
-    /// To handle the error, use `new` instead.
-    fn default() -> Self {
-        let config = DriaComputeNodeConfig::default();
-        let cancellation = CancellationToken::default();
-
-        Self::new(config, cancellation).expect("should create default node")
-    }
-}
-
 impl DriaComputeNode {
     /// Create a new compute node with the given configuration and cancellation token.
     ///
@@ -158,7 +147,7 @@ impl DriaComputeNode {
                                 topic_str,
                                 message_id,
                                 peer_id,
-                                message.source.and_then(|p| Some(p.to_string())).unwrap_or("None".to_string())
+                                message.source.map(|p| p.to_string()).unwrap_or("None".to_string())
                             );
                             log::debug!(
                                 "Message data: {}", String::from_utf8_lossy(&message.data)

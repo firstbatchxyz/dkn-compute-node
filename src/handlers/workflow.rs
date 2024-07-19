@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use ollama_workflows::{Entry, Executor, Model, ModelProvider, ProgramMemory, Workflow};
+use ollama_workflows::{Entry, Executor, ModelProvider, ProgramMemory, Workflow};
 use serde::Deserialize;
 
 use crate::errors::NodeResult;
@@ -8,8 +8,13 @@ use crate::p2p::P2PMessage;
 
 #[derive(Debug, Deserialize)]
 struct WorkflowPayload {
+    /// Workflow object to be parsed.
     pub(crate) workflow: Workflow,
+    /// A model name (that can be parsed into `Model`) or a model provider.
+    /// If model provider is given, the first matching model in the node config is used.
     pub(crate) model: String,
+    /// Prompts can be provided within the workflow itself, in which case this is `None`.
+    /// Otherwise, the prompt is expected to be `Some` here.
     pub(crate) prompt: Option<String>,
 }
 
@@ -23,9 +28,8 @@ impl HandlesWorkflow for DriaComputeNode {
     async fn handle_workflow(&mut self, message: P2PMessage, result_topic: &str) -> NodeResult<()> {
         let task = self.parse_topiced_message_to_task_request::<WorkflowPayload>(message)?;
 
-        // read model from the task
-        let model = Model::try_from(task.input.model)?;
-        let model_provider = ModelProvider::from(model.clone());
+        // read model / provider from the task
+        let (model_provider, model) = self.config.get_matching_model(task.input.model)?;
         log::info!("Using model {} for task {}", model, task.task_id);
 
         // execute workflow with cancellation
@@ -50,6 +54,7 @@ impl HandlesWorkflow for DriaComputeNode {
             }
         }
 
+        // publish the result
         match result {
             Some(result) => {
                 self.send_result(result_topic, &task.public_key, &task.task_id, result)?;

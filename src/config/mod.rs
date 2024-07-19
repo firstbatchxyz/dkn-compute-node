@@ -2,8 +2,7 @@ pub mod models;
 pub mod ollama;
 
 use crate::utils::crypto::to_address;
-use ecies::PublicKey;
-use libsecp256k1::{PublicKeyFormat, SecretKey};
+use libsecp256k1::{PublicKey, SecretKey};
 use models::parse_models_string;
 use ollama::OllamaConfig;
 use ollama_workflows::{Model, ModelProvider};
@@ -24,18 +23,11 @@ pub struct DriaComputeNodeConfig {
     /// P2P listen address as a string, e.g. `/ip4/0.0.0.0/tcp/4001`.
     pub p2p_listen_addr: String,
     /// Ollama configuration.
+    ///
     /// Even if Ollama is not used, we store the host & port her.
     /// If Ollama is used, this config will be respected.
     pub ollama: OllamaConfig,
 }
-
-/// 32 byte secret key hex(b"node") * 8, dummy only
-pub(crate) const DEFAULT_DKN_WALLET_SECRET_KEY: &[u8; 32] =
-    &hex_literal::hex!("6e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f6465");
-
-/// 33 byte compressed public key of secret key from hex(b"dria) * 8, dummy only
-pub(crate) const DEFAULT_DKN_ADMIN_PUBLIC_KEY: &[u8; 33] =
-    &hex_literal::hex!("0208ef5e65a9c656a6f92fb2c770d5d5e2ecffe02a6aade19207f75110be6ae658");
 
 /// The default P2P network listen address.
 pub(crate) const DEFAULT_P2P_LISTEN_ADDR: &str = "/ip4/0.0.0.0/tcp/4001";
@@ -48,8 +40,10 @@ impl DriaComputeNodeConfig {
                     hex::decode(secret_env).expect("Secret key should be 32-bytes hex encoded.");
                 SecretKey::parse_slice(&secret_dec).expect("Secret key should be parseable.")
             }
-            Err(_) => SecretKey::parse(DEFAULT_DKN_WALLET_SECRET_KEY)
-                .expect("Should decrypt default secret key."),
+            Err(err) => {
+                log::error!("No secret key provided: {}", err);
+                panic!("Please provide a secret key.");
+            }
         };
         log::info!(
             "Node Secret Key:  0x{}{}",
@@ -63,16 +57,18 @@ impl DriaComputeNodeConfig {
             hex::encode(public_key.serialize_compressed())
         );
 
-        let admin_public_key = PublicKey::parse_slice(
-            hex::decode(env::var("DKN_ADMIN_PUBLIC_KEY").unwrap_or_default())
-                .unwrap_or_default()
-                .as_slice(),
-            Some(PublicKeyFormat::Compressed),
-        )
-        .unwrap_or(
-            PublicKey::parse_compressed(DEFAULT_DKN_ADMIN_PUBLIC_KEY)
-                .expect("Should decrypt default Admin public key."),
-        );
+        let admin_public_key = match env::var("DKN_ADMIN_PUBLIC_KEY") {
+            Ok(admin_public_key) => {
+                let pubkey_dec = hex::decode(admin_public_key)
+                    .expect("Admin public key should be 33-bytes hex encoded.");
+                PublicKey::parse_slice(&pubkey_dec, None)
+                    .expect("Admin public key should be parseable.")
+            }
+            Err(err) => {
+                log::error!("No admin public key provided: {}", err);
+                panic!("Please provide an admin public key.");
+            }
+        };
         log::info!(
             "Admin Public Key: 0x{}",
             hex::encode(admin_public_key.serialize_compressed())
@@ -107,10 +103,70 @@ impl DriaComputeNodeConfig {
             ollama,
         }
     }
+
+    /// Given a raw model name or provider, returns the first matching model.
+    ///
+    /// If this is a model and is supported by this node, it is returned directly.
+    /// If this is a provider, the first matching model in the node config is returned.
+    ///
+    /// If there are no matching models with this logic, an error is returned.
+    pub fn get_matching_model(
+        &self,
+        model_or_provider: String,
+    ) -> Result<(ModelProvider, Model), String> {
+        // TODO: use try_from here when Ollama workflows has it
+        let model_provider = match model_or_provider.as_str() {
+            "ollama" => Some(ModelProvider::Ollama),
+            "openai" => Some(ModelProvider::OpenAI),
+            _ => None,
+        };
+        if let Some(model_provider) = model_provider {
+            // this is a valid provider, return the first matching model in the config
+            self.models
+                .iter()
+                .find(|(provider, _)| *provider == model_provider)
+                .ok_or_else(|| {
+                    format!(
+                        "No model found for provider {} in the node config.",
+                        model_or_provider
+                    )
+                })
+                .cloned()
+        } else if let Ok(model) = Model::try_from(model_or_provider.clone()) {
+            // this is a valid model, return it if it is supported by the node
+            self.models
+                .iter()
+                .find(|(_, m)| *m == model)
+                .ok_or_else(|| {
+                    format!("Model {} is not supported by this node.", model_or_provider)
+                })
+                .cloned()
+        } else {
+            // this is neither a valid provider or model for this node
+            return Err(format!(
+                "Given string '{}' is neither a model nor provider.",
+                model_or_provider
+            ));
+        }
+    }
 }
 
+#[cfg(test)]
 impl Default for DriaComputeNodeConfig {
+    /// Creates a new config with dummy values.
+    ///
+    /// Should only be used for testing purposes.
     fn default() -> Self {
+        env::set_var(
+            "DKN_ADMIN_PUBLIC_KEY",
+            "0208ef5e65a9c656a6f92fb2c770d5d5e2ecffe02a6aade19207f75110be6ae658",
+        );
+        env::set_var(
+            "DKN_WALLET_SECRET_KEY",
+            "6e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f6465",
+        );
+        env::set_var("DKN_MODELS", "phi3:3.8b");
+
         Self::new()
     }
 }
@@ -120,15 +176,46 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_config() {
+    fn test_config_and_model_parsing() {
+        let cfg = DriaComputeNodeConfig::default();
+        assert_eq!(
+            hex::encode(cfg.address),
+            // address of the default secret key
+            "1f56f6131705fbf19371122c80d7a2d40fcf9a68"
+        );
+
+        env::set_var(
+            "DKN_ADMIN_PUBLIC_KEY",
+            "0208ef5e65a9c656a6f92fb2c770d5d5e2ecffe02a6aade19207f75110be6ae658",
+        );
         env::set_var(
             "DKN_WALLET_SECRET_KEY",
             "6e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f6465",
         );
+        env::set_var("DKN_MODELS", "phi3:3.8b,gpt-3.5-turbo");
         let cfg = DriaComputeNodeConfig::new();
+
         assert_eq!(
-            hex::encode(cfg.address),
-            "1f56f6131705fbf19371122c80d7a2d40fcf9a68"
+            cfg.get_matching_model("openai".to_string()).unwrap().1,
+            Model::GPT3_5Turbo,
+            "Should find gpt-3.5-turbo"
+        );
+
+        assert_eq!(
+            cfg.get_matching_model("phi3:3.8b".to_string()).unwrap().1,
+            Model::Phi3Mini,
+            "Should find phi3:3.8b"
+        );
+
+        assert!(
+            cfg.get_matching_model("gpt-4o".to_string()).is_err(),
+            "Should not find anything for unsupported model"
+        );
+
+        assert!(
+            cfg.get_matching_model("praise the model".to_string())
+                .is_err(),
+            "Should not find anything for inexisting model"
         );
     }
 }

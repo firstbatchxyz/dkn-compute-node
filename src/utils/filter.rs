@@ -15,7 +15,7 @@ impl FilterPayload {
     /// Shorthand function to create the underlying `BloomFilter` and check if it contains the given address.
     #[inline]
     pub fn contains(&self, address: &[u8]) -> Result<bool, hex::FromHexError> {
-        BloomFilter::try_from(self).and_then(|filter| Ok(filter.contains(address)))
+        BloomFilter::try_from(self).map(|filter| filter.contains(address))
     }
 }
 
