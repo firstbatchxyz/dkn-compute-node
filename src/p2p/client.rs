@@ -27,11 +27,11 @@ const PEER_REFRESH_INTERVAL_SECS: u64 = 4;
 
 /// Static bootstrap nodes for the Kademlia DHT bootstrap step.
 const STATIC_BOOTSTRAP_NODES: [&str; 1] =
-    ["/ip4/44.222.67.217/tcp/4001/p2p/16Uiu2HAmQftngcUbL1qBp6XMj5vLH16xB6cJWxZSxPAxegJF79VX"];
+    ["/ip4/44.206.245.139/tcp/4001/p2p/16Uiu2HAm4q3LZU2T9kgjKK4ysy6KZYKLq8KiXQyae4RHdF7uqSt4"];
 
 /// Static relay nodes for the `P2pCircuit`.
 const STATIC_RELAY_NODES: [&str; 1] =
-    ["/ip4/54.82.80.2/tcp/4001/p2p/16Uiu2HAkwLQ311wGZA14kkPWwQob69M2WPerMvcj2nz4KuCwiykW"];
+    ["/ip4/34.201.33.141/tcp/4001/p2p/16Uiu2HAkuXiV2CQkC9eJgU6cMnJ9SMARa85FZ6miTkvn5fuHNufa"];
 
 impl P2PClient {
     /// Creates a new P2P client with the given keypair and listen address.

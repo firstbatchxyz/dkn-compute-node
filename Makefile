@@ -5,15 +5,15 @@ ifneq (,$(wildcard ./.env))
 endif
 
 ###############################################################################
-.PHONY: run #          | Run with INFO level logging
+.PHONY: run #          | Run with INFO logging
 run:
 		RUST_LOG=info cargo run
 
-.PHONY: debug #        | Run with crate-level DEBUG level logging
+.PHONY: debug #        | Run with crate-level DEBUG logging
 debug:
 		RUST_LOG=none,dkn_compute=debug cargo run
 
-.PHONY: trace #        | Run with crate-level trace level logging
+.PHONY: trace #        | Run with crate-level TRACE logging
 trace:
 		RUST_LOG=none,dkn_compute=trace cargo run
 
