@@ -92,8 +92,8 @@ impl DriaComputeNode {
     /// The topic is expected to be provided within the message struct.
     pub fn publish(&mut self, message: P2PMessage) -> NodeResult<()> {
         let message_bytes = message.payload.as_bytes().to_vec();
-        self.p2p.publish(&message.topic, message_bytes)?;
-        log::info!("Published message to {}", message.topic);
+        let message_id = self.p2p.publish(&message.topic, message_bytes)?;
+        log::info!("Published message ({}) to {}", message_id, message.topic);
         Ok(())
     }
 
@@ -154,7 +154,7 @@ impl DriaComputeNode {
                         // handle message w.r.t topic
                         if std::matches!(topic_str, PINGPONG_LISTEN_TOPIC | WORKFLOW_LISTEN_TOPIC) {
                             log::info!(
-                                "Received {} message ({})\nHop:{}\nSource: {}",
+                                "Received {} message ({})\nFrom:   {}\nOrigin: {}",
                                 topic_str,
                                 message_id,
                                 peer_id,

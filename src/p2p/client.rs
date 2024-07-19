@@ -27,11 +27,11 @@ const PEER_REFRESH_INTERVAL_SECS: u64 = 4;
 
 /// Static bootstrap nodes for the Kademlia DHT bootstrap step.
 const STATIC_BOOTSTRAP_NODES: [&str; 1] =
-    ["/ip4/18.156.200.161/tcp/4001/p2p/16Uiu2HAkxwSrnDLZMjhm6JpdTv7h36eNh84Abao3aXVxytQDDrm4"];
+    ["/ip4/44.222.67.217/tcp/4001/p2p/16Uiu2HAmQftngcUbL1qBp6XMj5vLH16xB6cJWxZSxPAxegJF79VX"];
 
 /// Static relay nodes for the `P2pCircuit`.
 const STATIC_RELAY_NODES: [&str; 1] =
-    ["/ip4/3.74.233.98/tcp/4001/p2p/16Uiu2HAm75ZYbLS2h7xRxZgKXxKZrWSGxz2nAL5ESo7GbQYDkWWA"];
+    ["/ip4/54.82.80.2/tcp/4001/p2p/16Uiu2HAkwLQ311wGZA14kkPWwQob69M2WPerMvcj2nz4KuCwiykW"];
 
 impl P2PClient {
     /// Creates a new P2P client with the given keypair and listen address.
@@ -75,7 +75,7 @@ impl P2PClient {
         let mut bootstrap_nodes = Vec::from(STATIC_BOOTSTRAP_NODES.map(|s| s.to_string()));
         bootstrap_nodes.extend(opt_bootstrap_nodes.iter().cloned());
         log::info!("Initiating bootstrap.");
-        log::debug!("Bootstrap nodes: {:#?}", bootstrap_nodes);
+        log::info!("Bootstrap nodes: {:#?}", bootstrap_nodes);
         for addr in bootstrap_nodes {
             if let Ok(addr) = addr.parse::<Multiaddr>() {
                 if let Some(peer_id) = addr.iter().find_map(|p| match p {
@@ -114,7 +114,7 @@ impl P2PClient {
         let mut relay_nodes = Vec::from(STATIC_RELAY_NODES.map(|s| s.to_string()));
         relay_nodes.extend(opt_relay_nodes.iter().cloned());
         log::info!("Listening to relay nodes.");
-        log::debug!("Relay nodes: {:#?}", relay_nodes);
+        log::info!("Relay nodes: {:#?}", relay_nodes);
         for addr in relay_nodes {
             if let Ok(addr) = addr.parse::<Multiaddr>() {
                 swarm
@@ -165,7 +165,6 @@ impl P2PClient {
             .gossipsub
             .publish(topic, message_bytes)?;
 
-        log::debug!("Published message with ID: {:?}", message_id);
         Ok(message_id)
     }
 

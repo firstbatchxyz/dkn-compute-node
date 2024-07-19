@@ -14,9 +14,11 @@ pub fn check_openai() -> Result<(), String> {
 
 /// Checks for Ollama running at the default port.
 pub async fn check_ollama(host: &str, port: u16) -> Result<(), String> {
-    let ollama_url = format!("{}:{}", host, port);
+    let ollama_url = format!("{}:{}", host.trim_matches('"'), port);
 
-    let response = get(&ollama_url).await.map_err(|e| format!("{}", e))?;
+    let response = get(&ollama_url)
+        .await
+        .map_err(|e| format!("Reqwest error: {}", e))?;
 
     if let Ok(text) = response.text().await {
         // Ollama returns this text specifically

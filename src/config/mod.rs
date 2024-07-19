@@ -82,6 +82,11 @@ impl DriaComputeNodeConfig {
         log::info!("Node Address:     0x{}", hex::encode(address));
 
         let models = parse_models_string(env::var("DKN_MODELS").ok());
+        if models.is_empty() {
+            log::error!("No models were provided, make sure to restart with at least one model provided within DKN_MODELS.");
+            panic!("No models provided.");
+        }
+
         log::info!(
             "Models: {}",
             serde_json::to_string(&models).unwrap_or_default()
