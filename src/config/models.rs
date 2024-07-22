@@ -1,7 +1,7 @@
+use crate::utils::split_comma_separated;
 use ollama_workflows::{Model, ModelProvider};
 
-use crate::utils::split_comma_separated;
-
+/// Parses Ollama-workflows compatible models from a comma-separated values string.
 pub fn parse_models_string(input: Option<String>) -> Vec<(ModelProvider, Model)> {
     let models_str = split_comma_separated(input);
     models_str

@@ -90,14 +90,16 @@ If you will be using locally served models via Ollama, you must **first pull a s
 ollama pull hellord/mxbai-embed-large-v1:f16
 ```
 
-For the models that you choose (see list of models just below [here](#1-choose-models)) you can download them with same command.
+For the models that you choose (see list of models just below [here](#1-choose-models)) you can download them with same command. Note that if your model size is large, pulling them may take a while.
 
 ```sh
 # example for phi3:3.8b
 ollama pull phi3:3.8b
 ```
 
-Note that if your model size is large, pulling them may take a while.
+> [!TIP]
+>
+> Alternatively, you can set `OLLAMA_AUTO_PULL=true` in the `.env` so that the compute node will always download the missing models for you. Note that
 
 ## Usage
 

@@ -1,16 +1,12 @@
 use std::str::FromStr;
 
 use libp2p::{gossipsub, Multiaddr};
-use ollama_workflows::ModelProvider;
 use serde::Deserialize;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    config::{
-        providers::{check_ollama, check_openai},
-        DriaComputeNodeConfig,
-    },
+    config::DriaComputeNodeConfig,
     errors::NodeResult,
     handlers::{HandlesPingpong, HandlesWorkflow},
     p2p::{P2PClient, P2PMessage},
@@ -91,46 +87,6 @@ impl DriaComputeNode {
     /// Returns the list of connected peers.
     pub fn peers(&self) -> Vec<(&libp2p_identity::PeerId, Vec<&gossipsub::TopicHash>)> {
         self.p2p.peers()
-    }
-
-    /// Check if the required compute services are running, e.g. if Ollama
-    /// is detected as a provider for the chosen models, it will check that
-    /// Ollama is running.
-    pub async fn check_services(&self) -> NodeResult<()> {
-        let unique_providers: Vec<ModelProvider> =
-            self.config
-                .models
-                .iter()
-                .fold(Vec::new(), |mut unique, (provider, _)| {
-                    if !unique.contains(provider) {
-                        unique.push(provider.clone());
-                    }
-                    unique
-                });
-
-        if unique_providers.contains(&ModelProvider::Ollama) {
-            log::info!("Checking Ollama requirements");
-            let mut required_models = self.config.ollama.hardcoded_models.clone();
-            required_models.extend(
-                self.config
-                    .models
-                    .iter()
-                    .map(|(_, model)| model.to_string()),
-            );
-            check_ollama(
-                &self.config.ollama.host,
-                self.config.ollama.port,
-                required_models,
-            )
-            .await?;
-        }
-
-        if unique_providers.contains(&ModelProvider::OpenAI) {
-            log::info!("Checking OpenAI requirements");
-            check_openai()?;
-        }
-
-        Ok(())
     }
 
     /// Launches the main loop of the compute node.

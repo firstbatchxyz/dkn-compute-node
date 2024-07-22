@@ -42,7 +42,7 @@ impl P2PClient {
     ) -> Result<Self, String> {
         // this is our peerId
         let node_peerid = keypair.public().to_peer_id();
-        log::warn!("Compute node peer address: {}", node_peerid);
+        log::info!("Compute node peer address: {}", node_peerid);
 
         // optional static nodes from environment variables
         let (opt_bootstrap_nodes, opt_relay_nodes) = parse_static_nodes_from_env();
@@ -77,20 +77,23 @@ impl P2PClient {
         log::info!("Initiating bootstrap.");
         log::info!("Bootstrap nodes: {:#?}", bootstrap_nodes);
         for addr in bootstrap_nodes {
-            if let Ok(addr) = addr.parse::<Multiaddr>() {
-                if let Some(peer_id) = addr.iter().find_map(|p| match p {
-                    Protocol::P2p(peer_id) => Some(peer_id),
-                    _ => None,
-                }) {
-                    log::info!("Dialling peer: {}", addr);
-                    swarm.dial(addr.clone()).map_err(|e| e.to_string())?;
-                    log::info!("Adding address to Kademlia routing table");
-                    swarm.behaviour_mut().kademlia.add_address(&peer_id, addr);
-                } else {
-                    log::warn!("Missing peerID in address: {}", addr);
+            match addr.parse::<Multiaddr>() {
+                Ok(addr) => {
+                    if let Some(peer_id) = addr.iter().find_map(|p| match p {
+                        Protocol::P2p(peer_id) => Some(peer_id),
+                        _ => None,
+                    }) {
+                        log::info!("Dialling peer: {}", addr);
+                        swarm.dial(addr.clone()).map_err(|e| e.to_string())?;
+                        log::info!("Adding address to Kademlia routing table");
+                        swarm.behaviour_mut().kademlia.add_address(&peer_id, addr);
+                    } else {
+                        log::warn!("Missing peerID in address: {}", addr);
+                    }
                 }
-            } else {
-                log::error!("Failed to parse address: {}", addr);
+                Err(e) => {
+                    log::error!("Failed to parse address {}: {}", addr, e);
+                }
             }
         }
 

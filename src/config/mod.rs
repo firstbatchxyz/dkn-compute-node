@@ -1,6 +1,5 @@
-pub mod models;
-pub mod ollama;
-pub mod providers;
+mod models;
+mod ollama;
 
 use crate::utils::crypto::to_address;
 use libsecp256k1::{PublicKey, SecretKey};
@@ -25,8 +24,8 @@ pub struct DriaComputeNodeConfig {
     pub p2p_listen_addr: String,
     /// Ollama configuration.
     ///
-    /// Even if Ollama is not used, we store the host & port her.
-    /// If Ollama is used, this config will be respected.
+    /// Even if Ollama is not used, we store the host & port here.
+    /// If Ollama is used, this config will be respected during its instantiations.
     pub ollama: OllamaConfig,
 }
 
@@ -149,6 +148,52 @@ impl DriaComputeNodeConfig {
                 model_or_provider
             ));
         }
+    }
+
+    /// Check if the required compute services are running, e.g. if Ollama
+    /// is detected as a provider for the chosen models, it will check that
+    /// Ollama is running.
+    pub async fn check_services(&self) -> Result<(), String> {
+        log::info!("Checking configured services.");
+        let unique_providers: Vec<ModelProvider> =
+            self.models
+                .iter()
+                .fold(Vec::new(), |mut unique, (provider, _)| {
+                    if !unique.contains(provider) {
+                        unique.push(provider.clone());
+                    }
+                    unique
+                });
+
+        // if Ollama is a provider, check that it is running & Ollama models are pulled (or pull them)
+        if unique_providers.contains(&ModelProvider::Ollama) {
+            self.ollama
+                .check(
+                    self.models
+                        .iter()
+                        .filter_map(|(provider, model)| {
+                            if *provider == ModelProvider::Ollama {
+                                Some(model.to_string())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect(),
+                )
+                .await?;
+        }
+
+        // if OpenAI is a provider, check that the API key is set
+        if unique_providers.contains(&ModelProvider::OpenAI) {
+            log::info!("Checking OpenAI requirements");
+            const OPENAI_API_KEY: &str = "OPENAI_API_KEY";
+
+            if std::env::var(OPENAI_API_KEY).is_err() {
+                return Err("OpenAI API key not found".into());
+            }
+        }
+
+        Ok(())
     }
 }
 
