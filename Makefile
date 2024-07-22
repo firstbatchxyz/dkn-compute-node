@@ -5,13 +5,17 @@ ifneq (,$(wildcard ./.env))
 endif
 
 ###############################################################################
+.PHONY: launch #          | Run with INFO logging & release mode
+launch:
+		RUST_LOG=info cargo run --release
+		
 .PHONY: run #          | Run with INFO logging
 run:
 		RUST_LOG=info cargo run
 
-.PHONY: debug #        | Run with crate-level DEBUG logging
+.PHONY: debug #        | Run with crate-level DEBUG logging & info-level workflows
 debug:
-		RUST_LOG=none,dkn_compute=debug cargo run
+		RUST_LOG=none,dkn_compute=debug,ollama_workflows=info cargo run
 
 .PHONY: trace #        | Run with crate-level TRACE logging
 trace:

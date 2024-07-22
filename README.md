@@ -82,7 +82,19 @@ DKN_WALLET_SECRET_KEY=ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4
 >
 > Always make sure your private key is within the .gitignore'd `.env` file, nowhere else! To be even safer, you can use a throwaway wallet, you can always transfer your rewards to a main wallet afterwards.
 
-### 4. Setup Ollama (for Ollama users)
+### 4. Setup LLM Provider
+
+For the final step, we need to make sure we can serve LLM requests.
+
+#### For OpenAI
+
+If you will be using OpenAI to serve its models, you need to have an API key in the environment. Simply set the key within your `.env`:
+
+```sh
+OPENAI_API_KEY=<YOUR_KEY>
+```
+
+#### For Ollama
 
 If you will be using locally served models via Ollama, you must **first pull a small embedding model that is used internally**.
 
@@ -99,7 +111,7 @@ ollama pull phi3:3.8b
 
 > [!TIP]
 >
-> Alternatively, you can set `OLLAMA_AUTO_PULL=true` in the `.env` so that the compute node will always download the missing models for you. Note that
+> Alternatively, you can set `OLLAMA_AUTO_PULL=true` in the `.env` so that the compute node will always download the missing models for you.
 
 ## Usage
 
@@ -120,7 +132,7 @@ Based on the resources of your machine, you must decide which models that you wi
 
 > [!TIP]
 >
-> If you are using Ollama, make sure you have pulled the required models, as specified in the [section above](#4-setup-ollama-for-ollama-users!
+> If you are using Ollama, make sure you have pulled the required models, as specified in the [section above](#4-setup-ollama-for-ollama-users)!
 
 ### 2. Start Docker
 
@@ -155,7 +167,7 @@ Start script will run the containers in the background. You can check their logs
 
 > [!TIP]
 >
-> To print DEBUG-level logs for the compute node, you can add `--dev` argument:
+> To print DEBUG-level logs for the compute node, you can add `--dev` argument to the start script:
 >
 > ```sh
 > ./start.sh -m=<model-name> --dev
