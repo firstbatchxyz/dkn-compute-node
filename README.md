@@ -113,6 +113,15 @@ ollama pull phi3:3.8b
 >
 > Alternatively, you can set `OLLAMA_AUTO_PULL=true` in the `.env` so that the compute node will always download the missing models for you.
 
+#### Optional Services
+
+Based on presence of API keys, [Ollama Workflows](https://github.com/andthattoo/ollama-workflows/) may use more superior services instead of free alternatives, e.g. [Serper](https://serper.dev/) instead of [DuckDuckGo](https://duckduckgo.com/) or [Jina](https://jina.ai/) without rate-limit instead of with rate-limit. Add these within your `.env` as:
+
+```sh
+SERPER_API_KEY=<key-here>
+JINA_API_KEY=<key-here>
+```
+
 ## Usage
 
 With all setup steps above completed, we are ready to start a node!
@@ -165,13 +174,15 @@ Simply run the script with the model names provided, such as:
 
 Start script will run the containers in the background. You can check their logs either via the terminal or from [Docker Desktop](https://www.docker.com/products/docker-desktop/).
 
-> [!TIP]
->
-> To print DEBUG-level logs for the compute node, you can add `--dev` argument to the start script:
->
-> ```sh
-> ./start.sh -m=<model-name> --dev
-> ```
+#### Running in Debug Mode
+
+To print DEBUG-level logs for the compute node, you can add `--dev` argument to the start script. For example:
+
+```sh
+./start.sh -m=gpt-4o-mini --dev
+```
+
+Running in debug mode will also allow you to see behind the scenes of Ollama Workflows, i.e. you can see the reasoning of the LLM as it executes the task.
 
 ### 4. Looking at Logs
 
@@ -197,6 +208,10 @@ docker compose logs --since=30m compute
 ### 5. Stopping the Node
 
 When you use `./start.sh`, it will wait for you in the same terminal to do CTRL+C before stopping. Once you do that, the containers will be stopped and removed. You can also kill the containers manually, doing CTRL+C afterwards will do nothing in such a case.
+
+> [!NOTE]
+>
+> Sometimes it may not immediately exit whilst executing a task, if you REALLY need to quite the process you can kill it manually.
 
 ### Using Ollama
 
