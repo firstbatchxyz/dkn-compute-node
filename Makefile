@@ -11,7 +11,7 @@ launch:
 		
 .PHONY: run #          | Run with INFO logging
 run:
-		RUST_LOG=info cargo run
+		RUST_LOG=none,dkn_compute=info cargo run
 
 .PHONY: debug #        | Run with crate-level DEBUG logging & info-level workflows
 debug:
