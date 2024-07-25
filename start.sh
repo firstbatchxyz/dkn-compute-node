@@ -33,7 +33,7 @@ fi
 # flag vars
 START_MODE="FOREGROUND"
 LOCAL_OLLAMA=true
-LOGS="info"
+DKN_LOG_LEVEL="none,dkn_compute=info" # default info logs
 
 # script internal
 COMPOSE_PROFILES=()
@@ -55,7 +55,10 @@ while [[ "$#" -gt 0 ]]; do
         ;;
 
         --dev)
-            DKN_LOG_LEVEL="none,dkn_compute=debug"
+            DKN_LOG_LEVEL="none,dkn_compute=debug,ollama_workflows=info"
+        ;;
+        --trace)
+            DKN_LOG_LEVEL="none,dkn_compute=trace"
         ;;
         -b|--background) START_MODE="BACKGROUND" ;;
         -h|--help) docs ;;
