@@ -122,17 +122,13 @@ impl DriaComputeNode {
                                 message.source.map(|p| p.to_string()).unwrap_or("None".to_string())
                             );
 
-                            // print message data
-                            log::debug!(
-                                "Message data: {}", String::from_utf8_lossy(&message.data)
-                            );
-
-
                             // first, parse the raw gossipsub message to a prepared message
-                            let message = match self.parse_message_to_prepared_message(message) {
+                            // FIXME: maybe we can avoid the clone here, its done to print data below
+                            let message = match self.parse_message_to_prepared_message(message.clone()) {
                                 Ok(message) => message,
                                 Err(e) => {
                                     log::error!("Error parsing message: {}", e);
+                                    log::debug!("Message: {}", String::from_utf8_lossy(&message.data));
                                     continue;
                                 }
                             };
@@ -182,6 +178,7 @@ impl DriaComputeNode {
         // the received message is expected to use IdentHash for the topic, so we can see the name of the topic immediately.
         log::debug!("Parsing {} message.", message.topic.as_str());
         let message = P2PMessage::try_from(message)?;
+        log::debug!("Parsed: {}", message);
 
         // check dria signature
         // NOTE: when we have many public keys, we should check the signature against all of them

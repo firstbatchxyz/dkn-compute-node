@@ -136,7 +136,7 @@ impl fmt::Display for P2PMessage {
         let payload_str = String::from_utf8(payload_decoded).unwrap_or(self.payload.clone());
         write!(
             f,
-            "Message {} at {}\n{}",
+            "{} message at {}\n{}",
             self.topic, self.timestamp, payload_str
         )
     }
