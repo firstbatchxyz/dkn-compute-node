@@ -29,7 +29,7 @@ impl HandlesPingpong for DriaComputeNode {
         // check deadline
         let current_time = get_current_time_nanos();
         if current_time >= pingpong.deadline {
-            log::info!(
+            log::debug!(
                 "Ping (uuid: {}) is past the deadline, ignoring. (local: {}, deadline: {})",
                 pingpong.uuid,
                 current_time,

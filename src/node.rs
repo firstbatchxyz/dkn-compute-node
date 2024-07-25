@@ -199,8 +199,14 @@ impl DriaComputeNode {
         let task = message.parse_payload::<TaskRequestPayload<T>>(true)?;
 
         // check if deadline is past or not
-        if get_current_time_nanos() >= task.deadline {
-            log::info!("Task {} is past the deadline, ignoring.", task.task_id);
+        let current_time = get_current_time_nanos();
+        if current_time >= task.deadline {
+            log::debug!(
+                "Task (id: {}) is past the deadline, ignoring. (local: {}, deadline: {})",
+                task.task_id,
+                current_time,
+                task.deadline
+            );
             return Ok(None);
         }
 
