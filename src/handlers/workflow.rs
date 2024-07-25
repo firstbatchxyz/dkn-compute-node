@@ -51,20 +51,18 @@ impl HandlesWorkflow for DriaComputeNode {
                     return Ok(())
                 },
                 exec_result = executor.execute(entry.as_ref(), task.input.workflow, &mut memory) => {
-                    result = Some(exec_result);
+                    if exec_result.is_empty() {
+                        return Err(format!("Got empty string result for task {}", task.task_id).into());
+                    } else {
+                        result = Some(exec_result);
+                    }
                 }
             }
+            let result =
+                result.ok_or::<String>(format!("No result for task {}", task.task_id).into())?;
 
             // publish the result
-            match result {
-                Some(result) => {
-                    self.send_result(result_topic, &task.public_key, &task.task_id, result)?;
-                }
-                // TODO: this should be error
-                None => {
-                    log::error!("No result for task {}", task.task_id);
-                }
-            }
+            self.send_result(result_topic, &task.public_key, &task.task_id, result)?;
         }
 
         Ok(())
