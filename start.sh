@@ -33,7 +33,6 @@ fi
 # flag vars
 START_MODE="FOREGROUND"
 LOCAL_OLLAMA=true
-LOGS="info"
 DKN_LOG_LEVEL="none,dkn_compute=info" # default info logs
 
 # script internal

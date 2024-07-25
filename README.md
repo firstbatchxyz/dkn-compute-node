@@ -184,6 +184,8 @@ To print DEBUG-level logs for the compute node, you can add `--dev` argument to 
 
 Running in debug mode will also allow you to see behind the scenes of Ollama Workflows, i.e. you can see the reasoning of the LLM as it executes the task.
 
+> Similarly, you can run in trace mode with `--trace` to see trace logs, which cover low-level logs from the p2p client.
+
 ### 4. Looking at Logs
 
 To see your logs, you can go to [Docker Desktop](https://www.docker.com/products/docker-desktop/) and see the running containers and find `dkn-compute-node`. There, open the containers within the compose (click on `>` to the left) and click on any of the container to see its logs.
