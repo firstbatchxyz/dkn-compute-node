@@ -121,9 +121,12 @@ impl DriaComputeNode {
                                 peer_id,
                                 message.source.map(|p| p.to_string()).unwrap_or("None".to_string())
                             );
+
+                            // print message data
                             log::debug!(
                                 "Message data: {}", String::from_utf8_lossy(&message.data)
                             );
+
 
                             // first, parse the raw gossipsub message to a prepared message
                             let message = match self.parse_message_to_prepared_message(message) {

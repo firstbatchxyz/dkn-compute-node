@@ -1,4 +1,6 @@
-use crate::{errors::NodeResult, node::DriaComputeNode, p2p::P2PMessage};
+use crate::{
+    errors::NodeResult, node::DriaComputeNode, p2p::P2PMessage, utils::get_current_time_nanos,
+};
 use ollama_workflows::{Model, ModelProvider};
 use serde::{Deserialize, Serialize};
 
@@ -22,9 +24,20 @@ pub trait HandlesPingpong {
 
 impl HandlesPingpong for DriaComputeNode {
     fn handle_heartbeat(&mut self, message: P2PMessage, result_topic: &str) -> NodeResult<()> {
-        let request_body = message.parse_payload::<PingpongPayload>(true)?;
+        let pingpong = message.parse_payload::<PingpongPayload>(true)?;
+
+        // check deadline
+        if get_current_time_nanos() >= pingpong.deadline {
+            log::info!(
+                "Ping (uuid: {}) is past the deadline, ignoring.",
+                pingpong.uuid
+            );
+            return Ok(());
+        }
+
+        // respond
         let response_body = PingpongResponse {
-            uuid: request_body.uuid.clone(),
+            uuid: pingpong.uuid.clone(),
             models: self.config.models.clone(),
         };
         let response = P2PMessage::new_signed(
