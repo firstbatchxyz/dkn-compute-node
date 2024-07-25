@@ -56,7 +56,7 @@ while [[ "$#" -gt 0 ]]; do
         ;;
 
         --dev)
-            DKN_LOG_LEVEL="none,dkn_compute=debug"
+            DKN_LOG_LEVEL="none,dkn_compute=debug,ollama_workflows=info"
         ;;
         --trace)
             DKN_LOG_LEVEL="none,dkn_compute=trace"
