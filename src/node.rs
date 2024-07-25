@@ -134,7 +134,7 @@ impl DriaComputeNode {
                                 }
                             };
 
-                            // then handle the preapred message
+                            // then handle the prepared message
                             if let Err(err) = match topic_str {
                                 WORKFLOW_LISTEN_TOPIC => {
                                     self.handle_workflow(message, WORKFLOW_RESPONSE_TOPIC).await
@@ -143,12 +143,16 @@ impl DriaComputeNode {
                                     self.handle_heartbeat(message, PINGPONG_RESPONSE_TOPIC)
                                 }
                                 // TODO: can we do this in a nicer way?
-                                _ => unreachable!()
+                                _ => unreachable!() // unreachable because of the if condition
                             } {
                                 log::error!("Error handling {} message: {}", topic_str, err);
                             }
+                        } else if std::matches!(topic_str, PINGPONG_RESPONSE_TOPIC | WORKFLOW_RESPONSE_TOPIC) {
+                            // since we are responding to these topics, we might receive messages from other compute nodes
+                            // we can gracefully ignore them
+                            log::trace!("Ignoring message for topic: {}", topic_str);
                         } else {
-                            log::debug!("Received unhandled message for topic {}", topic_str);
+                            log::warn!("Received unexpected message from topic: {}", topic_str);
                         }
 
                     }
@@ -188,7 +192,7 @@ impl DriaComputeNode {
     pub fn parse_topiced_message_to_task_request<T>(
         &self,
         message: P2PMessage,
-    ) -> NodeResult<TaskRequest<T>>
+    ) -> NodeResult<Option<TaskRequest<T>>>
     where
         T: for<'a> Deserialize<'a>,
     {
@@ -196,27 +200,27 @@ impl DriaComputeNode {
 
         // check if deadline is past or not
         if get_current_time_nanos() >= task.deadline {
-            return Err(format!("Task {} is past the deadline.", task.task_id).into());
+            log::info!("Task {} is past the deadline, ignoring.", task.task_id);
+            return Ok(None);
         }
 
         // check task inclusion via the bloom filter
-        let is_tasked = task.filter.contains(&self.config.address)?;
-        if !is_tasked {
-            return Err(format!(
-                "Task {} does not include the node within the filter.",
+        if !task.filter.contains(&self.config.address)? {
+            log::info!(
+                "Task {} does not include this node within the filter.",
                 task.task_id
-            )
-            .into());
+            );
+            return Ok(None);
         }
 
         // obtain public key from the payload
         let task_public_key = hex::decode(&task.public_key)?;
 
-        Ok(TaskRequest {
+        Ok(Some(TaskRequest {
             task_id: task.task_id,
             input: task.input,
             public_key: task_public_key,
-        })
+        }))
     }
 
     /// Given a task with `id` and respective `public_key`, sign-then-encrypt the result.
