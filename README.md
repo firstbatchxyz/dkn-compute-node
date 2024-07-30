@@ -130,14 +130,20 @@ With all setup steps above completed, we are ready to start a node!
 
 Based on the resources of your machine, you must decide which models that you will be running locally. For example, you can use OpenAI with their models, not running anything locally at all; or you can use Ollama with several models loaded to disk, and only one loaded to memory during its respective task. Available models (see [here](https://github.com/andthattoo/ollama-workflows/blob/main/src/program/atomics.rs#L269) for latest) are:
 
-- `adrienbrault/nous-hermes2theta-llama3-8b:q8_0` (Ollama)
-- `phi3:14b-medium-4k-instruct-q4_1` (Ollama)
-- `phi3:14b-medium-128k-instruct-q4_1` (Ollama)
-- `phi3:3.8b` (Ollama)
-- `gpt-3.5-turbo` (OpenAI)
-- `gpt-4-turbo` (OpenAI)
-- `gpt-4o` (OpenAI)
-- `gpt-4o-mini` (OpenAI)
+#### Ollama Models
+
+- `adrienbrault/nous-hermes2theta-llama3-8b:q8_0`
+- `phi3:14b-medium-4k-instruct-q4_1`
+- `phi3:14b-medium-128k-instruct-q4_1`
+- `phi3:3.8b`
+- `llama3.1:latest`
+
+#### OpenAI Models
+
+- `gpt-3.5-turbo`
+- `gpt-4-turbo`
+- `gpt-4o`
+- `gpt-4o-mini`
 
 > [!TIP]
 >

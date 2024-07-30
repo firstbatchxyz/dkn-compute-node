@@ -33,25 +33,25 @@ sha3 = "0.10.8"
 fastbloom-rs = "0.5.9"
 
 # workflows
-ollama-workflows = { git = "https://github.com/andthattoo/ollama-workflows", rev = "953e208" }
+ollama-workflows = { git = "https://github.com/andthattoo/ollama-workflows", rev = "a45ba2d" }
 ollama-rs = "0.2.0"
 
 # peer-to-peer
 libp2p = { version = "0.53", features = [
-  "dcutr",
-  "ping",
-  "relay",
-  "autonat",
-  "identify",
-  "tokio",
-  "gossipsub",
-  "mdns",
-  "noise",
-  "macros",
-  "tcp",
-  "yamux",
-  "quic",
-  "kad",
+    "dcutr",
+    "ping",
+    "relay",
+    "autonat",
+    "identify",
+    "tokio",
+    "gossipsub",
+    "mdns",
+    "noise",
+    "macros",
+    "tcp",
+    "yamux",
+    "quic",
+    "kad",
 ] }
 libp2p-identity = { version = "0.2.9", features = ["secp256k1", "ed25519"] }
 tracing = { version = "0.1.40" }
