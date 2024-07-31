@@ -10,9 +10,10 @@ use crate::p2p::P2PMessage;
 struct WorkflowPayload {
     /// Workflow object to be parsed.
     pub(crate) workflow: Workflow,
-    /// A model name (that can be parsed into `Model`) or a model provider.
-    /// If model provider is given, the first matching model in the node config is used.
-    pub(crate) model: String,
+    /// A lıst of model (that can be parsed into `Model`) or model provider names.
+    /// If model provider is given, the first matching model in the node config is used for that.
+    /// From the given list, a random choice will be made for the task.
+    pub(crate) model: Vec<String>,
     /// Prompts can be provided within the workflow itself, in which case this is `None`.
     /// Otherwise, the prompt is expected to be `Some` here.
     pub(crate) prompt: Option<String>,
@@ -30,12 +31,19 @@ impl HandlesWorkflow for DriaComputeNode {
             self.parse_topiced_message_to_task_request::<WorkflowPayload>(message)?
         {
             // read model / provider from the task
-            let (model_provider, model) = self.config.get_matching_model(task.input.model)?;
+            let (model_provider, model) = self
+                .config
+                .model_config
+                .get_any_matching_model(task.input.model)?;
             log::info!("Using model {} for task {}", model, task.task_id);
 
             // execute workflow with cancellation
             let executor = if model_provider == ModelProvider::Ollama {
-                Executor::new_at(model, &self.config.ollama.host, self.config.ollama.port)
+                Executor::new_at(
+                    model,
+                    &self.config.ollama_config.host,
+                    self.config.ollama_config.port,
+                )
             } else {
                 Executor::new(model)
             };

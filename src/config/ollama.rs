@@ -20,6 +20,19 @@ pub struct OllamaConfig {
     auto_pull: bool,
 }
 
+impl Default for OllamaConfig {
+    fn default() -> Self {
+        Self {
+            host: DEFAULT_OLLAMA_HOST.to_string(),
+            port: DEFAULT_OLLAMA_PORT,
+            hardcoded_models: HARDCODED_MODELS
+                .into_iter()
+                .map(|s| s.to_string())
+                .collect(),
+            auto_pull: false,
+        }
+    }
+}
 impl OllamaConfig {
     /// Looks at the environment variables for Ollama host and port.
     ///

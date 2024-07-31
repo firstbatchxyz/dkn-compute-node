@@ -41,7 +41,7 @@ impl HandlesPingpong for DriaComputeNode {
         // respond
         let response_body = PingpongResponse {
             uuid: pingpong.uuid.clone(),
-            models: self.config.models.clone(),
+            models: self.config.model_config.models.clone(),
         };
         let response = P2PMessage::new_signed(
             serde_json::json!(response_body).to_string(),

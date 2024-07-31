@@ -19,6 +19,8 @@ pub fn get_current_time_nanos() -> u128 {
 }
 
 /// Utility to parse comma-separated string values, mostly read from the environment.
+/// - Trims `"` from both ends at the start
+/// - For each item, trims whitespace from both ends
 pub fn split_comma_separated(input: Option<String>) -> Vec<String> {
     match input {
         Some(s) => s

@@ -787,7 +787,7 @@ dependencies = [
  "cssparser-macros",
  "dtoa-short",
  "itoa 1.0.11",
- "phf 0.11.2",
+ "phf 0.8.0",
  "smallvec",
 ]
 
@@ -1125,7 +1125,7 @@ dependencies = [
  "libp2p-identity",
  "libsecp256k1",
  "log",
- "ollama-rs 0.2.0",
+ "ollama-rs 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "ollama-workflows",
  "parking_lot",
  "public-ip",
@@ -2088,7 +2088,7 @@ dependencies = [
  "httpdate 1.0.3",
  "itoa 1.0.11",
  "pin-project-lite 0.2.14",
- "socket2 0.5.7",
+ "socket2 0.4.10",
  "tokio 1.38.0",
  "tower-service",
  "tracing",
@@ -3586,22 +3586,6 @@ dependencies = [
 
 [[package]]
 name = "ollama-rs"
-version = "0.1.9"
-source = "git+https://github.com/andthattoo/ollama-rs?branch=master#426b6d698a58a737f145054cd12555658b5e5e4b"
-dependencies = [
- "async-trait",
- "log",
- "regex",
- "reqwest 0.12.5",
- "scraper 0.19.0",
- "serde",
- "serde_json",
- "text-splitter",
- "url",
-]
-
-[[package]]
-name = "ollama-rs"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "255252ec57e13d2d6ae074c7b7cd8c004d17dafb1e03f954ba2fd5cc226f8f49"
@@ -3615,9 +3599,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "ollama-rs"
+version = "0.2.0"
+source = "git+https://github.com/andthattoo/ollama-rs?branch=master#dcdfc07a0974f414b3a86c9aed17d43f1bba7bd1"
+dependencies = [
+ "async-stream",
+ "async-trait",
+ "log",
+ "regex",
+ "reqwest 0.12.5",
+ "scraper 0.19.0",
+ "serde",
+ "serde_json",
+ "text-splitter",
+ "url",
+]
+
+[[package]]
 name = "ollama-workflows"
 version = "0.1.0"
-source = "git+https://github.com/andthattoo/ollama-workflows?rev=a45ba2d#a45ba2dc992409b5fb8f4ff43f69497e67b098e9"
+source = "git+https://github.com/andthattoo/ollama-workflows?rev=274b26e#274b26e4fe39770d8211cc4da96182f59a84dd05"
 dependencies = [
  "async-trait",
  "colored",
@@ -3626,7 +3627,7 @@ dependencies = [
  "html2text",
  "langchain-rust",
  "log",
- "ollama-rs 0.1.9",
+ "ollama-rs 0.2.0 (git+https://github.com/andthattoo/ollama-rs?branch=master)",
  "openai_dive",
  "parking_lot",
  "rand 0.8.5",
@@ -3780,7 +3781,7 @@ version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3dfb61232e34fcb633f43d12c58f83c1df82962dcdfa565a4e866ffc17dafe12"
 dependencies = [
- "phf_macros 0.8.0",
+ "phf_macros",
  "phf_shared 0.8.0",
  "proc-macro-hack",
 ]
@@ -3800,7 +3801,6 @@ version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ade2d8b8f33c7333b51bcf0428d37e217e9f32192ae4772156f65063b8ce03dc"
 dependencies = [
- "phf_macros 0.11.2",
  "phf_shared 0.11.2",
 ]
 
@@ -3876,19 +3876,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "phf_macros"
-version = "0.11.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3444646e286606587e49f3bcf1679b8cef1dc2c5ecc29ddacaffc305180d464b"
-dependencies = [
- "phf_generator 0.11.2",
- "phf_shared 0.11.2",
- "proc-macro2",
- "quote",
- "syn 2.0.68",
 ]
 
 [[package]]
