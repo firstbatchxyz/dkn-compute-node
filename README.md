@@ -46,6 +46,15 @@ You need the following applications to run compute node:
 - **Git**: We will use `git` to clone the repository from GitHub, and pull latest changes for updates later.
 - **Docker**: Our services will make use of Docker so that the node can run on any machine.
 
+> [!TIP]
+>
+> You can check if you have these via:
+>
+> ```sh
+> which git
+> which docker
+> ```
+
 ## Setup
 
 To be able to run a node, we need to make a few simple preparations. Follow the steps below one by one.
@@ -56,6 +65,7 @@ This repository has the necessary setup to run the node, so start by cloning it 
 
 ```bash
 git clone https://github.com/firstbatchxyz/dkn-compute-node
+cd dkn-compute-node
 ```
 
 ### 2. Prepare Environment Variables
