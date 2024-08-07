@@ -70,6 +70,20 @@ cp .env.example .env
 >
 > `DKN_ADMIN_PUBLIC_KEY` is used to verify that the tasks are given by certain nodes, so that your node does not work for tasks given to the network by untrusted people. You don't need to change this, simply copy and paste it to your `.env`.
 
+> [!TIP]
+>
+> While adding anything to your `.env`, you can do it without leaving the terminal. For example, suppose you want to set `VALUE` to some `KEY`, you can do it as:
+>
+> ```sh
+> echo "KEY=VALUE" >> .env
+> ```
+>
+> If you would like to view the `.env` without leaving the terminal, you can do:
+>
+> ```sh
+> cat .env
+> ```
+
 ### 3. Prepare Ethereum Wallet
 
 Dria makes use of the same Ethereum wallet, that is the recipient of your hard-earned rewards! Place your private key at `DKN_WALLET_SECRET_KEY` in `.env` without the 0x prefix. It should look something like:
@@ -81,6 +95,8 @@ DKN_WALLET_SECRET_KEY=ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4
 > [!CAUTION]
 >
 > Always make sure your private key is within the .gitignore'd `.env` file, nowhere else! To be even safer, you can use a throwaway wallet, you can always transfer your rewards to a main wallet afterwards.
+
+> [!TIP]
 
 ### 4. Setup LLM Provider
 
@@ -96,7 +112,7 @@ OPENAI_API_KEY=<YOUR_KEY>
 
 #### For Ollama
 
-If you will be using locally served models via Ollama, you must **first pull a small embedding model that is used internally**.
+Of course, first you have to install Ollama; see their [download page](https://ollama.com/download). Then, you must **first pull a small embedding model that is used internally**.
 
 ```sh
 ollama pull hellord/mxbai-embed-large-v1:f16
@@ -175,7 +191,7 @@ chmod +x start.sh
 Simply run the script with the model names provided, such as:
 
 ```sh
-./start.sh -m=llama3 -m=gpt-3.5-turbo
+./start.sh -m=llama3.1:latest -m=gpt-3.5-turbo
 ```
 
 Start script will run the containers in the background. You can check their logs either via the terminal or from [Docker Desktop](https://www.docker.com/products/docker-desktop/).
@@ -215,7 +231,7 @@ docker compose logs --since=30m compute
 
 ### 5. Stopping the Node
 
-When you use `./start.sh`, it will wait for you in the same terminal to do CTRL+C before stopping. Once you do that, the containers will be stopped and removed. You can also kill the containers manually, doing CTRL+C afterwards will do nothing in such a case.
+When you start your node with `./start.sh`, it will wait for you in the same terminal to do CTRL+C before stopping. Once you do that, the containers will be stopped and removed. You can also kill the containers manually, doing CTRL+C afterwards will do nothing in such a case.
 
 > [!NOTE]
 >
