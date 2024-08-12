@@ -278,6 +278,9 @@ COMPOSE_DOWN="${COMPOSE_PROFILES} ${COMPOSE_COMMAND} down"
 
 # run docker-compose up
 echo "Starting in ${START_MODE} mode...\n"
+echo "${COMPOSE_UP}\n"
+eval "${COMPOSE_UP}"
+
 compose_exit_code=$?
 
 # handle docker-compose error
