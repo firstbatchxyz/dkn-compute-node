@@ -8,7 +8,7 @@ jobs:
     name: Check Release
     runs-on: ubuntu-latest
     outputs:
-      image_tag: ${{ steps.set_tag.outputs.itag }}
+      image_tag: ${{ steps.itag.outputs.itag }}
 
     steps:
       - name: Checkout code
