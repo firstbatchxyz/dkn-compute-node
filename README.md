@@ -270,6 +270,16 @@ If the Ollama server is not running, the start script will initiate it with `oll
 
 You can add additional relay nodes & bootstrap nodes from environment, using the `DKN_RELAY_NODES` and `DKN_BOOTSTRAP_NODES` variables respectively. Simply write the `Multiaddr` string of the static nodes as comma-separated values, and the compute node will pick them up at the start.
 
+## Releases
+
+We have 3 types of releases:
+
+- **Versioned**: With each release, a versioned image is deployed on Docker hub with the version tag `:vX.X.X`.
+- **Latest**: As usual, the latest version is kept under `:latest` tag.
+- **Development**: On each push to `master`, a new image is created with `:unstable`.
+
+See deployed images on [Docker Hub](https://hub.docker.com/orgs/firstbatch/members).
+
 ## Development
 
 > If you have a feature that you would like to add with respect to its respective issue, or a bug fix, feel free to fork & create a PR!
