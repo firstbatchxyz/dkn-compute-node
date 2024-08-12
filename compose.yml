@@ -3,7 +3,8 @@ version: "3.7"
 services:
   # Compute Node
   compute:
-    build: "./" # TODO: use image from registry
+    image: "firstbatch/dkn-compute-node:latest"
+    # build: "./" # use this one instead if you want to build locally
     env_file:
       - .env.compose
     environment:
