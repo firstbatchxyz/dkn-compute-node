@@ -1,0 +1,68 @@
+name: Create Prod Image
+on:
+  release:
+    types: [published]
+
+jobs:
+  check-release:
+    name: Check Release
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.set_tag.outputs.itag }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set Image Tag
+        id: itag
+        run: echo "itag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+
+      - name: Check Release Tag
+        run: |
+          if [[ ! "${{ steps.itag.outputs.itag }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tag format is invalid. It should follow the pattern 'vMAJOR.MINOR.PATCH' (e.g., v1.0.0)."
+            exit 1
+          fi
+          echo "Release tag format is valid."
+
+      - name: Check Cargo.toml Version
+        run: |
+          CARGO_VERSION=$(grep '^version =' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+          TAG_VERSION=${{ steps.itag.outputs.itag }}
+          TAG_VERSION=${TAG_VERSION#"v"} # Remove the leading 'v' from the tag
+
+          if [[ "$CARGO_VERSION" != "$TAG_VERSION" ]]; then
+            echo "Version in Cargo.toml ($CARGO_VERSION) does not match the release tag version ($TAG_VERSION)."
+            exit 1
+          fi
+          echo "Cargo.toml version matches the release tag."
+
+  build-and-push:
+    name: Build and Push
+    needs: check-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          platforms: linux/amd64, linux/arm64, linux/arm
+          push: true
+          tags: |
+            firstbatch/dkn-compute-node:latest
+            firstbatch/dkn-compute-node:${{ needs.check-release.outputs.image_tag }}
