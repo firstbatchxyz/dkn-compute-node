@@ -10,7 +10,6 @@ services:
     environment:
       OLLAMA_HOST: "http://host.docker.internal"
       OLLAMA_PORT: "11434"
-      RUST_LOG: "${DKN_LOG_LEVEL:-info}"
     restart: "on-failure"
 
   # Ollama Container (CPU)

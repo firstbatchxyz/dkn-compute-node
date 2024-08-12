@@ -10,16 +10,31 @@ docs() {
         -h | --help: Displays this help message
         -m | --model: Indicates the model to be used within the compute node. Argument can be given multiple times for multiple models.
         -b | --background: Enables background mode for running the node (default: FOREGROUND)
-        --dev: Sets the logging level to debug (default: info)
-        --local-ollama=<true/false>: Indicates the local Ollama environment is being used (default: true)
+        --dev: Sets the logging level to debug (default: false)
+        --trace: Sets the logging level to trace (default: false)
+        --docker-ollama: Indicates the Ollama docker image is being used (default: false)
 
     Example:
-        ./start.sh -m=nous-hermes2theta-llama3-8b --model=phi3:medium --local-ollama=false --dev
+        ./start.sh -m=nous-hermes2theta-llama3-8b --model=phi3:medium --dev
     "
     exit 0
 }
 
 echo "************ DKN - Compute Node ************"
+
+check_docker_compose() {
+    # check "docker compose"
+    if docker compose version &>/dev/null; then
+        COMPOSE_COMMAND="docker compose"
+    # check "docker-compose"
+    elif docker-compose version &>/dev/null; then
+        COMPOSE_COMMAND="docker-compose"
+    else
+        echo "docker compose is not installed on this machine. Its required to run the node.\nCheck https://docs.docker.com/compose/install/ for installation."
+        exit 1
+    fi
+}
+check_docker_compose
 
 # if .env exists, load it first
 ENV_FILE="./.env"
@@ -32,8 +47,8 @@ fi
 
 # flag vars
 START_MODE="FOREGROUND"
-LOCAL_OLLAMA=true
-DKN_LOG_LEVEL="none,dkn_compute=info" # default info logs
+DOCKER_OLLAMA=false
+RUST_LOG="none,dkn_compute=info" # default info logs
 
 # script internal
 COMPOSE_PROFILES=()
@@ -50,15 +65,15 @@ while [[ "$#" -gt 0 ]]; do
             MODELS_LIST+=($model)
         ;;
 
-        --local-ollama=*)
-            LOCAL_OLLAMA="$(echo "${1#*=}" | tr '[:upper:]' '[:lower:]')"
+        --docker-ollama)
+            DOCKER_OLLAMA=true
         ;;
 
         --dev)
-            DKN_LOG_LEVEL="none,dkn_compute=debug,ollama_workflows=info"
+            RUST_LOG="none,dkn_compute=debug,ollama_workflows=info"
         ;;
         --trace)
-            DKN_LOG_LEVEL="none,dkn_compute=trace"
+            RUST_LOG="none,dkn_compute=trace"
         ;;
         -b|--background) START_MODE="BACKGROUND" ;;
         -h|--help) docs ;;
@@ -123,7 +138,7 @@ handle_compute_env() {
         "SERPER_API_KEY"
         "BROWSERLESS_TOKEN"
         "ANTHROPIC_API_KEY"
-        "DKN_LOG_LEVEL"
+        "RUST_LOG"
         "DKN_MODELS"
     )
     compute_envs=($(as_pairs "${compute_env_vars[@]}"))
@@ -164,7 +179,7 @@ handle_ollama_env() {
     fi
 
     # check local ollama
-    if [ "$LOCAL_OLLAMA" == true ]; then
+    if [ "$DOCKER_OLLAMA" == false ]; then
         if command -v ollama &> /dev/null; then
             # prepare local ollama url
             OLLAMA_HOST="${OLLAMA_HOST:-http://localhost}"
@@ -204,7 +219,7 @@ handle_ollama_env() {
                 if [ "$RETRY_COUNT" -ge "$MAX_RETRIES" ]; then
                     echo "Local ollama server failed to start after $MAX_RETRIES attempts."
                     echo "Using docker-compose service"
-                    LOCAL_OLLAMA=false
+                    DOCKER_OLLAMA=true
                 else
                     LOCAL_OLLAMA_PID=$temp_pid
                     OLLAMA_HOST=$DOCKER_HOST
@@ -214,7 +229,7 @@ handle_ollama_env() {
                 fi
             fi
         else
-            LOCAL_OLLAMA=false
+            DOCKER_OLLAMA=true
             echo "Ollama is not installed on this machine, using the docker-compose service"
         fi
     fi
@@ -258,14 +273,11 @@ COMPOSE_PROFILES=$(IFS=","; echo "${COMPOSE_PROFILES[*]}")
 COMPOSE_PROFILES="COMPOSE_PROFILES=\"${COMPOSE_PROFILES}\""
 
 # prepare compose commands
-COMPOSE_COMMAND="docker-compose"
 COMPOSE_UP="${COMPOSE_PROFILES} ${COMPOSE_COMMAND} up -d"
 COMPOSE_DOWN="${COMPOSE_PROFILES} ${COMPOSE_COMMAND} down"
 
 # run docker-compose up
 echo "Starting in ${START_MODE} mode...\n"
-echo "DKN_LOG_LEVEL=${DKN_LOG_LEVEL} ${COMPOSE_UP}\n"
-eval "DKN_LOG_LEVEL=${DKN_LOG_LEVEL} ${COMPOSE_UP}"
 compose_exit_code=$?
 
 # handle docker-compose error
