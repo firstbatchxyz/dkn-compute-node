@@ -90,6 +90,7 @@ fn create_gossipsub_behavior(id_keys: Keypair) -> gossipsub::Behaviour {
         MessageAuthenticity::Signed(id_keys),
         ConfigBuilder::default()
             .heartbeat_interval(Duration::from_secs(10))
+            .max_transmit_size(262144) // 256 KB
             .validation_mode(gossipsub::ValidationMode::Strict)
             .message_id_fn(message_id_fn)
             .build()
