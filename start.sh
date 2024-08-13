@@ -268,6 +268,10 @@ fi
 write_to_env_file "${compute_envs[@]}"
 write_to_env_file "${ollama_envs[@]}"
 
+# update the image
+echo "Pulling the latest compute node image..."
+docker pull firstbatch/dkn-compute-node:latest -q
+
 # prepare compose profiles
 COMPOSE_PROFILES=$(IFS=","; echo "${COMPOSE_PROFILES[*]}")
 COMPOSE_PROFILES="COMPOSE_PROFILES=\"${COMPOSE_PROFILES}\""
