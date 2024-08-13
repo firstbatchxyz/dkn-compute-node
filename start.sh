@@ -126,7 +126,7 @@ as_pairs() {
     echo "${pairs[@]}"
 }
 
-echo "Handling the environment..."
+echo "Setting up the environment..."
 
 # this function handles all compute related environment, compute_envs is a list of "name=value" env-var pairs
 compute_envs=()
@@ -269,8 +269,8 @@ write_to_env_file "${compute_envs[@]}"
 write_to_env_file "${ollama_envs[@]}"
 
 # update the image
-echo "Pulling the latest compute node image..."
-docker pull firstbatch/dkn-compute-node:latest -q
+echo "\nPulling the latest compute node image..."
+DOCKER_CLI_HINTS=false docker pull firstbatch/dkn-compute-node:latest
 
 # prepare compose profiles
 COMPOSE_PROFILES=$(IFS=","; echo "${COMPOSE_PROFILES[*]}")
@@ -281,7 +281,7 @@ COMPOSE_UP="${COMPOSE_PROFILES} ${COMPOSE_COMMAND} up -d"
 COMPOSE_DOWN="${COMPOSE_PROFILES} ${COMPOSE_COMMAND} down"
 
 # run docker-compose up
-echo "Starting in ${START_MODE} mode...\n"
+echo "\nStarting in ${START_MODE} mode..."
 echo "${COMPOSE_UP}\n"
 eval "${COMPOSE_UP}"
 
