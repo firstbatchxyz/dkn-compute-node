@@ -106,8 +106,6 @@ DKN_WALLET_SECRET_KEY=ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4
 >
 > Always make sure your private key is within the .gitignore'd `.env` file, nowhere else! To be even safer, you can use a throwaway wallet, you can always transfer your rewards to a main wallet afterwards.
 
-> [!TIP]
-
 ### 4. Setup LLM Provider
 
 For the final step, we need to make sure we can serve LLM requests.
