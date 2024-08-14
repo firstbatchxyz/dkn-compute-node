@@ -41,7 +41,7 @@ ENV_FILE="./.env"
 ENV_COMPOSE_FILE="./.env.compose"
 if [ -f "$ENV_FILE" ]; then
   set -o allexport
-  source "$ENV_FILE"
+  . "$ENV_FILE"
   set +o allexport
 fi
 
