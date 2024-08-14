@@ -165,7 +165,7 @@ handle_ollama_env() {
 
     # if there is no ollama model given, do not add any ollama compose profile
     ollama_needed=false
-    ollama_models="nous-hermes2theta-llama3-8b phi3:medium phi3:medium-128k phi3:3.8b"
+    ollama_models="nous-hermes2theta-llama3-8b phi3:medium phi3:medium-128k phi3:3.8b llama3.1:latest"
     for m in $(echo "$DKN_MODELS" | tr ',' ' '); do
         case " $ollama_models " in
             *" $m "*) ollama_needed=true; break;;
