@@ -1,6 +1,6 @@
 use std::time::SystemTime;
 
-use ollama_rs::{
+use ollama_workflows::ollama_rs::{
     generation::completion::{request::GenerationRequest, GenerationResponse},
     Ollama,
 };

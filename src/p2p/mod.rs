@@ -9,3 +9,6 @@ pub use client::P2PClient;
 
 mod message;
 pub use message::P2PMessage;
+
+mod available_nodes;
+pub use available_nodes::AvailableNodes;

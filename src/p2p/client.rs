@@ -9,7 +9,7 @@ use libp2p_identity::Keypair;
 use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
 
-use crate::utils::split_comma_separated;
+use crate::p2p::AvailableNodes;
 
 use super::{DriaBehaviour, DriaBehaviourEvent, DRIA_PROTO_NAME};
 
@@ -25,37 +25,19 @@ pub struct P2PClient {
 const IDLE_CONNECTION_TIMEOUT_SECS: u64 = 60;
 
 /// Number of seconds between refreshing the Kademlia DHT.
-const PEER_REFRESH_INTERVAL_SECS: u64 = 4;
-
-/// Static bootstrap nodes for the Kademlia DHT bootstrap step.
-const STATIC_BOOTSTRAP_NODES: [&str; 4] = [
-    "/ip4/44.206.245.139/tcp/4001/p2p/16Uiu2HAm4q3LZU2T9kgjKK4ysy6KZYKLq8KiXQyae4RHdF7uqSt4",
-    "/ip4/18.234.39.91/tcp/4001/p2p/16Uiu2HAmJqegPzwuGKWzmb5m3RdSUJ7NhEGWB5jNCd3ca9zdQ9dU",
-    "/ip4/54.242.44.217/tcp/4001/p2p/16Uiu2HAmR2sAoh9F8jT9AZup9y79Mi6NEFVUbwRvahqtWamfabkz",
-    "/ip4/52.201.242.227/tcp/4001/p2p/16Uiu2HAmFEUCy1s1gjyHfc8jey4Wd9i5bSDnyFDbWTnbrF2J3KFb",
-];
-
-/// Static relay nodes for the `P2pCircuit`.
-const STATIC_RELAY_NODES: [&str; 4] = [
-    "/ip4/34.201.33.141/tcp/4001/p2p/16Uiu2HAkuXiV2CQkC9eJgU6cMnJ9SMARa85FZ6miTkvn5fuHNufa",
-    "/ip4/18.232.93.227/tcp/4001/p2p/16Uiu2HAmHeGKhWkXTweHJTA97qwP81ww1W2ntGaebeZ25ikDhd4z",
-    "/ip4/54.157.219.194/tcp/4001/p2p/16Uiu2HAm7A5QVSy5FwrXAJdNNsdfNAcaYahEavyjnFouaEi22dcq",
-    "/ip4/54.88.171.104/tcp/4001/p2p/16Uiu2HAm5WP1J6bZC3aHxd7XCUumMt9txAystmbZSaMS2omHepXa",
-];
+const PEER_REFRESH_INTERVAL_SECS: u64 = 30;
 
 impl P2PClient {
     /// Creates a new P2P client with the given keypair and listen address.
     pub fn new(
         keypair: Keypair,
         listen_addr: Multiaddr,
+        available_nodes: &AvailableNodes,
         cancellation: CancellationToken,
     ) -> Result<Self, String> {
         // this is our peerId
         let node_peerid = keypair.public().to_peer_id();
         log::info!("Compute node peer address: {}", node_peerid);
-
-        // optional static nodes from environment variables
-        let (opt_bootstrap_nodes, opt_relay_nodes) = parse_static_nodes_from_env();
 
         let mut swarm = SwarmBuilder::with_existing_identity(keypair)
             .with_tokio()
@@ -82,28 +64,24 @@ impl P2PClient {
             .set_mode(Some(libp2p::kad::Mode::Server));
 
         // initiate bootstrap
-        let mut bootstrap_nodes = Vec::from(STATIC_BOOTSTRAP_NODES.map(|s| s.to_string()));
-        bootstrap_nodes.extend(opt_bootstrap_nodes.iter().cloned());
-        log::info!("Initiating bootstrap.");
-        log::info!("Bootstrap nodes: {:#?}", bootstrap_nodes);
-        for addr in bootstrap_nodes {
-            match addr.parse::<Multiaddr>() {
-                Ok(addr) => {
-                    if let Some(peer_id) = addr.iter().find_map(|p| match p {
-                        Protocol::P2p(peer_id) => Some(peer_id),
-                        _ => None,
-                    }) {
-                        log::info!("Dialling peer: {}", addr);
-                        swarm.dial(addr.clone()).map_err(|e| e.to_string())?;
-                        log::info!("Adding address to Kademlia routing table");
-                        swarm.behaviour_mut().kademlia.add_address(&peer_id, addr);
-                    } else {
-                        log::warn!("Missing peerID in address: {}", addr);
-                    }
-                }
-                Err(e) => {
-                    log::error!("Failed to parse address {}: {}", addr, e);
-                }
+        log::info!(
+            "Initiating bootstrap: {:#?}",
+            available_nodes.bootstrap_nodes
+        );
+        for addr in &available_nodes.bootstrap_nodes {
+            if let Some(peer_id) = addr.iter().find_map(|p| match p {
+                Protocol::P2p(peer_id) => Some(peer_id),
+                _ => None,
+            }) {
+                log::info!("Dialling peer: {}", addr);
+                swarm.dial(addr.clone()).map_err(|e| e.to_string())?;
+                log::info!("Adding address to Kademlia routing table");
+                swarm
+                    .behaviour_mut()
+                    .kademlia
+                    .add_address(&peer_id, addr.clone());
+            } else {
+                log::warn!("Missing peerID in address: {}", addr);
             }
         }
 
@@ -124,19 +102,14 @@ impl P2PClient {
         log::info!("Listening p2p network on: {}", listen_addr);
         swarm.listen_on(listen_addr).map_err(|e| e.to_string())?;
 
-        let mut relay_nodes = Vec::from(STATIC_RELAY_NODES.map(|s| s.to_string()));
-        relay_nodes.extend(opt_relay_nodes.iter().cloned());
-        log::info!("Listening to relay nodes.");
-        log::info!("Relay nodes: {:#?}", relay_nodes);
-        for addr in relay_nodes {
-            if let Ok(addr) = addr.parse::<Multiaddr>() {
-                swarm
-                    .listen_on(addr.with(Protocol::P2pCircuit))
-                    .map_err(|e| e.to_string())?;
-            } else {
-                // this is not expected happen for static addresses
-                log::error!("Failed to parse address: {}", addr);
-            }
+        log::info!(
+            "Listening to relay nodes: {:#?}",
+            available_nodes.relay_nodes
+        );
+        for addr in &available_nodes.relay_nodes {
+            swarm
+                .listen_on(addr.clone().with(Protocol::P2pCircuit))
+                .map_err(|e| e.to_string())?;
         }
 
         Ok(Self {
@@ -238,6 +211,8 @@ impl P2PClient {
                     .gossipsub
                     .all_peers()
                     .collect::<Vec<_>>();
+
+                // print peers if the count has changed
                 if latest_peers.len() != self.peer_count {
                     self.peer_count = latest_peers.len();
                     log::info!("Peer Count: {}", latest_peers.len());
@@ -347,30 +322,4 @@ impl P2PClient {
             }
         }
     }
-}
-
-/// Parses static bootstrap & relay nodes from environment variables.
-/// Returns a tuple of (bootstrap_nodes, relay_nodes).
-///
-/// The environment variables are:
-/// - `DRIA_BOOTSTRAP_NODES`: comma-separated list of bootstrap nodes
-/// - `DRIA_RELAY_NODES`: comma-separated list of relay nodes
-fn parse_static_nodes_from_env() -> (Vec<String>, Vec<String>) {
-    // parse bootstrap nodes
-    let bootstrap_nodes = split_comma_separated(std::env::var("DKN_BOOTSTRAP_NODES").ok());
-    if bootstrap_nodes.is_empty() {
-        log::debug!("No additional bootstrap nodes provided.");
-    } else {
-        log::debug!("Using additional bootstrap nodes: {:#?}", bootstrap_nodes);
-    }
-
-    // parse relay nodes
-    let relay_nodes = split_comma_separated(std::env::var("DKN_RELAY_NODES").ok());
-    if relay_nodes.is_empty() {
-        log::debug!("No additional relay nodes provided.");
-    } else {
-        log::debug!("Using additional relay nodes: {:#?}", relay_nodes);
-    }
-
-    (bootstrap_nodes, relay_nodes)
 }

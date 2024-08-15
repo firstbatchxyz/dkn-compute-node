@@ -1,9 +1,14 @@
 use crate::{
     errors::NodeResult, node::DriaComputeNode, p2p::P2PMessage, utils::get_current_time_nanos,
 };
+use async_trait::async_trait;
 use libp2p::gossipsub::MessageAcceptance;
 use ollama_workflows::{Model, ModelProvider};
 use serde::{Deserialize, Serialize};
+
+use super::ComputeHandler;
+
+pub struct PingpongHandler;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct PingpongPayload {
@@ -18,19 +23,10 @@ struct PingpongResponse {
     pub(crate) timestamp: u128,
 }
 
-/// A ping-pong is a message sent by a node to indicate that it is alive.
-/// Compute nodes listen to `pong` topic, and respond to `ping` topic.
-pub trait HandlesPingpong {
-    fn handle_heartbeat(
-        &mut self,
-        message: P2PMessage,
-        result_topic: &str,
-    ) -> NodeResult<MessageAcceptance>;
-}
-
-impl HandlesPingpong for DriaComputeNode {
-    fn handle_heartbeat(
-        &mut self,
+#[async_trait]
+impl ComputeHandler for PingpongHandler {
+    async fn handle_compute(
+        node: &mut DriaComputeNode,
         message: P2PMessage,
         result_topic: &str,
     ) -> NodeResult<MessageAcceptance> {
@@ -53,15 +49,15 @@ impl HandlesPingpong for DriaComputeNode {
         // respond
         let response_body = PingpongResponse {
             uuid: pingpong.uuid.clone(),
-            models: self.config.model_config.models.clone(),
+            models: node.config.model_config.models.clone(),
             timestamp: get_current_time_nanos(),
         };
         let response = P2PMessage::new_signed(
             serde_json::json!(response_body).to_string(),
             result_topic,
-            &self.config.secret_key,
+            &node.config.secret_key,
         );
-        self.publish(response)?;
+        node.publish(response)?;
 
         // accept message, someone else may be included in the filter
         Ok(MessageAcceptance::Accept)

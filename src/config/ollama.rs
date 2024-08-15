@@ -1,4 +1,4 @@
-use ollama_rs::Ollama;
+use ollama_workflows::ollama_rs::Ollama;
 
 const DEFAULT_OLLAMA_HOST: &str = "http://127.0.0.1";
 const DEFAULT_OLLAMA_PORT: u16 = 11434;

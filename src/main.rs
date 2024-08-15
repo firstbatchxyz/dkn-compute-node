@@ -18,7 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     config.check_services().await?;
 
     // launch the node
-    let mut node = DriaComputeNode::new(config, CancellationToken::new())?;
+    let mut node = DriaComputeNode::new(config, CancellationToken::new()).await?;
     node.launch().await?;
 
     Ok(())
