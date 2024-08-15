@@ -160,6 +160,7 @@ handle_ollama_env() {
     ollama_env_vars="
         OLLAMA_HOST
         OLLAMA_PORT
+        OLLAMA_AUTO_PULL
     "
     ollama_envs=$(as_pairs $ollama_env_vars)
 
@@ -194,7 +195,6 @@ handle_ollama_env() {
 
             if [ "$(check_ollama_server)" -eq 200 ]; then
                 echo "Local Ollama is already up and running, using it"
-                OLLAMA_HOST=$DOCKER_HOST
                 ollama_envs=$(as_pairs $ollama_env_vars)
                 return
             else
@@ -220,7 +220,6 @@ handle_ollama_env() {
                     DOCKER_OLLAMA=true
                 else
                     LOCAL_OLLAMA_PID=$temp_pid
-                    OLLAMA_HOST=$DOCKER_HOST
                     echo "Local Ollama server is up and running with PID $LOCAL_OLLAMA_PID"
                     ollama_envs=$(as_pairs $ollama_env_vars)
                     return
