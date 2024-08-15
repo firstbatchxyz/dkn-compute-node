@@ -182,52 +182,62 @@ handle_ollama_env() {
         if command -v ollama >/dev/null 2>&1; then
             # prepare local ollama url
             OLLAMA_HOST="${OLLAMA_HOST:-http://localhost}"
-            if [ -z "$OLLAMA_HOST" ] || [ "$OLLAMA_HOST" = "$DOCKER_HOST" ]; then
-                OLLAMA_HOST="http://localhost"
-            fi
             OLLAMA_PORT="${OLLAMA_PORT:-11434}"
-            ollama_url=$OLLAMA_HOST:$OLLAMA_PORT
 
-            # check whether ollama is serving or not
+            # we have to check Ollama at host, but if the given host is
+            # host.docker.internal we still have to check the localhost
+            # here, we construct `ollama_url` with respect to that
+            if [ "$OLLAMA_HOST" = "$DOCKER_HOST" ]; then
+                ollama_url="http://localhost:$OLLAMA_PORT"
+            else
+                ollama_url=$OLLAMA_HOST:$OLLAMA_PORT
+            fi
+
+            # function to check whether ollama is serving or not
             check_ollama_server() {
                 curl -s -o /dev/null -w "%{http_code}" ${ollama_url}
             }
 
             if [ "$(check_ollama_server)" -eq 200 ]; then
-                echo "Local Ollama is already up and running, using it"
+                echo "Local Ollama is already up at $ollama_url and running, using it"
                 ollama_envs=$(as_pairs $ollama_env_vars)
                 return
             else
                 echo "Local Ollama is not live, running ollama serve"
+
+                # `ollama serve` uses `OLLAMA_HOST` variable with both host and port,
+                # so here we temporarily set it, run Ollama, and then restore its value
                 temp_ollama_host=$OLLAMA_HOST
-                OLLAMA_HOST=$ollama_url # set temporarily OLLAMA_HOST env var for the ollama command
-                # run ollama serve in background
+                OLLAMA_HOST=$ollama_url
                 eval "ollama serve >/dev/null 2>&1 &"
+                OLLAMA_HOST=$temp_ollama_host
+                
+                # we grab the PID of Ollama
                 temp_pid=$!
 
+                # Loop until the server responds with HTTP 200 or the retry limit is reached
                 MAX_RETRIES=5
                 RETRY_COUNT=0
-                # Loop until the server responds with HTTP 200 or the retry limit is reached
                 until [ "$(check_ollama_server)" -eq 200 ] || [ "$RETRY_COUNT" -ge "$MAX_RETRIES" ]; do
-                    echo "Waiting for the local ollama server to start... (Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)"
+                    echo "Waiting for the local Ollama server to start... (Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)"
                     sleep 1
                     RETRY_COUNT=$((RETRY_COUNT + 1))
                 done
 
                 if [ "$RETRY_COUNT" -ge "$MAX_RETRIES" ]; then
-                    echo "Local ollama server failed to start after $MAX_RETRIES attempts."
-                    echo "Using docker-compose service"
-                    DOCKER_OLLAMA=true
+                    echo "Local Ollama server failed to start after $MAX_RETRIES attempts."
+                    echo "You can use the --docker-ollama flag to use the Docker Ollama image instead."
+                    exit 1
                 else
                     LOCAL_OLLAMA_PID=$temp_pid
-                    echo "Local Ollama server is up and running with PID $LOCAL_OLLAMA_PID"
+                    echo "Local Ollama server is up at $ollama_url and running with PID $LOCAL_OLLAMA_PID"
                     ollama_envs=$(as_pairs $ollama_env_vars)
                     return
                 fi
             fi
         else
             DOCKER_OLLAMA=true
-            echo "Ollama is not installed on this machine, using the docker-compose service"
+            echo "Ollama is not installed on this machine, using the Docker ollama instead"
         fi
     fi
 
