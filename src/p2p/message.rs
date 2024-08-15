@@ -84,6 +84,7 @@ impl P2PMessage {
             ciphertext: hex::encode(ciphertext),
             signature: format!("{}{}", hex::encode(signature), hex::encode(recid)),
             task_id: task_id.to_string(),
+            timestamp: get_current_time_nanos(),
         })
     }
 

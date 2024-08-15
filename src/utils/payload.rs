@@ -21,6 +21,8 @@ pub struct TaskResponsePayload {
     pub ciphertext: String,
     /// The unique identifier of the task.
     pub task_id: String,
+    /// Timestamp of the response.
+    pub timestamp: u128,
 }
 
 impl TaskResponsePayload {
