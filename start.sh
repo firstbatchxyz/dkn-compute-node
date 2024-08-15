@@ -3,8 +3,7 @@
 docs() {
     echo "
     start.sh starts the compute node with given environment and parameters using docker-compose.
-    Loads the .env file as base environment and creates a .env.compose file for final environment to run with docker-compose.
-    Required environment variables in .env file; DKN_WALLET_SECRET_KEY
+    Required environment variables in .env file; DKN_WALLET_SECRET_KEY, DKN_ADMIN_PUBLIC_KEY
         
     Arguments:
         -h | --help: Displays this help message
@@ -52,7 +51,6 @@ check_os() {
     esac
 }
 check_os
-echo "OS: ${OS}"
 
 # if .env exists, load it first
 ENV_FILE="./.env"
@@ -140,12 +138,13 @@ handle_compute_env() {
         DKN_ADMIN_PUBLIC_KEY
         OPENAI_API_KEY
         SERPER_API_KEY
+        JINA_API_KEY
         BROWSERLESS_TOKEN
         ANTHROPIC_API_KEY
         RUST_LOG
         DKN_MODELS
     "
-    temp=$(as_pairs $compute_env_vars)
+    as_pairs $compute_env_vars  > /dev/null 2>&1
 
     # handle DKN_MODELS
     if [ -n "$MODELS_LIST" ]; then
@@ -164,7 +163,7 @@ handle_ollama_env() {
         OLLAMA_PORT
         OLLAMA_AUTO_PULL
     "
-    temp=$(as_pairs $ollama_env_vars)
+    as_pairs "$ollama_env_vars" > /dev/null 2>&1
 
     # if there is no ollama model given, do not add any ollama compose profile
     ollama_needed=false
@@ -182,6 +181,10 @@ handle_ollama_env() {
     # check local ollama
     if [ "$DOCKER_OLLAMA" = false ]; then
         if command -v ollama >/dev/null 2>&1; then
+            # host machine has ollama installed
+            # we first going to check whether its serving or not
+            # if not script runs ollama serve command manually and store its pid
+
             # prepare local ollama url
             OLLAMA_HOST="${OLLAMA_HOST:-http://localhost}"
             OLLAMA_PORT="${OLLAMA_PORT:-11434}"
@@ -238,7 +241,6 @@ handle_ollama_env() {
             # Depending on the host os, use localhost or host.docker.internal for Ollama host
             if [ "$OS" = "Mac" ]; then
                 OLLAMA_HOST="http://host.docker.internal"
-                echo "ollama host... ${OLLAMA_HOST}"
             elif [ "$OS" = "Linux" ]; then
                 OLLAMA_HOST="http://localhost"
             fi
@@ -296,7 +298,6 @@ echo ""
 echo "Starting in ${START_MODE} mode..."
 echo "Log level: ${RUST_LOG}"
 echo "Using models: ${DKN_MODELS}"
-echo "${COMPOSE_UP}"
 
 echo ""
 eval "${COMPOSE_UP}"
