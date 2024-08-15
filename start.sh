@@ -37,6 +37,23 @@ check_docker_compose() {
 }
 check_docker_compose
 
+OS=""
+check_os() {
+    unameOut=$(uname -a)
+    case "${unameOut}" in
+        *Microsoft*)     OS="WSL";; #must be first since Windows subsystem for linux will have Linux in the name too
+        *microsoft*)     OS="WSL2";; #WARNING: My v2 uses ubuntu 20.4 at the moment slightly different name may not always work
+        Linux*)     OS="Linux";;
+        Darwin*)    OS="Mac";;
+        CYGWIN*)    OS="Cygwin";;
+        MINGW*)     OS="Windows";;
+        *Msys)     OS="Windows";;
+        *)          OS="UNKNOWN:${unameOut}"
+    esac
+}
+check_os
+echo "OS: ${OS}"
+
 # if .env exists, load it first
 ENV_FILE="./.env"
 if [ -f "$ENV_FILE" ]; then
@@ -117,7 +134,6 @@ as_pairs() {
 echo "Setting up the environment..."
 
 # this function handles all compute related environment, COMPUTE_ENVS is a list of "name=value" env-var pairs
-COMPUTE_ENVS=""
 handle_compute_env() {
     compute_env_vars="
         DKN_WALLET_SECRET_KEY
@@ -129,7 +145,7 @@ handle_compute_env() {
         RUST_LOG
         DKN_MODELS
     "
-    COMPUTE_ENVS=$(as_pairs $compute_env_vars)
+    temp=$(as_pairs $compute_env_vars)
 
     # handle DKN_MODELS
     if [ -n "$MODELS_LIST" ]; then
@@ -138,19 +154,17 @@ handle_compute_env() {
     fi
 
     # update envs
-    COMPUTE_ENVS=$(as_pairs $compute_env_vars)
 }
 handle_compute_env
 
 # this function handles all ollama related environment, OLLAMA_ENVS is a list of "name=value" env-var pairs
-OLLAMA_ENVS=""
 handle_ollama_env() {
     ollama_env_vars="
         OLLAMA_HOST
         OLLAMA_PORT
         OLLAMA_AUTO_PULL
     "
-    OLLAMA_ENVS=$(as_pairs $ollama_env_vars)
+    temp=$(as_pairs $ollama_env_vars)
 
     # if there is no ollama model given, do not add any ollama compose profile
     ollama_needed=false
@@ -188,8 +202,7 @@ handle_ollama_env() {
 
             if [ "$(check_ollama_server)" -eq 200 ]; then
                 echo "Local Ollama is already up at $ollama_url and running, using it"
-                OLLAMA_ENVS=$(as_pairs $ollama_env_vars)
-                return
+                # Using already running local Ollama
             else
                 echo "Local Ollama is not live, running ollama serve"
 
@@ -219,10 +232,17 @@ handle_ollama_env() {
                 else
                     LOCAL_OLLAMA_PID=$temp_pid
                     echo "Local Ollama server is up at $ollama_url and running with PID $LOCAL_OLLAMA_PID"
-                    OLLAMA_ENVS=$(as_pairs $ollama_env_vars)
-                    return
+                    # Using local ollama
                 fi
             fi
+            # Depending on the host os, use localhost or host.docker.internal for Ollama host
+            if [ "$OS" = "Mac" ]; then
+                OLLAMA_HOST="http://host.docker.internal"
+                echo "ollama host... ${OLLAMA_HOST}"
+            elif [ "$OS" = "Linux" ]; then
+                OLLAMA_HOST="http://localhost"
+            fi
+            return
         else
             DOCKER_OLLAMA=true
             echo "Ollama is not installed on this machine, using the Docker ollama instead"
@@ -251,7 +271,6 @@ handle_ollama_env() {
     echo "No GPU found, using ollama-cpu"
     COMPOSE_PROFILES="$COMPOSE_PROFILES ollama-cpu"
     OLLAMA_HOST=$DOCKER_HOST
-    OLLAMA_ENVS=$(as_pairs $ollama_env_vars)
 }
 handle_ollama_env
 
@@ -264,6 +283,10 @@ DOCKER_CLI_HINTS=false docker pull firstbatch/dkn-compute-node:latest
 COMPOSE_PROFILES=$(echo "$COMPOSE_PROFILES" | tr ' ' ',')
 COMPOSE_PROFILES="COMPOSE_PROFILES=\"${COMPOSE_PROFILES}\""
 
+# prepare env var lists
+COMPUTE_ENVS=$(as_pairs $compute_env_vars)
+OLLAMA_ENVS=$(as_pairs $ollama_env_vars)
+
 # prepare compose commands
 COMPOSE_UP="${COMPOSE_PROFILES} ${COMPUTE_ENVS} ${OLLAMA_ENVS} ${COMPOSE_COMMAND} up -d"
 COMPOSE_DOWN="${COMPOSE_PROFILES} ${COMPUTE_ENVS} ${OLLAMA_ENVS} ${COMPOSE_COMMAND} down"
@@ -273,6 +296,7 @@ echo ""
 echo "Starting in ${START_MODE} mode..."
 echo "Log level: ${RUST_LOG}"
 echo "Using models: ${DKN_MODELS}"
+echo "${COMPOSE_UP}"
 
 echo ""
 eval "${COMPOSE_UP}"
