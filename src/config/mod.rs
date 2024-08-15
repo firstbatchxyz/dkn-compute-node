@@ -31,6 +31,7 @@ pub struct DriaComputeNodeConfig {
 /// The default P2P network listen address.
 pub(crate) const DEFAULT_P2P_LISTEN_ADDR: &str = "/ip4/0.0.0.0/tcp/4001";
 
+#[allow(clippy::new_without_default)]
 impl DriaComputeNodeConfig {
     /// Creates new config from environment variables.
     pub fn new() -> Self {

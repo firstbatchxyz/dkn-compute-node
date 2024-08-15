@@ -110,8 +110,7 @@ impl HandlesWorkflow for DriaComputeNode {
                 }
             }
         }
-        let result =
-            result.ok_or::<String>(format!("No result for task {}", task.task_id).into())?;
+        let result = result.ok_or::<String>(format!("No result for task {}", task.task_id))?;
 
         // publish the result
         self.send_result(result_topic, &task.public_key, &task.task_id, result)?;

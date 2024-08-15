@@ -206,6 +206,7 @@ impl P2PClient {
         }
         Ok(())
     }
+
     /// Returns the list of connected peers within Gossipsub, with a list of subscribed topic hashes by each peer.
     pub fn peers(&self) -> Vec<(&PeerId, Vec<&TopicHash>)> {
         self.swarm

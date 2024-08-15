@@ -49,7 +49,7 @@ impl OllamaConfig {
             .map(|s| s.to_string())
             .collect();
 
-        let auto_pull = std::env::var("OLLAMA_AUTO_PULL").unwrap_or_default() == "true".to_string();
+        let auto_pull = std::env::var("OLLAMA_AUTO_PULL").unwrap_or_default() == "true";
 
         OllamaConfig {
             host,
@@ -95,9 +95,10 @@ impl OllamaConfig {
                         "Downloading missing model {} (this may take a while)",
                         model
                     );
-                    let status = ollama.pull_model(model, false).await.map_err(|e| {
-                        format!("Error pulling model with Ollama: {}", e.to_string())
-                    })?;
+                    let status = ollama
+                        .pull_model(model, false)
+                        .await
+                        .map_err(|e| format!("Error pulling model with Ollama: {}", e))?;
                     log::debug!("Pulled model with Ollama, final status: {:#?}", status);
                 } else {
                     // otherwise, give error
