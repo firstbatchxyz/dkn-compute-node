@@ -1,5 +1,3 @@
-version: "3.7"
-
 services:
   # Compute Node
   compute:
@@ -7,6 +5,9 @@ services:
     # build: "./" # use this one instead if you want to build locally
     env_file:
       - .env.compose
+    extra_hosts:
+      # for Linux, we need to add this line manually
+      - "host.docker.internal:host-gateway"
     environment:
       OLLAMA_HOST: "http://host.docker.internal"
       OLLAMA_PORT: "11434"
