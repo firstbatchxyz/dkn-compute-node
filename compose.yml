@@ -5,12 +5,10 @@ services:
     # build: "./" # use this one instead if you want to build locally
     env_file:
       - .env.compose
+    network_mode: "host"
     extra_hosts:
       # for Linux, we need to add this line manually
       - "host.docker.internal:host-gateway"
-    environment:
-      OLLAMA_HOST: "http://host.docker.internal"
-      OLLAMA_PORT: "11434"
     restart: "on-failure"
 
   # Ollama Container (CPU)
