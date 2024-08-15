@@ -39,7 +39,6 @@ check_docker_compose
 
 # if .env exists, load it first
 ENV_FILE="./.env"
-ENV_COMPOSE_FILE="./.env.compose"
 if [ -f "$ENV_FILE" ]; then
   set -o allexport
   . "$ENV_FILE"
@@ -99,17 +98,6 @@ check_required_env_vars() {
 }
 check_required_env_vars
 
-# helper function for writing given env-var pairs to .env.compose file as lines
-write_to_env_file() {
-  input_pairs="$*"
-
-  # Write pairs to the file
-  for pair in $input_pairs; do
-    echo "$pair" >> "$ENV_COMPOSE_FILE"
-  done
-  echo "" >> "$ENV_COMPOSE_FILE"
-}
-
 # helper function for converting a list of env-var name to a list of env-var name:value pairs
 as_pairs() {
     keys="$*"
@@ -128,8 +116,8 @@ as_pairs() {
 
 echo "Setting up the environment..."
 
-# this function handles all compute related environment, compute_envs is a list of "name=value" env-var pairs
-compute_envs=""
+# this function handles all compute related environment, COMPUTE_ENVS is a list of "name=value" env-var pairs
+COMPUTE_ENVS=""
 handle_compute_env() {
     compute_env_vars="
         DKN_WALLET_SECRET_KEY
@@ -141,7 +129,7 @@ handle_compute_env() {
         RUST_LOG
         DKN_MODELS
     "
-    compute_envs=$(as_pairs $compute_env_vars)
+    COMPUTE_ENVS=$(as_pairs $compute_env_vars)
 
     # handle DKN_MODELS
     if [ -n "$MODELS_LIST" ]; then
@@ -150,19 +138,19 @@ handle_compute_env() {
     fi
 
     # update envs
-    compute_envs=$(as_pairs $compute_env_vars)
+    COMPUTE_ENVS=$(as_pairs $compute_env_vars)
 }
 handle_compute_env
 
-# this function handles all ollama related environment, ollama_envs is a list of "name=value" env-var pairs
-ollama_envs=""
+# this function handles all ollama related environment, OLLAMA_ENVS is a list of "name=value" env-var pairs
+OLLAMA_ENVS=""
 handle_ollama_env() {
     ollama_env_vars="
         OLLAMA_HOST
         OLLAMA_PORT
         OLLAMA_AUTO_PULL
     "
-    ollama_envs=$(as_pairs $ollama_env_vars)
+    OLLAMA_ENVS=$(as_pairs $ollama_env_vars)
 
     # if there is no ollama model given, do not add any ollama compose profile
     ollama_needed=false
@@ -200,7 +188,7 @@ handle_ollama_env() {
 
             if [ "$(check_ollama_server)" -eq 200 ]; then
                 echo "Local Ollama is already up at $ollama_url and running, using it"
-                ollama_envs=$(as_pairs $ollama_env_vars)
+                OLLAMA_ENVS=$(as_pairs $ollama_env_vars)
                 return
             else
                 echo "Local Ollama is not live, running ollama serve"
@@ -231,7 +219,7 @@ handle_ollama_env() {
                 else
                     LOCAL_OLLAMA_PID=$temp_pid
                     echo "Local Ollama server is up at $ollama_url and running with PID $LOCAL_OLLAMA_PID"
-                    ollama_envs=$(as_pairs $ollama_env_vars)
+                    OLLAMA_ENVS=$(as_pairs $ollama_env_vars)
                     return
                 fi
             fi
@@ -263,17 +251,9 @@ handle_ollama_env() {
     echo "No GPU found, using ollama-cpu"
     COMPOSE_PROFILES="$COMPOSE_PROFILES ollama-cpu"
     OLLAMA_HOST=$DOCKER_HOST
-    ollama_envs=$(as_pairs $ollama_env_vars)
+    OLLAMA_ENVS=$(as_pairs $ollama_env_vars)
 }
 handle_ollama_env
-
-# env-var lists are ready, now write them to .env.compose
-if [ -e "$ENV_COMPOSE_FILE" ]; then
-    # if already exists, clean it first
-    rm "$ENV_COMPOSE_FILE"
-fi
-write_to_env_file $compute_envs
-write_to_env_file $ollama_envs
 
 # update the image
 echo ""
@@ -285,13 +265,15 @@ COMPOSE_PROFILES=$(echo "$COMPOSE_PROFILES" | tr ' ' ',')
 COMPOSE_PROFILES="COMPOSE_PROFILES=\"${COMPOSE_PROFILES}\""
 
 # prepare compose commands
-COMPOSE_UP="${COMPOSE_PROFILES} ${COMPOSE_COMMAND} up -d"
-COMPOSE_DOWN="${COMPOSE_PROFILES} ${COMPOSE_COMMAND} down"
+COMPOSE_UP="${COMPOSE_PROFILES} ${COMPUTE_ENVS} ${OLLAMA_ENVS} ${COMPOSE_COMMAND} up -d"
+COMPOSE_DOWN="${COMPOSE_PROFILES} ${COMPUTE_ENVS} ${OLLAMA_ENVS} ${COMPOSE_COMMAND} down"
 
 # run docker-compose up
 echo ""
 echo "Starting in ${START_MODE} mode..."
-echo "${COMPOSE_UP}"
+echo "Log level: ${RUST_LOG}"
+echo "Using models: ${DKN_MODELS}"
+
 echo ""
 eval "${COMPOSE_UP}"
 
@@ -315,7 +297,6 @@ if [ "$START_MODE" = "FOREGROUND" ]; then
         echo ""
         echo "Shutting down..."
         eval "${COMPOSE_DOWN}"
-        rm "$ENV_COMPOSE_FILE"
         echo ""
         echo "bye"
         exit
