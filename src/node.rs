@@ -1,7 +1,6 @@
 use std::str::FromStr;
 
 use libp2p::{gossipsub, Multiaddr};
-use serde::Deserialize;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio_util::sync::CancellationToken;
 
@@ -10,11 +9,7 @@ use crate::{
     errors::NodeResult,
     handlers::{HandlesPingpong, HandlesWorkflow},
     p2p::{P2PClient, P2PMessage},
-    utils::{
-        crypto::secret_to_keypair,
-        get_current_time_nanos,
-        payload::{TaskRequest, TaskRequestPayload},
-    },
+    utils::crypto::secret_to_keypair,
 };
 
 pub struct DriaComputeNode {
@@ -133,8 +128,10 @@ impl DriaComputeNode {
                                 }
                             };
 
+
+
                             // then handle the prepared message
-                            if let Err(err) = match topic_str {
+                            let handle_result = match topic_str {
                                 WORKFLOW_LISTEN_TOPIC => {
                                     self.handle_workflow(message, WORKFLOW_RESPONSE_TOPIC).await
                                 }
@@ -142,16 +139,36 @@ impl DriaComputeNode {
                                     self.handle_heartbeat(message, PINGPONG_RESPONSE_TOPIC)
                                 }
                                 // TODO: can we do this in a nicer way?
+                                // TODO: yes, cast to enum above and let type-casting do the work
                                 _ => unreachable!() // unreachable because of the if condition
-                            } {
-                                log::error!("Error handling {} message: {}", topic_str, err);
+                            };
+
+                            // validate the message based on the result
+                            match handle_result {
+                                Ok(acceptance) => {
+                                    // TODO: !!! remove me
+                                    log::info!(
+                                        "Validating message with ID: {}\nFrom: {}\nAcceptance: {:?}",
+                                        message_id,
+                                        peer_id,
+                                        acceptance
+                                    );
+                                    self.p2p.validate_message(&message_id, &peer_id, acceptance)?;
+                                },
+                                Err(err) => log::error!("Error handling {} message: {}", topic_str, err)
                             }
                         } else if std::matches!(topic_str, PINGPONG_RESPONSE_TOPIC | WORKFLOW_RESPONSE_TOPIC) {
                             // since we are responding to these topics, we might receive messages from other compute nodes
                             // we can gracefully ignore them
                             log::trace!("Ignoring message for topic: {}", topic_str);
+
+                            // accept this message for propagation
+                            self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Accept)?;
                         } else {
                             log::warn!("Received unexpected message from topic: {}", topic_str);
+
+                            // reject this message as its from a foreign topic
+                            self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Reject)?;
                         }
 
                     }
@@ -187,46 +204,6 @@ impl DriaComputeNode {
         }
 
         Ok(message)
-    }
-
-    pub fn parse_topiced_message_to_task_request<T>(
-        &self,
-        message: P2PMessage,
-    ) -> NodeResult<Option<TaskRequest<T>>>
-    where
-        T: for<'a> Deserialize<'a>,
-    {
-        let task = message.parse_payload::<TaskRequestPayload<T>>(true)?;
-
-        // check if deadline is past or not
-        let current_time = get_current_time_nanos();
-        if current_time >= task.deadline {
-            log::debug!(
-                "Task (id: {}) is past the deadline, ignoring. (local: {}, deadline: {})",
-                task.task_id,
-                current_time,
-                task.deadline
-            );
-            return Ok(None);
-        }
-
-        // check task inclusion via the bloom filter
-        if !task.filter.contains(&self.config.address)? {
-            log::info!(
-                "Task {} does not include this node within the filter.",
-                task.task_id
-            );
-            return Ok(None);
-        }
-
-        // obtain public key from the payload
-        let task_public_key = hex::decode(&task.public_key)?;
-
-        Ok(Some(TaskRequest {
-            task_id: task.task_id,
-            input: task.input,
-            public_key: task_public_key,
-        }))
     }
 
     /// Given a task with `id` and respective `public_key`, sign-then-encrypt the result.

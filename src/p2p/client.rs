@@ -1,5 +1,7 @@
 use libp2p::futures::StreamExt;
-use libp2p::gossipsub::{Message, MessageId, PublishError, SubscriptionError, TopicHash};
+use libp2p::gossipsub::{
+    Message, MessageAcceptance, MessageId, PublishError, SubscriptionError, TopicHash,
+};
 use libp2p::kad::{GetClosestPeersError, GetClosestPeersOk, QueryResult};
 use libp2p::{gossipsub, identify, kad, multiaddr::Protocol, noise, swarm::SwarmEvent, tcp, yamux};
 use libp2p::{Multiaddr, PeerId, Swarm, SwarmBuilder};
@@ -179,6 +181,31 @@ impl P2PClient {
         Ok(message_id)
     }
 
+    /// Validates a GossipSub message for propagation.
+    ///
+    /// - `Accept`: Accept the message and propagate it.
+    /// - `Reject`: Reject the message and do not propagate it, with penalty to `propagation_source`.
+    /// - `Ignore`: Ignore the message and do not propagate it, without any penalties.
+    ///
+    /// See [`validate_messages`](https://docs.rs/libp2p-gossipsub/latest/libp2p_gossipsub/struct.Config.html#method.validate_messages)
+    /// and [`report_message_validation_result`](https://docs.rs/libp2p-gossipsub/latest/libp2p_gossipsub/struct.Behaviour.html#method.report_message_validation_result) for more details.
+    pub fn validate_message(
+        &mut self,
+        msg_id: &MessageId,
+        propagation_source: &PeerId,
+        acceptance: MessageAcceptance,
+    ) -> Result<(), PublishError> {
+        let msg_was_in_cache = self
+            .swarm
+            .behaviour_mut()
+            .gossipsub
+            .report_message_validation_result(msg_id, propagation_source, acceptance)?;
+
+        if !msg_was_in_cache {
+            log::debug!("Validated message was not in cache.");
+        }
+        Ok(())
+    }
     /// Returns the list of connected peers within Gossipsub, with a list of subscribed topic hashes by each peer.
     pub fn peers(&self) -> Vec<(&PeerId, Vec<&TopicHash>)> {
         self.swarm
