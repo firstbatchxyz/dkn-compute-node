@@ -238,7 +238,6 @@ handle_ollama_env() {
             # Depending on the host os, use localhost or host.docker.internal for Ollama host
             if [ "$OS" = "Mac" ]; then
                 OLLAMA_HOST="http://host.docker.internal"
-                echo "ollama host... ${OLLAMA_HOST}"
             elif [ "$OS" = "Linux" ]; then
                 OLLAMA_HOST="http://localhost"
             fi
@@ -296,8 +295,6 @@ echo ""
 echo "Starting in ${START_MODE} mode..."
 echo "Log level: ${RUST_LOG}"
 echo "Using models: ${DKN_MODELS}"
-echo "${COMPOSE_UP}"
-
 echo ""
 eval "${COMPOSE_UP}"
 
