@@ -298,7 +298,6 @@ echo ""
 echo "Starting in ${START_MODE} mode..."
 echo "Log level: ${RUST_LOG}"
 echo "Using models: ${DKN_MODELS}"
-
 echo ""
 eval "${COMPOSE_UP}"
 
