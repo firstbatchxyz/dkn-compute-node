@@ -37,8 +37,8 @@ impl DriaComputeNodeConfig {
     pub fn new() -> Self {
         let secret_key = match env::var("DKN_WALLET_SECRET_KEY") {
             Ok(secret_env) => {
-                let secret_dec =
-                    hex::decode(secret_env).expect("Secret key should be 32-bytes hex encoded.");
+                let secret_dec = hex::decode(secret_env.trim_start_matches("0x"))
+                    .expect("Secret key should be 32-bytes hex encoded.");
                 SecretKey::parse_slice(&secret_dec).expect("Secret key should be parseable.")
             }
             Err(err) => {
@@ -60,7 +60,7 @@ impl DriaComputeNodeConfig {
 
         let admin_public_key = match env::var("DKN_ADMIN_PUBLIC_KEY") {
             Ok(admin_public_key) => {
-                let pubkey_dec = hex::decode(admin_public_key)
+                let pubkey_dec = hex::decode(admin_public_key.trim_start_matches("0x"))
                     .expect("Admin public key should be 33-bytes hex encoded.");
                 PublicKey::parse_slice(&pubkey_dec, None)
                     .expect("Admin public key should be parseable.")

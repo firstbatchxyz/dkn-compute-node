@@ -16,7 +16,7 @@ services:
       JINA_API_KEY: ${JINA_API_KEY}
       OLLAMA_HOST: ${OLLAMA_HOST}
       OLLAMA_PORT: ${OLLAMA_PORT}
-      OLLAMA_AUTO_PULL: ${OLLAMA_AUTO_PULL}
+      OLLAMA_AUTO_PULL: ${OLLAMA_AUTO_PULL:-true}
     network_mode: "host"
     extra_hosts:
       # for Linux, we need to add this line manually
