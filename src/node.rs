@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{str::FromStr, time::Duration};
 
 use libp2p::{gossipsub, Multiaddr};
 use tokio::signal::unix::{signal, SignalKind};
@@ -7,14 +7,19 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     config::DriaComputeNodeConfig,
     errors::NodeResult,
-    handlers::{HandlesPingpong, HandlesWorkflow},
-    p2p::{P2PClient, P2PMessage},
+    handlers::{ComputeHandler, PingpongHandler, WorkflowHandler},
+    p2p::{AvailableNodes, P2PClient, P2PMessage},
     utils::crypto::secret_to_keypair,
 };
+
+/// Number of seconds between refreshing the Admin RPC PeerIDs from Dria server.
+const RPC_PEER_ID_REFRESH_INTERVAL_SECS: u64 = 30;
 
 pub struct DriaComputeNode {
     pub config: DriaComputeNodeConfig,
     pub p2p: P2PClient,
+    pub available_nodes: AvailableNodes,
+    pub available_nodes_last_refreshed: tokio::time::Instant,
     pub cancellation: CancellationToken,
 }
 
@@ -32,19 +37,33 @@ impl DriaComputeNode {
     /// node.check_services().await?;
     /// node.launch().await?;
     /// ```
-    pub fn new(
+    pub async fn new(
         config: DriaComputeNodeConfig,
         cancellation: CancellationToken,
     ) -> Result<Self, String> {
         let keypair = secret_to_keypair(&config.secret_key);
         let listen_addr =
             Multiaddr::from_str(config.p2p_listen_addr.as_str()).map_err(|e| e.to_string())?;
-        let p2p = P2PClient::new(keypair, listen_addr, cancellation.clone())?;
+
+        // get available nodes (bootstrap, relay, rpc) for p2p
+        let available_nodes = AvailableNodes::default()
+            .join(AvailableNodes::new_from_statics())
+            .join(AvailableNodes::new_from_env())
+            .join(
+                AvailableNodes::get_available_nodes()
+                    .await
+                    .unwrap_or_default(),
+            )
+            .sort_dedup();
+
+        let p2p = P2PClient::new(keypair, listen_addr, &available_nodes, cancellation.clone())?;
 
         Ok(DriaComputeNode {
             config,
             p2p,
             cancellation,
+            available_nodes,
+            available_nodes_last_refreshed: tokio::time::Instant::now(),
         })
     }
 
@@ -103,40 +122,64 @@ impl DriaComputeNode {
         loop {
             tokio::select! {
                 event = self.p2p.process_events() => {
+                    // refresh admin rpc peer ids
+                    if self.available_nodes_last_refreshed.elapsed() > Duration::from_secs(RPC_PEER_ID_REFRESH_INTERVAL_SECS) {
+                        self.available_nodes = AvailableNodes::get_available_nodes().await.unwrap_or_default().join(self.available_nodes.clone()).sort_dedup();
+                        self.available_nodes_last_refreshed = tokio::time::Instant::now();
+                    }
+
+
                     if let Some((peer_id, message_id, message)) = event {
                         let topic = message.topic.clone();
                         let topic_str = topic.as_str();
 
                         // handle message w.r.t topic
                         if std::matches!(topic_str, PINGPONG_LISTEN_TOPIC | WORKFLOW_LISTEN_TOPIC) {
+                            // ensure that the message is from a valid source (origin)
+                            let source_peer_id = match message.source.clone() {
+                                Some(peer) => peer,
+                                None => {
+                                    log::warn!("Received message from {} without source.", peer_id);
+                                    log::debug!("Allowed sources: {:#?}", self.available_nodes.rpc_nodes);
+                                    self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Reject)?;
+                                    continue;
+                                }
+                            };
+
                             log::info!(
                                 "Received {} message ({})\nFrom:   {}\nOrigin: {}",
                                 topic_str,
                                 message_id,
                                 peer_id,
-                                message.source.map(|p| p.to_string()).unwrap_or("None".to_string())
+                                source_peer_id
                             );
 
+                            // ensure that message is from the static RPCs
+                            if !self.available_nodes.rpc_nodes.contains(&source_peer_id) {
+                                log::warn!("Received message from unauthorized origin: {}", source_peer_id);
+                                self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore)?;
+                                continue;
+                            }
+
                             // first, parse the raw gossipsub message to a prepared message
-                            // FIXME: maybe we can avoid the clone here, its done to print data below
+                            // if unparseable,
                             let message = match self.parse_message_to_prepared_message(message.clone()) {
                                 Ok(message) => message,
                                 Err(e) => {
                                     log::error!("Error parsing message: {}", e);
                                     log::debug!("Message: {}", String::from_utf8_lossy(&message.data));
+                                    self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore)?;
                                     continue;
                                 }
                             };
 
-
-
                             // then handle the prepared message
                             let handle_result = match topic_str {
                                 WORKFLOW_LISTEN_TOPIC => {
-                                    self.handle_workflow(message, WORKFLOW_RESPONSE_TOPIC).await
+                                    WorkflowHandler::handle_compute(self, message, WORKFLOW_RESPONSE_TOPIC).await
                                 }
                                 PINGPONG_LISTEN_TOPIC => {
-                                    self.handle_heartbeat(message, PINGPONG_RESPONSE_TOPIC)
+                                    PingpongHandler::handle_compute(self, message, PINGPONG_RESPONSE_TOPIC).await
                                 }
                                 // TODO: can we do this in a nicer way?
                                 // TODO: yes, cast to enum above and let type-casting do the work
@@ -146,16 +189,17 @@ impl DriaComputeNode {
                             // validate the message based on the result
                             match handle_result {
                                 Ok(acceptance) => {
-                                    // TODO: !!! remove me
-                                    log::info!(
-                                        "Validating message with ID: {}\nFrom: {}\nAcceptance: {:?}",
+                                    log::debug!(
+                                        "Validating message ({}): {:?}",
                                         message_id,
-                                        peer_id,
                                         acceptance
                                     );
                                     self.p2p.validate_message(&message_id, &peer_id, acceptance)?;
                                 },
-                                Err(err) => log::error!("Error handling {} message: {}", topic_str, err)
+                                Err(err) => {
+                                    log::error!("Error handling {} message: {}", topic_str, err);
+                                    self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Reject)?;
+                                }
                             }
                         } else if std::matches!(topic_str, PINGPONG_RESPONSE_TOPIC | WORKFLOW_RESPONSE_TOPIC) {
                             // since we are responding to these topics, we might receive messages from other compute nodes
@@ -188,6 +232,8 @@ impl DriaComputeNode {
 
     /// Parses a given raw Gossipsub message to a prepared P2PMessage object.
     /// This prepared message includes the topic, payload, version and timestamp.
+    ///
+    /// This also checks the signature of the message, expecting a valid signature from admin node.
     pub fn parse_message_to_prepared_message(
         &self,
         message: gossipsub::Message,
@@ -260,6 +306,7 @@ mod tests {
         // create node
         let cancellation = CancellationToken::new();
         let mut node = DriaComputeNode::new(DriaComputeNodeConfig::default(), cancellation.clone())
+            .await
             .expect("should create node");
 
         // launch & wait for a while for connections

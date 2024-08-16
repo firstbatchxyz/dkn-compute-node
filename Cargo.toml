@@ -1,6 +1,6 @@
 [package]
 name = "dkn-compute"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 license = "Apache-2.0"
 readme = "README.md"
@@ -12,6 +12,7 @@ parking_lot = "0.12.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 async-trait = "0.1.81"
+reqwest = "0.12.5"
 
 # utilities
 base64 = "0.22.0"
@@ -34,8 +35,7 @@ sha3 = "0.10.8"
 fastbloom-rs = "0.5.9"
 
 # workflows
-ollama-workflows = { git = "https://github.com/andthattoo/ollama-workflows", rev = "274b26e" }
-ollama-rs = "0.2.0"
+ollama-workflows = { git = "https://github.com/andthattoo/ollama-workflows", rev = "25467d2" }
 
 # peer-to-peer
 libp2p = { version = "0.53", features = [

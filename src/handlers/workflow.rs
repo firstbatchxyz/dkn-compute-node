@@ -9,6 +9,10 @@ use crate::p2p::P2PMessage;
 use crate::utils::get_current_time_nanos;
 use crate::utils::payload::{TaskRequest, TaskRequestPayload};
 
+use super::ComputeHandler;
+
+pub struct WorkflowHandler;
+
 #[derive(Debug, Deserialize)]
 struct WorkflowPayload {
     /// Workflow object to be parsed.
@@ -23,18 +27,9 @@ struct WorkflowPayload {
 }
 
 #[async_trait]
-pub trait HandlesWorkflow {
-    async fn handle_workflow(
-        &mut self,
-        message: P2PMessage,
-        result_topic: &str,
-    ) -> NodeResult<MessageAcceptance>;
-}
-
-#[async_trait]
-impl HandlesWorkflow for DriaComputeNode {
-    async fn handle_workflow(
-        &mut self,
+impl ComputeHandler for WorkflowHandler {
+    async fn handle_compute(
+        node: &mut DriaComputeNode,
         message: P2PMessage,
         result_topic: &str,
     ) -> NodeResult<MessageAcceptance> {
@@ -55,7 +50,7 @@ impl HandlesWorkflow for DriaComputeNode {
         }
 
         // check task inclusion via the bloom filter
-        if !task.filter.contains(&self.config.address)? {
+        if !task.filter.contains(&node.config.address)? {
             log::info!(
                 "Task {} does not include this node within the filter.",
                 task.task_id
@@ -75,7 +70,7 @@ impl HandlesWorkflow for DriaComputeNode {
         };
 
         // read model / provider from the task
-        let (model_provider, model) = self
+        let (model_provider, model) = node
             .config
             .model_config
             .get_any_matching_model(task.input.model)?;
@@ -85,8 +80,8 @@ impl HandlesWorkflow for DriaComputeNode {
         let executor = if model_provider == ModelProvider::Ollama {
             Executor::new_at(
                 model,
-                &self.config.ollama_config.host,
-                self.config.ollama_config.port,
+                &node.config.ollama_config.host,
+                node.config.ollama_config.port,
             )
         } else {
             Executor::new(model)
@@ -98,7 +93,7 @@ impl HandlesWorkflow for DriaComputeNode {
             .map(|prompt| Entry::try_value_or_str(&prompt));
         let result: Option<String>;
         tokio::select! {
-            _ = self.cancellation.cancelled() => {
+            _ = node.cancellation.cancelled() => {
                 log::info!("Received cancellation, quitting all tasks.");
                 return Ok(MessageAcceptance::Accept)
             },
@@ -113,7 +108,7 @@ impl HandlesWorkflow for DriaComputeNode {
         let result = result.ok_or::<String>(format!("No result for task {}", task.task_id))?;
 
         // publish the result
-        self.send_result(result_topic, &task.public_key, &task.task_id, result)?;
+        node.send_result(result_topic, &task.public_key, &task.task_id, result)?;
 
         // accept message, someone else may be included in the filter
         Ok(MessageAcceptance::Accept)

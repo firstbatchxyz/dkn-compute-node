@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
 
-use ollama_rs::{generation::completion::request::GenerationRequest, Ollama};
+use ollama_workflows::ollama_rs::{generation::completion::request::GenerationRequest, Ollama};
 use ollama_workflows::{Entry, Executor, Model, ProgramMemory, Workflow};
 use std::env;
 use tokio_util::sync::CancellationToken;

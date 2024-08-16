@@ -1,4 +1,4 @@
-use ollama_rs::error::OllamaError;
+use ollama_workflows::ollama_rs::error::OllamaError;
 
 /// Alias for `Result<T, NodeError>`.
 pub type NodeResult<T> = std::result::Result<T, NodeError>;
@@ -92,6 +92,15 @@ impl From<libp2p::gossipsub::SubscriptionError> for NodeError {
         Self {
             message: value.to_string(),
             source: "gossipsub::subscription".to_string(),
+        }
+    }
+}
+
+impl From<reqwest::Error> for NodeError {
+    fn from(value: reqwest::Error) -> Self {
+        Self {
+            message: value.to_string(),
+            source: "reqwest".to_string(),
         }
     }
 }
