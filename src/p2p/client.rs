@@ -244,6 +244,8 @@ impl P2PClient {
                         message_id,
                         message,
                     })) => {
+                        // log::info!("Received message ({}) from peer: {}", message_id, peer_id);
+                        // log::debug!("Message: {:?}", message);
                         return Some((peer_id, message_id, message));
                     }
                     SwarmEvent::NewListenAddr { address, .. } => {

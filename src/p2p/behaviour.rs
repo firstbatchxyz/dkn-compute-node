@@ -36,11 +36,15 @@ impl DriaBehaviour {
 /// Configures the Kademlia DHT behavior for the node.
 #[inline]
 fn create_kademlia_behavior(local_peer_id: PeerId) -> kad::Behaviour<MemoryStore> {
-    use kad::{Behaviour, Config};
+    use kad::{Behaviour, Caching, Config};
 
     let mut cfg = Config::default();
     cfg.set_protocol_names(vec![DRIA_PROTO_NAME])
-        .set_query_timeout(Duration::from_secs(5 * 60));
+        .set_query_timeout(Duration::from_secs(5 * 60))
+        .set_record_ttl(Some(Duration::from_secs(30)))
+        .set_replication_interval(None) // Disable replication
+        .set_caching(Caching::Disabled)
+        .set_publication_interval(None);
 
     Behaviour::with_config(local_peer_id, MemoryStore::new(local_peer_id), cfg)
 }
@@ -50,7 +54,9 @@ fn create_kademlia_behavior(local_peer_id: PeerId) -> kad::Behaviour<MemoryStore
 fn create_identify_behavior(local_public_key: PublicKey) -> identify::Behaviour {
     use identify::{Behaviour, Config};
 
-    Behaviour::new(Config::new(DRIA_PROTO_NAME.to_string(), local_public_key))
+    let cfg = Config::new(DRIA_PROTO_NAME.to_string(), local_public_key);
+
+    Behaviour::new(cfg)
 }
 
 #[inline]
@@ -77,7 +83,16 @@ fn create_autonat_behavior(key: PublicKey) -> autonat::Behaviour {
 /// Configures the Gossipsub behavior for pub/sub messaging across peers.
 #[inline]
 fn create_gossipsub_behavior(id_keys: Keypair) -> gossipsub::Behaviour {
-    use gossipsub::{Behaviour, ConfigBuilder, Message, MessageAuthenticity, MessageId};
+    use gossipsub::{
+        Behaviour, ConfigBuilder, Message, MessageAuthenticity, MessageId, ValidationMode,
+    };
+
+    /// Validation mode for gossipsub messages
+    /// Since we verify messages at app-level, we are okay with `None`.
+    const VALIDATION_MODE: ValidationMode = ValidationMode::None;
+
+    /// Max transmit size for payloads 256 KB
+    const MAX_TRANSMIT_SIZE: usize = 262144;
 
     // message id's are simply hashes of the message data
     let message_id_fn = |message: &Message| {
@@ -90,9 +105,9 @@ fn create_gossipsub_behavior(id_keys: Keypair) -> gossipsub::Behaviour {
         MessageAuthenticity::Signed(id_keys),
         ConfigBuilder::default()
             .heartbeat_interval(Duration::from_secs(10))
-            .max_transmit_size(262144) // 256 KB
-            .validation_mode(gossipsub::ValidationMode::Strict) // TODO!!
+            .max_transmit_size(MAX_TRANSMIT_SIZE)
             .validate_messages()
+            .validation_mode(VALIDATION_MODE)
             .message_id_fn(message_id_fn)
             .build()
             .expect("Valid config"), // TODO: better error handling
