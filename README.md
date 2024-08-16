@@ -336,6 +336,20 @@ make lint   # clippy
 make format # rustfmt
 ```
 
+### Profiling
+
+To create a flamegraph of the application, do:
+
+```sh
+make profile
+```
+
+This will create a profiling build that inherits `release` mode, except with debug information.
+
+> [!NOTE]
+>
+> Profiling requires superuser access.
+
 ## License
 
 This project is licensed under the [Apache License 2.0](https://opensource.org/license/Apache-2.0).

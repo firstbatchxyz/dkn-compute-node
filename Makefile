@@ -5,17 +5,17 @@ ifneq (,$(wildcard ./.env))
 endif
 
 ###############################################################################
-.PHONY: launch #       | Run with INFO log-level & release mode
+.PHONY: launch #       | Run with INFO log-level in release mode
 launch:
-		RUST_LOG=info cargo run --release
-		
+		RUST_LOG=warn,dkn_compute=info cargo run --release
+
 .PHONY: run #          | Run with INFO log-level
 run:
-		RUST_LOG=none,dkn_compute=info cargo run
+		RUST_LOG=warn,dkn_compute=info cargo run
 
 .PHONY: debug #        | Run with DEBUG log-level with INFO log-level workflows
 debug:
-		RUST_LOG=none,dkn_compute=debug,ollama_workflows=info cargo run
+		RUST_LOG=warn,dkn_compute=debug,ollama_workflows=info cargo run
 
 .PHONY: trace #        | Run with crate-level TRACE logging
 trace:
@@ -24,6 +24,10 @@ trace:
 .PHONY: build #        | Build
 build:
 		cargo build
+
+.PHONY: profile #      | Profile with flamegraph at dev level
+profile:
+	  cargo flamegraph --root --profile=profiling
 
 .PHONY: version #      | Print version
 version:

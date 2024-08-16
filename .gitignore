@@ -1,6 +1,10 @@
 /target
-.env*
-!.env.example
 .vscode
 .DS_Store
-/qdrant_storage
+
+# ignore all env except example
+.env*
+!.env.example
+
+
+flamegraph.svg

@@ -136,18 +136,19 @@ impl DriaComputeNode {
                         // handle message w.r.t topic
                         if std::matches!(topic_str, PINGPONG_LISTEN_TOPIC | WORKFLOW_LISTEN_TOPIC) {
                             // ensure that the message is from a valid source (origin)
-                            let source_peer_id = match message.source.clone() {
-                                Some(peer) => peer,
-                                None => {
-                                    log::warn!("Received message from {} without source.", peer_id);
-                                    log::debug!("Allowed sources: {:#?}", self.available_nodes.rpc_nodes);
-                                    self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Reject)?;
-                                    continue;
-                                }
-                            };
+                            let source_peer_id = message.source.clone();
+                            // let source_peer_id = match message.source.clone() {
+                            //     Some(peer) => peer,
+                            //     None => {
+                            //         log::warn!("Received {} message from {} without source.", topic_str, peer_id);
+                            //         log::debug!("Allowed sources: {:#?}", self.available_nodes.rpc_nodes);
+                            //         self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore)?;
+                            //         continue;
+                            //     }
+                            // };
 
                             log::info!(
-                                "Received {} message ({})\nFrom:   {}\nOrigin: {}",
+                                "Received {} message ({})\nFrom:   {}\nOrigin: {:?}",
                                 topic_str,
                                 message_id,
                                 peer_id,
@@ -155,11 +156,11 @@ impl DriaComputeNode {
                             );
 
                             // ensure that message is from the static RPCs
-                            if !self.available_nodes.rpc_nodes.contains(&source_peer_id) {
-                                log::warn!("Received message from unauthorized origin: {}", source_peer_id);
-                                self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore)?;
-                                continue;
-                            }
+                            // if !self.available_nodes.rpc_nodes.contains(&source_peer_id) {
+                            //     log::warn!("Received message from unauthorized origin: {}", source_peer_id);
+                            //     self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore)?;
+                            //     continue;
+                            // }
 
                             // first, parse the raw gossipsub message to a prepared message
                             // if unparseable,
@@ -204,12 +205,12 @@ impl DriaComputeNode {
                         } else if std::matches!(topic_str, PINGPONG_RESPONSE_TOPIC | WORKFLOW_RESPONSE_TOPIC) {
                             // since we are responding to these topics, we might receive messages from other compute nodes
                             // we can gracefully ignore them
-                            log::trace!("Ignoring message for topic: {}", topic_str);
+                            log::debug!("Ignoring message for topic: {}", topic_str);
 
                             // accept this message for propagation
                             self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Accept)?;
                         } else {
-                            log::warn!("Received unexpected message from topic: {}", topic_str);
+                            log::warn!("Received message from unexpected topic: {}", topic_str);
 
                             // reject this message as its from a foreign topic
                             self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Reject)?;
