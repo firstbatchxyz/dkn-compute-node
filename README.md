@@ -18,8 +18,11 @@
     <a href="./.github/workflows/test.yml" target="_blank">
         <img alt="Workflow: Tests" src="https://github.com/firstbatchxyz/dkn-compute-node/actions/workflows/tests.yml/badge.svg?branch=master">
     </a>
-    <a href="https://discord.gg/2wuU9ym6fq" target="_blank">
-        <img alt="Discord" src="https://dcbadge.vercel.app/api/server/2wuU9ym6fq?style=flat">
+    <a href="https://hub.docker.com/repository/docker/firstbatch/dkn-compute-node/general" target="_blank">
+        <img alt="Docker Version" src="https://img.shields.io/docker/v/firstbatch/dkn-compute-node?logo=Docker&label=image&color=2496ED">
+    </a>
+    <a href="https://discord.gg/dria" target="_blank">
+        <img alt="Discord" src="https://dcbadge.vercel.app/api/server/dria?style=flat">
     </a>
 </p>
 
