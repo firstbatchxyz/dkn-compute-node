@@ -51,7 +51,7 @@ impl OllamaConfig {
 
         let auto_pull = std::env::var("OLLAMA_AUTO_PULL").unwrap_or_default() == "true";
 
-        OllamaConfig {
+        Self {
             host,
             port,
             hardcoded_models,
@@ -109,6 +109,7 @@ impl OllamaConfig {
             }
         }
 
+        log::info!("Ollama setup is all good.",);
         Ok(())
     }
 }
