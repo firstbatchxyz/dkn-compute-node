@@ -237,15 +237,13 @@ impl P2PClient {
                     )) => self.handle_closest_peers_result(result),
                     SwarmEvent::Behaviour(DriaBehaviourEvent::Identify(identify::Event::Received {
                         peer_id,
-                        info,
+                        info, connection_id
                     })) => self.handle_identify_event(peer_id, info),
                     SwarmEvent::Behaviour(DriaBehaviourEvent::Gossipsub(gossipsub::Event::Message {
                         propagation_source: peer_id,
                         message_id,
                         message,
                     })) => {
-                        // log::info!("Received message ({}) from peer: {}", message_id, peer_id);
-                        // log::debug!("Message: {:?}", message);
                         return Some((peer_id, message_id, message));
                     }
                     SwarmEvent::NewListenAddr { address, .. } => {
@@ -295,11 +293,11 @@ impl P2PClient {
                         peers.len()
                     );
                     for peer in peers {
-                        log::debug!("Gossipsub: Adding peer {peer}");
+                        log::debug!("Gossipsub: Adding peer {0}", peer.peer_id);
                         self.swarm
                             .behaviour_mut()
                             .gossipsub
-                            .add_explicit_peer(&peer);
+                            .add_explicit_peer(&peer.peer_id);
                     }
                 } else {
                     log::warn!("Kademlia: Query finished with no closest peers.");
@@ -312,11 +310,11 @@ impl P2PClient {
                         peers.len()
                     );
                     for peer in peers {
-                        log::info!("Gossipsub: Adding peer {peer}");
+                        log::info!("Gossipsub: Adding peer {0}", peer.peer_id);
                         self.swarm
                             .behaviour_mut()
                             .gossipsub
-                            .add_explicit_peer(&peer);
+                            .add_explicit_peer(&peer.peer_id);
                     }
                 } else {
                     log::warn!("Kademlia: Query timed out with no closest peers.");

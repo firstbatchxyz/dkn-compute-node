@@ -36,15 +36,11 @@ impl DriaBehaviour {
 /// Configures the Kademlia DHT behavior for the node.
 #[inline]
 fn create_kademlia_behavior(local_peer_id: PeerId) -> kad::Behaviour<MemoryStore> {
-    use kad::{Behaviour, Caching, Config};
+    use kad::{Behaviour, Config};
 
     let mut cfg = Config::default();
     cfg.set_protocol_names(vec![DRIA_PROTO_NAME])
-        .set_query_timeout(Duration::from_secs(5 * 60))
-        .set_record_ttl(Some(Duration::from_secs(30)))
-        .set_replication_interval(None) // Disable replication
-        .set_caching(Caching::Disabled)
-        .set_publication_interval(None);
+        .set_query_timeout(Duration::from_secs(5 * 60));
 
     Behaviour::with_config(local_peer_id, MemoryStore::new(local_peer_id), cfg)
 }
@@ -87,9 +83,11 @@ fn create_gossipsub_behavior(id_keys: Keypair) -> gossipsub::Behaviour {
         Behaviour, ConfigBuilder, Message, MessageAuthenticity, MessageId, ValidationMode,
     };
 
-    /// Validation mode for gossipsub messages
-    /// Since we verify messages at app-level, we are okay with `None`.
-    const VALIDATION_MODE: ValidationMode = ValidationMode::None;
+    /// Message TTL in seconds
+    const MESSAGE_TTL: u64 = 100;
+
+    /// Message capacity for the gossipsub cache
+    const MESSAGE_CAPACITY: usize = 100;
 
     /// Max transmit size for payloads 256 KB
     const MAX_TRANSMIT_SIZE: usize = 262144;
@@ -105,12 +103,12 @@ fn create_gossipsub_behavior(id_keys: Keypair) -> gossipsub::Behaviour {
         MessageAuthenticity::Signed(id_keys),
         ConfigBuilder::default()
             .heartbeat_interval(Duration::from_secs(10))
-            .max_transmit_size(MAX_TRANSMIT_SIZE)
-            .validate_messages()
-            .validation_mode(VALIDATION_MODE)
+            .max_transmit_size(MAX_TRANSMIT_SIZE) // 256 KB
             .message_id_fn(message_id_fn)
+            .message_ttl(Duration::from_secs(MESSAGE_TTL))
+            .message_capacity(MESSAGE_CAPACITY)
             .build()
             .expect("Valid config"), // TODO: better error handling
     )
-    .expect("Valid behaviour") // TODO: better error handling
+        .expect("Valid behaviour") // TODO: better error handling
 }
