@@ -311,25 +311,21 @@ impl P2PClient {
                 .get_closest_peers(random_peer);
             self.peer_last_refreshed = tokio::time::Instant::now();
 
-            // print number of peers
+            // get peer count
             let gossipsub = &self.swarm.behaviour().gossipsub;
-
-            // print peers if the count has changed
             let num_peers = gossipsub.all_peers().count();
             let num_mesh_peers = gossipsub.all_mesh_peers().count();
+
+            // print peers if the count has changed
             if num_peers != self.peer_count.0 || num_mesh_peers != self.peer_count.1 {
                 self.peer_count = (num_peers, num_mesh_peers);
-                log::info!(
-                    "Peer Count (mesh / all): {} / {}",
-                    num_mesh_peers,
-                    num_peers
-                );
+                log::info!("Peer Count (mesh/all): {} / {}", num_mesh_peers, num_peers);
                 log::debug!(
                     "All Peers:\n{}",
                     gossipsub
                         .all_peers()
                         .enumerate()
-                        .map(|(i, (p, _))| format!("{:#3}: {}", i, p.to_string()))
+                        .map(|(i, (p, _))| format!("{:#3}: {}", i, p))
                         .collect::<Vec<_>>()
                         .join("\n")
                 );
@@ -338,7 +334,7 @@ impl P2PClient {
                     gossipsub
                         .all_mesh_peers()
                         .enumerate()
-                        .map(|(i, p)| format!("{:#3}: {}", i, p.to_string()))
+                        .map(|(i, p)| format!("{:#3}: {}", i, p))
                         .collect::<Vec<_>>()
                         .join("\n")
                 );

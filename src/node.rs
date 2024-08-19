@@ -148,11 +148,11 @@ impl DriaComputeNode {
                             // };
 
                             log::info!(
-                                "Received {} message ({})\nFrom:   {}\nOrigin: {:?}",
+                                "Received {} message ({})\nFrom:   {}\nOrigin: {}",
                                 topic_str,
                                 message_id,
                                 peer_id,
-                                source_peer_id
+                                source_peer_id.map(|p| p.to_string()).unwrap_or("None".to_string())
                             );
 
                             // ensure that message is from the static RPCs

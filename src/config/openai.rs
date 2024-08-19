@@ -25,14 +25,9 @@ struct OpenAIModelsResponse {
     object: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct OpenAIConfig {
     pub(crate) api_key: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct OpenAIError {
-    message: String,
 }
 
 impl OpenAIConfig {

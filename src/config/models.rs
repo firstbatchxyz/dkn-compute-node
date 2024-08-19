@@ -97,7 +97,7 @@ impl ModelConfig {
                 match result {
                     Ok(result) => Some(result),
                     Err(e) => {
-                        log::error!("Ignoring model: {}", e);
+                        log::debug!("Ignoring model: {}", e);
                         None
                     }
                 }
