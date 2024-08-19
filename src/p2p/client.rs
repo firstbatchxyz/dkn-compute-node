@@ -17,7 +17,8 @@ use super::{DriaBehaviour, DriaBehaviourEvent, DRIA_PROTO_NAME};
 pub struct P2PClient {
     swarm: Swarm<DriaBehaviour>,
     cancellation: CancellationToken,
-    peer_count: usize,
+    /// Peer count for (All, Mesh).
+    peer_count: (usize, usize),
     peer_last_refreshed: tokio::time::Instant,
 }
 
@@ -115,7 +116,7 @@ impl P2PClient {
         Ok(Self {
             swarm,
             cancellation,
-            peer_count: 0,
+            peer_count: (0, 0),
             peer_last_refreshed: tokio::time::Instant::now(),
         })
     }
@@ -194,37 +195,8 @@ impl P2PClient {
     /// When a message is received, it will be returned.
     pub async fn process_events(&mut self) -> Option<(PeerId, MessageId, Message)> {
         loop {
-            // do a random walk if it has been sometime since we last refreshed it
-            if self.peer_last_refreshed.elapsed() > Duration::from_secs(PEER_REFRESH_INTERVAL_SECS)
-            {
-                let random_peer = PeerId::random();
-                self.swarm
-                    .behaviour_mut()
-                    .kademlia
-                    .get_closest_peers(random_peer);
-                self.peer_last_refreshed = tokio::time::Instant::now();
-
-                // print number of peers
-                let latest_peers = self
-                    .swarm
-                    .behaviour()
-                    .gossipsub
-                    .all_peers()
-                    .collect::<Vec<_>>();
-
-                // print peers if the count has changed
-                if latest_peers.len() != self.peer_count {
-                    self.peer_count = latest_peers.len();
-                    log::info!("Peer Count: {}", latest_peers.len());
-                    log::debug!(
-                        "Peers: {:#?}",
-                        latest_peers
-                            .into_iter()
-                            .map(|(p, _)| p.to_string())
-                            .collect::<Vec<_>>()
-                    );
-                }
-            }
+            // refresh peers
+            self.refresh_peer_counts().await;
 
             // wait for next event
             tokio::select! {
@@ -320,6 +292,56 @@ impl P2PClient {
                 } else {
                     log::warn!("Kademlia: Query timed out with no closest peers.");
                 }
+            }
+        }
+    }
+
+    /// Does a random-walk over DHT and updates peer counts as needed.
+    /// Keeps track of the last time the peer count was refreshed.
+    ///
+    /// Should be called in a loop.
+    ///
+    /// Returns: (All Peer Count, Mesh Peer Count)
+    async fn refresh_peer_counts(&mut self) {
+        if self.peer_last_refreshed.elapsed() > Duration::from_secs(PEER_REFRESH_INTERVAL_SECS) {
+            let random_peer = PeerId::random();
+            self.swarm
+                .behaviour_mut()
+                .kademlia
+                .get_closest_peers(random_peer);
+            self.peer_last_refreshed = tokio::time::Instant::now();
+
+            // print number of peers
+            let gossipsub = &self.swarm.behaviour().gossipsub;
+
+            // print peers if the count has changed
+            let num_peers = gossipsub.all_peers().count();
+            let num_mesh_peers = gossipsub.all_mesh_peers().count();
+            if num_peers != self.peer_count.0 || num_mesh_peers != self.peer_count.1 {
+                self.peer_count = (num_peers, num_mesh_peers);
+                log::info!(
+                    "Peer Count (mesh / all): {} / {}",
+                    num_mesh_peers,
+                    num_peers
+                );
+                log::debug!(
+                    "All Peers:\n{}",
+                    gossipsub
+                        .all_peers()
+                        .enumerate()
+                        .map(|(i, (p, _))| format!("{:#3}: {}", i, p.to_string()))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                );
+                log::debug!(
+                    "Mesh Peers:\n{}",
+                    gossipsub
+                        .all_mesh_peers()
+                        .enumerate()
+                        .map(|(i, p)| format!("{:#3}: {}", i, p.to_string()))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                );
             }
         }
     }

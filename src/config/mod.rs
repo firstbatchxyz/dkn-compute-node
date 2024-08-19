@@ -1,11 +1,13 @@
 mod models;
 mod ollama;
+mod openai;
 
 use crate::utils::crypto::to_address;
 use libsecp256k1::{PublicKey, SecretKey};
 use models::ModelConfig;
 use ollama::OllamaConfig;
 use ollama_workflows::ModelProvider;
+use openai::OpenAIConfig;
 
 use std::env;
 
@@ -26,6 +28,8 @@ pub struct DriaComputeNodeConfig {
     /// Even if Ollama is not used, we store the host & port here.
     /// If Ollama is used, this config will be respected during its instantiations.
     pub ollama_config: OllamaConfig,
+    /// OpenAI API key & its service check implementation.
+    pub openai_config: OpenAIConfig,
 }
 
 /// The default P2P network listen address.
@@ -88,8 +92,6 @@ impl DriaComputeNodeConfig {
         let p2p_listen_addr =
             env::var("DKN_P2P_LISTEN_ADDR").unwrap_or(DEFAULT_P2P_LISTEN_ADDR.to_string());
 
-        let ollama_config = OllamaConfig::new();
-
         Self {
             admin_public_key,
             secret_key,
@@ -97,7 +99,8 @@ impl DriaComputeNodeConfig {
             address,
             model_config,
             p2p_listen_addr,
-            ollama_config,
+            ollama_config: OllamaConfig::new(),
+            openai_config: OpenAIConfig::new(),
         }
     }
 
@@ -120,12 +123,12 @@ impl DriaComputeNodeConfig {
 
         // if OpenAI is a provider, check that the API key is set
         if unique_providers.contains(&ModelProvider::OpenAI) {
-            log::info!("Checking OpenAI requirements");
-            const OPENAI_API_KEY: &str = "OPENAI_API_KEY";
-
-            if std::env::var(OPENAI_API_KEY).is_err() {
-                return Err("OpenAI API key not found".into());
-            }
+            let openai_models = self
+                .model_config
+                .get_models_for_provider(ModelProvider::OpenAI);
+            self.openai_config
+                .check(openai_models.into_iter().map(|m| m.to_string()).collect())
+                .await?;
         }
 
         Ok(())

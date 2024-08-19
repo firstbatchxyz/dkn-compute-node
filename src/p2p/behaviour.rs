@@ -36,12 +36,17 @@ impl DriaBehaviour {
 /// Configures the Kademlia DHT behavior for the node.
 #[inline]
 fn create_kademlia_behavior(local_peer_id: PeerId) -> kad::Behaviour<MemoryStore> {
-    use kad::{Behaviour, Config};
+    use kad::{Behaviour, Caching, Config};
 
-    const QUERY_TIMEOUT_SECS: u64 = 5 * 60; // 5 minutes
+    const QUERY_TIMEOUT_SECS: u64 = 5 * 60;
+    const RECORD_TTL_SECS: u64 = 30;
 
     let mut cfg = Config::new(DRIA_PROTO_NAME);
-    cfg.set_query_timeout(Duration::from_secs(QUERY_TIMEOUT_SECS));
+    cfg.set_query_timeout(Duration::from_secs(QUERY_TIMEOUT_SECS))
+        .set_record_ttl(Some(Duration::from_secs(RECORD_TTL_SECS)))
+        .set_replication_interval(None)
+        .set_caching(Caching::Disabled)
+        .set_publication_interval(None);
 
     Behaviour::with_config(local_peer_id, MemoryStore::new(local_peer_id), cfg)
 }
@@ -83,13 +88,20 @@ fn create_gossipsub_behavior(id_keys: Keypair) -> gossipsub::Behaviour {
     use gossipsub::{Behaviour, ConfigBuilder, Message, MessageAuthenticity, MessageId};
 
     /// Message TTL in seconds
-    const MESSAGE_TTL: u64 = 100;
+    const MESSAGE_TTL_SECS: u64 = 100;
+
+    /// Gossip cache TTL in seconds
+    const GOSSIP_TTL_SECS: u64 = 100;
 
     /// Message capacity for the gossipsub cache
     const MESSAGE_CAPACITY: usize = 100;
 
     /// Max transmit size for payloads 256 KB
     const MAX_TRANSMIT_SIZE: usize = 262144;
+
+    /// Max IHAVE length, this is much lower than the default
+    /// because we don't need historic messages at all
+    const MAX_IHAVE_LENGTH: usize = 100;
 
     // message id's are simply hashes of the message data
     let message_id_fn = |message: &Message| {
@@ -104,9 +116,10 @@ fn create_gossipsub_behavior(id_keys: Keypair) -> gossipsub::Behaviour {
             .heartbeat_interval(Duration::from_secs(10))
             .max_transmit_size(MAX_TRANSMIT_SIZE) // 256 KB
             .message_id_fn(message_id_fn)
-            .message_ttl(Duration::from_secs(MESSAGE_TTL))
+            .message_ttl(Duration::from_secs(MESSAGE_TTL_SECS))
+            .gossip_ttl(Duration::from_secs(GOSSIP_TTL_SECS))
             .message_capacity(MESSAGE_CAPACITY)
-            .max_ihave_length(100)
+            .max_ihave_length(MAX_IHAVE_LENGTH)
             .build()
             .expect("Valid config"), // TODO: better error handling
     )
