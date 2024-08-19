@@ -136,7 +136,7 @@ impl DriaComputeNode {
                         // handle message w.r.t topic
                         if std::matches!(topic_str, PINGPONG_LISTEN_TOPIC | WORKFLOW_LISTEN_TOPIC) {
                             // ensure that the message is from a valid source (origin)
-                            let source_peer_id = message.source.clone();
+                            let source_peer_id = message.source;
                             // let source_peer_id = match message.source.clone() {
                             //     Some(peer) => peer,
                             //     None => {

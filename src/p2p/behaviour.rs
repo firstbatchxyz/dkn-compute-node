@@ -38,9 +38,10 @@ impl DriaBehaviour {
 fn create_kademlia_behavior(local_peer_id: PeerId) -> kad::Behaviour<MemoryStore> {
     use kad::{Behaviour, Config};
 
-    let mut cfg = Config::default();
-    cfg.set_protocol_names(vec![DRIA_PROTO_NAME])
-        .set_query_timeout(Duration::from_secs(5 * 60));
+    const QUERY_TIMEOUT_SECS: u64 = 5 * 60; // 5 minutes
+
+    let mut cfg = Config::new(DRIA_PROTO_NAME);
+    cfg.set_query_timeout(Duration::from_secs(QUERY_TIMEOUT_SECS));
 
     Behaviour::with_config(local_peer_id, MemoryStore::new(local_peer_id), cfg)
 }
@@ -79,9 +80,7 @@ fn create_autonat_behavior(key: PublicKey) -> autonat::Behaviour {
 /// Configures the Gossipsub behavior for pub/sub messaging across peers.
 #[inline]
 fn create_gossipsub_behavior(id_keys: Keypair) -> gossipsub::Behaviour {
-    use gossipsub::{
-        Behaviour, ConfigBuilder, Message, MessageAuthenticity, MessageId, ValidationMode,
-    };
+    use gossipsub::{Behaviour, ConfigBuilder, Message, MessageAuthenticity, MessageId};
 
     /// Message TTL in seconds
     const MESSAGE_TTL: u64 = 100;
@@ -107,8 +106,9 @@ fn create_gossipsub_behavior(id_keys: Keypair) -> gossipsub::Behaviour {
             .message_id_fn(message_id_fn)
             .message_ttl(Duration::from_secs(MESSAGE_TTL))
             .message_capacity(MESSAGE_CAPACITY)
+            .max_ihave_length(100)
             .build()
             .expect("Valid config"), // TODO: better error handling
     )
-        .expect("Valid behaviour") // TODO: better error handling
+    .expect("Valid behaviour") // TODO: better error handling
 }

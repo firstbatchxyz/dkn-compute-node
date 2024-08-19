@@ -1,6 +1,6 @@
 [package]
 name = "dkn-compute"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 license = "Apache-2.0"
 readme = "README.md"
@@ -19,6 +19,7 @@ async-trait = "0.1.81"
 reqwest = "0.12.5"
 
 # utilities
+dotenvy = "0.15.7"
 base64 = "0.22.0"
 hex = "0.4.3"
 hex-literal = "0.4.1"
@@ -42,14 +43,30 @@ fastbloom-rs = "0.5.9"
 ollama-workflows = { git = "https://github.com/andthattoo/ollama-workflows", rev = "25467d2" }
 
 # peer-to-peer
-libp2p = { git = "https://github.com/anilaltuner/rust-libp2p.git", rev = "eb0e57b", features = ["dcutr", "ping", "relay", "autonat", "identify", "tokio", "gossipsub", "mdns", "noise", "macros", "tcp", "yamux", "quic", "kad"] }
+libp2p = { git = "https://github.com/anilaltuner/rust-libp2p.git", rev = "84b6d6f", features = [
+    "dcutr",
+    "ping",
+    "relay",
+    "autonat",
+    "identify",
+    "tokio",
+    "gossipsub",
+    "mdns",
+    "noise",
+    "macros",
+    "tcp",
+    "yamux",
+    "quic",
+    "kad",
+] }
 
 libp2p-identity = { version = "0.2.9", features = ["secp256k1", "ed25519"] }
 tracing = { version = "0.1.40" }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 public-ip = "0.2.2"
-dotenvy = "0.15.7"
-getrandom = "0.2.15"
+
+# TODO: solves ecies dependency issue
+# getrandom = "0.2.15"
 
 
 [dev-dependencies]

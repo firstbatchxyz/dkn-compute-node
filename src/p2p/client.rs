@@ -42,7 +42,7 @@ impl P2PClient {
         let mut swarm = SwarmBuilder::with_existing_identity(keypair)
             .with_tokio()
             .with_tcp(
-                tcp::Config::default().port_reuse(true),
+                tcp::Config::default(),
                 noise::Config::new,
                 yamux::Config::default,
             )
@@ -237,7 +237,8 @@ impl P2PClient {
                     )) => self.handle_closest_peers_result(result),
                     SwarmEvent::Behaviour(DriaBehaviourEvent::Identify(identify::Event::Received {
                         peer_id,
-                        info, connection_id
+                        info,
+                        ..
                     })) => self.handle_identify_event(peer_id, info),
                     SwarmEvent::Behaviour(DriaBehaviourEvent::Gossipsub(gossipsub::Event::Message {
                         propagation_source: peer_id,
