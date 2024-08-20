@@ -89,8 +89,9 @@ impl DriaComputeNodeConfig {
         }
         log::info!("Models: {}", model_config);
 
-        let p2p_listen_addr =
-            env::var("DKN_P2P_LISTEN_ADDR").unwrap_or(DEFAULT_P2P_LISTEN_ADDR.to_string());
+        let p2p_listen_addr = env::var("DKN_P2P_LISTEN_ADDR")
+            .map(|addr| addr.trim_matches('"').to_string())
+            .unwrap_or(DEFAULT_P2P_LISTEN_ADDR.to_string());
 
         Self {
             admin_public_key,
