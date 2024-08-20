@@ -1,6 +1,6 @@
-use tokio_util::sync::CancellationToken;
-
 use dkn_compute::{DriaComputeNode, DriaComputeNodeConfig};
+use tokio::signal::unix::{signal, SignalKind};
+use tokio_util::sync::CancellationToken;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -13,7 +13,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
     log::info!(
         "Initializing Dria Compute Node (version {})",
-        dkn_compute::VERSION
+        dkn_compute::DRIA_COMPUTE_NODE_VERSION
     );
 
     // create configurations & check required services
@@ -23,12 +23,58 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         panic!("Service check failed.")
     }
 
+    let token = CancellationToken::new();
+
     // launch the node
-    let mut node = DriaComputeNode::new(config, CancellationToken::new()).await?;
-    if let Err(err) = node.launch().await {
-        log::error!("Node error: {}", err);
-        panic!("Node failed.")
+    let node_token = token.clone();
+    let node_handle = tokio::spawn(async move {
+        match DriaComputeNode::new(config, node_token).await {
+            Ok(mut node) => {
+                if let Err(err) = node.launch().await {
+                    log::error!("Node launch error: {}", err);
+                    panic!("Node failed.")
+                };
+            }
+            Err(err) => {
+                log::error!("Node setup error: {}", err);
+                panic!("Could not setup node.")
+            }
+        }
+    });
+
+    // add cancellation check
+    tokio::spawn(async move {
+        if let Err(err) = wait_for_termination(token.clone()).await {
+            log::error!("Error waiting for termination: {}", err);
+            log::error!("Cancelling due to unexpected error.");
+            token.cancel();
+        };
+    });
+
+    // wait for tasks to complete
+    if let Err(err) = node_handle.await {
+        log::error!("Node handle error: {}", err);
+        panic!("Could not exit Node thread handle.");
     };
 
+    Ok(())
+}
+
+/// Waits for SIGTERM or SIGINT, and cancels the given token when the signal is received.
+async fn wait_for_termination(cancellation: CancellationToken) -> std::io::Result<()> {
+    let mut sigterm = signal(SignalKind::terminate())?; // Docker sends SIGTERM
+    let mut sigint = signal(SignalKind::interrupt())?; // Ctrl+C sends SIGINT
+    tokio::select! {
+        _ = sigterm.recv() => log::warn!("Recieved SIGTERM"),
+        _ = sigint.recv() => log::warn!("Recieved SIGINT"),
+        _ = cancellation.cancelled() => {
+            // no need to wait if cancelled anyways
+            // although this is not likely to happen
+            return Ok(());
+        }
+    };
+
+    log::info!("Terminating the node...");
+    cancellation.cancel();
     Ok(())
 }
