@@ -10,7 +10,7 @@ pub(crate) mod utils;
 
 /// Crate version of the compute node.
 /// This value is attached within the published messages.
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const DRIA_COMPUTE_NODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub use config::DriaComputeNodeConfig;
 pub use node::DriaComputeNode;

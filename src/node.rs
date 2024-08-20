@@ -1,7 +1,5 @@
-use std::{str::FromStr, time::Duration};
-
 use libp2p::{gossipsub, Multiaddr};
-use tokio::signal::unix::{signal, SignalKind};
+use std::{str::FromStr, time::Duration};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -217,7 +215,7 @@ impl DriaComputeNode {
 
                     }
                 },
-                _ = wait_for_termination(self.cancellation.clone()) => break,
+                _ = self.cancellation.cancelled() => break,
             }
         }
 
@@ -271,24 +269,6 @@ impl DriaComputeNode {
 
         self.publish(message)
     }
-}
-
-/// Waits for SIGTERM or SIGINT, and cancels the given token when the signal is received.
-async fn wait_for_termination(cancellation: CancellationToken) -> std::io::Result<()> {
-    let mut sigterm = signal(SignalKind::terminate())?; // Docker sends SIGTERM
-    let mut sigint = signal(SignalKind::interrupt())?; // Ctrl+C sends SIGINT
-    tokio::select! {
-        _ = sigterm.recv() => log::warn!("Recieved SIGTERM"),
-        _ = sigint.recv() => log::warn!("Recieved SIGINT"),
-        _ = cancellation.cancelled() => {
-            // no need to wait if cancelled anyways
-            return Ok(());
-        }
-    };
-
-    log::info!("Terminating the node...");
-    cancellation.cancel();
-    Ok(())
 }
 
 #[cfg(test)]

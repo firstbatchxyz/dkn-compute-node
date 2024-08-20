@@ -39,7 +39,7 @@ impl P2PMessage {
         Self {
             payload: BASE64_STANDARD.encode(payload),
             topic: topic.to_string(),
-            version: crate::VERSION.to_string(),
+            version: crate::DRIA_COMPUTE_NODE_VERSION.to_string(),
             timestamp: get_current_time_nanos(),
         }
     }
@@ -197,7 +197,7 @@ mod tests {
             "{\"hello\":\"world\"}"
         );
         assert_eq!(message.topic, "test-topic");
-        assert_eq!(message.version, crate::VERSION);
+        assert_eq!(message.version, crate::DRIA_COMPUTE_NODE_VERSION);
         assert!(message.timestamp > 0);
 
         let parsed_body = message.parse_payload(false).expect("Should decode");
@@ -224,7 +224,7 @@ mod tests {
             "{\"hello\":\"world\"}"
         );
         assert_eq!(message.topic, "test-topic");
-        assert_eq!(message.version, crate::VERSION);
+        assert_eq!(message.version, crate::DRIA_COMPUTE_NODE_VERSION);
         assert!(message.timestamp > 0);
 
         assert!(message.is_signed(&pk).expect("Should check signature"));
