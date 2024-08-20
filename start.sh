@@ -297,7 +297,8 @@ COMPOSE_DOWN="${COMPOSE_PROFILES} ${COMPUTE_ENVS} ${OLLAMA_ENVS} ${COMPOSE_COMMA
 echo ""
 echo "Starting in ${START_MODE} mode..."
 echo "Log level: ${RUST_LOG}"
-echo "Using models: ${DKN_MODELS}"
+echo "Models: ${DKN_MODELS}"
+echo "${COMPOSE_PROFILES}"
 echo ""
 eval "${COMPOSE_UP}"
 

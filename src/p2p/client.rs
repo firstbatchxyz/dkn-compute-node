@@ -237,7 +237,7 @@ impl P2PClient {
         for addr in info.listen_addrs {
             if protocol_match {
                 // if it matches our protocol, add it to the Kademlia routing table
-                log::info!("Identify: Received address {}. PeerID is {}", addr, peer_id);
+                log::info!("Identify: Peer {} identified at {}", peer_id, addr);
 
                 self.swarm
                     .behaviour_mut()

@@ -136,31 +136,30 @@ impl DriaComputeNode {
                         // handle message w.r.t topic
                         if std::matches!(topic_str, PINGPONG_LISTEN_TOPIC | WORKFLOW_LISTEN_TOPIC) {
                             // ensure that the message is from a valid source (origin)
-                            let source_peer_id = message.source;
-                            // let source_peer_id = match message.source.clone() {
-                            //     Some(peer) => peer,
-                            //     None => {
-                            //         log::warn!("Received {} message from {} without source.", topic_str, peer_id);
-                            //         log::debug!("Allowed sources: {:#?}", self.available_nodes.rpc_nodes);
-                            //         self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore)?;
-                            //         continue;
-                            //     }
-                            // };
+                            let source_peer_id = match message.source.clone() {
+                                Some(peer) => peer,
+                                None => {
+                                    log::warn!("Received {} message from {} without source.", topic_str, peer_id);
+                                    self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore)?;
+                                    continue;
+                                }
+                            };
 
                             log::info!(
-                                "Received {} message ({})\nFrom:   {}\nOrigin: {}",
+                                "Received {} message ({})\nFrom:   {}\nSource: {}",
                                 topic_str,
                                 message_id,
                                 peer_id,
-                                source_peer_id.map(|p| p.to_string()).unwrap_or("None".to_string())
+                                source_peer_id
                             );
 
                             // ensure that message is from the static RPCs
-                            // if !self.available_nodes.rpc_nodes.contains(&source_peer_id) {
-                            //     log::warn!("Received message from unauthorized origin: {}", source_peer_id);
-                            //     self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore)?;
-                            //     continue;
-                            // }
+                            if !self.available_nodes.rpc_nodes.contains(&source_peer_id) {
+                                log::warn!("Received message from unauthorized source: {}", source_peer_id);
+                                log::debug!("Allowed sources: {:#?}", self.available_nodes.rpc_nodes);
+                                self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore)?;
+                                continue;
+                            }
 
                             // first, parse the raw gossipsub message to a prepared message
                             // if unparseable,

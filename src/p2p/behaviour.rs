@@ -56,6 +56,7 @@ fn create_kademlia_behavior(local_peer_id: PeerId) -> kad::Behaviour<MemoryStore
 fn create_identify_behavior(local_public_key: PublicKey) -> identify::Behaviour {
     use identify::{Behaviour, Config};
 
+    // TODO: can we use a different protocol version, e.g. `dria/CRATE_VERSION`
     let cfg = Config::new(DRIA_PROTO_NAME.to_string(), local_public_key);
 
     Behaviour::new(cfg)
