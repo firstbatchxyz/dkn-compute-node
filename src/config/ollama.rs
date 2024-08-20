@@ -38,7 +38,9 @@ impl OllamaConfig {
     ///
     /// If not found, defaults to `DEFAULT_OLLAMA_HOST` and `DEFAULT_OLLAMA_PORT`.
     pub fn new() -> Self {
-        let host = std::env::var("OLLAMA_HOST").unwrap_or(DEFAULT_OLLAMA_HOST.to_string());
+        let host = std::env::var("OLLAMA_HOST")
+            .map(|h| h.trim_matches('"').to_string())
+            .unwrap_or(DEFAULT_OLLAMA_HOST.to_string());
         let port = std::env::var("OLLAMA_PORT")
             .and_then(|port_str| port_str.parse().map_err(|_| std::env::VarError::NotPresent))
             .unwrap_or(DEFAULT_OLLAMA_PORT);
@@ -66,7 +68,7 @@ impl OllamaConfig {
             if self.auto_pull { "on" } else { "off" }
         );
 
-        let ollama = Ollama::new(self.host.trim_matches('"'), self.port);
+        let ollama = Ollama::new(&self.host, self.port);
 
         // the list of required models is those given in DKN_MODELS and the hardcoded ones
         let mut required_models = self.hardcoded_models.clone();
