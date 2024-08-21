@@ -235,7 +235,7 @@ handle_ollama_env() {
                 eval "ollama serve >/dev/null 2>&1 &"
                 OLLAMA_HOST=$temp_ollama_host
                 
-                # we grab the PID of Ollama
+                # grab the PID of Ollama
                 temp_pid=$!
 
                 # Loop until the server responds with HTTP 200 or the retry limit is reached
@@ -328,10 +328,10 @@ echo "Log level: ${RUST_LOG}"
 echo "Models: ${DKN_MODELS}"
 echo "Operating System: ${OS}"
 echo "${COMPOSE_PROFILES}"
-echo "${COMPUTE_ENVS}"
 echo ""
 eval "${COMPOSE_UP}"
 
+# grap the exit code of docker compose
 compose_exit_code=$?
 
 # handle docker-compose error
@@ -342,6 +342,7 @@ if [ $compose_exit_code -ne 0 ]; then
 fi
 
 echo "All good! Compute node is up and running."
+echo "You can check logs with: docker compose logs -f compute"
 
 # background/foreground mode
 if [ "$START_MODE" = "FOREGROUND" ]; then
