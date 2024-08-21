@@ -21,8 +21,6 @@ services:
     extra_hosts:
       # for Linux, we need to add this line manually
       - "host.docker.internal:host-gateway"
-    ports:
-      - 4001:4001
     restart: "on-failure"
 
   # Ollama Container (CPU)
