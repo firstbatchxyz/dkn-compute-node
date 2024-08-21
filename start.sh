@@ -156,6 +156,7 @@ handle_compute_env() {
         ANTHROPIC_API_KEY
         RUST_LOG
         DKN_MODELS
+        DKN_DOCKER_NETWORK_MODE
     "
     as_pairs $compute_env_vars  > /dev/null 2>&1
 
@@ -327,6 +328,7 @@ echo "Log level: ${RUST_LOG}"
 echo "Models: ${DKN_MODELS}"
 echo "Operating System: ${OS}"
 echo "${COMPOSE_PROFILES}"
+echo "${COMPUTE_ENVS}"
 echo ""
 eval "${COMPOSE_UP}"
 
