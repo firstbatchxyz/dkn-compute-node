@@ -36,18 +36,21 @@ check_docker_compose() {
 }
 check_docker_compose
 
+# check the operating system
+# this is required in case local Ollama is used
+# reference: https://stackoverflow.com/a/68706298
 OS=""
 check_os() {
     unameOut=$(uname -a)
     case "${unameOut}" in
-        *Microsoft*)     OS="WSL";; #must be first since Windows subsystem for linux will have Linux in the name too
-        *microsoft*)     OS="WSL2";; #WARNING: My v2 uses ubuntu 20.4 at the moment slightly different name may not always work
-        Linux*)     OS="Linux";;
-        Darwin*)    OS="Mac";;
-        CYGWIN*)    OS="Cygwin";;
-        MINGW*)     OS="Windows";;
-        *Msys)     OS="Windows";;
-        *)          OS="UNKNOWN:${unameOut}"
+        *Microsoft*)   OS="WSL";; # must be first since WSL will have Linux in the name too
+        *microsoft*)   OS="WSL2";; #WARNING: My v2 uses Ubuntu 20.4 at the moment slightly different name may not always work
+        Linux*)        OS="Linux";;
+        Darwin*)       OS="Mac";;
+        CYGWIN*)       OS="Cygwin";;
+        MINGW*)        OS="Windows";;
+        *Msys)         OS="Windows";;
+        *)             OS="UNKNOWN:${unameOut}"
     esac
 }
 check_os
@@ -71,6 +74,11 @@ MODELS_LIST=""
 LOCAL_OLLAMA_PID=""
 DOCKER_HOST="http://host.docker.internal"
 
+# this is the default network mode, but
+# based on local Ollama & OS we may set it to `host`
+# https://docs.docker.com/engine/network/#drivers
+DKN_DOCKER_NETWORK_MODE=bridge
+
 # handle command line arguments
 while [ "$#" -gt 0 ]; do
     case $1 in
@@ -90,13 +98,18 @@ while [ "$#" -gt 0 ]; do
         --trace)
             RUST_LOG="none,dkn_compute=trace"
         ;;
+
         -b|--background) START_MODE="BACKGROUND" ;;
+        
         -h|--help) docs ;;
+        
         *) echo "ERROR: Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
 done
 
+# check required environment variables
+# we only need the secret key & admin public key
 check_required_env_vars() {
     required_vars="
         DKN_WALLET_SECRET_KEY
@@ -163,6 +176,7 @@ handle_ollama_env() {
         OLLAMA_PORT
         OLLAMA_AUTO_PULL
     "
+    # loads env variables (TODO: !) 
     as_pairs "$ollama_env_vars" > /dev/null 2>&1
 
     # if there is no ollama model given, do not add any ollama compose profile
@@ -178,7 +192,10 @@ handle_ollama_env() {
         return
     fi
 
-    # check local ollama
+    # check local ollama first
+    # if it can be found, try launching it & configure network to be able to connect to localhost
+    # if not, use the docker ollama image
+    # if the user explicitly wants to use the docker ollama image, this condition skips the local checks
     if [ "$DOCKER_OLLAMA" = false ]; then
         if command -v ollama >/dev/null 2>&1; then
             # host machine has ollama installed
@@ -203,10 +220,11 @@ handle_ollama_env() {
                 curl -s -o /dev/null -w "%{http_code}" ${ollama_url}
             }
 
+            # check if ollama is already running
             if [ "$(check_ollama_server)" -eq 200 ]; then
                 echo "Local Ollama is already up at $ollama_url and running, using it"
-                # Using already running local Ollama
             else
+                # ollama is not live, so we launch it ourselves
                 echo "Local Ollama is not live, running ollama serve"
 
                 # `ollama serve` uses `OLLAMA_HOST` variable with both host and port,
@@ -228,6 +246,7 @@ handle_ollama_env() {
                     RETRY_COUNT=$((RETRY_COUNT + 1))
                 done
 
+                # exit with error if we couldnt launch Ollama
                 if [ "$RETRY_COUNT" -ge "$MAX_RETRIES" ]; then
                     echo "Local Ollama server failed to start after $MAX_RETRIES attempts."
                     echo "You can use the --docker-ollama flag to use the Docker Ollama image instead."
@@ -235,44 +254,52 @@ handle_ollama_env() {
                 else
                     LOCAL_OLLAMA_PID=$temp_pid
                     echo "Local Ollama server is up at $ollama_url and running with PID $LOCAL_OLLAMA_PID"
-                    # Using local ollama
                 fi
             fi
-            # Depending on the host os, use localhost or host.docker.internal for Ollama host
-            if [ "$OS" = "Mac" ]; then
-                OLLAMA_HOST="http://host.docker.internal"
-            elif [ "$OS" = "Linux" ]; then
+
+            # to use the local Ollama, we need to configure the network depending on the Host
+            # Windows and Mac should work with host.docker.internal alright,
+            # but Linux requires `host` network mode with `localhost` as the Host URL
+            if [ "$OS" = "Linux" ]; then
                 OLLAMA_HOST="http://localhost"
+                DKN_DOCKER_NETWORK_MODE=host
+            else
+                OLLAMA_HOST="http://host.docker.internal"
             fi
-            return
         else
+            # although --docker-ollama was not passed, we checked and couldnt find Ollama
+            # so we will use Docker anyways
+            echo "Ollama is not installed on this machine, will use Docker Ollama service"
             DOCKER_OLLAMA=true
-            echo "Ollama is not installed on this machine, using the Docker ollama instead"
         fi
     fi
 
-    # check for cuda gpu
-    if command -v nvidia-smi >/dev/null 2>&1; then
-        if nvidia-smi >/dev/null 2>&1; then
-            echo "GPU type detected: CUDA"
-            COMPOSE_PROFILES="$COMPOSE_PROFILES ollama-cuda"
-            return
-        fi
+    # this is in a separate if condition rather than `else`, due to a fallback condition above
+    if [ "$DOCKER_OLLAMA" = true ]; then
+        # check for cuda gpu
+        if command -v nvidia-smi >/dev/null 2>&1; then
+            if nvidia-smi >/dev/null 2>&1; then
+                echo "GPU type detected: CUDA"
+                COMPOSE_PROFILES="$COMPOSE_PROFILES ollama-cuda"
+            fi
+        # check for rocm gpu
+        elif command -v rocminfo >/dev/null 2>&1; then
+            if rocminfo >/dev/null 2>&1; then
+                echo "GPU type detected: ROCM"
+                COMPOSE_PROFILES="$COMPOSE_PROFILES ollama-rocm"
+            fi
+        # otherwise, fallback to cpu
+        else
+            echo "No GPU detected, using CPU"
+            COMPOSE_PROFILES="$COMPOSE_PROFILES ollama-cpu"    
+        fi 
+
+        # use docker internal for the Ollama host
+        OLLAMA_HOST=$DOCKER_HOST
+        DKN_DOCKER_NETWORK_MODE=bridge
     fi
 
-    # check for rocm gpu
-    if command -v rocminfo >/dev/null 2>&1; then
-        if rocminfo >/dev/null 2>&1; then
-            echo "GPU type detected: ROCM"
-            COMPOSE_PROFILES="$COMPOSE_PROFILES ollama-rocm"
-            return
-        fi
-    fi
-
-    # if there are no local ollama and gpu, use docker-compose with cpu profile
-    echo "No GPU found, using ollama-cpu"
-    COMPOSE_PROFILES="$COMPOSE_PROFILES ollama-cpu"
-    OLLAMA_HOST=$DOCKER_HOST
+    echo "Ollama host: $OLLAMA_HOST (network mode: $DKN_DOCKER_NETWORK_MODE)"
 }
 handle_ollama_env
 
@@ -298,6 +325,7 @@ echo ""
 echo "Starting in ${START_MODE} mode..."
 echo "Log level: ${RUST_LOG}"
 echo "Models: ${DKN_MODELS}"
+echo "Operating System: ${OS}"
 echo "${COMPOSE_PROFILES}"
 echo ""
 eval "${COMPOSE_UP}"
