@@ -19,7 +19,7 @@ debug:
 
 .PHONY: trace #        | Run with crate-level TRACE logging
 trace:
-		RUST_LOG=none,dkn_compute=trace cargo run
+		RUST_LOG=none,dkn_compute=trace,libp2p=debug cargo run
 
 .PHONY: build #        | Build
 build:

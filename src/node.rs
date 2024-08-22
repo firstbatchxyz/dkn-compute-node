@@ -54,7 +54,7 @@ impl DriaComputeNode {
             )
             .sort_dedup();
 
-        let p2p = P2PClient::new(keypair, listen_addr, &available_nodes, cancellation.clone())?;
+        let p2p = P2PClient::new(keypair, listen_addr, &available_nodes)?;
 
         Ok(DriaComputeNode {
             config,
@@ -187,11 +187,7 @@ impl DriaComputeNode {
                             // validate the message based on the result
                             match handle_result {
                                 Ok(acceptance) => {
-                                    log::debug!(
-                                        "Validating message ({}): {:?}",
-                                        message_id,
-                                        acceptance
-                                    );
+
                                     self.p2p.validate_message(&message_id, &peer_id, acceptance)?;
                                 },
                                 Err(err) => {

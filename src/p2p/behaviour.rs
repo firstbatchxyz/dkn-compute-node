@@ -26,8 +26,8 @@ impl DriaBehaviour {
             relay: relay_behavior,
             gossipsub: create_gossipsub_behavior(key.clone()),
             kademlia: create_kademlia_behavior(peer_id),
-            identify: create_identify_behavior(public_key.clone()),
-            autonat: create_autonat_behavior(public_key),
+            autonat: create_autonat_behavior(peer_id),
+            identify: create_identify_behavior(public_key),
             dcutr: create_dcutr_behavior(peer_id),
         }
     }
@@ -71,11 +71,11 @@ fn create_dcutr_behavior(local_peer_id: PeerId) -> dcutr::Behaviour {
 
 /// Configures the Autonat behavior to assist in network address translation detection.
 #[inline]
-fn create_autonat_behavior(key: PublicKey) -> autonat::Behaviour {
+fn create_autonat_behavior(local_peer_id: PeerId) -> autonat::Behaviour {
     use autonat::{Behaviour, Config};
 
     Behaviour::new(
-        key.to_peer_id(),
+        local_peer_id,
         Config {
             only_global_ips: false,
             ..Default::default()
