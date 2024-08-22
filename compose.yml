@@ -1,19 +1,22 @@
 services:
   # Compute Node
   compute:
-    image: "firstbatch/dkn-compute-node:latest"
-    # build: "./" # use this one instead if you want to build locally
+    # image: "firstbatch/dkn-compute-node:latest"
+    build: "./" # use this one instead if you want to build locally
     environment:
+      # Dria
       DKN_WALLET_SECRET_KEY: ${DKN_WALLET_SECRET_KEY}
       DKN_ADMIN_PUBLIC_KEY: ${DKN_ADMIN_PUBLIC_KEY}
       DKN_MODELS: ${DKN_MODELS}
-      RUST_LOG: ${RUST_LOG-none,dkn_compute=info}
       DKN_P2P_LISTEN_ADDR: ${DKN_P2P_LISTEN_ADDR}
       DKN_RELAY_NODES: ${DKN_RELAY_NODES}
       DKN_BOOTSTRAP_NODES: ${DKN_BOOTSTRAP_NODES}
+      RUST_LOG: ${RUST_LOG:-none,dkn_compute=info}
+      # Api Keys
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       SERPER_API_KEY: ${SERPER_API_KEY}
       JINA_API_KEY: ${JINA_API_KEY}
+      # Ollama
       OLLAMA_HOST: ${OLLAMA_HOST}
       OLLAMA_PORT: ${OLLAMA_PORT}
       OLLAMA_AUTO_PULL: ${OLLAMA_AUTO_PULL:-true}
