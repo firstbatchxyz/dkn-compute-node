@@ -1,5 +1,4 @@
 use dkn_compute::{DriaComputeNode, DriaComputeNodeConfig};
-use tokio::signal::unix::{signal, SignalKind};
 use tokio_util::sync::CancellationToken;
 
 #[tokio::main]
@@ -42,8 +41,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    // TODO: add auto-cancel for profiling
+
     // add cancellation check
     tokio::spawn(async move {
+        #[cfg(feature = "profiling")]
+        {
+            tokio::time::sleep(tokio::time::Duration::from_secs(120)).await;
+            token.cancel();
+        }
+
+        #[cfg(not(feature = "profiling"))]
         if let Err(err) = wait_for_termination(token.clone()).await {
             log::error!("Error waiting for termination: {}", err);
             log::error!("Cancelling due to unexpected error.");
@@ -61,7 +69,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Waits for SIGTERM or SIGINT, and cancels the given token when the signal is received.
+#[cfg(not(feature = "profiling"))]
 async fn wait_for_termination(cancellation: CancellationToken) -> std::io::Result<()> {
+    use tokio::signal::unix::{signal, SignalKind};
+
     let mut sigterm = signal(SignalKind::terminate())?; // Docker sends SIGTERM
     let mut sigint = signal(SignalKind::interrupt())?; // Ctrl+C sends SIGINT
     tokio::select! {

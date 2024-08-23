@@ -164,6 +164,8 @@ Based on the resources of your machine, you must decide which models that you wi
 - `phi3:14b-medium-128k-instruct-q4_1`
 - `phi3:3.8b`
 - `llama3.1:latest`
+- `phi3.5:3.8b`
+- `phi3.5:3.8b-mini-instruct-fp16`
 
 #### OpenAI Models
 
@@ -338,17 +340,21 @@ make format # rustfmt
 
 ### Profiling
 
-To create a flamegraph of the application, do:
+We would like to profile both CPU and Memory usage.
+
+To create a [flamegraph](https://crates.io/crates/flamegraph) of the application, do:
 
 ```sh
-make profile
+make profile-cpu
 ```
 
 This will create a profiling build that inherits `release` mode, except with debug information.
 
+To profile memory usage, we make use of [cargo-instruments](https://crates.io/crates/cargo-instruments).
+
 > [!NOTE]
 >
-> Profiling requires superuser access.
+> CPU profiling may require super-user access.
 
 ## License
 

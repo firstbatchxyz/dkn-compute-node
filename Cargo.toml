@@ -10,6 +10,9 @@ readme = "README.md"
 inherits = "release"
 debug = true
 
+[features]
+profiling = []
+
 [dependencies]
 tokio-util = { version = "0.7.10", features = ["rt"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
@@ -41,7 +44,7 @@ sha3 = "0.10.8"
 fastbloom-rs = "0.5.9"
 
 # workflows
-ollama-workflows = { git = "https://github.com/andthattoo/ollama-workflows", rev = "25467d2" }
+ollama-workflows = { git = "https://github.com/andthattoo/ollama-workflows", rev = "d6b2e1e" }
 
 # peer-to-peer
 libp2p = { git = "https://github.com/anilaltuner/rust-libp2p.git", rev = "be2ed55", features = [
@@ -64,7 +67,6 @@ libp2p = { git = "https://github.com/anilaltuner/rust-libp2p.git", rev = "be2ed5
 libp2p-identity = { version = "0.2.9", features = ["secp256k1", "ed25519"] }
 tracing = { version = "0.1.40" }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
-public-ip = "0.2.2"
 
 
 [dev-dependencies]

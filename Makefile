@@ -25,9 +25,13 @@ trace:
 build:
 		cargo build
 
-.PHONY: profile #      | Profile with flamegraph at dev level
-profile:
-	  cargo flamegraph --root --profile=profiling
+.PHONY: profile-cpu #   | Profile CPU usage with flamegraph
+profile-cpu:
+	  cargo flamegraph --root --profile=profiling --features=profiling
+
+.PHONY: profile-mem #   | Profile memory usage with instruments
+profile-mem:
+	  cargo instruments --profile=profiling --features=profiling -t Leaks
 
 .PHONY: version #      | Print version
 version:
