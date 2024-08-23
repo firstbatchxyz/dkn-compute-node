@@ -1,8 +1,8 @@
 services:
   # Compute Node
   compute:
-    # image: "firstbatch/dkn-compute-node:latest"
-    build: "./" # use this one instead if you want to build locally
+    image: "firstbatch/dkn-compute-node:latest"
+    # build: "./" # use this one instead if you want to build locally
     environment:
       RUST_LOG: ${RUST_LOG:-none,dkn_compute=info}
       # Dria

@@ -47,7 +47,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::spawn(async move {
         #[cfg(feature = "profiling")]
         {
-            tokio::time::sleep(tokio::time::Duration::from_secs(120)).await;
+            const PROFILE_DURATION_SECS: u64 = 120;
+            tokio::time::sleep(tokio::time::Duration::from_secs(PROFILE_DURATION_SECS)).await;
             token.cancel();
         }
 
@@ -69,7 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Waits for SIGTERM or SIGINT, and cancels the given token when the signal is received.
-#[cfg(not(feature = "profiling"))]
+#[allow(unused)]
 async fn wait_for_termination(cancellation: CancellationToken) -> std::io::Result<()> {
     use tokio::signal::unix::{signal, SignalKind};
 
