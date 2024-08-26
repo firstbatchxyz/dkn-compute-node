@@ -92,7 +92,7 @@ fn create_gossipsub_behavior(author: PeerId) -> gossipsub::Behaviour {
 
     /// We accept permissive validation mode, meaning that we accept all messages
     /// and check their fields based on whether they exist or not.
-    const VALIDATION_MODE: ValidationMode = ValidationMode::Permissive;
+    const VALIDATION_MODE: ValidationMode = ValidationMode::None;
 
     /// Gossip cache TTL in seconds
     const GOSSIP_TTL_SECS: u64 = 100;
@@ -101,7 +101,7 @@ fn create_gossipsub_behavior(author: PeerId) -> gossipsub::Behaviour {
     const MESSAGE_CAPACITY: usize = 100;
 
     /// Max transmit size for payloads 256 KB
-    const MAX_TRANSMIT_SIZE: usize = 262144;
+    const MAX_TRANSMIT_SIZE: usize = 256 << 10;
 
     /// Max IHAVE length, this is much lower than the default
     /// because we don't need historic messages at all

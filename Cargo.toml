@@ -48,6 +48,7 @@ ollama-workflows = { git = "https://github.com/andthattoo/ollama-workflows", rev
 
 # peer-to-peer
 libp2p = { git = "https://github.com/anilaltuner/rust-libp2p.git", rev = "be2ed55", features = [
+    # libp2p = { version = "0.54.1", features = [
     "dcutr",
     "ping",
     "relay",
@@ -64,7 +65,7 @@ libp2p = { git = "https://github.com/anilaltuner/rust-libp2p.git", rev = "be2ed5
     "kad",
 ] }
 
-libp2p-identity = { version = "0.2.9", features = ["secp256k1", "ed25519"] }
+libp2p-identity = { version = "0.2.9", features = ["secp256k1"] }
 tracing = { version = "0.1.40" }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 

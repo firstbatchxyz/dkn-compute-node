@@ -75,7 +75,7 @@ impl P2PClient {
             }) {
                 log::info!("Dialling peer: {}", addr);
                 swarm.dial(addr.clone()).map_err(|e| e.to_string())?;
-                log::info!("Adding address to Kademlia routing table");
+                log::info!("Adding {} to Kademlia routing table", addr);
                 swarm
                     .behaviour_mut()
                     .kademlia
@@ -269,38 +269,16 @@ impl P2PClient {
     ) {
         match result {
             Ok(GetClosestPeersOk { peers, .. }) => {
-                if !peers.is_empty() {
-                    log::debug!(
-                        "Kademlia: Query finished with {} closest peers.",
-                        peers.len()
-                    );
-                    for peer in peers {
-                        log::debug!("Gossipsub: Adding peer {0}", peer.peer_id);
-                        self.swarm
-                            .behaviour_mut()
-                            .gossipsub
-                            .add_explicit_peer(&peer.peer_id);
-                    }
-                } else {
-                    log::warn!("Kademlia: Query finished with no closest peers.");
-                }
+                log::info!(
+                    "Kademlia: Query finished with {} closest peers.",
+                    peers.len()
+                );
             }
             Err(GetClosestPeersError::Timeout { peers, .. }) => {
-                if !peers.is_empty() {
-                    log::debug!(
-                        "Kademlia: Query timed out with {} closest peers.",
-                        peers.len()
-                    );
-                    for peer in peers {
-                        log::info!("Gossipsub: Adding peer {0}", peer.peer_id);
-                        self.swarm
-                            .behaviour_mut()
-                            .gossipsub
-                            .add_explicit_peer(&peer.peer_id);
-                    }
-                } else {
-                    log::warn!("Kademlia: Query timed out with no closest peers.");
-                }
+                log::info!(
+                    "Kademlia: Query timed out with {} closest peers.",
+                    peers.len()
+                );
             }
         }
     }
