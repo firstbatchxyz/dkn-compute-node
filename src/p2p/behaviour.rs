@@ -24,11 +24,11 @@ impl DriaBehaviour {
         let peer_id = public_key.to_peer_id();
         Self {
             relay: relay_behavior,
-            gossipsub: create_gossipsub_behavior(key.clone()),
+            gossipsub: create_gossipsub_behavior(peer_id),
             kademlia: create_kademlia_behavior(peer_id),
             autonat: create_autonat_behavior(peer_id),
-            identify: create_identify_behavior(public_key),
             dcutr: create_dcutr_behavior(peer_id),
+            identify: create_identify_behavior(public_key),
         }
     }
 }
@@ -36,17 +36,14 @@ impl DriaBehaviour {
 /// Configures the Kademlia DHT behavior for the node.
 #[inline]
 fn create_kademlia_behavior(local_peer_id: PeerId) -> kad::Behaviour<MemoryStore> {
-    use kad::{Behaviour, Caching, Config};
+    use kad::{Behaviour, Config};
 
     const QUERY_TIMEOUT_SECS: u64 = 5 * 60;
     const RECORD_TTL_SECS: u64 = 30;
 
     let mut cfg = Config::new(DRIA_PROTO_NAME);
     cfg.set_query_timeout(Duration::from_secs(QUERY_TIMEOUT_SECS))
-        .set_record_ttl(Some(Duration::from_secs(RECORD_TTL_SECS)))
-        .set_replication_interval(None)
-        .set_caching(Caching::Disabled)
-        .set_publication_interval(None);
+        .set_record_ttl(Some(Duration::from_secs(RECORD_TTL_SECS)));
 
     Behaviour::with_config(local_peer_id, MemoryStore::new(local_peer_id), cfg)
 }
@@ -85,11 +82,17 @@ fn create_autonat_behavior(local_peer_id: PeerId) -> autonat::Behaviour {
 
 /// Configures the Gossipsub behavior for pub/sub messaging across peers.
 #[inline]
-fn create_gossipsub_behavior(id_keys: Keypair) -> gossipsub::Behaviour {
-    use gossipsub::{Behaviour, ConfigBuilder, Message, MessageAuthenticity, MessageId};
+fn create_gossipsub_behavior(author: PeerId) -> gossipsub::Behaviour {
+    use gossipsub::{
+        Behaviour, ConfigBuilder, Message, MessageAuthenticity, MessageId, ValidationMode,
+    };
 
     /// Message TTL in seconds
     const MESSAGE_TTL_SECS: u64 = 100;
+
+    /// We accept permissive validation mode, meaning that we accept all messages
+    /// and check their fields based on whether they exist or not.
+    const VALIDATION_MODE: ValidationMode = ValidationMode::Permissive;
 
     /// Gossip cache TTL in seconds
     const GOSSIP_TTL_SECS: u64 = 100;
@@ -112,7 +115,7 @@ fn create_gossipsub_behavior(id_keys: Keypair) -> gossipsub::Behaviour {
     };
 
     Behaviour::new(
-        MessageAuthenticity::Signed(id_keys),
+        MessageAuthenticity::Author(author),
         ConfigBuilder::default()
             .heartbeat_interval(Duration::from_secs(10))
             .max_transmit_size(MAX_TRANSMIT_SIZE) // 256 KB
@@ -120,6 +123,8 @@ fn create_gossipsub_behavior(id_keys: Keypair) -> gossipsub::Behaviour {
             .message_ttl(Duration::from_secs(MESSAGE_TTL_SECS))
             .gossip_ttl(Duration::from_secs(GOSSIP_TTL_SECS))
             .message_capacity(MESSAGE_CAPACITY)
+            .validation_mode(VALIDATION_MODE)
+            .validate_messages()
             .max_ihave_length(MAX_IHAVE_LENGTH)
             .build()
             .expect("Valid config"), // TODO: better error handling
