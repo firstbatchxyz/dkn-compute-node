@@ -38,6 +38,7 @@ impl ModelConfig {
         Self { models }
     }
 
+    /// Returns the models that belong to a given providers from the config.
     pub fn get_models_for_provider(&self, provider: ModelProvider) -> Vec<Model> {
         self.models
             .iter()

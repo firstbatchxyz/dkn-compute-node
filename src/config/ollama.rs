@@ -1,4 +1,6 @@
-use ollama_workflows::ollama_rs::Ollama;
+use std::time::Duration;
+
+use ollama_workflows::{ollama_rs::Ollama, Executor, Model, ProgramMemory, Workflow};
 
 const DEFAULT_OLLAMA_HOST: &str = "http://127.0.0.1";
 const DEFAULT_OLLAMA_PORT: u16 = 11434;
@@ -46,12 +48,11 @@ impl OllamaConfig {
             .unwrap_or(DEFAULT_OLLAMA_PORT);
 
         // Ollama workflows may require specific models to be loaded regardless of the choices
-        let hardcoded_models = HARDCODED_MODELS
-            .into_iter()
-            .map(|s| s.to_string())
-            .collect();
+        let hardcoded_models = HARDCODED_MODELS.iter().map(|s| s.to_string()).collect();
 
-        let auto_pull = std::env::var("OLLAMA_AUTO_PULL").unwrap_or_default() == "true";
+        let auto_pull = std::env::var("OLLAMA_AUTO_PULL")
+            .map(|s| s == "true")
+            .unwrap_or_default();
 
         Self {
             host,
@@ -61,18 +62,19 @@ impl OllamaConfig {
         }
     }
 
-    /// Check if requested models exist.
-    pub async fn check(&self, external_models: Vec<String>) -> Result<(), String> {
+    /// Check if requested models exist in Ollama, and then tests them using a workflow.
+    pub async fn check(
+        &self,
+        external_models: Vec<Model>,
+        test_workflow_timeout: Duration,
+    ) -> Result<Vec<Model>, String> {
         log::info!(
-            "Checking Ollama requirements (auto-pull {})",
-            if self.auto_pull { "on" } else { "off" }
+            "Checking Ollama requirements (auto-pull {}, workflow timeout: {}s)",
+            if self.auto_pull { "on" } else { "off" },
+            test_workflow_timeout.as_secs()
         );
 
         let ollama = Ollama::new(&self.host, self.port);
-
-        // the list of required models is those given in DKN_MODELS and the hardcoded ones
-        let mut required_models = self.hardcoded_models.clone();
-        required_models.extend(external_models);
 
         // fetch local models
         let local_models = match ollama.list_local_models().await {
@@ -84,34 +86,139 @@ impl OllamaConfig {
                 }
             }
         };
+        log::info!("Found local Ollama models: {:#?}", local_models);
 
-        // check that each required model exists here
-        log::debug!("Checking required models: {:#?}", required_models);
-        log::debug!("Found local models: {:#?}", local_models);
-        for model in required_models {
-            if !local_models.iter().any(|m| *m == model) {
-                log::warn!("Model {} not found in Ollama", model);
-                if self.auto_pull {
-                    // if auto-pull is enabled, pull the model
-                    log::info!(
-                        "Downloading missing model {} (this may take a while)",
-                        model
-                    );
-                    let status = ollama
-                        .pull_model(model, false)
-                        .await
-                        .map_err(|e| format!("Error pulling model with Ollama: {}", e))?;
-                    log::debug!("Pulled model with Ollama, final status: {:#?}", status);
-                } else {
-                    // otherwise, give error
-                    log::error!("Please download it with: ollama pull {}", model);
-                    log::error!("Or, set OLLAMA_AUTO_PULL=true to pull automatically.");
-                    return Err("Required model not pulled in Ollama.".into());
-                }
+        // check hardcoded models & pull them if available
+        // these are not used directly by the user, but are needed for the workflows
+        log::debug!("Checking hardcoded models: {:#?}", self.hardcoded_models);
+        // only check if model is contained in local_models
+        // we dont check workflows for hardcoded models
+        for model in &self.hardcoded_models {
+            if !local_models.contains(model) {
+                self.try_pull(&ollama, model.to_owned()).await?;
             }
         }
 
-        log::info!("Ollama setup is all good.",);
-        Ok(())
+        // check external models & pull them if available
+        // and also run a test workflow for them
+        let mut good_models = Vec::new();
+        for model in external_models {
+            if !local_models.contains(&model.to_string()) {
+                self.try_pull(&ollama, model.to_string()).await?;
+            }
+
+            if self
+                .test_workflow(model.clone(), test_workflow_timeout)
+                .await
+            {
+                good_models.push(model);
+            }
+        }
+
+        log::info!(
+            "Ollama checks are finished, using models: {:#?}",
+            good_models
+        );
+        Ok(good_models)
+    }
+
+    /// Pulls a model if `auto_pull` exists, otherwise returns an error.
+    async fn try_pull(&self, ollama: &Ollama, model: String) -> Result<(), String> {
+        log::warn!("Model {} not found in Ollama", model);
+        if self.auto_pull {
+            // if auto-pull is enabled, pull the model
+            log::info!(
+                "Downloading missing model {} (this may take a while)",
+                model
+            );
+            let status = ollama
+                .pull_model(model, false)
+                .await
+                .map_err(|e| format!("Error pulling model with Ollama: {}", e))?;
+            log::debug!("Pulled model with Ollama, final status: {:#?}", status);
+            Ok(())
+        } else {
+            // otherwise, give error
+            log::error!("Please download missing model with: ollama pull {}", model);
+            log::error!("Or, set OLLAMA_AUTO_PULL=true to pull automatically.");
+            return Err("Required model not pulled in Ollama.".into());
+        }
+    }
+
+    /// Runs a small workflow to test Ollama Workflows.
+    ///
+    /// This is to see if a given system can execute Ollama workflows for their chosen models,
+    /// e.g. if they have enough RAM/CPU and such.
+    pub async fn test_workflow(&self, model: Model, timeout: Duration) -> bool {
+        // this is the test workflow that we will run
+        // TODO: when Workflow's have `Clone`, we can remove the repetitive parsing here
+        let workflow = serde_json::from_value::<Workflow>(serde_json::json!({
+            "name": "Simple",
+            "description": "This is a simple workflow",
+            "config":{
+                "max_steps": 5,
+                "max_time": 100,
+                "max_tokens": 100,
+                "tools": []
+            },
+            "tasks":[
+                {
+                    "id": "A",
+                    "name": "Random Poem",
+                    "description": "Writes a poem about Kapadokya.",
+                    "prompt": "Please write a poem about Kapadokya.",
+                    "inputs":[],
+                    "operator": "generation",
+                    "outputs":[
+                        {
+                            "type": "write",
+                            "key": "poem",
+                            "value": "__result"
+                        }
+                    ]
+                },
+                {
+                    "id": "__end",
+                    "name": "end",
+                    "description": "End of the task",
+                    "prompt": "End of the task",
+                    "inputs": [],
+                    "operator": "end",
+                    "outputs": []
+                }
+            ],
+            "steps":[
+                {
+                    "source":"A",
+                    "target":"end"
+                }
+            ],
+            "return_value":{
+                "input":{
+                    "type": "read",
+                    "key": "poem"
+                }
+            }
+        }))
+        .expect("Preset workflow should be parsed");
+
+        log::info!("Testing model {}", model);
+        let executor = Executor::new_at(model.clone(), &self.host, self.port);
+        let mut memory = ProgramMemory::new();
+        tokio::select! {
+            _ = tokio::time::sleep(timeout) => {
+                log::warn!("Ignoring model {}: Workflow timed out", model);
+            },
+            result = executor.execute(None, workflow, &mut memory) => {
+                if result.is_empty() {
+                    log::warn!("Ignoring model {}: Workflow returned empty result", model);
+                } else {
+                    log::info!("Accepting model {}", model);
+                    return true;
+                }
+            }
+        };
+
+        return false;
     }
 }

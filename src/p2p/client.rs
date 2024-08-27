@@ -1,25 +1,34 @@
+use crate::p2p::AvailableNodes;
+use crate::DRIA_COMPUTE_NODE_VERSION;
 use libp2p::futures::StreamExt;
 use libp2p::gossipsub::{
     Message, MessageAcceptance, MessageId, PublishError, SubscriptionError, TopicHash,
 };
 use libp2p::kad::{GetClosestPeersError, GetClosestPeersOk, QueryResult};
-use libp2p::{gossipsub, identify, kad, multiaddr::Protocol, noise, swarm::SwarmEvent, tcp, yamux};
+use libp2p::{
+    autonat, gossipsub, identify, kad, multiaddr::Protocol, noise, swarm::SwarmEvent, tcp, yamux,
+};
 use libp2p::{Multiaddr, PeerId, Swarm, SwarmBuilder};
 use libp2p_identity::Keypair;
+use semver::Version;
 use tokio::time::Duration;
-use tokio_util::sync::CancellationToken;
+use tokio::time::Instant;
 
-use crate::p2p::AvailableNodes;
+use super::{DriaBehaviour, DriaBehaviourEvent};
 
-use super::{DriaBehaviour, DriaBehaviourEvent, DRIA_PROTO_NAME};
+/// Used as default for unparsable versions.
+/// Will not match with any valid version.
+const ZERO_VERSION: Version = Version::new(0, 0, 0);
 
 /// Underlying libp2p client.
 pub struct P2PClient {
     swarm: Swarm<DriaBehaviour>,
-    cancellation: CancellationToken,
+    /// Client version, parsed from the `Cargo.toml` version.
+    version: Version,
     /// Peer count for (All, Mesh).
     peer_count: (usize, usize),
-    peer_last_refreshed: tokio::time::Instant,
+    /// Last time the peer count was refreshed.
+    peer_last_refreshed: Instant,
 }
 
 /// Number of seconds before an idle connection is closed.
@@ -34,7 +43,6 @@ impl P2PClient {
         keypair: Keypair,
         listen_addr: Multiaddr,
         available_nodes: &AvailableNodes,
-        cancellation: CancellationToken,
     ) -> Result<Self, String> {
         // this is our peerId
         let node_peerid = keypair.public().to_peer_id();
@@ -76,7 +84,7 @@ impl P2PClient {
             }) {
                 log::info!("Dialling peer: {}", addr);
                 swarm.dial(addr.clone()).map_err(|e| e.to_string())?;
-                log::info!("Adding address to Kademlia routing table");
+                log::info!("Adding {} to Kademlia routing table", addr);
                 swarm
                     .behaviour_mut()
                     .kademlia
@@ -115,9 +123,9 @@ impl P2PClient {
 
         Ok(Self {
             swarm,
-            cancellation,
+            version: Version::parse(&DRIA_COMPUTE_NODE_VERSION).unwrap(),
             peer_count: (0, 0),
-            peer_last_refreshed: tokio::time::Instant::now(),
+            peer_last_refreshed: Instant::now(),
         })
     }
 
@@ -169,6 +177,8 @@ impl P2PClient {
         propagation_source: &PeerId,
         acceptance: MessageAcceptance,
     ) -> Result<(), PublishError> {
+        log::debug!("Validating message ({}): {:?}", msg_id, acceptance);
+
         let msg_was_in_cache = self
             .swarm
             .behaviour_mut()
@@ -191,107 +201,121 @@ impl P2PClient {
     }
 
     /// Listens to the Swarm for incoming messages.
+    ///
     /// This method should be called in a loop to keep the client running.
-    /// When a message is received, it will be returned.
+    /// When a GossipSub message is received, it will be returned.
     pub async fn process_events(&mut self) -> Option<(PeerId, MessageId, Message)> {
         loop {
             // refresh peers
             self.refresh_peer_counts().await;
 
             // wait for next event
-            tokio::select! {
-                event = self.swarm.select_next_some() => match event {
-                    SwarmEvent::Behaviour(DriaBehaviourEvent::Kademlia(
-                        kad::Event::OutboundQueryProgressed {
-                            result: QueryResult::GetClosestPeers(result),
-                            ..
-                        },
-                    )) => self.handle_closest_peers_result(result),
-                    SwarmEvent::Behaviour(DriaBehaviourEvent::Identify(identify::Event::Received {
-                        peer_id,
-                        info,
+            match self.swarm.select_next_some().await {
+                SwarmEvent::Behaviour(DriaBehaviourEvent::Kademlia(
+                    kad::Event::OutboundQueryProgressed {
+                        result: QueryResult::GetClosestPeers(result),
                         ..
-                    })) => self.handle_identify_event(peer_id, info),
-                    SwarmEvent::Behaviour(DriaBehaviourEvent::Gossipsub(gossipsub::Event::Message {
+                    },
+                )) => self.handle_closest_peers_result(result),
+                SwarmEvent::Behaviour(DriaBehaviourEvent::Identify(
+                    identify::Event::Received { peer_id, info, .. },
+                )) => self.handle_identify_event(peer_id, info),
+                SwarmEvent::Behaviour(DriaBehaviourEvent::Gossipsub(
+                    gossipsub::Event::Message {
                         propagation_source: peer_id,
                         message_id,
                         message,
-                    })) => {
-                        return Some((peer_id, message_id, message));
-                    }
-                    SwarmEvent::NewListenAddr { address, .. } => {
-                        log::info!("Local node is listening on {}", address);
-                    }
-                    _ => log::trace!("Unhandled Swarm Event: {:?}", event),
-                },
-                _ = self.cancellation.cancelled() => {
-                    return None;
+                    },
+                )) => {
+                    return Some((peer_id, message_id, message));
                 }
+                SwarmEvent::Behaviour(DriaBehaviourEvent::Autonat(
+                    autonat::Event::StatusChanged { old, new },
+                )) => {
+                    log::warn!("AutoNAT status changed from {:?} to {:?}", old, new);
+                }
+                SwarmEvent::NewListenAddr { address, .. } => {
+                    log::warn!("Local node is listening on {}", address);
+                }
+                SwarmEvent::ExternalAddrConfirmed { address } => {
+                    log::warn!("External address confirmed: {}", address);
+                }
+                event => log::trace!("Unhandled Swarm Event: {:?}", event),
             }
         }
     }
 
-    /// Handles identify events to add peer addresses to Kademlia, if protocols match.
+    /// Handles identify events.
+    ///
+    /// At the top level, we check the protocol string.
+    ///
+    /// - For Kademlia, we check the kademlia protocol and then add the address to the Kademlia routing table.
     fn handle_identify_event(&mut self, peer_id: PeerId, info: identify::Info) {
-        let protocol_match = info.protocols.iter().any(|p| *p == DRIA_PROTO_NAME);
-        for addr in info.listen_addrs {
-            if protocol_match {
-                // if it matches our protocol, add it to the Kademlia routing table
-                log::info!("Identify: Peer {} identified at {}", peer_id, addr);
+        // we only care about the observed address, although there may be other addresses at `info.listen_addrs`
+        let addr = info.observed_addr;
+
+        // check protocol string
+        let protocol_ok = self.check_version_with_prefix(&info.protocol_version, "/dria/");
+        if !protocol_ok {
+            log::warn!(
+                "Identify: Peer {} has different Identify protocol: (have {}, want {})",
+                peer_id,
+                info.protocol_version,
+                self.version
+            );
+            return;
+        }
+
+        // check kademlia protocol
+        if let Some(kad_protocol) = info
+            .protocols
+            .iter()
+            .find(|p| p.to_string().starts_with("/dria/kad/"))
+        {
+            let protocol_ok =
+                self.check_version_with_prefix(&kad_protocol.to_string(), "/dria/kad/");
+
+            // if it matches our protocol, add it to the Kademlia routing table
+            if protocol_ok {
+                log::info!(
+                    "Identify: {} peer {} identified at {}",
+                    kad_protocol,
+                    peer_id,
+                    addr
+                );
 
                 self.swarm
                     .behaviour_mut()
                     .kademlia
                     .add_address(&peer_id, addr);
             } else {
-                log::trace!(
-                    "Identify: Incoming from different protocol, address {}. PeerID is {}",
-                    addr,
-                    peer_id
+                log::warn!(
+                    "Identify: Peer {} has different Kademlia version: (have {}, want {})",
+                    peer_id,
+                    kad_protocol,
+                    self.version
                 );
             }
         }
     }
 
-    /// Handles the results of a Kademlia closest peers search, either adding peers to Gossipsub or logging timeout errors.
+    /// Handles the results of a Kademlia closest peers search, simply logs it.
     fn handle_closest_peers_result(
         &mut self,
         result: Result<GetClosestPeersOk, GetClosestPeersError>,
     ) {
         match result {
             Ok(GetClosestPeersOk { peers, .. }) => {
-                if !peers.is_empty() {
-                    log::debug!(
-                        "Kademlia: Query finished with {} closest peers.",
-                        peers.len()
-                    );
-                    for peer in peers {
-                        log::debug!("Gossipsub: Adding peer {0}", peer.peer_id);
-                        self.swarm
-                            .behaviour_mut()
-                            .gossipsub
-                            .add_explicit_peer(&peer.peer_id);
-                    }
-                } else {
-                    log::warn!("Kademlia: Query finished with no closest peers.");
-                }
+                log::info!(
+                    "Kademlia: Query finished with {} closest peers.",
+                    peers.len()
+                );
             }
             Err(GetClosestPeersError::Timeout { peers, .. }) => {
-                if !peers.is_empty() {
-                    log::debug!(
-                        "Kademlia: Query timed out with {} closest peers.",
-                        peers.len()
-                    );
-                    for peer in peers {
-                        log::info!("Gossipsub: Adding peer {0}", peer.peer_id);
-                        self.swarm
-                            .behaviour_mut()
-                            .gossipsub
-                            .add_explicit_peer(&peer.peer_id);
-                    }
-                } else {
-                    log::warn!("Kademlia: Query timed out with no closest peers.");
-                }
+                log::info!(
+                    "Kademlia: Query timed out with {} closest peers.",
+                    peers.len()
+                );
             }
         }
     }
@@ -309,7 +333,7 @@ impl P2PClient {
                 .behaviour_mut()
                 .kademlia
                 .get_closest_peers(random_peer);
-            self.peer_last_refreshed = tokio::time::Instant::now();
+            self.peer_last_refreshed = Instant::now();
 
             // get peer count
             let gossipsub = &self.swarm.behaviour().gossipsub;
@@ -340,5 +364,23 @@ impl P2PClient {
                 );
             }
         }
+    }
+
+    /// Generic function to split a string such as `prefix || version` and check that the major & minor versions are the same.
+    ///    
+    /// Some examples:
+    /// - `self.check_version_with_prefix("dria/")` for identity
+    /// - `self.check_version_with_prefix("dria/kad/")` for Kademlia
+    ///
+    /// Returns whether the version is ok.
+    fn check_version_with_prefix(&self, p: &str, prefix: &str) -> bool {
+        let parsed_version = p
+            .strip_prefix(prefix)
+            .and_then(|v| Version::parse(v).ok())
+            .unwrap_or(ZERO_VERSION);
+
+        p.starts_with(prefix)
+            && parsed_version.major == self.version.major
+            && parsed_version.minor == self.version.minor
     }
 }

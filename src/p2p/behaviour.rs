@@ -6,7 +6,7 @@ use libp2p::identity::{Keypair, PublicKey};
 use libp2p::kad::store::MemoryStore;
 use libp2p::{autonat, dcutr, gossipsub, identify, kad, relay, swarm::NetworkBehaviour, PeerId};
 
-use crate::p2p::DRIA_PROTO_NAME;
+use crate::p2p::{P2P_KADEMLIA_PROTOCOL, P2P_PROTOCOL_STRING};
 
 #[derive(NetworkBehaviour)]
 pub struct DriaBehaviour {
@@ -24,11 +24,11 @@ impl DriaBehaviour {
         let peer_id = public_key.to_peer_id();
         Self {
             relay: relay_behavior,
-            gossipsub: create_gossipsub_behavior(key.clone()),
+            gossipsub: create_gossipsub_behavior(peer_id),
             kademlia: create_kademlia_behavior(peer_id),
-            identify: create_identify_behavior(public_key.clone()),
-            autonat: create_autonat_behavior(public_key),
+            autonat: create_autonat_behavior(peer_id),
             dcutr: create_dcutr_behavior(peer_id),
+            identify: create_identify_behavior(public_key),
         }
     }
 }
@@ -36,17 +36,16 @@ impl DriaBehaviour {
 /// Configures the Kademlia DHT behavior for the node.
 #[inline]
 fn create_kademlia_behavior(local_peer_id: PeerId) -> kad::Behaviour<MemoryStore> {
-    use kad::{Behaviour, Caching, Config};
+    use kad::{Behaviour, Config};
 
     const QUERY_TIMEOUT_SECS: u64 = 5 * 60;
     const RECORD_TTL_SECS: u64 = 30;
 
-    let mut cfg = Config::new(DRIA_PROTO_NAME);
+    // TODO: use versioning here?
+
+    let mut cfg = Config::new(P2P_KADEMLIA_PROTOCOL);
     cfg.set_query_timeout(Duration::from_secs(QUERY_TIMEOUT_SECS))
-        .set_record_ttl(Some(Duration::from_secs(RECORD_TTL_SECS)))
-        .set_replication_interval(None)
-        .set_caching(Caching::Disabled)
-        .set_publication_interval(None);
+        .set_record_ttl(Some(Duration::from_secs(RECORD_TTL_SECS)));
 
     Behaviour::with_config(local_peer_id, MemoryStore::new(local_peer_id), cfg)
 }
@@ -56,8 +55,7 @@ fn create_kademlia_behavior(local_peer_id: PeerId) -> kad::Behaviour<MemoryStore
 fn create_identify_behavior(local_public_key: PublicKey) -> identify::Behaviour {
     use identify::{Behaviour, Config};
 
-    // TODO: can we use a different protocol version, e.g. `dria/CRATE_VERSION`
-    let cfg = Config::new(DRIA_PROTO_NAME.to_string(), local_public_key);
+    let cfg = Config::new(P2P_PROTOCOL_STRING.to_string(), local_public_key);
 
     Behaviour::new(cfg)
 }
@@ -71,11 +69,11 @@ fn create_dcutr_behavior(local_peer_id: PeerId) -> dcutr::Behaviour {
 
 /// Configures the Autonat behavior to assist in network address translation detection.
 #[inline]
-fn create_autonat_behavior(key: PublicKey) -> autonat::Behaviour {
+fn create_autonat_behavior(local_peer_id: PeerId) -> autonat::Behaviour {
     use autonat::{Behaviour, Config};
 
     Behaviour::new(
-        key.to_peer_id(),
+        local_peer_id,
         Config {
             only_global_ips: false,
             ..Default::default()
@@ -85,11 +83,17 @@ fn create_autonat_behavior(key: PublicKey) -> autonat::Behaviour {
 
 /// Configures the Gossipsub behavior for pub/sub messaging across peers.
 #[inline]
-fn create_gossipsub_behavior(id_keys: Keypair) -> gossipsub::Behaviour {
-    use gossipsub::{Behaviour, ConfigBuilder, Message, MessageAuthenticity, MessageId};
+fn create_gossipsub_behavior(author: PeerId) -> gossipsub::Behaviour {
+    use gossipsub::{
+        Behaviour, ConfigBuilder, Message, MessageAuthenticity, MessageId, ValidationMode,
+    };
 
     /// Message TTL in seconds
     const MESSAGE_TTL_SECS: u64 = 100;
+
+    /// We accept permissive validation mode, meaning that we accept all messages
+    /// and check their fields based on whether they exist or not.
+    const VALIDATION_MODE: ValidationMode = ValidationMode::None;
 
     /// Gossip cache TTL in seconds
     const GOSSIP_TTL_SECS: u64 = 100;
@@ -98,7 +102,7 @@ fn create_gossipsub_behavior(id_keys: Keypair) -> gossipsub::Behaviour {
     const MESSAGE_CAPACITY: usize = 100;
 
     /// Max transmit size for payloads 256 KB
-    const MAX_TRANSMIT_SIZE: usize = 262144;
+    const MAX_TRANSMIT_SIZE: usize = 256 << 10;
 
     /// Max IHAVE length, this is much lower than the default
     /// because we don't need historic messages at all
@@ -111,8 +115,10 @@ fn create_gossipsub_behavior(id_keys: Keypair) -> gossipsub::Behaviour {
         MessageId::from(hasher.finish().to_string())
     };
 
+    // TODO: add data transform here later
+
     Behaviour::new(
-        MessageAuthenticity::Signed(id_keys),
+        MessageAuthenticity::Author(author),
         ConfigBuilder::default()
             .heartbeat_interval(Duration::from_secs(10))
             .max_transmit_size(MAX_TRANSMIT_SIZE) // 256 KB
@@ -120,6 +126,8 @@ fn create_gossipsub_behavior(id_keys: Keypair) -> gossipsub::Behaviour {
             .message_ttl(Duration::from_secs(MESSAGE_TTL_SECS))
             .gossip_ttl(Duration::from_secs(GOSSIP_TTL_SECS))
             .message_capacity(MESSAGE_CAPACITY)
+            .validation_mode(VALIDATION_MODE)
+            .validate_messages()
             .max_ihave_length(MAX_IHAVE_LENGTH)
             .build()
             .expect("Valid config"), // TODO: better error handling

@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+use ollama_workflows::Model;
 use serde::Deserialize;
 
 const OPENAI_API_KEY: &str = "OPENAI_API_KEY";
@@ -38,14 +39,18 @@ impl OpenAIConfig {
         Self { api_key }
     }
 
-    /// Check if requested models exist.
-    pub async fn check(&self, models: Vec<String>) -> Result<(), String> {
+    /// Check if requested models exist &
+    ///
+    ///
+    pub async fn check(&self, models: Vec<Model>) -> Result<Vec<Model>, String> {
         log::info!("Checking OpenAI requirements");
 
+        // check API key
         let Some(api_key) = &self.api_key else {
             return Err("OpenAI API key not found".into());
         };
 
+        // fetch models
         let client = reqwest::Client::new();
         let request = client
             .get(OPENAI_MODELS_API)
@@ -58,25 +63,40 @@ impl OpenAIConfig {
             .await
             .map_err(|e| format!("Failed to send request: {}", e))?;
 
+        // parse response
         if response.status().is_client_error() {
             return Err(format!(
                 "Failed to fetch OpenAI models:\n{}",
                 response.text().await.unwrap_or_default()
             ));
         }
+        let openai_models = response
+            .json::<OpenAIModelsResponse>()
+            .await
+            .map_err(|e| e.to_string())?;
 
-        let openai_models = response.json::<OpenAIModelsResponse>().await.unwrap();
+        // check if models exist and select those that are available
+        let mut available_models = Vec::new();
         for requested_model in models {
-            if !openai_models.data.iter().any(|m| m.id == requested_model) {
-                return Err(format!(
-                    "Model {} not found in your OpenAI account.",
+            if !openai_models
+                .data
+                .iter()
+                .any(|m| m.id == requested_model.to_string())
+            {
+                log::warn!(
+                    "Model {} not found in your OpenAI account, ignoring it.",
                     requested_model
-                ));
+                );
+            } else {
+                available_models.push(requested_model);
             }
         }
 
-        log::info!("OpenAI setup is all good.",);
-        Ok(())
+        log::info!(
+            "OpenAI checks are finished, using models: {:#?}",
+            available_models
+        );
+        Ok(available_models)
     }
 }
 

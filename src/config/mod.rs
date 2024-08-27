@@ -9,7 +9,7 @@ use ollama::OllamaConfig;
 use ollama_workflows::ModelProvider;
 use openai::OpenAIConfig;
 
-use std::env;
+use std::{env, time::Duration};
 
 #[derive(Debug, Clone)]
 pub struct DriaComputeNodeConfig {
@@ -105,21 +105,40 @@ impl DriaComputeNodeConfig {
         }
     }
 
-    /// Check if the required compute services are running, e.g. if Ollama
-    /// is detected as a provider for the chosen models, it will check that
-    /// Ollama is running.
-    pub async fn check_services(&self) -> Result<(), String> {
+    /// Check if the required compute services are running.
+    /// This has several steps:
+    ///
+    /// - If Ollama models are used, hardcoded models are checked locally, and for
+    ///   external models, the workflow is tested with a simple task with timeout.
+    /// - If OpenAI models are used, the API key is checked and the models are tested
+    ///
+    /// If both type of models are used, both services are checked.
+    /// In the end, bad models are filtered out and we simply check if we are left if any valid models at all.
+    /// If not, an error is returned.
+    pub async fn check_services(&mut self) -> Result<(), String> {
         log::info!("Checking configured services.");
+
+        // TODO: can refactor (provider, model) logic here
         let unique_providers = self.model_config.get_providers();
+
+        let mut good_models = Vec::new();
 
         // if Ollama is a provider, check that it is running & Ollama models are pulled (or pull them)
         if unique_providers.contains(&ModelProvider::Ollama) {
             let ollama_models = self
                 .model_config
                 .get_models_for_provider(ModelProvider::Ollama);
-            self.ollama_config
-                .check(ollama_models.into_iter().map(|m| m.to_string()).collect())
+
+            // ensure that the models are pulled / pull them if not
+            let good_ollama_models = self
+                .ollama_config
+                .check(ollama_models, Duration::from_secs(30))
                 .await?;
+            good_models.extend(
+                good_ollama_models
+                    .into_iter()
+                    .map(|m| (ModelProvider::Ollama, m)),
+            );
         }
 
         // if OpenAI is a provider, check that the API key is set
@@ -127,12 +146,22 @@ impl DriaComputeNodeConfig {
             let openai_models = self
                 .model_config
                 .get_models_for_provider(ModelProvider::OpenAI);
-            self.openai_config
-                .check(openai_models.into_iter().map(|m| m.to_string()).collect())
-                .await?;
+
+            let good_openai_models = self.openai_config.check(openai_models).await?;
+            good_models.extend(
+                good_openai_models
+                    .into_iter()
+                    .map(|m| (ModelProvider::OpenAI, m)),
+            );
         }
 
-        Ok(())
+        // update good models
+        if good_models.is_empty() {
+            return Err("No good models found, please check logs for errors.".into());
+        } else {
+            self.model_config.models = good_models;
+            Ok(())
+        }
     }
 }
 
