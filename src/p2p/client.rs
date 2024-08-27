@@ -1,4 +1,4 @@
-use crate::p2p::{AvailableNodes, P2P_PROTOCOL_STRING};
+use crate::p2p::AvailableNodes;
 use crate::DRIA_COMPUTE_NODE_VERSION;
 use libp2p::futures::StreamExt;
 use libp2p::gossipsub::{
@@ -14,7 +14,11 @@ use semver::Version;
 use tokio::time::Duration;
 use tokio::time::Instant;
 
-use super::{DriaBehaviour, DriaBehaviourEvent, P2P_KADEMLIA_PROTOCOL};
+use super::{DriaBehaviour, DriaBehaviourEvent};
+
+/// Used as default for unparsable versions.
+/// Will not match with any valid version.
+const ZERO_VERSION: Version = Version::new(0, 0, 0);
 
 /// Underlying libp2p client.
 pub struct P2PClient {
@@ -247,67 +251,55 @@ impl P2PClient {
     ///
     /// - For Kademlia, we check the kademlia protocol and then add the address to the Kademlia routing table.
     fn handle_identify_event(&mut self, peer_id: PeerId, info: identify::Info) {
+        // we only care about the observed address, although there may be other addresses at `info.listen_addrs`
         let addr = info.observed_addr;
 
         // check protocol string
-        let (left, right) = info.protocol_version.split_at(5); // equals "dria/".len()
-        if left != "dria/" {
+        let protocol_ok = self.check_version_with_prefix(&info.protocol_version, "/dria/");
+        if !protocol_ok {
             log::warn!(
-                "Identify: Peer {} is from different protocol: (have {}, want {})",
+                "Identify: Peer {} has different Identify protocol: (have {}, want {})",
                 peer_id,
                 info.protocol_version,
-                P2P_PROTOCOL_STRING
+                self.version
             );
             return;
         }
 
-        // check version
-        match semver::Version::parse(right) {
-            Ok(peer_version) => {
-                if peer_version.minor != self.version.minor {
-                    log::warn!(
-                        "Identify: Peer {} has different version: (have {}, want {})",
-                        peer_id,
-                        peer_version,
-                        self.version
-                    );
-                    return;
-                }
-            }
-            Err(err) => {
-                log::error!(
-                    "Identify: Peer {} version could not be parsed: {}",
-                    peer_id,
-                    err,
-                );
-                return;
-            }
-        }
+        // check kademlia protocol
+        if let Some(kad_protocol) = info
+            .protocols
+            .iter()
+            .find(|p| p.to_string().starts_with("/dria/kad/"))
+        {
+            let protocol_ok =
+                self.check_version_with_prefix(&kad_protocol.to_string(), "/dria/kad/");
 
-        // we only care about the observed address, although there may be other addresses at `info.listen_addrs`
-        if info.protocols.iter().any(|p| *p == P2P_KADEMLIA_PROTOCOL) {
             // if it matches our protocol, add it to the Kademlia routing table
-            log::info!(
-                "Identify: {} peer {} identified at {}",
-                info.protocol_version,
-                peer_id,
-                addr
-            );
+            if protocol_ok {
+                log::info!(
+                    "Identify: {} peer {} identified at {}",
+                    kad_protocol,
+                    peer_id,
+                    addr
+                );
 
-            self.swarm
-                .behaviour_mut()
-                .kademlia
-                .add_address(&peer_id, addr);
-        } else {
-            log::trace!(
-                "Identify: Incoming from different protocol, address {}. PeerID is {}",
-                addr,
-                peer_id
-            );
+                self.swarm
+                    .behaviour_mut()
+                    .kademlia
+                    .add_address(&peer_id, addr);
+            } else {
+                log::warn!(
+                    "Identify: Peer {} has different Kademlia version: (have {}, want {})",
+                    peer_id,
+                    kad_protocol,
+                    self.version
+                );
+            }
         }
     }
 
-    /// Handles the results of a Kademlia closest peers search, either adding peers to Gossipsub or logging timeout errors.
+    /// Handles the results of a Kademlia closest peers search, simply logs it.
     fn handle_closest_peers_result(
         &mut self,
         result: Result<GetClosestPeersOk, GetClosestPeersError>,
@@ -372,5 +364,23 @@ impl P2PClient {
                 );
             }
         }
+    }
+
+    /// Generic function to split a string such as `prefix || version` and check that the major & minor versions are the same.
+    ///    
+    /// Some examples:
+    /// - `self.check_version_with_prefix("dria/")` for identity
+    /// - `self.check_version_with_prefix("dria/kad/")` for Kademlia
+    ///
+    /// Returns whether the version is ok.
+    fn check_version_with_prefix(&self, p: &str, prefix: &str) -> bool {
+        let parsed_version = p
+            .strip_prefix(prefix)
+            .and_then(|v| Version::parse(v).ok())
+            .unwrap_or(ZERO_VERSION);
+
+        p.starts_with(prefix)
+            && parsed_version.major == self.version.major
+            && parsed_version.minor == self.version.minor
     }
 }

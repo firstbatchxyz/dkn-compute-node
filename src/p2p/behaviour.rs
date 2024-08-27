@@ -115,6 +115,8 @@ fn create_gossipsub_behavior(author: PeerId) -> gossipsub::Behaviour {
         MessageId::from(hasher.finish().to_string())
     };
 
+    // TODO: add data transform here later
+
     Behaviour::new(
         MessageAuthenticity::Author(author),
         ConfigBuilder::default()

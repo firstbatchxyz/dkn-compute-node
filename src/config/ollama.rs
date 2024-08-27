@@ -91,12 +91,12 @@ impl OllamaConfig {
         // check hardcoded models & pull them if available
         // these are not used directly by the user, but are needed for the workflows
         log::debug!("Checking hardcoded models: {:#?}", self.hardcoded_models);
+        // only check if model is contained in local_models
+        // we dont check workflows for hardcoded models
         for model in &self.hardcoded_models {
             if !local_models.contains(model) {
                 self.try_pull(&ollama, model.to_owned()).await?;
             }
-
-            // we dont check workflows for hardcoded models
         }
 
         // check external models & pull them if available
@@ -107,10 +107,10 @@ impl OllamaConfig {
                 self.try_pull(&ollama, model.to_string()).await?;
             }
 
-            let ok = self
+            if self
                 .test_workflow(model.clone(), test_workflow_timeout)
-                .await;
-            if ok {
+                .await
+            {
                 good_models.push(model);
             }
         }
@@ -207,11 +207,11 @@ impl OllamaConfig {
         let mut memory = ProgramMemory::new();
         tokio::select! {
             _ = tokio::time::sleep(timeout) => {
-                log::warn!("Ignoring model {}: Timeout", model);
+                log::warn!("Ignoring model {}: Workflow timed out", model);
             },
             result = executor.execute(None, workflow, &mut memory) => {
                 if result.is_empty() {
-                    log::warn!("Ignoring model {}: Empty Result", model);
+                    log::warn!("Ignoring model {}: Workflow returned empty result", model);
                 } else {
                     log::info!("Accepting model {}", model);
                     return true;

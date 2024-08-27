@@ -105,11 +105,20 @@ impl DriaComputeNodeConfig {
         }
     }
 
-    /// Check if the required compute services are running, e.g. if Ollama
-    /// is detected as a provider for the chosen models, it will check that
-    /// Ollama is running.
+    /// Check if the required compute services are running.
+    /// This has several steps:
+    ///
+    /// - If Ollama models are used, hardcoded models are checked locally, and for
+    ///   external models, the workflow is tested with a simple task with timeout.
+    /// - If OpenAI models are used, the API key is checked and the models are tested
+    ///
+    /// If both type of models are used, both services are checked.
+    /// In the end, bad models are filtered out and we simply check if we are left if any valid models at all.
+    /// If not, an error is returned.
     pub async fn check_services(&mut self) -> Result<(), String> {
         log::info!("Checking configured services.");
+
+        // TODO: can refactor (provider, model) logic here
         let unique_providers = self.model_config.get_providers();
 
         let mut good_models = Vec::new();
@@ -121,8 +130,10 @@ impl DriaComputeNodeConfig {
                 .get_models_for_provider(ModelProvider::Ollama);
 
             // ensure that the models are pulled / pull them if not
-            let timeout = Duration::from_secs(30);
-            let good_ollama_models = self.ollama_config.check(ollama_models, timeout).await?;
+            let good_ollama_models = self
+                .ollama_config
+                .check(ollama_models, Duration::from_secs(30))
+                .await?;
             good_models.extend(
                 good_ollama_models
                     .into_iter()
