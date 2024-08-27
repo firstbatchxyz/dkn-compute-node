@@ -1,4 +1,5 @@
-use crate::p2p::AvailableNodes;
+use crate::p2p::{AvailableNodes, P2P_PROTOCOL_STRING};
+use crate::DRIA_COMPUTE_NODE_VERSION;
 use libp2p::futures::StreamExt;
 use libp2p::gossipsub::{
     Message, MessageAcceptance, MessageId, PublishError, SubscriptionError, TopicHash,
@@ -9,16 +10,20 @@ use libp2p::{
 };
 use libp2p::{Multiaddr, PeerId, Swarm, SwarmBuilder};
 use libp2p_identity::Keypair;
+use semver::Version;
 use tokio::time::Duration;
 use tokio::time::Instant;
 
-use super::{DriaBehaviour, DriaBehaviourEvent, DRIA_PROTO_NAME};
+use super::{DriaBehaviour, DriaBehaviourEvent, P2P_KADEMLIA_PROTOCOL};
 
 /// Underlying libp2p client.
 pub struct P2PClient {
     swarm: Swarm<DriaBehaviour>,
+    /// Client version, parsed from the `Cargo.toml` version.
+    version: Version,
     /// Peer count for (All, Mesh).
     peer_count: (usize, usize),
+    /// Last time the peer count was refreshed.
     peer_last_refreshed: Instant,
 }
 
@@ -114,6 +119,7 @@ impl P2PClient {
 
         Ok(Self {
             swarm,
+            version: Version::parse(&DRIA_COMPUTE_NODE_VERSION).unwrap(),
             peer_count: (0, 0),
             peer_last_refreshed: Instant::now(),
         })
@@ -235,12 +241,51 @@ impl P2PClient {
         }
     }
 
-    /// Handles identify events to add peer addresses to Kademlia, if protocols match.
+    /// Handles identify events.
+    ///
+    /// At the top level, we check the protocol string.
+    ///
+    /// - For Kademlia, we check the kademlia protocol and then add the address to the Kademlia routing table.
     fn handle_identify_event(&mut self, peer_id: PeerId, info: identify::Info) {
-        let protocol_match = info.protocols.iter().any(|p| *p == DRIA_PROTO_NAME);
         let addr = info.observed_addr;
 
-        if protocol_match {
+        // check protocol string
+        let (left, right) = info.protocol_version.split_at(5); // equals "dria/".len()
+        if left != "dria/" {
+            log::warn!(
+                "Identify: Peer {} is from different protocol: (have {}, want {})",
+                peer_id,
+                info.protocol_version,
+                P2P_PROTOCOL_STRING
+            );
+            return;
+        }
+
+        // check version
+        match semver::Version::parse(right) {
+            Ok(peer_version) => {
+                if peer_version.minor != self.version.minor {
+                    log::warn!(
+                        "Identify: Peer {} has different version: (have {}, want {})",
+                        peer_id,
+                        peer_version,
+                        self.version
+                    );
+                    return;
+                }
+            }
+            Err(err) => {
+                log::error!(
+                    "Identify: Peer {} version could not be parsed: {}",
+                    peer_id,
+                    err,
+                );
+                return;
+            }
+        }
+
+        // we only care about the observed address, although there may be other addresses at `info.listen_addrs`
+        if info.protocols.iter().any(|p| *p == P2P_KADEMLIA_PROTOCOL) {
             // if it matches our protocol, add it to the Kademlia routing table
             log::info!(
                 "Identify: {} peer {} identified at {}",

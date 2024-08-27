@@ -9,7 +9,7 @@ use ollama::OllamaConfig;
 use ollama_workflows::ModelProvider;
 use openai::OpenAIConfig;
 
-use std::env;
+use std::{env, time::Duration};
 
 #[derive(Debug, Clone)]
 pub struct DriaComputeNodeConfig {
@@ -108,18 +108,26 @@ impl DriaComputeNodeConfig {
     /// Check if the required compute services are running, e.g. if Ollama
     /// is detected as a provider for the chosen models, it will check that
     /// Ollama is running.
-    pub async fn check_services(&self) -> Result<(), String> {
+    pub async fn check_services(&mut self) -> Result<(), String> {
         log::info!("Checking configured services.");
         let unique_providers = self.model_config.get_providers();
+
+        let mut good_models = Vec::new();
 
         // if Ollama is a provider, check that it is running & Ollama models are pulled (or pull them)
         if unique_providers.contains(&ModelProvider::Ollama) {
             let ollama_models = self
                 .model_config
                 .get_models_for_provider(ModelProvider::Ollama);
-            self.ollama_config
-                .check(ollama_models.into_iter().map(|m| m.to_string()).collect())
-                .await?;
+
+            // ensure that the models are pulled / pull them if not
+            let timeout = Duration::from_secs(30);
+            let good_ollama_models = self.ollama_config.check(ollama_models, timeout).await?;
+            good_models.extend(
+                good_ollama_models
+                    .into_iter()
+                    .map(|m| (ModelProvider::Ollama, m)),
+            );
         }
 
         // if OpenAI is a provider, check that the API key is set
@@ -127,12 +135,22 @@ impl DriaComputeNodeConfig {
             let openai_models = self
                 .model_config
                 .get_models_for_provider(ModelProvider::OpenAI);
-            self.openai_config
-                .check(openai_models.into_iter().map(|m| m.to_string()).collect())
-                .await?;
+
+            let good_openai_models = self.openai_config.check(openai_models).await?;
+            good_models.extend(
+                good_openai_models
+                    .into_iter()
+                    .map(|m| (ModelProvider::OpenAI, m)),
+            );
         }
 
-        Ok(())
+        // update good models
+        if good_models.is_empty() {
+            return Err("No good models found, please check logs for errors.".into());
+        } else {
+            self.model_config.models = good_models;
+            Ok(())
+        }
     }
 }
 

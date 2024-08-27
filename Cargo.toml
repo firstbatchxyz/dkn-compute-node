@@ -68,6 +68,7 @@ libp2p = { git = "https://github.com/anilaltuner/rust-libp2p.git", rev = "be2ed5
 libp2p-identity = { version = "0.2.9", features = ["secp256k1"] }
 tracing = { version = "0.1.40" }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+semver = "1.0.23"
 
 
 [dev-dependencies]

@@ -6,7 +6,7 @@ use libp2p::identity::{Keypair, PublicKey};
 use libp2p::kad::store::MemoryStore;
 use libp2p::{autonat, dcutr, gossipsub, identify, kad, relay, swarm::NetworkBehaviour, PeerId};
 
-use crate::p2p::DRIA_PROTO_NAME;
+use crate::p2p::{P2P_KADEMLIA_PROTOCOL, P2P_PROTOCOL_STRING};
 
 #[derive(NetworkBehaviour)]
 pub struct DriaBehaviour {
@@ -41,7 +41,9 @@ fn create_kademlia_behavior(local_peer_id: PeerId) -> kad::Behaviour<MemoryStore
     const QUERY_TIMEOUT_SECS: u64 = 5 * 60;
     const RECORD_TTL_SECS: u64 = 30;
 
-    let mut cfg = Config::new(DRIA_PROTO_NAME);
+    // TODO: use versioning here?
+
+    let mut cfg = Config::new(P2P_KADEMLIA_PROTOCOL);
     cfg.set_query_timeout(Duration::from_secs(QUERY_TIMEOUT_SECS))
         .set_record_ttl(Some(Duration::from_secs(RECORD_TTL_SECS)));
 
@@ -53,8 +55,7 @@ fn create_kademlia_behavior(local_peer_id: PeerId) -> kad::Behaviour<MemoryStore
 fn create_identify_behavior(local_public_key: PublicKey) -> identify::Behaviour {
     use identify::{Behaviour, Config};
 
-    // TODO: can we use a different protocol version, e.g. `dria/CRATE_VERSION`
-    let cfg = Config::new(DRIA_PROTO_NAME.to_string(), local_public_key);
+    let cfg = Config::new(P2P_PROTOCOL_STRING.to_string(), local_public_key);
 
     Behaviour::new(cfg)
 }

@@ -22,8 +22,16 @@ impl TTLDataTransform {
 
 impl DataTransform for TTLDataTransform {
     fn inbound_transform(&self, mut raw_message: RawMessage) -> Result<Message, Error> {
-        // check length
-        if raw_message.data.len() < Self::MID_SIZE {
+        // check source
+        if raw_message.source.is_none() {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Message source is None",
+            ));
+        }
+
+        // check length (panic condition for `split_off` as well)
+        if Self::MID_SIZE > raw_message.data.len() {
             return Err(Error::new(ErrorKind::InvalidInput, "Message too short"));
         }
 
@@ -33,7 +41,7 @@ impl DataTransform for TTLDataTransform {
 
         // check ttl
         if msg_time + self.ttl_secs < self.get_time_secs() {
-            return Err(Error::new(ErrorKind::InvalidInput, "Message expired"));
+            return Err(Error::new(ErrorKind::InvalidInput, "Message TTL expired"));
         }
 
         Ok(Message {
