@@ -40,7 +40,7 @@ Compute nodes can technically do any arbitrary task, from computing the square r
 
 ## Requirements
 
-The compute node is a very lightweight process, with few MBs of memory usage along with an image size of less than ~65MBs. If you are using Ollama, you will need the memory to run large models locally, which depend on the model's size that you are willing to.
+### Software
 
 You need the following applications to run compute node:
 
@@ -55,6 +55,16 @@ You need the following applications to run compute node:
 > which git
 > which docker
 > ```
+
+### Hardware
+
+**For overall specifications about required CPU and RAM, please refer to [dkn-node-specs](https://github.com/firstbatchxyz/dkn-node-specs).**
+
+In general, if you are using Ollama you will need the memory to run large models locally, which depend on the model's size that you are willing to. If you are in a memory-constrained environment, you can opt to use OpenAI models instead.
+
+> [!NOTE]
+>
+> The compute node is a lightweight process, but you may see increased memory & CPU usage during the initial testing phases, due to various protocol-level operations with the growing network size.
 
 ## Setup
 

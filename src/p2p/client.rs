@@ -123,7 +123,7 @@ impl P2PClient {
 
         Ok(Self {
             swarm,
-            version: Version::parse(&DRIA_COMPUTE_NODE_VERSION).unwrap(),
+            version: Version::parse(DRIA_COMPUTE_NODE_VERSION).unwrap(),
             peer_count: (0, 0),
             peer_last_refreshed: Instant::now(),
         })
@@ -272,8 +272,7 @@ impl P2PClient {
             .iter()
             .find(|p| p.to_string().starts_with("/dria/kad/"))
         {
-            let protocol_ok =
-                self.check_version_with_prefix(&kad_protocol.to_string(), "/dria/kad/");
+            let protocol_ok = self.check_version_with_prefix(kad_protocol.as_ref(), "/dria/kad/");
 
             // if it matches our protocol, add it to the Kademlia routing table
             if protocol_ok {

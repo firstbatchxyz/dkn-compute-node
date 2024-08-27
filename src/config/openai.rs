@@ -105,6 +105,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore = "requires OpenAI API key"]
     async fn test_openai_check() {
         let config = OpenAIConfig::new();
         let res = config.check(vec![]).await;

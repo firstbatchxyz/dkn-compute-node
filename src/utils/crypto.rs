@@ -120,6 +120,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "run only with profiler if wanted"]
     fn test_memory_usage() {
         let secret_key =
             SecretKey::parse_slice(DUMMY_KEY).expect("Should parse private key slice.");

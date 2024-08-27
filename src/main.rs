@@ -42,7 +42,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tokio::select! {
             _ = service_check_token.cancelled() => {
                 log::info!("Service check cancelled.");
-                return;
             }
             result = config_clone.check_services() => {
                 if let Err(err) = result {

@@ -141,7 +141,7 @@ impl OllamaConfig {
             // otherwise, give error
             log::error!("Please download missing model with: ollama pull {}", model);
             log::error!("Or, set OLLAMA_AUTO_PULL=true to pull automatically.");
-            return Err("Required model not pulled in Ollama.".into());
+            Err("Required model not pulled in Ollama.".into())
         }
     }
 
@@ -219,6 +219,6 @@ impl OllamaConfig {
             }
         };
 
-        return false;
+        false
     }
 }

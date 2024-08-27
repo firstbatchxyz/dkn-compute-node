@@ -157,7 +157,7 @@ impl DriaComputeNodeConfig {
 
         // update good models
         if good_models.is_empty() {
-            return Err("No good models found, please check logs for errors.".into());
+            Err("No good models found, please check logs for errors.".into())
         } else {
             self.model_config.models = good_models;
             Ok(())
