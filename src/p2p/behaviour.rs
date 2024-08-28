@@ -93,7 +93,7 @@ fn create_gossipsub_behavior(author: PeerId) -> gossipsub::Behaviour {
 
     /// We accept permissive validation mode, meaning that we accept all messages
     /// and check their fields based on whether they exist or not.
-    const VALIDATION_MODE: ValidationMode = ValidationMode::None;
+    const VALIDATION_MODE: ValidationMode = ValidationMode::Permissive;
 
     /// Gossip cache TTL in seconds
     const GOSSIP_TTL_SECS: u64 = 100;
