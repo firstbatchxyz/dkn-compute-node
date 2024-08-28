@@ -255,7 +255,8 @@ impl P2PClient {
         let addr = info.observed_addr;
 
         // check protocol string
-        let protocol_ok = self.check_version_with_prefix(&info.protocol_version, "/dria/");
+        // TODO: take the prefixes from a shared const
+        let protocol_ok = self.check_version_with_prefix(&info.protocol_version, "dria/");
         if !protocol_ok {
             log::warn!(
                 "Identify: Peer {} has different Identify protocol: (have {}, want {})",
