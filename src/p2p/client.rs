@@ -340,10 +340,13 @@ impl P2PClient {
             let num_peers = gossipsub.all_peers().count();
             let num_mesh_peers = gossipsub.all_mesh_peers().count();
 
-            // print peers if the count has changed
+            // print peer counts
+            log::info!("Peer Count (mesh/all): {} / {}", num_mesh_peers, num_peers);
+
+            // print peers themselves if the count has changed
             if num_peers != self.peer_count.0 || num_mesh_peers != self.peer_count.1 {
                 self.peer_count = (num_peers, num_mesh_peers);
-                log::info!("Peer Count (mesh/all): {} / {}", num_mesh_peers, num_peers);
+
                 log::debug!(
                     "All Peers:\n{}",
                     gossipsub
