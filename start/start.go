@@ -63,17 +63,22 @@ func runCommand(printToStdout, wait bool, envs []string, command string, args ..
 	return pid, nil
 }
 
-func checkDockerComposeCommand() string {
-	commands := []string{"docker compose", "docker-compose"}
-	for _, cmd := range commands {
-		if _, err := exec.Command(cmd, "version").Output(); err == nil {
-			return cmd
-		}
+func checkDockerComposeCommand() (string, []string, []string) {
+	// check docker compose
+	if _, err := runCommand(false, true, nil, "docker", "compose", "version"); err == nil {
+		return "docker", []string{"compose", "up", "-d"}, []string{"compose", "down"}
 	}
+
+	// check docker-compose
+	if _, err := runCommand(false, true, nil, "docker-compose", "version"); err == nil {
+		return "docker-compose", []string{"up", "-d"}, []string{"down"}
+	}
+
+	// both not found, exit
 	fmt.Println("docker compose is not installed on this machine. It's required to run the node.")
 	fmt.Println("Check https://docs.docker.com/compose/install/ for installation.")
 	os.Exit(1)
-	return ""
+	return "", nil, nil
 }
 
 func isDockerUp() bool {
@@ -248,7 +253,7 @@ func main() {
 	setWorkingDir()
 
 	// Check Docker Compose
-	composeCommand := checkDockerComposeCommand()
+	composeCommand, composeUpArgs, composeDownArgs := checkDockerComposeCommand()
 	if !isDockerUp() {
 		fmt.Println("ERROR: Docker is not up, terminating.")
 		os.Exit(1)
@@ -410,7 +415,7 @@ func main() {
 	fmt.Printf("COMPOSE_PROFILES: %s\n\n", envvars["COMPOSE_PROFILES"])
 
 	// Run docker-compose up
-	_, err = runCommand(true, true, mapToList(envvars), composeCommand, "up", "-d")
+	_, err = runCommand(true, true, mapToList(envvars), composeCommand, composeUpArgs...)
 	if err != nil {
 		fmt.Printf("ERROR: docker-compose, %s", err)
 		os.Exit(1)
@@ -427,7 +432,7 @@ func main() {
 		<-sig
 
 		fmt.Println("\nShutting down...")
-		_, err = runCommand(true, true, mapToList(envvars), composeCommand, "down")
+		_, err = runCommand(true, true, mapToList(envvars), composeCommand, composeDownArgs...)
 		if err != nil {
 			fmt.Printf("Error during docker compose down; %s\n", err)
 		}
