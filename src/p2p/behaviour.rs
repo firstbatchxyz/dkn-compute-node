@@ -98,6 +98,12 @@ fn create_gossipsub_behavior(author: PeerId) -> gossipsub::Behaviour {
     /// and check their fields based on whether they exist or not.
     const VALIDATION_MODE: ValidationMode = ValidationMode::Permissive;
 
+    /// Heartbeat interval in seconds
+    const HEARTBEAT_INTERVAL_SECS: u64 = 10;
+
+    /// Duplicate cache time in seconds
+    const DUPLICATE_CACHE_TIME_SECS: u64 = 120;
+
     /// Gossip cache TTL in seconds
     const GOSSIP_TTL_SECS: u64 = 100;
 
@@ -111,6 +117,10 @@ fn create_gossipsub_behavior(author: PeerId) -> gossipsub::Behaviour {
     /// because we don't need historic messages at all
     const MAX_IHAVE_LENGTH: usize = 100;
 
+    /// Max size of the send queue
+    /// This helps to avoid memory exhaustion during high load
+    const MAX_SEND_QUEUE_SIZE: usize = 400;
+
     // message id's are simply hashes of the message data
     let message_id_fn = |message: &Message| {
         let mut hasher = hash_map::DefaultHasher::new();
@@ -123,15 +133,17 @@ fn create_gossipsub_behavior(author: PeerId) -> gossipsub::Behaviour {
     Behaviour::new(
         MessageAuthenticity::Author(author),
         ConfigBuilder::default()
-            .heartbeat_interval(Duration::from_secs(10))
-            .max_transmit_size(MAX_TRANSMIT_SIZE) // 256 KB
+            .heartbeat_interval(Duration::from_secs(HEARTBEAT_INTERVAL_SECS))
+            .max_transmit_size(MAX_TRANSMIT_SIZE)
             .message_id_fn(message_id_fn)
+            .message_capacity(MESSAGE_CAPACITY)
             .message_ttl(Duration::from_secs(MESSAGE_TTL_SECS))
             .gossip_ttl(Duration::from_secs(GOSSIP_TTL_SECS))
-            .message_capacity(MESSAGE_CAPACITY)
+            .duplicate_cache_time(Duration::from_secs(DUPLICATE_CACHE_TIME_SECS))
+            .max_ihave_length(MAX_IHAVE_LENGTH)
+            .send_queue_size(MAX_SEND_QUEUE_SIZE)
             .validation_mode(VALIDATION_MODE)
             .validate_messages()
-            .max_ihave_length(MAX_IHAVE_LENGTH)
             .build()
             .expect("Valid config"), // TODO: better error handling
     )
