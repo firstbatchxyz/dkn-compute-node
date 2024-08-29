@@ -60,7 +60,7 @@ jobs:
   test_release:
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/startgo'
+    if: github.ref == 'refs/heads/start-go'
     
     steps:
       - name: Checkout code
