@@ -20,6 +20,8 @@ services:
       OLLAMA_HOST: ${OLLAMA_HOST}
       OLLAMA_PORT: ${OLLAMA_PORT}
       OLLAMA_AUTO_PULL: ${OLLAMA_AUTO_PULL:-true}
+      # vLLM 
+      VLLM_PORT: ${VLLM_PORT}
     network_mode: ${DKN_DOCKER_NETWORK_MODE:-bridge}
     extra_hosts:
       # for Linux, we need to add this line manually
@@ -34,6 +36,18 @@ services:
     volumes:
       - ~/.ollama:/root/.ollama
     profiles: [ollama-cpu]
+
+  # vLLM Container 
+  vLLM:
+    image: vllm/vllm-openai:latest
+    ports:
+      - 11435:11435
+    volumes:
+      - ~/.vllm:/root/.vllm
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      VLLM_PORT: ${VLLM_PORT}
+    profiles: [vllm]
 
   # Ollama Container (ROCM)
   ollama-rocm:
