@@ -48,7 +48,7 @@ fastbloom-rs = "0.5.9"
 ollama-workflows = { git = "https://github.com/andthattoo/ollama-workflows", rev = "d6b2e1e" }
 
 # peer-to-peer
-libp2p = { git = "https://github.com/anilaltuner/rust-libp2p.git", rev = "be2ed55", features = [
+libp2p = { git = "https://github.com/anilaltuner/rust-libp2p.git", rev = "3c55e95", features = [
     # libp2p = { version = "0.54.1", features = [
     "dcutr",
     "ping",

@@ -204,7 +204,7 @@ impl P2PClient {
     ///
     /// This method should be called in a loop to keep the client running.
     /// When a GossipSub message is received, it will be returned.
-    pub async fn process_events(&mut self) -> Option<(PeerId, MessageId, Message)> {
+    pub async fn process_events(&mut self) -> (PeerId, MessageId, Message) {
         loop {
             // refresh peers
             self.refresh_peer_counts().await;
@@ -227,7 +227,7 @@ impl P2PClient {
                         message,
                     },
                 )) => {
-                    return Some((peer_id, message_id, message));
+                    return (peer_id, message_id, message);
                 }
                 SwarmEvent::Behaviour(DriaBehaviourEvent::Autonat(
                     autonat::Event::StatusChanged { old, new },
@@ -326,7 +326,7 @@ impl P2PClient {
     /// Should be called in a loop.
     ///
     /// Returns: (All Peer Count, Mesh Peer Count)
-    async fn refresh_peer_counts(&mut self) {
+    pub async fn refresh_peer_counts(&mut self) {
         if self.peer_last_refreshed.elapsed() > Duration::from_secs(PEER_REFRESH_INTERVAL_SECS) {
             let random_peer = PeerId::random();
             self.swarm
