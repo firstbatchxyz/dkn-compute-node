@@ -9,6 +9,7 @@ on:
       - 'start/start.go'
       - 'start/compose.yml'
       - 'start/.env.example'
+      - '.github/workflows/build_startgo.yml'
 
 jobs:
   build:
