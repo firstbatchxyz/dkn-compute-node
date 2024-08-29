@@ -77,7 +77,7 @@ func checkDockerComposeCommand() (string, []string, []string) {
 	// both not found, exit
 	fmt.Println("docker compose is not installed on this machine. It's required to run the node.")
 	fmt.Println("Check https://docs.docker.com/compose/install/ for installation.")
-	os.Exit(1)
+	// os.Exit(1)
 	return "", nil, nil
 }
 
@@ -186,6 +186,85 @@ func runOllamaServe(host, port string) (int, error) {
 	return pid, fmt.Errorf("ollama failed to start after %d retries", OLLAMA_MAX_RETRIES)
 }
 
+func pickModels() string {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print("Please pick the model you want to run:\n\n")
+	fmt.Printf("ID\tProvider\tName\n")
+	for id, model := range OPENAI_MODELS {
+		fmt.Printf("%d\tOpenAI\t%s\n", id+1, model)
+	}
+	for id, model := range OLLAMA_MODELS {
+		fmt.Printf("%d\tOllama\t%s\n", len(OLLAMA_MODELS)+id, model)
+	}
+	fmt.Printf("Enter the model ids (comma seperated, e.g: 1,2,4): ")
+	models, err := reader.ReadString('\n')
+	if err != nil {
+		return ""
+	}
+	models = strings.Split(models, "\n")[0]
+	models = strings.ReplaceAll(models, " ", "")
+	models_list := strings.Split(models, ",")
+	picked_models_map := make(map[int]bool, 0)
+	picked_models_str := ""
+	invalid_selections := make(map[string]bool, 0)
+	for _, i := range models_list {
+		// if selection is already in invalids list, continue
+		if invalid_selections[i] || i == "" {
+			continue
+		}
+
+		id, err := strconv.Atoi(i)
+		if err != nil {
+			// not integer, invalid
+			invalid_selections[i] = true
+			continue
+		}
+		if id > 0 && id <= len(OPENAI_MODELS) {
+			// openai model picked
+			if !picked_models_map[id] {
+				// if not already picked, add it to bin
+				picked_models_map[id] = true
+				picked_models_str = fmt.Sprintf("%s,%s", picked_models_str, OPENAI_MODELS[id-1])
+			}
+		} else if id > len(OPENAI_MODELS) && id <= len(OLLAMA_MODELS)+len(OPENAI_MODELS) {
+			// ollama model picked
+			if !picked_models_map[id] {
+				// if not already picked, add it to bin
+				picked_models_map[id] = true
+				picked_models_str = fmt.Sprintf("%s,%s", picked_models_str, OLLAMA_MODELS[id-len(OPENAI_MODELS)-1])
+			}
+		} else {
+			// out of index, invalid
+			invalid_selections[i] = true
+			continue
+		}
+	}
+	if len(invalid_selections) != 0 {
+		fmt.Printf("Invalid selections: ")
+		for k := range invalid_selections {
+			fmt.Printf("%s, ", k)
+		}
+		fmt.Printf(" skipping them\n")
+	}
+	fmt.Printf("\n")
+	return picked_models_str
+}
+
+func getUserInput(message string, trim bool) string {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Printf("%s: ", message)
+	answer, err := reader.ReadString('\n')
+	if err != nil {
+		return ""
+	}
+	answer = strings.Split(answer, "\n")[0]
+	if trim {
+		answer = strings.ReplaceAll(answer, " ", "")
+	}
+	return answer
+
+}
+
 type ModelList []string
 
 func (models *ModelList) String() string {
@@ -272,12 +351,44 @@ func main() {
 
 	checkRequiredEnvVars(envvars)
 
-	// use models given with -m flag
+	// if -m flag is given, set them as DKN_MODELS
 	if len(models) != 0 {
 		envvars["DKN_MODELS"] = strings.Join(models, ",")
 	}
 
-	// check ollama models
+	// if DKN_MODELS are still empty, pick model interactively
+	if envvars["DKN_MODELS"] == "" {
+		pickedModels := pickModels()
+		if pickedModels == "" {
+			fmt.Println("No valid model picked, terminating...")
+			os.Exit(1)
+		}
+		envvars["DKN_MODELS"] = pickedModels
+	}
+
+	// check openai api key
+	for _, model := range strings.Split(envvars["DKN_MODELS"], ",") {
+		for _, openai_model := range OPENAI_MODELS {
+			if model == openai_model {
+				if envvars["OPENAI_API_KEY"] == "" {
+					apikey := getUserInput("Enter your OpenAI API Key", true)
+					if apikey == "" {
+						fmt.Printf("Invalid input, please place your OPENAI_API_KEY to .env file, terminating.\n")
+						os.Exit(1)
+					}
+					envvars["OPENAI_API_KEY"] = apikey
+				}
+				break
+			}
+		}
+	}
+
+	// get jina and serper api keys
+	envvars["JINA_API_KEY"] = getUserInput("Enter your Jina API key (optional, just press enter for skipping it)", true)
+	envvars["SERPER_API_KEY"] = getUserInput("Enter your Serper API key (optional, just press enter for skipping it)", true)
+	fmt.Printf("\n")
+
+	// check ollama requirement
 	for _, model := range strings.Split(envvars["DKN_MODELS"], ",") {
 		for _, ollama_model := range OLLAMA_MODELS {
 			if model == ollama_model {
@@ -287,21 +398,7 @@ func main() {
 		}
 	}
 
-	// check openai models
-	for _, model := range strings.Split(envvars["DKN_MODELS"], ",") {
-		for _, openai_model := range OPENAI_MODELS {
-			if model == openai_model {
-				if envvars["OPENAI_API_KEY"] == "" {
-					fmt.Printf("An OpenAI model is given (%s) but OPENAI_API_KEY env-var is missing\n", model)
-					fmt.Printf("Please put your OPENAI_API_KEY to .env file, terminating.\n")
-					os.Exit(1)
-				}
-				break
-			}
-		}
-	}
-
-	// check ollama
+	// check ollama environment
 	if OLLAMA_REQUIRED {
 		// local ollama
 		if !(*dockerOllama) {
