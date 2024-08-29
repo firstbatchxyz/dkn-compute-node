@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -29,6 +30,9 @@ func runCommand(printToStdout, wait bool, envs []string, command string, args ..
 
 	// Set the environment variable
 	cmd.Env = append(os.Environ(), envs...)
+
+	// set working dir
+	cmd.Dir = WORKING_DIR
 
 	if printToStdout {
 		// Connect stdout and stderr to the terminal
@@ -59,7 +63,7 @@ func runCommand(printToStdout, wait bool, envs []string, command string, args ..
 	return pid, nil
 }
 
-func checkDockerCompose() string {
+func checkDockerComposeCommand() string {
 	commands := []string{"docker compose", "docker-compose"}
 	for _, cmd := range commands {
 		if _, err := exec.Command(cmd, "version").Output(); err == nil {
@@ -70,6 +74,11 @@ func checkDockerCompose() string {
 	fmt.Println("Check https://docs.docker.com/compose/install/ for installation.")
 	os.Exit(1)
 	return ""
+}
+
+func isDockerUp() bool {
+	_, err := runCommand(false, true, nil, "docker", "info")
+	return err == nil
 }
 
 func checkRequiredEnvVars(envvars map[string]string) {
@@ -86,22 +95,24 @@ func checkRequiredEnvVars(envvars map[string]string) {
 	}
 
 	if envvars["DKN_ADMIN_PUBLIC_KEY"] == "" {
-		fmt.Println("DKN_ADMIN_PUBLIC_KEY env-var is not set, getting it interactively")
-		akey, err := getDknAdminPublicKey()
-		if err != nil {
-			fmt.Printf("Error during user input: %s\n", err)
-			os.Exit(1)
-		}
-		envvars["DKN_ADMIN_PUBLIC_KEY"] = akey
+		envvars["DKN_ADMIN_PUBLIC_KEY"] = DKN_ADMIN_PUBLIC_KEY
 		absent_env = true
 	}
 
 	if absent_env {
 		// dump the .env file for future usages
 		fmt.Printf("Dumping the given env-vars to .env\n\n")
-		godotenv.Write(envvars, "./.env")
-
+		godotenv.Write(envvars, filepath.Join(WORKING_DIR, ".env"))
 	}
+}
+
+func setWorkingDir() {
+	ex, err := os.Executable()
+	if err != nil {
+		fmt.Printf("Error during getting the working directory %s\n", err)
+		os.Exit(1)
+	}
+	WORKING_DIR = filepath.Dir(ex)
 }
 
 func getDknSecretKey() (string, error) {
@@ -125,30 +136,6 @@ func getDknSecretKey() (string, error) {
 		return "", fmt.Errorf("DKN Wallet Secret Key should be 32 bytes long")
 	}
 	return skey, nil
-}
-
-func getDknAdminPublicKey() (string, error) {
-	reader := bufio.NewReader(os.Stdin)
-
-	// get DKN_ADMIN_PUBLIC_KEY
-	fmt.Print("Please enter DKN Admin Public Key (32-bytes hex encoded, you can get it from .env.example): ")
-	admin_pkey, err := reader.ReadString('\n')
-	if err != nil {
-		return "", fmt.Errorf("couldn't get DKN Admin Public Key")
-	}
-	admin_pkey = strings.Split(admin_pkey, "\n")[0]
-	admin_pkey = strings.TrimSpace(admin_pkey)
-	admin_pkey = strings.TrimPrefix(admin_pkey, "0x")
-	// decode the hex string into bytes
-	decoded_admin_pkey, err := hex.DecodeString(admin_pkey)
-	if err != nil {
-		return "", fmt.Errorf("DKN Admin Public Key should be 32-bytes hex encoded")
-	}
-	// ensure the decoded bytes are exactly 33 bytes
-	if len(decoded_admin_pkey) != 33 {
-		return "", fmt.Errorf("DKN Admin Public Key should be 33 bytes long")
-	}
-	return admin_pkey, nil
 }
 
 func mapToList(m map[string]string) []string {
@@ -211,8 +198,10 @@ func (models *ModelList) Set(value string) error {
 
 var (
 	OLLAMA_MODELS       = []string{"nous-hermes2theta-llama3-8b", "phi3:medium", "phi3:medium-128k", "phi3:3.8b", "llama3.1:latest"}
+	OPENAI_MODELS       = []string{"gpt-3.5-turbo", "gpt-4-turbo", "gpt-4o", "gpt-4o-mini"}
 	DEFAULT_OLLAMA_PORT = 11434
 	OLLAMA_REQUIRED     = false
+	OPENAI_REQUIRED     = false
 	DOCKER_HOST         = "http://host.docker.internal"
 	LOCAL_HOST          = "http://localhost"
 	OLLAMA_MAX_RETRIES  = 5
@@ -222,6 +211,11 @@ var (
 	// based on local Ollama & OS we may set it to `host`
 	// https://docs.docker.com/engine/network/#drivers
 	DKN_DOCKER_NETWORK_MODE = "bridge"
+
+	// Default admin public key, it will be used unless --dkn-admin-public-key is given
+	DKN_ADMIN_PUBLIC_KEY = "0208ef5e65a9c656a6f92fb2c770d5d5e2ecffe02a6aade19207f75110be6ae658"
+
+	WORKING_DIR = ""
 )
 
 func main() {
@@ -237,7 +231,10 @@ func main() {
 	dev := flag.Bool("dev", false, "Sets the logging level to debug (default: false)")
 	trace := flag.Bool("trace", false, "Sets the logging level to trace (default: false)")
 	dockerOllama := flag.Bool("docker-ollama", false, "Indicates the Ollama docker image is being used (default: false)")
+	dkn_admin_pkey_flag := flag.String("dkn-admin-public-key", DKN_ADMIN_PUBLIC_KEY, "DKN Admin Node Public Key, usually dont need this since it's given by default")
 	flag.Parse()
+	// override DKN_ADMIN_PUBLIC_KEY if flag is a different value
+	DKN_ADMIN_PUBLIC_KEY = *dkn_admin_pkey_flag
 
 	// Display help and exit if -h or --help is provided
 	if *help {
@@ -247,33 +244,25 @@ func main() {
 
 	fmt.Printf("Setting up the environment...\n\n")
 
+	// get the current working directory and set it to global WORKING_DIR
+	setWorkingDir()
+
 	// Check Docker Compose
-	composeCommand := checkDockerCompose()
+	composeCommand := checkDockerComposeCommand()
+	if !isDockerUp() {
+		fmt.Println("ERROR: Docker is not up, terminating.")
+		os.Exit(1)
+	}
 
-	// Load .env file if exists
-	envvars, err := godotenv.Read("./.env")
+	// first load .env file if exists
+	envvars, err := godotenv.Read(filepath.Join(WORKING_DIR, ".env"))
 	if err != nil {
-		// if .env is not exists or required vars are absent, get them from terminal
-		fmt.Println("Couldn't load .env file")
-		fmt.Println("Getting required env vars interactively")
-		skey, err := getDknSecretKey()
+		// if couldnt load the .env, use .env.example
+		envvars, err = godotenv.Read(filepath.Join(WORKING_DIR, ".env.example"))
 		if err != nil {
-			fmt.Printf("Error during user input: %s\n", err)
+			fmt.Println("Couldn't locate both .env and .env.example, terminating...")
 			os.Exit(1)
 		}
-
-		akey, err := getDknAdminPublicKey()
-		if err != nil {
-			fmt.Printf("Error during user input: %s\n", err)
-			os.Exit(1)
-		}
-
-		envvars["DKN_WALLET_SECRET_KEY"] = skey
-		envvars["DKN_ADMIN_PUBLIC_KEY"] = akey
-		// dump the .env file for future usages
-		fmt.Printf("Dumping the given env-vars to .env\n\n")
-		godotenv.Write(envvars, "./.env")
-
 	}
 
 	checkRequiredEnvVars(envvars)
@@ -288,6 +277,20 @@ func main() {
 		for _, ollama_model := range OLLAMA_MODELS {
 			if model == ollama_model {
 				OLLAMA_REQUIRED = true
+				break
+			}
+		}
+	}
+
+	// check openai models
+	for _, model := range strings.Split(envvars["DKN_MODELS"], ",") {
+		for _, openai_model := range OPENAI_MODELS {
+			if model == openai_model {
+				if envvars["OPENAI_API_KEY"] == "" {
+					fmt.Printf("An OpenAI model is given (%s) but OPENAI_API_KEY env-var is missing\n", model)
+					fmt.Printf("Please put your OPENAI_API_KEY to .env file, terminating.\n")
+					os.Exit(1)
+				}
 				break
 			}
 		}
