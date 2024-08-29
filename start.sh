@@ -297,7 +297,12 @@ handle_ollama_env() {
 
         # use docker internal for the Ollama host
         OLLAMA_HOST=$DOCKER_HOST
-        DKN_DOCKER_NETWORK_MODE=bridge
+
+        # if the OS is Linux, use host network mode
+        # otherwise bridge is fine, as set above
+        if [ "$OS" = "Linux" ]; then
+            DKN_DOCKER_NETWORK_MODE=host
+        fi
     fi
 
     echo "Ollama host: $OLLAMA_HOST (network mode: $DKN_DOCKER_NETWORK_MODE)"
