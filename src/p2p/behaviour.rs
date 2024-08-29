@@ -60,6 +60,9 @@ fn create_identify_behavior(local_public_key: PublicKey) -> identify::Behaviour 
     Behaviour::new(cfg)
 }
 
+/// Configures the Dcutr behavior to allow nodes to connect via hole-punching.
+/// It uses a Relay for the hole-punching process, and if it succeeds the peers are
+/// connected directly without the need for the relay; otherwise, they keep using the relay.
 #[inline]
 fn create_dcutr_behavior(local_peer_id: PeerId) -> dcutr::Behaviour {
     use dcutr::Behaviour;

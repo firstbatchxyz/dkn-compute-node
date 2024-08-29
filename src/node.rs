@@ -126,89 +126,86 @@ impl DriaComputeNode {
                         self.available_nodes_last_refreshed = tokio::time::Instant::now();
                     }
 
+                    let (peer_id, message_id, message) = event;
+                    let topic = message.topic.clone();
+                    let topic_str = topic.as_str();
 
-                    if let Some((peer_id, message_id, message)) = event {
-                        let topic = message.topic.clone();
-                        let topic_str = topic.as_str();
-
-                        // handle message w.r.t topic
-                        if std::matches!(topic_str, PINGPONG_LISTEN_TOPIC | WORKFLOW_LISTEN_TOPIC) {
-                            // ensure that the message is from a valid source (origin)
-                            let source_peer_id = match message.source {
-                                Some(peer) => peer,
-                                None => {
-                                    log::warn!("Received {} message from {} without source.", topic_str, peer_id);
-                                    self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore)?;
-                                    continue;
-                                }
-                            };
-
-                            log::info!(
-                                "Received {} message ({})\nFrom:   {}\nSource: {}",
-                                topic_str,
-                                message_id,
-                                peer_id,
-                                source_peer_id
-                            );
-
-                            // ensure that message is from the static RPCs
-                            if !self.available_nodes.rpc_nodes.contains(&source_peer_id) {
-                                log::warn!("Received message from unauthorized source: {}", source_peer_id);
-                                log::debug!("Allowed sources: {:#?}", self.available_nodes.rpc_nodes);
+                    // handle message w.r.t topic
+                    if std::matches!(topic_str, PINGPONG_LISTEN_TOPIC | WORKFLOW_LISTEN_TOPIC) {
+                        // ensure that the message is from a valid source (origin)
+                        let source_peer_id = match message.source {
+                            Some(peer) => peer,
+                            None => {
+                                log::warn!("Received {} message from {} without source.", topic_str, peer_id);
                                 self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore)?;
                                 continue;
                             }
+                        };
 
-                            // first, parse the raw gossipsub message to a prepared message
-                            // if unparseable,
-                            let message = match self.parse_message_to_prepared_message(message.clone()) {
-                                Ok(message) => message,
-                                Err(e) => {
-                                    log::error!("Error parsing message: {}", e);
-                                    log::debug!("Message: {}", String::from_utf8_lossy(&message.data));
-                                    self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore)?;
-                                    continue;
-                                }
-                            };
+                        log::info!(
+                            "Received {} message ({})\nFrom:   {}\nSource: {}",
+                            topic_str,
+                            message_id,
+                            peer_id,
+                            source_peer_id
+                        );
 
-                            // then handle the prepared message
-                            let handle_result = match topic_str {
-                                WORKFLOW_LISTEN_TOPIC => {
-                                    WorkflowHandler::handle_compute(self, message, WORKFLOW_RESPONSE_TOPIC).await
-                                }
-                                PINGPONG_LISTEN_TOPIC => {
-                                    PingpongHandler::handle_compute(self, message, PINGPONG_RESPONSE_TOPIC).await
-                                }
-                                // TODO: can we do this in a nicer way?
-                                // TODO: yes, cast to enum above and let type-casting do the work
-                                _ => unreachable!() // unreachable because of the if condition
-                            };
-
-                            // validate the message based on the result
-                            match handle_result {
-                                Ok(acceptance) => {
-
-                                    self.p2p.validate_message(&message_id, &peer_id, acceptance)?;
-                                },
-                                Err(err) => {
-                                    log::error!("Error handling {} message: {}", topic_str, err);
-                                    self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Reject)?;
-                                }
-                            }
-                        } else if std::matches!(topic_str, PINGPONG_RESPONSE_TOPIC | WORKFLOW_RESPONSE_TOPIC) {
-                            // since we are responding to these topics, we might receive messages from other compute nodes
-                            // we can gracefully ignore them
-                            log::debug!("Ignoring message for topic: {}", topic_str);
-
-                            // accept this message for propagation
-                            self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Accept)?;
-                        } else {
-                            log::warn!("Received message from unexpected topic: {}", topic_str);
-
-                            // reject this message as its from a foreign topic
-                            self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Reject)?;
+                        // ensure that message is from the static RPCs
+                        if !self.available_nodes.rpc_nodes.contains(&source_peer_id) {
+                            log::warn!("Received message from unauthorized source: {}", source_peer_id);
+                            log::debug!("Allowed sources: {:#?}", self.available_nodes.rpc_nodes);
+                            self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore)?;
+                            continue;
                         }
 
+                        // first, parse the raw gossipsub message to a prepared message
+                        // if unparseable,
+                        let message = match self.parse_message_to_prepared_message(message.clone()) {
+                            Ok(message) => message,
+                            Err(e) => {
+                                log::error!("Error parsing message: {}", e);
+                                log::debug!("Message: {}", String::from_utf8_lossy(&message.data));
+                                self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore)?;
+                                continue;
+                            }
+                        };
+
+                        // then handle the prepared message
+                        let handle_result = match topic_str {
+                            WORKFLOW_LISTEN_TOPIC => {
+                                WorkflowHandler::handle_compute(self, message, WORKFLOW_RESPONSE_TOPIC).await
+                            }
+                            PINGPONG_LISTEN_TOPIC => {
+                                PingpongHandler::handle_compute(self, message, PINGPONG_RESPONSE_TOPIC).await
+                            }
+                            // TODO: can we do this in a nicer way?
+                            // TODO: yes, cast to enum above and let type-casting do the work
+                            _ => unreachable!() // unreachable because of the if condition
+                        };
+
+                        // validate the message based on the result
+                        match handle_result {
+                            Ok(acceptance) => {
+
+                                self.p2p.validate_message(&message_id, &peer_id, acceptance)?;
+                            },
+                            Err(err) => {
+                                log::error!("Error handling {} message: {}", topic_str, err);
+                                self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Reject)?;
+                            }
+                        }
+                    } else if std::matches!(topic_str, PINGPONG_RESPONSE_TOPIC | WORKFLOW_RESPONSE_TOPIC) {
+                        // since we are responding to these topics, we might receive messages from other compute nodes
+                        // we can gracefully ignore them
+                        log::debug!("Ignoring message for topic: {}", topic_str);
+
+                        // accept this message for propagation
+                        self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Accept)?;
+                    } else {
+                        log::warn!("Received message from unexpected topic: {}", topic_str);
+
+                        // reject this message as its from a foreign topic
+                        self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Reject)?;
                     }
                 },
                 _ = self.cancellation.cancelled() => break,

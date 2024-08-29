@@ -15,6 +15,12 @@ use serde::{Deserialize, Serialize};
 
 /// A parsed message from gossipsub. When first received, the message data is simply a vector of bytes.
 /// We treat that bytearray as a stringified JSON object, and parse it into this struct.
+///
+/// TODO: these are all available at protocol level as well
+/// - payload is the data itself
+/// - topic is available as TopicHash of Gossipsub
+/// - version is given within the Identify protocol
+/// - timestamp is available at protocol level via DataTransform
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct P2PMessage {
     pub(crate) payload: String,
