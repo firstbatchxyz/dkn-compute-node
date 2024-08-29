@@ -1,4 +1,4 @@
-name: Go Build and Launch Release (Test Mode)
+name: start.go Build and Launch Releases
 
 on:
   push:
@@ -58,7 +58,7 @@ jobs:
           name: dkn-${{ matrix.os }}-${{ matrix.arch }}
           path: dkn-${{ matrix.os }}-${{ matrix.arch }}.zip
 
-  test_release:
+  release:
     needs: build
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/start-go'
