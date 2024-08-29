@@ -1,0 +1,81 @@
+name: Go Build and Launch Release (Test Mode)
+
+on:
+  push:
+    branches:
+      - start-go
+      - master
+    paths:
+      - 'start/start.go'
+      - 'start/compose.yml'
+      - 'start/.env.example'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.runner }}
+
+    strategy:
+      matrix:
+        include:
+          - { runner: macos-latest,  os: darwin,  arch: amd64, tags: netcgo        }
+          - { runner: macos-latest,  os: darwin,  arch: arm64, tags: netcgo        }
+          - { runner: ubuntu-latest, os: linux,   arch: amd64, env:  CGO_ENABLED=0 }
+          - { runner: ubuntu-latest, os: linux,   arch: arm64, env:  CGO_ENABLED=0 }
+          - { runner: ubuntu-latest, os: windows, arch: amd64, env: CGO_ENABLED=0, extension: ".exe" }
+          - { runner: ubuntu-latest, os: windows, arch: arm64, env: CGO_ENABLED=0, extension: ".exe" }
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21.5'
+
+      - name: Build Go app
+        working-directory: ./start
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+        run: |
+          ${{ matrix.env }} go build -tags="${{ matrix.tags }}" -o start${{ matrix.extension }} .
+
+      - name: Prepare Launch Release Files
+        env:
+          ZIP_NAME: dkn-${{ matrix.os }}-${{ matrix.arch }}
+        run: |
+          mkdir $ZIP_NAME
+          cp ./start/start${{ matrix.extension }} $ZIP_NAME/start${{ matrix.extension }}
+          cp ./compose.yml $ZIP_NAME/
+          cp ./.env.example $ZIP_NAME/
+          zip -r $ZIP_NAME.zip $ZIP_NAME
+
+      - name: Upload Launch Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dkn-${{ matrix.os }}-${{ matrix.arch }}
+          path: dkn-${{ matrix.os }}-${{ matrix.arch }}.zip
+
+  test_release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/startgo'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Download Launch Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: ./artifacts
+
+      - name: Create release with artifacts
+        uses: ncipollo/release-action@v1
+        with:
+          name: Draft Launch Release
+          tag: v0.0.1
+          draft: true
+          artifacts: "artifacts/*"
