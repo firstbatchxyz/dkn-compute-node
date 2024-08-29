@@ -5,33 +5,33 @@ ifneq (,$(wildcard ./.env))
 endif
 
 ###############################################################################
-.PHONY: launch #       | Run with INFO log-level in release mode
+.PHONY: launch #       | Run with INFO logs in release mode
 launch:
-		RUST_LOG=warn,dkn_compute=info cargo run --release
+		RUST_LOG=none,dkn_compute=info cargo run --release
 
-.PHONY: run #          | Run with INFO log-level
+.PHONY: run #          | Run with INFO logs
 run:
 		RUST_LOG=none,dkn_compute=info cargo run
 
-.PHONY: debug #        | Run with DEBUG log-level with INFO log-level workflows
+.PHONY: debug #        | Run with DEBUG logs with INFO log-level workflows
 debug:
 		RUST_LOG=warn,dkn_compute=debug,ollama_workflows=info cargo run
 
-.PHONY: trace #        | Run with crate-level TRACE logging
+.PHONY: trace #        | Run with TRACE logs
 trace:
-		RUST_LOG=none,dkn_compute=trace,libp2p=debug cargo run
+		RUST_LOG=warn,dkn_compute=trace,libp2p=debug cargo run
 
 .PHONY: build #        | Build
 build:
 		cargo build
 
-.PHONY: profile-cpu #   | Profile CPU usage with flamegraph
+.PHONY: profile-cpu #  | Profile CPU usage with flamegraph
 profile-cpu:
 	  cargo flamegraph --root --profile=profiling --features=profiling
 
-.PHONY: profile-mem #   | Profile memory usage with instruments
+.PHONY: profile-mem #  | Profile memory usage with instruments
 profile-mem:
-	  cargo instruments --profile=profiling --features=profiling -t Leaks
+	  cargo instruments --profile=profiling --features=profiling -t Allocations
 
 .PHONY: version #      | Print version
 version:
@@ -42,17 +42,12 @@ version:
 test:
 		cargo test
 
-############################################################################### 
-.PHONY: prompt #       | Run a single prompt on a model
-prompt:
-		cargo run --example prompt
-
 ###############################################################################
-.PHONY: lint #         | Run clippy
+.PHONY: lint #         | Run linter (clippy)
 lint:
 		cargo clippy
 
-.PHONY: format #       | Run formatter
+.PHONY: format #       | Run formatter (cargo fmt)
 format:
 		cargo fmt -v
 

@@ -72,6 +72,8 @@ impl DataTransform for TTLDataTransform {
 mod tests {
     use std::time::Duration;
 
+    use libp2p::PeerId;
+
     use super::*;
 
     #[test]
@@ -88,7 +90,7 @@ mod tests {
 
         // inbound transform
         let raw_message = RawMessage {
-            source: Default::default(),
+            source: Some(PeerId::random()),
             data: transformed_data,
             sequence_number: None,
             topic,

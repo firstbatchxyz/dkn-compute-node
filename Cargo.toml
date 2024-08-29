@@ -11,6 +11,7 @@ inherits = "release"
 debug = true
 
 [features]
+# used by flamegraphs & instruments
 profiling = []
 
 [dependencies]
