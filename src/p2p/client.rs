@@ -255,13 +255,14 @@ impl P2PClient {
         let addr = info.observed_addr;
 
         // check protocol string
-        // TODO: take the prefixes from a shared const
-        let protocol_ok = self.check_version_with_prefix(&info.protocol_version, "dria/");
+        let protocol_ok =
+            self.check_version_with_prefix(&info.protocol_version, P2P_IDENTITY_PREFIX!());
         if !protocol_ok {
             log::warn!(
-                "Identify: Peer {} has different Identify protocol: (have {}, want {})",
+                "Identify: Peer {} has different Identify protocol: (have {}, want {}{})",
                 peer_id,
                 info.protocol_version,
+                P2P_IDENTITY_PREFIX!(),
                 self.version
             );
             return;
@@ -271,9 +272,10 @@ impl P2PClient {
         if let Some(kad_protocol) = info
             .protocols
             .iter()
-            .find(|p| p.to_string().starts_with("/dria/kad/"))
+            .find(|p| p.to_string().starts_with(P2P_KADEMLIA_PREFIX!()))
         {
-            let protocol_ok = self.check_version_with_prefix(kad_protocol.as_ref(), "/dria/kad/");
+            let protocol_ok =
+                self.check_version_with_prefix(kad_protocol.as_ref(), P2P_KADEMLIA_PREFIX!());
 
             // if it matches our protocol, add it to the Kademlia routing table
             if protocol_ok {
@@ -290,9 +292,10 @@ impl P2PClient {
                     .add_address(&peer_id, addr);
             } else {
                 log::warn!(
-                    "Identify: Peer {} has different Kademlia version: (have {}, want {})",
+                    "Identify: Peer {} has different Kademlia version: (have {}, want {}{})",
                     peer_id,
                     kad_protocol,
+                    P2P_KADEMLIA_PREFIX!(),
                     self.version
                 );
             }
