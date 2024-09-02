@@ -210,11 +210,14 @@ impl OllamaConfig {
                 log::warn!("Ignoring model {}: Workflow timed out", model);
             },
             result = executor.execute(None, workflow, &mut memory) => {
-                if result.is_empty() {
-                    log::warn!("Ignoring model {}: Workflow returned empty result", model);
-                } else {
-                    log::info!("Accepting model {}", model);
-                    return true;
+                match result {
+                    Ok(_) => {
+                        log::info!("Accepting model {}", model);
+                        return true;
+                    }
+                    Err(e) => {
+                        log::warn!("Ignoring model {}: Workflow failed with error {}", model, e);
+                    }
                 }
             }
         };
@@ -292,6 +295,6 @@ mod tests {
         let mut memory = ProgramMemory::new();
 
         let result = exe.execute(None, workflow, &mut memory).await;
-        println!("Result: {}", result);
+        println!("Result: {}", result.unwrap());
     }
 }
