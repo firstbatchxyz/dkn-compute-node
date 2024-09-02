@@ -76,7 +76,8 @@ jobs:
       - name: Create release with artifacts
         uses: ncipollo/release-action@v1
         with:
-          name: v0.1.6-launch
-          tag: v0.1.6-launch
-          draft: true
+          name: v0.1.7-launch
+          tag: v0.1.7-launch
           artifacts: "artifacts/*"
+          artifactContentType: application/zip
+          draft: true
