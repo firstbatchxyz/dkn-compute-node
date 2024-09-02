@@ -136,6 +136,7 @@ Based on the resources of your machine, you must decide which models that you wi
 - `phi3:14b-medium-128k-instruct-q4_1`
 - `phi3:3.8b`
 - `llama3.1:latest`
+- `llama3.1:8b-instruct-q8_0`
 - `phi3.5:3.8b`
 - `phi3.5:3.8b-mini-instruct-fp16`
 
