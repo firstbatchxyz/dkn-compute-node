@@ -1,5 +1,4 @@
 use crate::p2p::AvailableNodes;
-use crate::DRIA_COMPUTE_NODE_VERSION;
 use libp2p::futures::StreamExt;
 use libp2p::gossipsub::{
     Message, MessageAcceptance, MessageId, PublishError, SubscriptionError, TopicHash,
@@ -10,21 +9,14 @@ use libp2p::{
 };
 use libp2p::{Multiaddr, PeerId, Swarm, SwarmBuilder};
 use libp2p_identity::Keypair;
-use semver::Version;
 use tokio::time::Duration;
 use tokio::time::Instant;
 
-use super::{DriaBehaviour, DriaBehaviourEvent};
-
-/// Used as default for unparsable versions.
-/// Will not match with any valid version.
-const ZERO_VERSION: Version = Version::new(0, 0, 0);
+use super::{DriaBehaviour, DriaBehaviourEvent, P2P_KADEMLIA_PROTOCOL, P2P_PROTOCOL_STRING};
 
 /// Underlying libp2p client.
 pub struct P2PClient {
     swarm: Swarm<DriaBehaviour>,
-    /// Client version, parsed from the `Cargo.toml` version.
-    version: Version,
     /// Peer count for (All, Mesh).
     peer_count: (usize, usize),
     /// Last time the peer count was refreshed.
@@ -123,7 +115,6 @@ impl P2PClient {
 
         Ok(Self {
             swarm,
-            version: Version::parse(DRIA_COMPUTE_NODE_VERSION).unwrap(),
             peer_count: (0, 0),
             peer_last_refreshed: Instant::now(),
         })
@@ -255,15 +246,12 @@ impl P2PClient {
         let addr = info.observed_addr;
 
         // check protocol string
-        let protocol_ok =
-            self.check_version_with_prefix(&info.protocol_version, P2P_IDENTITY_PREFIX!());
-        if !protocol_ok {
+        if info.protocol_version != P2P_PROTOCOL_STRING {
             log::warn!(
-                "Identify: Peer {} has different Identify protocol: (have {}, want {}{})",
+                "Identify: Peer {} has different Identify protocol: (have {}, want {})",
                 peer_id,
                 info.protocol_version,
-                P2P_IDENTITY_PREFIX!(),
-                self.version
+                P2P_PROTOCOL_STRING
             );
             return;
         }
@@ -274,11 +262,8 @@ impl P2PClient {
             .iter()
             .find(|p| p.to_string().starts_with(P2P_KADEMLIA_PREFIX!()))
         {
-            let protocol_ok =
-                self.check_version_with_prefix(kad_protocol.as_ref(), P2P_KADEMLIA_PREFIX!());
-
             // if it matches our protocol, add it to the Kademlia routing table
-            if protocol_ok {
+            if *kad_protocol == P2P_KADEMLIA_PROTOCOL {
                 log::info!(
                     "Identify: {} peer {} identified at {}",
                     kad_protocol,
@@ -292,11 +277,10 @@ impl P2PClient {
                     .add_address(&peer_id, addr);
             } else {
                 log::warn!(
-                    "Identify: Peer {} has different Kademlia version: (have {}, want {}{})",
+                    "Identify: Peer {} has different Kademlia version: (have {}, want {})",
                     peer_id,
                     kad_protocol,
-                    P2P_KADEMLIA_PREFIX!(),
-                    self.version
+                    P2P_KADEMLIA_PROTOCOL
                 );
             }
         }
@@ -370,23 +354,5 @@ impl P2PClient {
                 );
             }
         }
-    }
-
-    /// Generic function to split a string such as `prefix || version` and check that the major & minor versions are the same.
-    ///    
-    /// Some examples:
-    /// - `self.check_version_with_prefix("dria/")` for identity
-    /// - `self.check_version_with_prefix("dria/kad/")` for Kademlia
-    ///
-    /// Returns whether the version is ok.
-    fn check_version_with_prefix(&self, p: &str, prefix: &str) -> bool {
-        let parsed_version = p
-            .strip_prefix(prefix)
-            .and_then(|v| Version::parse(v).ok())
-            .unwrap_or(ZERO_VERSION);
-
-        p.starts_with(prefix)
-            && parsed_version.major == self.version.major
-            && parsed_version.minor == self.version.minor
     }
 }

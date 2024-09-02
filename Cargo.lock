@@ -1035,7 +1035,7 @@ dependencies = [
 
 [[package]]
 name = "dkn-compute"
-version = "0.1.8"
+version = "0.1.9"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -1054,7 +1054,6 @@ dependencies = [
  "parking_lot",
  "rand 0.8.5",
  "reqwest 0.12.5",
- "semver",
  "serde",
  "serde_json",
  "sha2 0.10.8",
