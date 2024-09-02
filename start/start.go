@@ -128,8 +128,8 @@ func getDknSecretKey() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("couldn't get DKN Wallet Secret Key")
 	}
-	skey = strings.Split(skey, "\n")[0]
 	skey = strings.TrimSpace(skey)
+	skey = strings.Split(skey, "\n")[0]
 	skey = strings.TrimPrefix(skey, "0x")
 	// decode the hex string into bytes
 	decoded_skey, err := hex.DecodeString(skey)
@@ -194,13 +194,14 @@ func pickModels() string {
 		fmt.Printf("%d\tOpenAI\t%s\n", id+1, model)
 	}
 	for id, model := range OLLAMA_MODELS {
-		fmt.Printf("%d\tOllama\t%s\n", len(OLLAMA_MODELS)+id, model)
+		fmt.Printf("%d\tOllama\t%s\n", len(OPENAI_MODELS)+id+1, model)
 	}
 	fmt.Printf("Enter the model ids (comma seperated, e.g: 1,2,4): ")
 	models, err := reader.ReadString('\n')
 	if err != nil {
 		return ""
 	}
+	models = strings.TrimSpace(models)
 	models = strings.Split(models, "\n")[0]
 	models = strings.ReplaceAll(models, " ", "")
 	models_list := strings.Split(models, ",")
@@ -257,6 +258,7 @@ func getUserInput(message string, trim bool) string {
 	if err != nil {
 		return ""
 	}
+	answer = strings.TrimSpace(answer)
 	answer = strings.Split(answer, "\n")[0]
 	if trim {
 		answer = strings.ReplaceAll(answer, " ", "")
@@ -281,8 +283,8 @@ func (models *ModelList) Set(value string) error {
 }
 
 var (
-	OLLAMA_MODELS       = []string{"nous-hermes2theta-llama3-8b", "phi3:medium", "phi3:medium-128k", "phi3:3.8b", "llama3.1:latest"}
-	OPENAI_MODELS       = []string{"gpt-3.5-turbo", "gpt-4-turbo", "gpt-4o", "gpt-4o-mini"}
+	OLLAMA_MODELS       = []string{"adrienbrault/nous-hermes2theta-llama3-8b:q8_0", "phi3:14b-medium-4k-instruct-q4_1", "phi3:14b-medium-128k-instruct-q4_1", "phi3:3.8b", "phi3.5:3.8b", "phi3.5:3.8b-mini-instruct-fp16", "llama3.1:latest"}
+	OPENAI_MODELS       = []string{"gpt-3.5-turbo","gpt-4-turbo","gpt-4o","gpt-4o-mini"}
 	DEFAULT_OLLAMA_PORT = 11434
 	OLLAMA_REQUIRED     = false
 	OPENAI_REQUIRED     = false
@@ -496,6 +498,9 @@ func main() {
 		fmt.Println("Error during pulling the latest compute node image")
 		os.Exit(1)
 	}
+
+	// dump the final env
+	godotenv.Write(envvars, filepath.Join(WORKING_DIR, ".env"))
 
 	// set runtime env vars
 	envvars["COMPOSE_PROFILES"] = strings.Join(COMPOSE_PROFILES, ",")
