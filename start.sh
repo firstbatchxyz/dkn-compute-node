@@ -182,7 +182,7 @@ handle_ollama_env() {
 
     # if there is no ollama model given, do not add any ollama compose profile
     ollama_needed=false
-    ollama_models="nous-hermes2theta-llama3-8b phi3:medium phi3:medium-128k phi3:3.8b llama3.1:latest"
+    ollama_models="nous-hermes2theta-llama3-8b phi3:medium phi3:medium-128k phi3:3.8b phi3.5 llama3.1:latest llama3.1:8b-instruct-q8_0"
     for m in $(echo "$DKN_MODELS" | tr ',' ' '); do
         case " $ollama_models " in
             *" $m "*) ollama_needed=true; break;;
@@ -297,7 +297,12 @@ handle_ollama_env() {
 
         # use docker internal for the Ollama host
         OLLAMA_HOST=$DOCKER_HOST
-        DKN_DOCKER_NETWORK_MODE=bridge
+
+        # if the OS is Linux, use host network mode
+        # otherwise bridge is fine, as set above
+        if [ "$OS" = "Linux" ]; then
+            DKN_DOCKER_NETWORK_MODE=host
+        fi
     fi
 
     echo "Ollama host: $OLLAMA_HOST (network mode: $DKN_DOCKER_NETWORK_MODE)"

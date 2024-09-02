@@ -210,15 +210,91 @@ impl OllamaConfig {
                 log::warn!("Ignoring model {}: Workflow timed out", model);
             },
             result = executor.execute(None, workflow, &mut memory) => {
-                if result.is_empty() {
-                    log::warn!("Ignoring model {}: Workflow returned empty result", model);
-                } else {
-                    log::info!("Accepting model {}", model);
-                    return true;
+                match result {
+                    Ok(_) => {
+                        log::info!("Accepting model {}", model);
+                        return true;
+                    }
+                    Err(e) => {
+                        log::warn!("Ignoring model {}: Workflow failed with error {}", model, e);
+                    }
                 }
             }
         };
 
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ollama_workflows::ollama_rs::{generation::completion::request::GenerationRequest, Ollama};
+    use ollama_workflows::{Executor, Model, ProgramMemory, Workflow};
+
+    #[tokio::test]
+    #[ignore = "run this manually"]
+    async fn test_ollama_prompt() {
+        let model = Model::Phi3Mini.to_string();
+        let ollama = Ollama::default();
+        ollama.pull_model(model.clone(), false).await.unwrap();
+        let prompt = "The sky appears blue during the day because of a process called scattering. \
+                    When sunlight enters the Earth's atmosphere, it collides with air molecules such as oxygen and nitrogen. \
+                    These collisions cause some of the light to be absorbed or reflected, which makes the colors we see appear more vivid and vibrant. \
+                    Blue is one of the brightest colors that is scattered the most by the atmosphere, making it visible to our eyes during the day. \
+                    What may be the question this answer?".to_string();
+
+        let response = ollama
+            .generate(GenerationRequest::new(model, prompt.clone()))
+            .await
+            .expect("Should generate response");
+        println!("Prompt: {}\n\nResponse:{}", prompt, response.response);
+    }
+
+    #[tokio::test]
+    #[ignore = "run this manually"]
+    async fn test_ollama_workflow() {
+        let workflow = r#"{
+        "name": "Simple",
+        "description": "This is a simple workflow",
+        "config": {
+            "max_steps": 5,
+            "max_time": 100,
+        },
+        "tasks":[
+            {
+                "id": "A",
+                "name": "Random Poem",
+                "description": "Writes a poem about Kapadokya.",
+                "prompt": "Please write a poem about Kapadokya.",
+                "operator": "generation",
+                "outputs": [
+                    {
+                        "type": "write",
+                        "key": "final_result",
+                        "value": "__result"
+                    }
+                ]
+            },
+            {
+                "id": "__end",
+                "name": "end",
+                "description": "End of the task",
+                "prompt": "End of the task",
+                "operator": "end",
+            }
+        ],
+        "steps":[
+            {
+                "source":"A",
+                "target":"end"
+            }
+        ]
+    }"#;
+        let workflow: Workflow = serde_json::from_str(workflow).unwrap();
+        let exe = Executor::new(Model::Phi3Mini);
+        let mut memory = ProgramMemory::new();
+
+        let result = exe.execute(None, workflow, &mut memory).await;
+        println!("Result: {}", result.unwrap());
     }
 }

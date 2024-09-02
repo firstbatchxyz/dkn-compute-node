@@ -43,7 +43,14 @@ impl DriaComputeNodeConfig {
             Ok(secret_env) => {
                 let secret_dec = hex::decode(secret_env.trim_start_matches("0x"))
                     .expect("Secret key should be 32-bytes hex encoded.");
-                SecretKey::parse_slice(&secret_dec).expect("Secret key should be parseable.")
+
+                // if secret key is all-zeros, create one randomly
+                // this is useful for testing & creating nodes on the fly
+                if secret_dec.iter().all(|b| b == &0) {
+                    SecretKey::random(&mut rand::thread_rng())
+                } else {
+                    SecretKey::parse_slice(&secret_dec).expect("Secret key should be parseable.")
+                }
             }
             Err(err) => {
                 log::error!("No secret key provided: {}", err);

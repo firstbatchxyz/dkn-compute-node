@@ -76,7 +76,7 @@ impl ComputeHandler for WorkflowHandler {
             .get_any_matching_model(task.input.model)?;
         log::info!("Using model {} for task {}", model, task.task_id);
 
-        // execute workflow with cancellation
+        // prepare workflow executor
         let executor = if model_provider == ModelProvider::Ollama {
             Executor::new_at(
                 model,
@@ -91,26 +91,28 @@ impl ComputeHandler for WorkflowHandler {
             .input
             .prompt
             .map(|prompt| Entry::try_value_or_str(&prompt));
-        let result: Option<String>;
+
+        // execute workflow with cancellation
+        let result: String;
         tokio::select! {
             _ = node.cancellation.cancelled() => {
                 log::info!("Received cancellation, quitting all tasks.");
                 return Ok(MessageAcceptance::Accept)
             },
             exec_result = executor.execute(entry.as_ref(), task.input.workflow, &mut memory) => {
-                if exec_result.is_empty() {
-                    return Err(format!("Got empty string result for task {}", task.task_id).into());
-                } else {
-                    result = Some(exec_result);
+                match exec_result {
+                    Ok(exec_result) => {
+                        result =  exec_result;
+                    }
+                    Err(e) => {
+                        return Err(format!("Workflow failed with error {}", e).into());
+                    }
                 }
             }
         }
-        let result = result.ok_or::<String>(format!("No result for task {}", task.task_id))?;
 
         // publish the result
         node.send_result(result_topic, &task.public_key, &task.task_id, result)?;
-
-        // accept message, someone else may be included in the filter
         Ok(MessageAcceptance::Accept)
     }
 }
