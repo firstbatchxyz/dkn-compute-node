@@ -1,0 +1,113 @@
+name: start.go Build and Launch Releases
+
+on:
+  push:
+    branches:
+      - start-go
+      - master
+    paths:
+      - 'start/start.go'
+      - 'start/compose.yml'
+      - 'start/.env.example'
+      - '.github/workflows/build_startgo.yml'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.runner }}
+
+    strategy:
+      matrix:
+        include:
+          - { runner: macos-latest,  goos: darwin,  osname: macOS,   arch: amd64, tags: netcgo        }
+          - { runner: macos-latest,  goos: darwin,  osname: macOS,   arch: arm64, tags: netcgo        }
+          - { runner: ubuntu-latest, goos: linux,   osname: linux,   arch: amd64, env:  CGO_ENABLED=0 }
+          - { runner: ubuntu-latest, goos: linux,   osname: linux,   arch: arm64, env:  CGO_ENABLED=0 }
+          - { runner: ubuntu-latest, goos: windows, osname: windows, arch: amd64, env:  CGO_ENABLED=0, extension: ".exe" }
+          - { runner: ubuntu-latest, goos: windows, osname: windows, arch: arm64, env:  CGO_ENABLED=0, extension: ".exe" }
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21.5'
+
+      - name: Build Go app
+        working-directory: ./start
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.arch }}
+        run: |
+          ${{ matrix.env }} go build -tags="${{ matrix.tags }}" -o start${{ matrix.extension }} .
+
+      - name: Prepare Launch Release Files
+        env:
+          ZIP_NAME: dkn-${{ matrix.osname }}-${{ matrix.arch }}
+        run: |
+          mkdir $ZIP_NAME
+          cp ./start/start${{ matrix.extension }} $ZIP_NAME/start${{ matrix.extension }}
+          cp ./compose.yml $ZIP_NAME/
+          cp ./.env.example $ZIP_NAME/
+          zip -r $ZIP_NAME.zip $ZIP_NAME
+
+      - name: Upload Launch Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dkn-${{ matrix.osname }}-${{ matrix.arch }}
+          path: dkn-${{ matrix.osname }}-${{ matrix.arch }}.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/start-go'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Download Launch Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: ./artifacts
+
+      - name: Get latest code release tag
+        id: get_latest_tag
+        run: |
+          # Fetch all tags
+          git fetch --tags
+          
+          # find the latest tag that does not have a -launch suffix
+          latest_tag=""
+          for tag in $(git tag --list --sort=-v:refname); do
+            if [[ "$tag" != *-launch ]]; then
+              latest_tag=$tag
+              break
+            fi
+          done
+
+          if [ -z "$latest_tag" ]; then
+            echo "Error: No valid code release tag found."
+            exit 1
+          fi
+
+          echo "Latest code release tag: $latest_tag"
+          echo "LATEST_TAG=$latest_tag" >> $GITHUB_ENV
+
+      - name: Create launch release tag
+        id: create_launch_tag
+        run: |
+          new_tag="${LATEST_TAG}-launch"
+          echo "New launch release tag: $new_tag"
+          echo "NEW_TAG=$new_tag" >> $GITHUB_ENV
+
+      - name: Create release with artifacts
+        uses: ncipollo/release-action@v1
+        with:
+          name: ${{ env.NEW_TAG }}
+          tag: ${{ env.NEW_TAG }}
+          artifacts: "artifacts/*"
+          artifactContentType: application/zip
+          draft: true
