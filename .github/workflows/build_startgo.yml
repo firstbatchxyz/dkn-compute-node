@@ -3,7 +3,6 @@ name: start.go Build and Launch Releases
 on:
   push:
     branches:
-      - start-go
       - master
     paths:
       - 'start/start.go'
@@ -61,7 +60,7 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/start-go'
+    if: github.ref == 'refs/heads/master'
     
     steps:
       - name: Checkout code
