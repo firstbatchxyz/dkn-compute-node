@@ -42,7 +42,7 @@ To be able to run a node, we need to make a few simple preparations. Follow the 
 
 ### 1. Download and Extract the Node Files
 
-Download the appropriate ZIP file for your system using the commands below or from [browser](https://github.com/firstbatchxyz/dkn-compute-node/releases/tag/untagged-ad4b77bd5544f4412179). Make sure to replace the URL with the correct version for your operating system and architecture.
+Download the appropriate ZIP file for your system using the commands below or from [browser](https://github.com/firstbatchxyz/dkn-compute-node/releases/tag/v0.1.8-launch). Make sure to replace the URL with the correct version for your operating system and architecture.
 
 **macOS:**
 
@@ -55,7 +55,7 @@ Download the appropriate ZIP file for your system using the commands below or fr
 
 2. Download the ZIP file:
    ```sh
-   curl -L -o dkn-compute-node.zip https://github.com/firstbatchxyz/dkn-compute-node/releases/download/untagged-54b9278cc672499d9c84/dkn-compute-node-macos-arm64.zip
+   curl -L -o dkn-compute-node.zip https://github.com/firstbatchxyz/dkn-compute-node/releases/download/v0.1.8-launch/dkn-macOS-arm64.zip
    ```
 
 3. Unzip the downloaded file:
@@ -83,7 +83,7 @@ Download the appropriate ZIP file for your system using the commands below or fr
 
 2. Download the ZIP file:
    ```sh
-   curl -L -o dkn-compute-node.zip https://github.com/firstbatchxyz/dkn-compute-node/releases/download/untagged-54b9278cc672499d9c84/dkn-compute-node-linux-amd64.zip
+   curl -L -o dkn-compute-node.zip https://github.com/firstbatchxyz/dkn-compute-node/releases/download/v0.1.8-launch/dkn-linux-amd64.zip
    ```
 
 3. Unzip the downloaded file:
@@ -104,7 +104,7 @@ Download the appropriate ZIP file for your system using the commands below or fr
 
 2. Download the ZIP file using a web browser or in PowerShell:
    ```cmd
-   curl -L -o dkn-compute-node.zip https://github.com/firstbatchxyz/dkn-compute-node/releases/download/untagged-54b9278cc672499d9c84/dkn-compute-node-windows-amd64.zip
+   curl -L -o dkn-compute-node.zip https://github.com/firstbatchxyz/dkn-compute-node/releases/download/v0.1.8-launch/dkn-windows-amd64.zip
    ```
 
 3. Unzip the downloaded file using File Explorer or in PowerShell:
