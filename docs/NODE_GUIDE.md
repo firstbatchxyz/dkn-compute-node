@@ -61,8 +61,8 @@ Download the appropriate ZIP file for your system using the commands below or fr
 
 3. Unzip the downloaded file:
    ```sh
-   unzip dkn-compute-node-macos-arm64.zip
-   cd dkn-compute-node-darwin-arm64
+   unzip dkn-compute-node.zip
+   cd dkn-macOS-arm64
    ```
 
 > [!TIP]
@@ -92,8 +92,8 @@ Download the appropriate ZIP file for your system using the commands below or fr
 
 3. Unzip the downloaded file:
    ```sh
-   unzip dkn-compute-node-linux-amd64.zip
-   cd dkn-compute-node-linux-amd64
+   unzip dkn-compute-node.zip
+   cd dkn-linux-amd64
    ```
 
 #### Windows:
@@ -115,8 +115,8 @@ Download the appropriate ZIP file for your system using the commands below or fr
 
 3. Unzip the downloaded file using File Explorer or in PowerShell:
    ```cmd
-   Expand-Archive -Path "C:\path\to\your\dkn-compute-node-windows-amd64.zip" -DestinationPath "C:\path\to\destination\dkn-compute-node-windows-amd64"
-   cd dkn-compute-node-windows-amd64
+   Expand-Archive -Path "C:\path\to\your\dkn-compute-node.zip" -DestinationPath "C:\path\to\destination\dkn-windows-amd64"
+   cd dkn-windows-amd64
    ```
 
 ### 2. Prepare Environment Variables
