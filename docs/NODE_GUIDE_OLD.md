@@ -13,7 +13,9 @@ You need the following applications to run compute node:
 
 > [!CAUTION]
 >
-> > In **Windows** machines, Docker Desktop is requried to be running with **WSL2**. You can check the Docker Desktop Windows installation guide from [here](https://docs.docker.com/desktop/install/windows-install/)
+> In **windows** machines, Docker-Desktop requried to be running with **WSL2**
+>
+> You can check the Docker Desktop Windows installation guide from [here](https://docs.docker.com/desktop/install/windows-install/)
 
 > [!TIP]
 >
@@ -40,9 +42,9 @@ To be able to run a node, we need to make a few simple preparations. Follow the 
 
 ### 1. Download and Extract the Node Files
 
-Download the appropriate ZIP file for your system using the commands below or from [browser](https://github.com/firstbatchxyz/dkn-compute-node/releases/tag/v0.1.8-launch). Make sure to replace the URL with the correct version for your operating system and architecture.
+Download the appropriate ZIP file for your system using the commands below or from [browser](https://github.com/firstbatchxyz/dkn-compute-node/releases/tag/untagged-ad4b77bd5544f4412179). Make sure to replace the URL with the correct version for your operating system and architecture.
 
-#### macOS:
+**macOS:**
 
 1. Check your architecture:
 
@@ -56,7 +58,7 @@ Download the appropriate ZIP file for your system using the commands below or fr
 2. Download the ZIP file:
 
    ```sh
-   curl -L -o dkn-compute-node.zip https://github.com/firstbatchxyz/dkn-compute-node/releases/download/v0.1.8-launch/dkn-macOS-arm64.zip
+   curl -L -o dkn-compute-node.zip https://github.com/firstbatchxyz/dkn-compute-node/releases/download/untagged-54b9278cc672499d9c84/dkn-compute-node-macos-arm64.zip
    ```
 
 3. Unzip the downloaded file:
@@ -73,7 +75,7 @@ Download the appropriate ZIP file for your system using the commands below or fr
 > xattr -d com.apple.quarantine start
 > ```
 
-#### Linux:
+**Linux:**
 
 1. Check your architecture:
 
@@ -87,7 +89,7 @@ Download the appropriate ZIP file for your system using the commands below or fr
 2. Download the ZIP file:
 
    ```sh
-   curl -L -o dkn-compute-node.zip https://github.com/firstbatchxyz/dkn-compute-node/releases/download/v0.1.8-launch/dkn-linux-amd64.zip
+   curl -L -o dkn-compute-node.zip https://github.com/firstbatchxyz/dkn-compute-node/releases/download/untagged-54b9278cc672499d9c84/dkn-compute-node-linux-amd64.zip
    ```
 
 3. Unzip the downloaded file:
@@ -96,7 +98,7 @@ Download the appropriate ZIP file for your system using the commands below or fr
    cd dkn-compute-node-linux-amd64
    ```
 
-#### Windows:
+**Windows:**
 
 1. Check your architecture:
 
@@ -110,7 +112,7 @@ Download the appropriate ZIP file for your system using the commands below or fr
 2. Download the ZIP file using a web browser or in PowerShell:
 
    ```cmd
-   curl -L -o dkn-compute-node.zip https://github.com/firstbatchxyz/dkn-compute-node/releases/download/v0.1.8-launch/dkn-windows-amd64.zip
+   curl -L -o dkn-compute-node.zip https://github.com/firstbatchxyz/dkn-compute-node/releases/download/untagged-54b9278cc672499d9c84/dkn-compute-node-windows-amd64.zip
    ```
 
 3. Unzip the downloaded file using File Explorer or in PowerShell:
@@ -249,7 +251,7 @@ sudo systemctl start docker
 
 ### 3. Run Node
 
-It's time to run our compute node. We have a starter cli app that makes this much easier: you can either run it by double-clicking the `start` app (`start.exe` on Windows) from your file explorer, or use it from terminal (or cmd/powershell in Windows).
+It's time to run our compute node. We have a starter cli app that makes this much easier, you can either run it by double-clicking the `start` app (`start.exe` on windows) from your file explorer or use it from terminal (or cmd/powershell in windows).
 
 See the available commands with:
 
@@ -328,18 +330,20 @@ When you start your node with `start` cli app, it will wait for you in the same 
 
 > If you don't have Ollama installed, you can ignore this section.
 
-If you have Ollama installed already (e.g. via `brew install ollama`) then the start script will always use it. Even if the Ollama server is not running, the start app will initiate it with `ollama serve` and terminate it when the node is being stopped.
+If you have Ollama installed already (e.g. via `brew install ollama`) then you must indicate that you will be using that Ollama, instead of a Docker container. To do this, we set the provide the argument `--local-ollama=true` which is `true` by default. With this, the compute node will use the Ollama server on your machine, instead of a Docker container.
 
-If you would like to explicitly use Docker Ollama instead, you can do this by passing the `--docker-ollama` option.
+If the Ollama server is not running, the start app will initiate it with `ollama serve` and terminate it when the node is being stopped.
 
-```sh
-# Run with local ollama
-./start -m=phi3 --docker-ollama
-```
+- If `--local-ollama=false` or the local Ollama server is reachable, the compute node will use a Docker Compose service for it.
 
 > [!TIP]
 >
 > There are three Docker Compose Ollama options: `ollama-cpu`, `ollama-cuda`, and `ollama-rocm`. The start app will decide which option to use based on the host machine's GPU specifications.
+
+```sh
+# Run with local ollama
+./start -m=phi3 --local-ollama=true
+```
 
 ### Additional Static Nodes
 
