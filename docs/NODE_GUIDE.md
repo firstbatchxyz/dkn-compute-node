@@ -38,9 +38,11 @@ In general, if you are using Ollama you will need the memory to run large models
 
 To be able to run a node, we need to make a few simple preparations. Follow the steps below one by one.
 
-### 1. Download and Extract the Node Files
+### 1. Download DKN-Compute-Launcher
 
-Download the appropriate ZIP file for your system using the commands below or from [browser](https://github.com/firstbatchxyz/dkn-compute-node/releases/tag/v0.1.8-launch). Make sure to replace the URL with the correct version for your operating system and architecture.
+We have a [dkn-launcher](https://github.com/firstbatchxyz/dkn-compute-launcher) cli app for easily setting up the environment and running the compute node. We will install that first.
+
+Download the appropriate ZIP file for your system using the commands below or from [browser](https://github.com/firstbatchxyz/dkn-compute-launcher/releases/tag/v0.0.1). Make sure to replace the URL with the correct version for your operating system and architecture.
 
 #### macOS:
 
@@ -56,21 +58,21 @@ Download the appropriate ZIP file for your system using the commands below or fr
 2. Download the ZIP file:
 
    ```sh
-   curl -L -o dkn-compute-node.zip https://github.com/firstbatchxyz/dkn-compute-node/releases/download/v0.1.8-launch/dkn-macOS-arm64.zip
+   curl -L -o dkn-compute-node.zip https://github.com/firstbatchxyz/dkn-compute-launcher/releases/download/v0.0.1/dkn-compute-launcher-macOS-arm64.zip
    ```
 
 3. Unzip the downloaded file:
    ```sh
    unzip dkn-compute-node.zip
-   cd dkn-macOS-arm64
+   cd dkn-compute-node
    ```
 
 > [!TIP]
 >
-> Some devices need you to bypass macOS's security warning. If you see "macOS cannot verify that this app is free from malware," use the following command:
+> Some devices need you to bypass macOS's security warning. If you see "macOS cannot verify that this app is free from malware," when running the node use the following command:
 >
 > ```sh
-> xattr -d com.apple.quarantine start
+> xattr -d com.apple.quarantine dkn-compute-launcher
 > ```
 
 #### Linux:
@@ -87,13 +89,13 @@ Download the appropriate ZIP file for your system using the commands below or fr
 2. Download the ZIP file:
 
    ```sh
-   curl -L -o dkn-compute-node.zip https://github.com/firstbatchxyz/dkn-compute-node/releases/download/v0.1.8-launch/dkn-linux-amd64.zip
+   curl -L -o dkn-compute-node.zip https://github.com/firstbatchxyz/dkn-compute-launcher/releases/download/v0.0.1/dkn-compute-launcher-linux-amd64.zip
    ```
 
 3. Unzip the downloaded file:
    ```sh
    unzip dkn-compute-node.zip
-   cd dkn-linux-amd64
+   cd dkn-compute-node
    ```
 
 #### Windows:
@@ -110,13 +112,13 @@ Download the appropriate ZIP file for your system using the commands below or fr
 2. Download the ZIP file using a web browser or in PowerShell:
 
    ```cmd
-   curl -L -o dkn-compute-node.zip https://github.com/firstbatchxyz/dkn-compute-node/releases/download/v0.1.8-launch/dkn-windows-amd64.zip
+   curl -L -o dkn-compute-node.zip https://github.com/firstbatchxyz/dkn-compute-launcher/releases/download/v0.0.1/dkn-compute-launcher-windows-amd64.zip
    ```
 
 3. Unzip the downloaded file using File Explorer or in PowerShell:
    ```cmd
    Expand-Archive -Path "C:\path\to\your\dkn-compute-node.zip" -DestinationPath "C:\path\to\destination\dkn-windows-amd64"
-   cd dkn-windows-amd64
+   cd dkn-compute-node
    ```
 
 ### 2. Prepare Environment Variables
@@ -125,14 +127,14 @@ Download the appropriate ZIP file for your system using the commands below or fr
 >
 > Speed-running the node execution:
 >
-> Optionally, you can also handle the environment variables on the fly by just running the `start` cli-app directly, since it'll ask you to enter the required environment variables.
+> Optionally, you can also handle the environment variables on the fly by just running the `dkn-compute-launcher` cli-app directly, since it'll ask you to enter the required environment variables.
 >
 > If you prefer this you can move on to the [Usage](#usage) section
 
-Dria Compute Node makes use of several environment variables. Create a `.env` file, and copy the environment variables as given in [.env.example](./.env.example). We will fill out the missing parts in a moment.
+Dria Compute Node makes use of several environment variables. Create a `.env` file, and copy the environment variables as given in [.env.example](./.env.example). Or simple download the [.env.example](./.env.example) as `.env` with the following command. We will fill out the missing parts in a moment.
 
 ```sh
-cp .env.example .env
+curl -o .env https://raw.githubusercontent.com/firstbatchxyz/dkn-compute-node/master/.env.example
 ```
 
 > [!NOTE]
@@ -249,46 +251,46 @@ sudo systemctl start docker
 
 ### 3. Run Node
 
-It's time to run our compute node. We have a starter cli app that makes this much easier: you can either run it by double-clicking the `start` app (`start.exe` on Windows) from your file explorer, or use it from terminal (or cmd/powershell in Windows).
+It's time to run our compute node. We have a launcher cli app that makes this much easier: you can either run it by double-clicking the `dkn-compute-launcher` app (`dkn-compute-launcher.exe` on Windows) from your file explorer, or use it from terminal (or cmd/powershell in Windows).
 
 See the available commands with:
 
 ```sh
 # macos or linux
-./start --help
+./dkn-compute-launcher --help
 
 # windows
-.\start.exe --help
+.\dkn-compute-launcher.exe --help
 ```
 
 Then simply run the cli app, it will ask you to enter required inputs:
 
 ```sh
 # macos or linux
-./start
+./dkn-compute-launcher
 
 # windows
-.\start.exe
+.\dkn-compute-launcher.exe
 ```
 
 Or you can directly pass the running models using `-m` flags
 
 ```sh
 # macos or linux
-./start -m=llama3.1:latest -m=gpt-3.5-turbo
+./dkn-compute-launcher -m=llama3.1:latest -m=gpt-3.5-turbo
 
 # windows
-.\start.exe -m=llama3.1:latest -m=gpt-3.5-turbo
+.\dkn-compute-launcher.exe -m=llama3.1:latest -m=gpt-3.5-turbo
 ```
 
-Start app will run the containers in the background. You can check their logs either via the terminal or from [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+Launcher app will run the containers in the background. You can check their logs either via the terminal or from [Docker Desktop](https://www.docker.com/products/docker-desktop/).
 
 #### Running in Debug Mode
 
-To print DEBUG-level logs for the compute node, you can add `--dev` argument to the start app. For example:
+To print DEBUG-level logs for the compute node, you can add `--dev` argument to the launcher app. For example:
 
 ```sh
-./start -m=gpt-4o-mini --dev
+./dkn-compute-launcher -m=gpt-4o-mini --dev
 ```
 
 Running in debug mode will also allow you to see behind the scenes of Ollama Workflows, i.e. you can see the reasoning of the LLM as it executes the task.
@@ -318,7 +320,7 @@ docker compose logs --since=30m compute
 
 ### 5. Stopping the Node
 
-When you start your node with `start` cli app, it will wait for you in the same terminal to do CTRL+C before stopping. Once you do that, the containers will be stopped and removed. You can also kill the containers manually, doing CTRL+C afterwards will do nothing in such a case.
+When you start your node with `dkn-compute-launcher`, it will wait for you in the same terminal to do CTRL+C before stopping. Once you do that, the containers will be stopped and removed. You can also kill the containers manually, doing CTRL+C afterwards will do nothing in such a case.
 
 > [!NOTE]
 >
@@ -328,18 +330,18 @@ When you start your node with `start` cli app, it will wait for you in the same 
 
 > If you don't have Ollama installed, you can ignore this section.
 
-If you have Ollama installed already (e.g. via `brew install ollama`) then the start script will always use it. Even if the Ollama server is not running, the start app will initiate it with `ollama serve` and terminate it when the node is being stopped.
+If you have Ollama installed already (e.g. via `brew install ollama`) then the launcher script app always use it. Even if the Ollama server is not running, the launcher app will initiate it with `ollama serve` and terminate it when the node is being stopped.
 
 If you would like to explicitly use Docker Ollama instead, you can do this by passing the `--docker-ollama` option.
 
 ```sh
 # Run with local ollama
-./start -m=phi3 --docker-ollama
+./dkn-compute-launcher -m=phi3 --docker-ollama
 ```
 
 > [!TIP]
 >
-> There are three Docker Compose Ollama options: `ollama-cpu`, `ollama-cuda`, and `ollama-rocm`. The start app will decide which option to use based on the host machine's GPU specifications.
+> There are three Docker Compose Ollama options: `ollama-cpu`, `ollama-cuda`, and `ollama-rocm`. The launcher app will decide which option to use based on the host machine's GPU specifications.
 
 ### Additional Static Nodes
 
