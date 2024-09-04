@@ -45,10 +45,10 @@ sha3 = "0.10.8"
 fastbloom-rs = "0.5.9"
 
 # workflows
-ollama-workflows = { git = "https://github.com/andthattoo/ollama-workflows", rev = "ba038f7" }
+ollama-workflows = { git = "https://github.com/andthattoo/ollama-workflows", rev = "91f3086" }
 
 # peer-to-peer
-libp2p = { git = "https://github.com/anilaltuner/rust-libp2p.git", rev = "007052d", features = [
+libp2p = { git = "https://github.com/anilaltuner/rust-libp2p.git", rev = "7ce9f9e", features = [
     # libp2p = { version = "0.54.1", features = [
     "dcutr",
     "ping",
