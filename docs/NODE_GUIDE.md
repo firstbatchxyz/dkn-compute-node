@@ -26,7 +26,7 @@ You need the following applications to run compute node:
 
 ### Hardware
 
-**To learn about hardware specifications such as required CPU and RAM, please refer to [node specifications](./docs/NODE_SPECS.md).**
+**To learn about hardware specifications such as required CPU and RAM, please refer to [node specifications](./NODE_SPECS.md).**
 
 In general, if you are using Ollama you will need the memory to run large models locally, which depend on the model's size that you are willing to. If you are in a memory-constrained environment, you can opt to use OpenAI models instead.
 
@@ -112,12 +112,12 @@ Download the appropriate ZIP file for your system using the commands below or fr
 2. Download the ZIP file using a web browser or in PowerShell:
 
    ```cmd
-   curl -L -o dkn-compute-node.zip https://github.com/firstbatchxyz/dkn-compute-launcher/releases/download/v0.0.1/dkn-compute-launcher-windows-amd64.zip
+   Invoke-WebRequest -Uri "https://github.com/firstbatchxyz/dkn-compute-launcher/releases/download/v0.0.1/dkn-compute-launcher-windows-amd64.zip" -OutFile "dkn-compute-node.zip"
    ```
 
 3. Unzip the downloaded file using File Explorer or in PowerShell:
    ```cmd
-   Expand-Archive -Path "C:\path\to\your\dkn-compute-node.zip" -DestinationPath "C:\path\to\destination\dkn-windows-amd64"
+   Expand-Archive -Path "dkn-compute-node.zip" -DestinationPath "dkn-compute-node"
    cd dkn-compute-node
    ```
 
