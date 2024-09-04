@@ -1,4 +1,3 @@
-use crate::p2p::AvailableNodes;
 use libp2p::futures::StreamExt;
 use libp2p::gossipsub::{
     Message, MessageAcceptance, MessageId, PublishError, SubscriptionError, TopicHash,
@@ -9,8 +8,10 @@ use libp2p::{
 };
 use libp2p::{Multiaddr, PeerId, Swarm, SwarmBuilder};
 use libp2p_identity::Keypair;
-use tokio::time::Duration;
-use tokio::time::Instant;
+use std::time::Duration;
+use std::time::Instant;
+
+use crate::utils::AvailableNodes;
 
 use super::{DriaBehaviour, DriaBehaviourEvent, P2P_KADEMLIA_PROTOCOL, P2P_PROTOCOL_STRING};
 
@@ -168,7 +169,7 @@ impl P2PClient {
         propagation_source: &PeerId,
         acceptance: MessageAcceptance,
     ) -> Result<(), PublishError> {
-        log::debug!("Validating message ({}): {:?}", msg_id, acceptance);
+        log::trace!("Validating message ({}): {:?}", msg_id, acceptance);
 
         let msg_was_in_cache = self
             .swarm
@@ -184,11 +185,7 @@ impl P2PClient {
 
     /// Returns the list of connected peers within Gossipsub, with a list of subscribed topic hashes by each peer.
     pub fn peers(&self) -> Vec<(&PeerId, Vec<&TopicHash>)> {
-        self.swarm
-            .behaviour()
-            .gossipsub
-            .all_peers()
-            .collect::<Vec<_>>()
+        self.swarm.behaviour().gossipsub.all_peers().collect()
     }
 
     /// Listens to the Swarm for incoming messages.

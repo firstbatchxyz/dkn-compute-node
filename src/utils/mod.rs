@@ -2,6 +2,9 @@ pub mod crypto;
 pub mod filter;
 pub mod payload;
 
+mod available_nodes;
+pub use available_nodes::AvailableNodes;
+
 use std::time::{Duration, SystemTime};
 
 /// Returns the current time in nanoseconds since the Unix epoch.

@@ -6,8 +6,8 @@ use crate::{
     config::DriaComputeNodeConfig,
     errors::NodeResult,
     handlers::{ComputeHandler, PingpongHandler, WorkflowHandler},
-    p2p::{AvailableNodes, P2PClient, P2PMessage},
-    utils::crypto::secret_to_keypair,
+    p2p::{P2PClient, P2PMessage},
+    utils::{crypto::secret_to_keypair, AvailableNodes},
 };
 
 /// Number of seconds between refreshing the Admin RPC PeerIDs from Dria server.

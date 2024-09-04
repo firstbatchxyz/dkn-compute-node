@@ -96,7 +96,7 @@ fn create_gossipsub_behavior(author: PeerId) -> gossipsub::Behaviour {
 
     /// We accept permissive validation mode, meaning that we accept all messages
     /// and check their fields based on whether they exist or not.
-    const VALIDATION_MODE: ValidationMode = ValidationMode::Permissive;
+    const VALIDATION_MODE: ValidationMode = ValidationMode::None; // FIXME: change this to Permissive
 
     /// Heartbeat interval in seconds
     const HEARTBEAT_INTERVAL_SECS: u64 = 10;
