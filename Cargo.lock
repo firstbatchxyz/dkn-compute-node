@@ -2365,7 +2365,7 @@ checksum = "a5f43f184355eefb8d17fc948dbecf6c13be3c141f20d834ae842193a448c72a"
 [[package]]
 name = "libp2p"
 version = "0.54.1"
-source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=3c55e95#3c55e954856d0bb95039d04f4001d923d109e220"
+source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=007052d#007052da5d4c582569971341700aa83ebdcbd6a6"
 dependencies = [
  "bytes 1.7.1",
  "either",
@@ -2401,7 +2401,7 @@ dependencies = [
 [[package]]
 name = "libp2p-allow-block-list"
 version = "0.4.0"
-source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=3c55e95#3c55e954856d0bb95039d04f4001d923d109e220"
+source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=007052d#007052da5d4c582569971341700aa83ebdcbd6a6"
 dependencies = [
  "libp2p-core",
  "libp2p-identity",
@@ -2412,7 +2412,7 @@ dependencies = [
 [[package]]
 name = "libp2p-autonat"
 version = "0.13.0"
-source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=3c55e95#3c55e954856d0bb95039d04f4001d923d109e220"
+source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=007052d#007052da5d4c582569971341700aa83ebdcbd6a6"
 dependencies = [
  "async-trait",
  "asynchronous-codec",
@@ -2438,7 +2438,7 @@ dependencies = [
 [[package]]
 name = "libp2p-connection-limits"
 version = "0.4.0"
-source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=3c55e95#3c55e954856d0bb95039d04f4001d923d109e220"
+source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=007052d#007052da5d4c582569971341700aa83ebdcbd6a6"
 dependencies = [
  "libp2p-core",
  "libp2p-identity",
@@ -2449,7 +2449,7 @@ dependencies = [
 [[package]]
 name = "libp2p-core"
 version = "0.42.0"
-source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=3c55e95#3c55e954856d0bb95039d04f4001d923d109e220"
+source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=007052d#007052da5d4c582569971341700aa83ebdcbd6a6"
 dependencies = [
  "either",
  "fnv",
@@ -2476,7 +2476,7 @@ dependencies = [
 [[package]]
 name = "libp2p-dcutr"
 version = "0.12.0"
-source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=3c55e95#3c55e954856d0bb95039d04f4001d923d109e220"
+source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=007052d#007052da5d4c582569971341700aa83ebdcbd6a6"
 dependencies = [
  "asynchronous-codec",
  "either",
@@ -2498,7 +2498,7 @@ dependencies = [
 [[package]]
 name = "libp2p-dns"
 version = "0.42.0"
-source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=3c55e95#3c55e954856d0bb95039d04f4001d923d109e220"
+source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=007052d#007052da5d4c582569971341700aa83ebdcbd6a6"
 dependencies = [
  "async-trait",
  "futures",
@@ -2513,7 +2513,7 @@ dependencies = [
 [[package]]
 name = "libp2p-gossipsub"
 version = "0.47.0"
-source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=3c55e95#3c55e954856d0bb95039d04f4001d923d109e220"
+source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=007052d#007052da5d4c582569971341700aa83ebdcbd6a6"
 dependencies = [
  "asynchronous-codec",
  "base64 0.22.1",
@@ -2544,7 +2544,7 @@ dependencies = [
 [[package]]
 name = "libp2p-identify"
 version = "0.45.0"
-source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=3c55e95#3c55e954856d0bb95039d04f4001d923d109e220"
+source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=007052d#007052da5d4c582569971341700aa83ebdcbd6a6"
 dependencies = [
  "asynchronous-codec",
  "either",
@@ -2586,7 +2586,7 @@ dependencies = [
 [[package]]
 name = "libp2p-kad"
 version = "0.46.1"
-source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=3c55e95#3c55e954856d0bb95039d04f4001d923d109e220"
+source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=007052d#007052da5d4c582569971341700aa83ebdcbd6a6"
 dependencies = [
  "arrayvec",
  "asynchronous-codec",
@@ -2614,7 +2614,7 @@ dependencies = [
 [[package]]
 name = "libp2p-mdns"
 version = "0.46.0"
-source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=3c55e95#3c55e954856d0bb95039d04f4001d923d109e220"
+source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=007052d#007052da5d4c582569971341700aa83ebdcbd6a6"
 dependencies = [
  "data-encoding",
  "futures",
@@ -2634,7 +2634,7 @@ dependencies = [
 [[package]]
 name = "libp2p-metrics"
 version = "0.14.2"
-source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=3c55e95#3c55e954856d0bb95039d04f4001d923d109e220"
+source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=007052d#007052da5d4c582569971341700aa83ebdcbd6a6"
 dependencies = [
  "futures",
  "libp2p-core",
@@ -2654,7 +2654,7 @@ dependencies = [
 [[package]]
 name = "libp2p-noise"
 version = "0.45.0"
-source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=3c55e95#3c55e954856d0bb95039d04f4001d923d109e220"
+source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=007052d#007052da5d4c582569971341700aa83ebdcbd6a6"
 dependencies = [
  "asynchronous-codec",
  "bytes 1.7.1",
@@ -2679,7 +2679,7 @@ dependencies = [
 [[package]]
 name = "libp2p-ping"
 version = "0.45.0"
-source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=3c55e95#3c55e954856d0bb95039d04f4001d923d109e220"
+source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=007052d#007052da5d4c582569971341700aa83ebdcbd6a6"
 dependencies = [
  "either",
  "futures",
@@ -2696,7 +2696,7 @@ dependencies = [
 [[package]]
 name = "libp2p-quic"
 version = "0.11.1"
-source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=3c55e95#3c55e954856d0bb95039d04f4001d923d109e220"
+source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=007052d#007052da5d4c582569971341700aa83ebdcbd6a6"
 dependencies = [
  "bytes 1.7.1",
  "futures",
@@ -2719,7 +2719,7 @@ dependencies = [
 [[package]]
 name = "libp2p-relay"
 version = "0.18.0"
-source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=3c55e95#3c55e954856d0bb95039d04f4001d923d109e220"
+source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=007052d#007052da5d4c582569971341700aa83ebdcbd6a6"
 dependencies = [
  "asynchronous-codec",
  "bytes 1.7.1",
@@ -2743,7 +2743,7 @@ dependencies = [
 [[package]]
 name = "libp2p-request-response"
 version = "0.27.0"
-source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=3c55e95#3c55e954856d0bb95039d04f4001d923d109e220"
+source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=007052d#007052da5d4c582569971341700aa83ebdcbd6a6"
 dependencies = [
  "async-trait",
  "futures",
@@ -2762,7 +2762,7 @@ dependencies = [
 [[package]]
 name = "libp2p-swarm"
 version = "0.45.1"
-source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=3c55e95#3c55e954856d0bb95039d04f4001d923d109e220"
+source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=007052d#007052da5d4c582569971341700aa83ebdcbd6a6"
 dependencies = [
  "either",
  "fnv",
@@ -2785,7 +2785,7 @@ dependencies = [
 [[package]]
 name = "libp2p-swarm-derive"
 version = "0.35.0"
-source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=3c55e95#3c55e954856d0bb95039d04f4001d923d109e220"
+source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=007052d#007052da5d4c582569971341700aa83ebdcbd6a6"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
@@ -2796,7 +2796,7 @@ dependencies = [
 [[package]]
 name = "libp2p-tcp"
 version = "0.42.0"
-source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=3c55e95#3c55e954856d0bb95039d04f4001d923d109e220"
+source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=007052d#007052da5d4c582569971341700aa83ebdcbd6a6"
 dependencies = [
  "futures",
  "futures-timer",
@@ -2812,7 +2812,7 @@ dependencies = [
 [[package]]
 name = "libp2p-tls"
 version = "0.5.0"
-source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=3c55e95#3c55e954856d0bb95039d04f4001d923d109e220"
+source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=007052d#007052da5d4c582569971341700aa83ebdcbd6a6"
 dependencies = [
  "futures",
  "futures-rustls",
@@ -2830,7 +2830,7 @@ dependencies = [
 [[package]]
 name = "libp2p-upnp"
 version = "0.3.0"
-source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=3c55e95#3c55e954856d0bb95039d04f4001d923d109e220"
+source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=007052d#007052da5d4c582569971341700aa83ebdcbd6a6"
 dependencies = [
  "futures",
  "futures-timer",
@@ -2845,7 +2845,7 @@ dependencies = [
 [[package]]
 name = "libp2p-yamux"
 version = "0.46.0"
-source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=3c55e95#3c55e954856d0bb95039d04f4001d923d109e220"
+source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=007052d#007052da5d4c582569971341700aa83ebdcbd6a6"
 dependencies = [
  "either",
  "futures",
@@ -3222,7 +3222,7 @@ dependencies = [
 [[package]]
 name = "multistream-select"
 version = "0.13.0"
-source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=3c55e95#3c55e954856d0bb95039d04f4001d923d109e220"
+source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=007052d#007052da5d4c582569971341700aa83ebdcbd6a6"
 dependencies = [
  "bytes 1.7.1",
  "futures",
@@ -3943,7 +3943,7 @@ dependencies = [
 [[package]]
 name = "quick-protobuf-codec"
 version = "0.3.1"
-source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=3c55e95#3c55e954856d0bb95039d04f4001d923d109e220"
+source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=007052d#007052da5d4c582569971341700aa83ebdcbd6a6"
 dependencies = [
  "asynchronous-codec",
  "bytes 1.7.1",
@@ -4519,7 +4519,7 @@ checksum = "955d28af4278de8121b7ebeb796b6a45735dc01436d898801014aced2773a3d6"
 [[package]]
 name = "rw-stream-sink"
 version = "0.4.0"
-source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=3c55e95#3c55e954856d0bb95039d04f4001d923d109e220"
+source = "git+https://github.com/anilaltuner/rust-libp2p.git?rev=007052d#007052da5d4c582569971341700aa83ebdcbd6a6"
 dependencies = [
  "futures",
  "pin-project",
