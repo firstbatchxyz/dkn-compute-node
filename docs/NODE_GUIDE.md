@@ -131,11 +131,7 @@ Download the appropriate ZIP file for your system using the commands below or fr
 >
 > If you prefer this you can move on to the [Usage](#usage) section
 
-Dria Compute Node makes use of several environment variables. Create a `.env` file, and copy the environment variables as given in [.env.example](./.env.example). Or simple download the [.env.example](./.env.example) as `.env` with the following command. We will fill out the missing parts in a moment.
-
-```sh
-curl -o .env https://raw.githubusercontent.com/firstbatchxyz/dkn-compute-node/master/.env.example
-```
+Dria Compute Node makes use of several environment variables. We will fill out the missing parts witin `.env` file in a moment.
 
 > [!NOTE]
 >
