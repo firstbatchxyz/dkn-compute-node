@@ -1,6 +1,6 @@
-## Node Running
+## Running the Compute Node
 
-Running a Dria Compute Node is pretty straightforward.
+Running a Dria Compute Node is pretty straightforward! You can either follow the guide here for all platforms, or follow a much-more user-friendly guide at <https://dria.co/guide> for MacOS in particular.
 
 ## Requirements
 
@@ -14,7 +14,7 @@ docker -v
 
 > [!CAUTION]
 >
-> > In **Windows** machines, Docker Desktop is requried to be running with **WSL2**. You can check the Docker Desktop Windows installation guide from [here](https://docs.docker.com/desktop/install/windows-install/)
+> In **Windows** machines, Docker Desktop is requried to be running with **WSL2**. You can check the Docker Desktop Windows installation guide from [here](https://docs.docker.com/desktop/install/windows-install/)
 
 ### Hardware
 
