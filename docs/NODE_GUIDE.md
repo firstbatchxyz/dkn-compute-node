@@ -6,23 +6,15 @@ Running a Dria Compute Node is pretty straightforward.
 
 ### Software
 
-You need the following applications to run compute node:
+You only **Docker** to run the node! You can check if you have it by printing its version:
 
-- **Git**: We will use `git` to clone the repository from GitHub, and pull latest changes for updates later.
-- **Docker**: Our services will make use of Docker so that the node can run on any machine.
+```sh
+docker -v
+```
 
 > [!CAUTION]
 >
 > > In **Windows** machines, Docker Desktop is requried to be running with **WSL2**. You can check the Docker Desktop Windows installation guide from [here](https://docs.docker.com/desktop/install/windows-install/)
-
-> [!TIP]
->
-> You can check if you have these via:
->
-> ```sh
-> which git
-> which docker
-> ```
 
 ### Hardware
 
@@ -38,9 +30,9 @@ In general, if you are using Ollama you will need the memory to run large models
 
 To be able to run a node, we need to make a few simple preparations. Follow the steps below one by one.
 
-### 1. Download DKN-Compute-Launcher
+### 1. Download [Launcher](https://github.com/firstbatchxyz/dkn-compute-launcher)
 
-We have a [dkn-launcher](https://github.com/firstbatchxyz/dkn-compute-launcher) cli app for easily setting up the environment and running the compute node. We will install that first.
+We have a [cross-platform node launcher](https://github.com/firstbatchxyz/dkn-compute-launcher) to easily set up the environment and running the compute node. We will install that first.
 
 Download the appropriate ZIP file for your system using the commands below or from [browser](https://github.com/firstbatchxyz/dkn-compute-launcher/releases/tag/v0.0.1). Make sure to replace the URL with the correct version for your operating system and architecture.
 
@@ -123,15 +115,19 @@ Download the appropriate ZIP file for your system using the commands below or fr
 
 ### 2. Prepare Environment Variables
 
-> [!TIP]
->
-> Speed-running the node execution:
->
-> Optionally, you can also handle the environment variables on the fly by just running the `dkn-compute-launcher` cli-app directly, since it'll ask you to enter the required environment variables.
->
-> If you prefer this you can move on to the [Usage](#usage) section
+With our launcher, setting up the environment variables happen on the fly by just running the `dkn-compute-launcher` CLI application directly, it'll ask you to enter the required environment variables if you don't have them! This way, you won't have to manually do the copying and creating environment variables yourself, and instead let the CLI do it for you.
 
-Dria Compute Node makes use of several environment variables. We will fill out the missing parts witin `.env` file in a moment.
+If you prefer this method, you can move directly on to the [Usage](#usage) section. If you would like to do this part manually, you can continue reading this section.
+
+#### Create `.env` File
+
+Dria Compute Node makes use of several environment variables. Let's create an `.env` file from the given example first.
+
+```sh
+cp .env.example .ev
+```
+
+We will fill out the missing parts witin `.env` file in a moment.
 
 > [!NOTE]
 >
@@ -153,7 +149,7 @@ Dria Compute Node makes use of several environment variables. We will fill out t
 
 ### 3. Prepare Ethereum Wallet
 
-Dria makes use of the same Ethereum wallet, that is the recipient of your hard-earned rewards! Place your private key at `DKN_WALLET_SECRET_KEY` in `.env` without the 0x prefix. It should look something like:
+Dria makes use of the same Ethereum wallet, that is the recipient of your hard-earned rewards! Place your private key at `DKN_WALLET_SECRET_KEY` in `.env` without the `0x` prefix. It should look something like:
 
 ```sh
 DKN_WALLET_SECRET_KEY=ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
@@ -161,7 +157,7 @@ DKN_WALLET_SECRET_KEY=ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4
 
 > [!CAUTION]
 >
-> Always make sure your private key is within the .gitignore'd `.env` file, nowhere else! To be even safer, you can use a throwaway wallet, you can always transfer your rewards to a main wallet afterwards.
+> Always make sure your private key is within the .gitignore'd `.env` file, nowhere else! To be even safer, you can use a throw-away wallet, you can always transfer your claimed rewards to a main wallet afterwards.
 
 ### 4. Setup LLM Provider
 
@@ -177,22 +173,26 @@ OPENAI_API_KEY=<YOUR_KEY>
 
 #### For Ollama
 
-Of course, first you have to install Ollama; see their [download page](https://ollama.com/download). Then, you must **first pull a small embedding model that is used internally**.
+First you have to install Ollama, if you haven't already! See their [download page](https://ollama.com/download) and follow their instructions there. The models that we want to use have to be pulled to Ollama before we can use them.
+
+> [!TIP]
+>
+> The compute node is set to download any missing model automatically at the start by default. This is enabled via the `OLLAMA_AUTO_PULL=true` in `.env`. If you would like to disable this feature, set `OLLAMA_AUTO_PULL=false` and then continue reading this section, otherwise you can skip to [optional services](#optional-services).
+
+First, you must **first pull a small embedding model that is used internally**.
 
 ```sh
 ollama pull hellord/mxbai-embed-large-v1:f16
 ```
 
-For the models that you choose (see list of models just below [here](#1-choose-models)) you can download them with same command. Note that if your model size is large, pulling them may take a while.
+For the models that you choose (see list of models just below [here](#1-choose-models)) you can download them with same command. Note that if your model size is large, pulling them may take a while. For example:
 
 ```sh
-# example for phi3:3.8b
-ollama pull phi3:3.8b
+# example
+ollama pull llama3.1:latest
 ```
 
 > [!TIP]
->
-> Alternatively, you can set `OLLAMA_AUTO_PULL=true` in the `.env` so that the compute node will always download the missing models for you.
 
 #### Optional Services
 
@@ -216,11 +216,11 @@ Based on the resources of your machine, you must decide which models that you wi
 - `adrienbrault/nous-hermes2theta-llama3-8b:q8_0`
 - `phi3:14b-medium-4k-instruct-q4_1`
 - `phi3:14b-medium-128k-instruct-q4_1`
-- `phi3:3.8b`
-- `llama3.1:latest`
-- `llama3.1:8b-instruct-q8_0`
 - `phi3.5:3.8b`
 - `phi3.5:3.8b-mini-instruct-fp16`
+- `llama3.1:latest`
+- `llama3.1:8b-instruct-q8_0`
+- `gemma2:9b-instruct-q8_0`
 
 #### OpenAI Models
 

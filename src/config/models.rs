@@ -151,8 +151,10 @@ mod tests {
         );
 
         assert_eq!(
-            cfg.get_matching_model("phi3:3.8b".to_string()).unwrap().1,
-            Model::Phi3Mini,
+            cfg.get_matching_model(Model::default().to_string())
+                .unwrap()
+                .1,
+            Model::default(),
             "Should find existing model"
         );
 
@@ -179,7 +181,7 @@ mod tests {
         ]);
         assert_eq!(
             result.unwrap().1,
-            Model::Phi3Mini,
+            Model::default(),
             "Should find existing model"
         );
     }

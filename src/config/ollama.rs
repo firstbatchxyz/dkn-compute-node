@@ -234,7 +234,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "run this manually"]
     async fn test_ollama_prompt() {
-        let model = Model::Phi3Mini.to_string();
+        let model = Model::default().to_string();
         let ollama = Ollama::default();
         ollama.pull_model(model.clone(), false).await.unwrap();
         let prompt = "The sky appears blue during the day because of a process called scattering. \
@@ -291,7 +291,7 @@ mod tests {
         ]
     }"#;
         let workflow: Workflow = serde_json::from_str(workflow).unwrap();
-        let exe = Executor::new(Model::Phi3Mini);
+        let exe = Executor::new(Model::default());
         let mut memory = ProgramMemory::new();
 
         let result = exe.execute(None, workflow, &mut memory).await;
