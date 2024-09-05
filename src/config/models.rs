@@ -136,14 +136,14 @@ mod tests {
         assert_eq!(cfg.models.len(), 0);
 
         let cfg = ModelConfig::new_from_csv(Some(
-            "phi3:3.8b,phi3:14b-medium-4k-instruct-q4_1,balblablabl".to_string(),
+            "gemma2:9b-instruct-q8_0,phi3:14b-medium-4k-instruct-q4_1,balblablabl".to_string(),
         ));
         assert_eq!(cfg.models.len(), 2);
     }
 
     #[test]
     fn test_model_matching() {
-        let cfg = ModelConfig::new_from_csv(Some("gpt-3.5-turbo,phi3:3.8b".to_string()));
+        let cfg = ModelConfig::new_from_csv(Some("gpt-3.5-turbo,llama3.1:latest".to_string()));
         assert_eq!(
             cfg.get_matching_model("openai".to_string()).unwrap().1,
             Model::GPT3_5Turbo,
@@ -151,10 +151,10 @@ mod tests {
         );
 
         assert_eq!(
-            cfg.get_matching_model(Model::default().to_string())
+            cfg.get_matching_model("llama3.1:latest".to_string())
                 .unwrap()
                 .1,
-            Model::default(),
+            Model::Llama3_1_8B,
             "Should find existing model"
         );
 
@@ -172,7 +172,7 @@ mod tests {
 
     #[test]
     fn test_get_any_matching_model() {
-        let cfg = ModelConfig::new_from_csv(Some("gpt-3.5-turbo,phi3:3.8b".to_string()));
+        let cfg = ModelConfig::new_from_csv(Some("gpt-3.5-turbo,llama3.1:latest".to_string()));
         let result = cfg.get_any_matching_model(vec![
             "i-dont-exist".to_string(),
             "llama3.1:latest".to_string(),
@@ -181,7 +181,7 @@ mod tests {
         ]);
         assert_eq!(
             result.unwrap().1,
-            Model::default(),
+            Model::Llama3_1_8B,
             "Should find existing model"
         );
     }

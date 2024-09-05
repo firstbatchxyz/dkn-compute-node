@@ -11,6 +11,12 @@ use openai::OpenAIConfig;
 
 use std::{env, time::Duration};
 
+/// Timeout duration for checking model performance during a generation.
+const CHECK_TIMEOUT_DURATION: Duration = Duration::from_secs(80);
+
+/// Minimum tokens per second (TPS) for checking model performance during a generation.
+const CHECK_TPS: f64 = 5.0;
+
 #[derive(Debug, Clone)]
 pub struct DriaComputeNodeConfig {
     /// Wallet secret/private key.
@@ -139,7 +145,7 @@ impl DriaComputeNodeConfig {
             // ensure that the models are pulled / pull them if not
             let good_ollama_models = self
                 .ollama_config
-                .check(ollama_models, Duration::from_secs(30))
+                .check(ollama_models, CHECK_TIMEOUT_DURATION, CHECK_TPS)
                 .await?;
             good_models.extend(
                 good_ollama_models

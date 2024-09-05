@@ -1,12 +1,18 @@
 use std::time::Duration;
 
-use ollama_workflows::{ollama_rs::Ollama, Executor, Model, ProgramMemory, Workflow};
+use ollama_workflows::{
+    ollama_rs::{generation::completion::request::GenerationRequest, Ollama},
+    Model,
+};
 
 const DEFAULT_OLLAMA_HOST: &str = "http://127.0.0.1";
 const DEFAULT_OLLAMA_PORT: u16 = 11434;
 
 /// Some models such as small embedding models, are hardcoded into the node.
 const HARDCODED_MODELS: [&str; 1] = ["hellord/mxbai-embed-large-v1:f16"];
+
+/// Prompt to be used to see Ollama performance.
+const TEST_PROMPT: &str = "Please write a poem about Kapadokya.";
 
 /// Ollama-specific configurations.
 #[derive(Debug, Clone)]
@@ -66,12 +72,13 @@ impl OllamaConfig {
     pub async fn check(
         &self,
         external_models: Vec<Model>,
-        test_workflow_timeout: Duration,
+        timeout: Duration,
+        min_tps: f64,
     ) -> Result<Vec<Model>, String> {
         log::info!(
             "Checking Ollama requirements (auto-pull {}, workflow timeout: {}s)",
             if self.auto_pull { "on" } else { "off" },
-            test_workflow_timeout.as_secs()
+            timeout.as_secs()
         );
 
         let ollama = Ollama::new(&self.host, self.port);
@@ -108,7 +115,7 @@ impl OllamaConfig {
             }
 
             if self
-                .test_workflow(model.clone(), test_workflow_timeout)
+                .test_performance(&ollama, &model, timeout, min_tps)
                 .await
             {
                 good_models.push(model);
@@ -149,71 +156,48 @@ impl OllamaConfig {
     ///
     /// This is to see if a given system can execute Ollama workflows for their chosen models,
     /// e.g. if they have enough RAM/CPU and such.
-    pub async fn test_workflow(&self, model: Model, timeout: Duration) -> bool {
-        // this is the test workflow that we will run
-        // TODO: when Workflow's have `Clone`, we can remove the repetitive parsing here
-        let workflow = serde_json::from_value::<Workflow>(serde_json::json!({
-            "name": "Simple",
-            "description": "This is a simple workflow",
-            "config":{
-                "max_steps": 5,
-                "max_time": 100,
-                "max_tokens": 100,
-                "tools": []
-            },
-            "tasks":[
-                {
-                    "id": "A",
-                    "name": "Random Poem",
-                    "description": "Writes a poem about Kapadokya.",
-                    "prompt": "Please write a poem about Kapadokya.",
-                    "inputs":[],
-                    "operator": "generation",
-                    "outputs":[
-                        {
-                            "type": "write",
-                            "key": "poem",
-                            "value": "__result"
-                        }
-                    ]
-                },
-                {
-                    "id": "__end",
-                    "name": "end",
-                    "description": "End of the task",
-                    "prompt": "End of the task",
-                    "inputs": [],
-                    "operator": "end",
-                    "outputs": []
-                }
-            ],
-            "steps":[
-                {
-                    "source":"A",
-                    "target":"end"
-                }
-            ],
-            "return_value":{
-                "input":{
-                    "type": "read",
-                    "key": "poem"
-                }
-            }
-        }))
-        .expect("Preset workflow should be parsed");
-
+    pub async fn test_performance(
+        &self,
+        ollama: &Ollama,
+        model: &Model,
+        timeout: Duration,
+        min_tps: f64,
+    ) -> bool {
         log::info!("Testing model {}", model);
-        let executor = Executor::new_at(model.clone(), &self.host, self.port);
-        let mut memory = ProgramMemory::new();
+
+        // first generate a dummy embedding to load the model into memory (warm-up)
+        if let Err(err) = ollama
+            .generate_embeddings(model.to_string(), "foobar".to_string(), Default::default())
+            .await
+        {
+            log::error!("Failed to generate embedding for model {}: {}", model, err);
+            return false;
+        };
+
+        // then, run a sample generation with timeout and measure tps
         tokio::select! {
             _ = tokio::time::sleep(timeout) => {
                 log::warn!("Ignoring model {}: Workflow timed out", model);
             },
-            result = executor.execute(None, workflow, &mut memory) => {
+            result = ollama.generate(GenerationRequest::new(model.to_string(), TEST_PROMPT.to_string())) => {
                 match result {
-                    Ok(_) => {
-                        log::info!("Accepting model {}", model);
-                        return true;
+                    Ok(response) => {
+                        let tps = (response.eval_count.unwrap_or_default() as f64)
+                        / (response.eval_duration.unwrap_or(1) as f64)
+                        * 1_000_000_000f64;
+
+                        if tps >= min_tps {
+                            log::info!("Model {} passed the test with tps: {}", model, tps);
+                            return true;
+
+                        }
+
+                        log::warn!(
+                            "Ignoring model {}: tps too low ({:.3} < {:.3})",
+                            model,
+                            tps,
+                            min_tps
+                        );
                     }
                     Err(e) => {
                         log::warn!("Ignoring model {}: Workflow failed with error {}", model, e);

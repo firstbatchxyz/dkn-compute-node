@@ -192,8 +192,6 @@ For the models that you choose (see list of models just below [here](#1-choose-m
 ollama pull llama3.1:latest
 ```
 
-> [!TIP]
-
 #### Optional Services
 
 Based on presence of API keys, [Ollama Workflows](https://github.com/andthattoo/ollama-workflows/) may use more superior services instead of free alternatives, e.g. [Serper](https://serper.dev/) instead of [DuckDuckGo](https://duckduckgo.com/) or [Jina](https://jina.ai/) without rate-limit instead of with rate-limit. Add these within your `.env` as:
@@ -213,7 +211,7 @@ Based on the resources of your machine, you must decide which models that you wi
 
 #### Ollama Models
 
-- `adrienbrault/nous-hermes2theta-llama3-8b:q8_0`
+- `finalend/hermes-3-llama-3.1:8b-q8_0`
 - `phi3:14b-medium-4k-instruct-q4_1`
 - `phi3:14b-medium-128k-instruct-q4_1`
 - `phi3.5:3.8b`
