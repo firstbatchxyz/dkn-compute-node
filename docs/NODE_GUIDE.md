@@ -50,7 +50,7 @@ Download the appropriate ZIP file for your system using the commands below or fr
 2. Download the ZIP file:
 
    ```sh
-   curl -L -o dkn-compute-node.zip https://github.com/firstbatchxyz/dkn-compute-launcher/releases/download/v0.0.1/dkn-compute-launcher-macOS-arm64.zip
+   curl -L -o dkn-compute-node.zip https://github.com/firstbatchxyz/dkn-compute-launcher/releases/download/latest/dkn-compute-launcher-macOS-arm64.zip
    ```
 
 3. Unzip the downloaded file:
@@ -81,7 +81,7 @@ Download the appropriate ZIP file for your system using the commands below or fr
 2. Download the ZIP file:
 
    ```sh
-   curl -L -o dkn-compute-node.zip https://github.com/firstbatchxyz/dkn-compute-launcher/releases/download/v0.0.1/dkn-compute-launcher-linux-amd64.zip
+   curl -L -o dkn-compute-node.zip https://github.com/firstbatchxyz/dkn-compute-launcher/releases/download/latest/dkn-compute-launcher-linux-amd64.zip
    ```
 
 3. Unzip the downloaded file:
@@ -104,7 +104,7 @@ Download the appropriate ZIP file for your system using the commands below or fr
 2. Download the ZIP file using a web browser or in PowerShell:
 
    ```cmd
-   Invoke-WebRequest -Uri "https://github.com/firstbatchxyz/dkn-compute-launcher/releases/download/v0.0.1/dkn-compute-launcher-windows-amd64.zip" -OutFile "dkn-compute-node.zip"
+   Invoke-WebRequest -Uri "https://github.com/firstbatchxyz/dkn-compute-launcher/releases/download/latest/dkn-compute-launcher-windows-amd64.zip" -OutFile "dkn-compute-node.zip"
    ```
 
 3. Unzip the downloaded file using File Explorer or in PowerShell:
