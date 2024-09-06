@@ -57,7 +57,7 @@ jobs:
             echo "OPENSSL_INCLUDE_DIR=/usr/include/openssl" >> $GITHUB_ENV
             echo "OPENSSL_LIB_DIR=/usr/lib/ssl" >> $GITHUB_ENV
           elif [ "${{ matrix.osname }}" = "windows" ]; then
-            winget install -e --id ShiningLight.OpenSSL
+            choco install openssl.light
             echo "OPENSSL_DIR=C:\\Program Files\\OpenSSL-Win64" >> $GITHUB_ENV
             echo "OPENSSL_INCLUDE_DIR=C:\\Program Files\\OpenSSL-Win64\\include" >> $GITHUB_ENV
             echo "OPENSSL_LIB_DIR=C:\\Program Files\\OpenSSL-Win64\\lib" >> $GITHUB_ENV
