@@ -35,7 +35,7 @@ jobs:
         with:
           command: ${{ matrix.command }}
           target: ${{ matrix.target }}
-          args: "--locked --release {{ matrix.build_args }}"
+          args: "--locked --release ${{ matrix.build_args }}"
           strip: true
 
       - name: Prepare Release File
