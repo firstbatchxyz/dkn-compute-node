@@ -1,0 +1,91 @@
+name: Build and Publish Compute Releases
+
+on:
+  push:
+    branches:
+      - compute-exe
+
+permissions:
+  contents: write
+
+jobs:
+
+  build:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - { runner: macos-latest,  osname: macOS,   arch: amd64, target: x86_64-apple-darwin}
+          - { runner: macos-latest,  osname: macOS,   arch: arm64, target: aarch64-apple-darwin}
+          - { runner: ubuntu-latest, osname: linux,   arch: amd64, target: x86_64-unknown-linux-gnu}
+          - { runner: ubuntu-latest, osname: linux,   arch: arm64, target: aarch64-unknown-linux-gnu}
+          - { runner: windows-latest, osname: windows, arch: amd64, target: x86_64-pc-windows-msvc, extension: ".exe" }
+          - { runner: windows-latest, osname: windows, arch: arm64, target: aarch64-unknown-linux-gnu, extension: ".exe" }
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Get the release version from the tag
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          use-cross: true
+          command: build
+          args: --verbose --release --target ${{ matrix.target }}
+
+      - name: Prepare Release File
+        env:
+          BINARY_NAME: dkn-compute${{ matrix.extension }}
+          FOLDER_NAME: dkn-compute-node
+          ZIP_NAME: dkn-compute-${{ matrix.osname }}-${{ matrix.arch }}
+
+        run: |
+          mkdir $FOLDER_NAME
+          # move the binary
+          mv "target/${{ matrix.target }}/release/$BINARY_NAME" "$FOLDER_NAME"
+          
+          zip -r $ZIP_NAME.zip $FOLDER_NAME
+
+      - name: Upload Launch Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dkn-compute-${{ matrix.osname }}-${{ matrix.arch }}
+          path: dkn-compute-${{ matrix.osname }}-${{ matrix.arch }}.zip
+
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/compute-exe'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Download Launch Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: ./artifacts
+
+      - name: Get the latest tag
+        id: get_latest_tag
+        run: echo "LATEST_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))" >> $GITHUB_ENV
+
+      - name: Create release with artifacts
+        uses: ncipollo/release-action@v1
+        with:
+          name: ${{ env.LATEST_TAG }}
+          tag: ${{ env.LATEST_TAG }}
+          artifacts: "artifacts/*"
+          artifactContentType: application/zip
+          draft: true
