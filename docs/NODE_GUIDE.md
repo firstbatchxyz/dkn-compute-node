@@ -52,6 +52,9 @@ Download the appropriate ZIP file for your system using the commands below or fr
    ```sh
    # for arm64, use arm64
    curl -L -o dkn-compute-node.zip https://github.com/firstbatchxyz/dkn-compute-launcher/releases/latest/download/dkn-compute-launcher-macOS-arm64.zip
+   ```
+
+   ```sh
    # for x86_64, use amd64
    curl -L -o dkn-compute-node.zip https://github.com/firstbatchxyz/dkn-compute-launcher/releases/latest/download/dkn-compute-launcher-macOS-amd64.zip
    ```
@@ -86,6 +89,9 @@ Download the appropriate ZIP file for your system using the commands below or fr
    ```sh
    # for aarch64, use arm64
    curl -L -o dkn-compute-node.zip https://github.com/firstbatchxyz/dkn-compute-launcher/releases/latest/download/dkn-compute-launcher-linux-arm64.zip
+   ```
+
+   ```sh
    # for x86_64, use amd64
    curl -L -o dkn-compute-node.zip https://github.com/firstbatchxyz/dkn-compute-launcher/releases/latest/download/dkn-compute-launcher-linux-amd64.zip
    ```
@@ -112,6 +118,9 @@ Download the appropriate ZIP file for your system using the commands below or fr
    ```cmd
    # for x64, use amd64
    Invoke-WebRequest -Uri "https://github.com/firstbatchxyz/dkn-compute-launcher/releases/latest/download/dkn-compute-launcher-windows-amd64.zip" -OutFile "dkn-compute-node.zip"
+   ```
+
+   ```cmd
    # for ARM, use arm64
    Invoke-WebRequest -Uri "https://github.com/firstbatchxyz/dkn-compute-launcher/releases/latest/download/dkn-compute-launcher-windows-arm64.zip" -OutFile "dkn-compute-node.zip"
    ```
