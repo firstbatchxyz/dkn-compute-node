@@ -1,11 +1,6 @@
 ## Running the Compute Node
 
-Running a Dria Compute Node is pretty straightforward! It comes with a cross-platform launcher, and is itself a cross-platform executable. By using platform-specific builds instead of Docker we ensure:
-
-- Best performance from LLMs
-- Best networking for the p2p network
-
-You can either follow the guide here for all platforms, or follow a much-more user-friendly guide at <https://dria.co/guide> for MacOS in particular.
+Running a Dria Compute Node is pretty straightforward! You can either follow the guide here for all platforms, or follow a much-more user-friendly guide at <https://dria.co/guide> for MacOS in particular.
 
 ## Requirements
 
@@ -289,8 +284,6 @@ You will be asked to provide your choice of models within the CLI. You can also 
 - `gpt-4-turbo`
 - `gpt-4o`
 - `gpt-4o-mini`
-
-Launcher app will run the containers in the background. You can check their logs either via the terminal or from [Docker Desktop](https://www.docker.com/products/docker-desktop/).
 
 ### Additional Static Nodes
 
