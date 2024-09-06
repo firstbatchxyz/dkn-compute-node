@@ -64,18 +64,28 @@ jobs:
             echo "PKG_CONFIG_PATH=C:\\Program Files\\OpenSSL-Win64\\lib\\pkgconfig" >> $GITHUB_ENV
           fi
 
-
       - name: Build
-        uses: actions-rs/cargo@v1
         env:
           OPENSSL_DIR: ${{ env.OPENSSL_DIR }}
           OPENSSL_INCLUDE_DIR: ${{ env.OPENSSL_INCLUDE_DIR }}
           OPENSSL_LIB_DIR: ${{ env.OPENSSL_LIB_DIR }}
           PKG_CONFIG_PATH: ${{ env.PKG_CONFIG_PATH }}
-        with:
-          use-cross: true
-          command: build
-          args: --verbose --release --target ${{ matrix.target }}
+
+        run: |
+          echo $OPENSSL_DIR
+          echo $OPENSSL_INCLUDE_DIR
+          echo $OPENSSL_LIB_DIR
+          echo $PKG_CONFIG_PATH
+
+          cargo build  --verbose --release --target ${{ matrix.target }}
+
+      # - name: Build
+      #   uses: actions-rs/cargo@v1
+      #   env:
+      #   with:
+      #     use-cross: true
+      #     command: build
+      #     args: --verbose --release --target ${{ matrix.target }}
 
       - name: Prepare Release File
         env:
