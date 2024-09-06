@@ -15,12 +15,12 @@ jobs:
     strategy:
       matrix:
         include:
-          - { runner: macos-latest,  osname: macOS,   arch: amd64, target: x86_64-apple-darwin, command: build }
-          - { runner: macos-latest,  osname: macOS,   arch: arm64, target: aarch64-apple-darwin, command: build }
-          - { runner: ubuntu-latest, osname: linux,   arch: amd64, target: x86_64-unknown-linux-gnu, command: build }
+          # - { runner: macos-latest,  osname: macOS,   arch: amd64, target: x86_64-apple-darwin, command: build }
+          # - { runner: macos-latest,  osname: macOS,   arch: arm64, target: aarch64-apple-darwin, command: build }
+          # - { runner: ubuntu-latest, osname: linux,   arch: amd64, target: x86_64-unknown-linux-gnu, command: build }
           # - { runner: ubuntu-latest, osname: linux,   arch: arm64, target: aarch64-unknown-linux-gnu, command: build }
-          # - { runner: windows-latest, osname: windows, arch: amd64, target: x86_64-pc-windows-msvc, extension: ".exe"}
-          # - { runner: windows-latest, osname: windows, arch: arm64, target: aarch64-unknown-linux-gnu, extension: ".exe"}
+          - { runner: windows-latest, osname: windows, arch: amd64, target: x86_64-pc-windows-msvc, command: build, extension: ".exe" }
+          # - { runner: windows-latest, osname: windows, arch: arm64, target: aarch64-pc-windows-msvc, command: build, extension: ".exe" }
 
     steps:
       - name: Checkout code
@@ -58,45 +58,45 @@ jobs:
           path: dkn-compute-${{ matrix.osname }}-${{ matrix.arch }}.zip
 
 
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/compute-exe'
+  # release:
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   if: github.ref == 'refs/heads/compute-exe'
     
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0  # Fetch all tags and history
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v3
+  #       with:
+  #         fetch-depth: 0  # Fetch all tags and history
 
-      - name: Download Launch Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          merge-multiple: true
-          path: ./artifacts
+  #     - name: Download Launch Artifacts
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         merge-multiple: true
+  #         path: ./artifacts
 
-      - name: Get the latest tag
-        id: get_latest_tag
-        run: |
-          # latest release tag
-          LATEST_TAG=$(git describe --tags $(git rev-list --tags --max-count=1) 2>/dev/null || echo "untagged")
-          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
+  #     - name: Get the latest tag
+  #       id: get_latest_tag
+  #       run: |
+  #         # latest release tag
+  #         LATEST_TAG=$(git describe --tags $(git rev-list --tags --max-count=1) 2>/dev/null || echo "untagged")
+  #         echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
 
-          # latest release name
-          LATEST_RELEASE=$(curl -s \
-            -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r '.name // "no-release-found"')
-          echo "LATEST_RELEASE=$LATEST_RELEASE" >> $GITHUB_ENV
+  #         # latest release name
+  #         LATEST_RELEASE=$(curl -s \
+  #           -H "Accept: application/vnd.github.v3+json" \
+  #           https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r '.name // "no-release-found"')
+  #         echo "LATEST_RELEASE=$LATEST_RELEASE" >> $GITHUB_ENV
           
-          echo "Latest Tag: $LATEST_TAG"
-          echo "Latest Release: $LATEST_RELEASE"
+  #         echo "Latest Tag: $LATEST_TAG"
+  #         echo "Latest Release: $LATEST_RELEASE"
 
-      - name: Create release with artifacts
-        uses: ncipollo/release-action@v1
-        with:
-          name: ${{ env.LATEST_RELEASE }}
-          tag: ${{ env.LATEST_TAG }}
-          artifacts: "artifacts/*"
-          artifactContentType: application/zip
-          allowUpdates: true
-          # draft: true
+  #     - name: Create release with artifacts
+  #       uses: ncipollo/release-action@v1
+  #       with:
+  #         name: ${{ env.LATEST_RELEASE }}
+  #         tag: ${{ env.LATEST_TAG }}
+  #         artifacts: "artifacts/*"
+  #         artifactContentType: application/zip
+  #         allowUpdates: true
+  #         # draft: true
