@@ -51,7 +51,7 @@ jobs:
           elif [ "${{ matrix.osname }}" = "windows" ]; then
             choco install openssl.light
             echo "export OPENSSL_DIR='C:\\Program Files\\OpenSSL-Win64'" >> $GITHUB_ENV
-
+          fi
 
       - name: Build
         uses: actions-rs/cargo@v1
