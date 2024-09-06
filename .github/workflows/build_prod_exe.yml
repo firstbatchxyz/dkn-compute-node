@@ -58,6 +58,11 @@ jobs:
 
       - name: Build
         uses: actions-rs/cargo@v1
+        env:
+          PKG_CONFIG_PATH: ${{ env.PKG_CONFIG_PATH }}
+          LIBRARY_PATH: ${{ env.LIBRARY_PATH }}
+          LD_LIBRARY_PATH: ${{ env.LD_LIBRARY_PATH }}
+          OPENSSL_DIR: ${{ env.OPENSSL_DIR }}
         with:
           use-cross: true
           command: build
