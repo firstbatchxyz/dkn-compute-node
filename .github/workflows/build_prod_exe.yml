@@ -15,12 +15,12 @@ jobs:
     strategy:
       matrix:
         include:
-          - { runner: macos-latest,  osname: macOS,   arch: amd64, target: x86_64-apple-darwin, pkg_config_path: "/usr/local/opt/openssl@1.1/lib/pkgconfig", library_path: "/usr/local/opt/openssl@1.1/lib", ld_library_path: "/usr/local/opt/openssl@1.1/lib" }
-          - { runner: macos-latest,  osname: macOS,   arch: arm64, target: aarch64-apple-darwin, pkg_config_path: "/usr/local/opt/openssl@1.1/lib/pkgconfig", library_path: "/usr/local/opt/openssl@1.1/lib", ld_library_path: "/usr/local/opt/openssl@1.1/lib" }
-          - { runner: ubuntu-latest, osname: linux,   arch: amd64, target: x86_64-unknown-linux-gnu, pkg_config_path: "/usr/lib/x86_64-linux-gnu/pkgconfig", library_path: "/usr/lib/x86_64-linux-gnu", ld_library_path: "/usr/lib/x86_64-linux-gnu" }
-          - { runner: ubuntu-latest, osname: linux,   arch: arm64, target: aarch64-unknown-linux-gnu, pkg_config_path: "/usr/lib/aarch64-linux-gnu/pkgconfig", library_path: "/usr/lib/aarch64-linux-gnu", ld_library_path: "/usr/lib/aarch64-linux-gnu" }
-          - { runner: windows-latest, osname: windows, arch: amd64, target: x86_64-pc-windows-msvc, extension: ".exe", openssl_dir: "C:\\Program Files\\OpenSSL-Win64" }
-          - { runner: windows-latest, osname: windows, arch: arm64, target: aarch64-unknown-linux-gnu, extension: ".exe", openssl_dir: "C:\\Program Files\\OpenSSL-Win64" }
+          - { runner: macos-latest,  osname: macOS,   arch: amd64, target: x86_64-apple-darwin }
+          - { runner: macos-latest,  osname: macOS,   arch: arm64, target: aarch64-apple-darwin }
+          - { runner: ubuntu-latest, osname: linux,   arch: amd64, target: x86_64-unknown-linux-gnu }
+          - { runner: ubuntu-latest, osname: linux,   arch: arm64, target: aarch64-unknown-linux-gnu}
+          - { runner: windows-latest, osname: windows, arch: amd64, target: x86_64-pc-windows-msvc, extension: ".exe"}
+          - { runner: windows-latest, osname: windows, arch: arm64, target: aarch64-unknown-linux-gnu, extension: ".exe"}
 
     steps:
       - name: Checkout code
@@ -41,28 +41,22 @@ jobs:
           if [ "${{ matrix.osname }}" = "macOS" ]; then
             /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
             brew install openssl@1.1
-            echo "export PKG_CONFIG_PATH=\"$(brew --prefix openssl@1.1)/lib/pkgconfig\"" >> $GITHUB_ENV
-            echo "export LIBRARY_PATH=\"$(brew --prefix openssl@1.1)/lib\"" >> $GITHUB_ENV
-            echo "export LD_LIBRARY_PATH=\"$(brew --prefix openssl@1.1)/lib\"" >> $GITHUB_ENV
+            echo "export OPENSSL_DIR=/usr/local/opt/openssl@1.1" >> $GITHUB_ENV
+
           elif [ "${{ matrix.osname }}" = "linux" ]; then
             sudo apt-get update
             sudo apt-get install -y pkg-config libssl-dev
-            echo "export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig" >> $GITHUB_ENV
-            echo "export LIBRARY_PATH=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
-            echo "export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
+            echo "export OPENSSL_DIR=/usr/local/opt/openssl@1.1" >> $GITHUB_ENV
+
           elif [ "${{ matrix.osname }}" = "windows" ]; then
             choco install openssl.light
             echo "export OPENSSL_DIR='C:\\Program Files\\OpenSSL-Win64'" >> $GITHUB_ENV
-            echo "export PATH='C:\\Program Files\\OpenSSL-Win64\\bin:$PATH'" >> $GITHUB_ENV
-          fi
+
 
       - name: Build
         uses: actions-rs/cargo@v1
         env:
-          PKG_CONFIG_PATH: ${{ matrix.pkg_config_path }}
-          LIBRARY_PATH: ${{ matrix.library_path }}
-          LD_LIBRARY_PATH: ${{ matrix.ld_library_path }}
-          OPENSSL_DIR: ${{ matrix.openssl_dir }}
+          OPENSSL_DIR: ${{ env.OPENSSL_DIR }}
         with:
           use-cross: true
           command: build
