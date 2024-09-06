@@ -38,13 +38,22 @@ jobs:
       - name: Install OpenSSL
         shell: bash
         run: |
-          if [ "${{ matrix.osname }}" = "macos" ]; then
+          if [ "${{ matrix.osname }}" = "macOS" ]; then
             /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
             brew install openssl@1.1
+            echo "export PKG_CONFIG_PATH=\"$(brew --prefix openssl@1.1)/lib/pkgconfig\"" >> $GITHUB_ENV
+            echo "export LIBRARY_PATH=\"$(brew --prefix openssl@1.1)/lib\"" >> $GITHUB_ENV
+            echo "export LD_LIBRARY_PATH=\"$(brew --prefix openssl@1.1)/lib\"" >> $GITHUB_ENV
           elif [ "${{ matrix.osname }}" = "linux" ]; then
-            sudo apt-get install pkg-config libssl-dev
-          elif [ "${{ matrix.osname }}" = "windows-latest" ]; then
+            sudo apt-get update
+            sudo apt-get install -y pkg-config libssl-dev
+            echo "export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig" >> $GITHUB_ENV
+            echo "export LIBRARY_PATH=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
+            echo "export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
+          elif [ "${{ matrix.osname }}" = "windows" ]; then
             winget install -e --id ShiningLight.OpenSSL
+            echo "export OPENSSL_DIR='C:\\Program Files\\OpenSSL-Win64'" >> $GITHUB_ENV
+            echo "export PATH='$OPENSSL_DIR\\bin:$PATH'" >> $GITHUB_ENV
           fi
 
       - name: Build
