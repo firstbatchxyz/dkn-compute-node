@@ -15,12 +15,12 @@ jobs:
     strategy:
       matrix:
         include:
-          - { runner: macos-latest,  osname: macOS,   arch: amd64, target: x86_64-apple-darwin}
-          - { runner: macos-latest,  osname: macOS,   arch: arm64, target: aarch64-apple-darwin}
-          - { runner: ubuntu-latest, osname: linux,   arch: amd64, target: x86_64-unknown-linux-gnu}
-          - { runner: ubuntu-latest, osname: linux,   arch: arm64, target: aarch64-unknown-linux-gnu}
-          - { runner: windows-latest, osname: windows, arch: amd64, target: x86_64-pc-windows-msvc, extension: ".exe" }
-          - { runner: windows-latest, osname: windows, arch: arm64, target: aarch64-unknown-linux-gnu, extension: ".exe" }
+          - { runner: macos-latest,  osname: macOS,   arch: amd64, target: x86_64-apple-darwin, pkg_config_path: "/usr/local/opt/openssl@1.1/lib/pkgconfig", library_path: "/usr/local/opt/openssl@1.1/lib", ld_library_path: "/usr/local/opt/openssl@1.1/lib" }
+          - { runner: macos-latest,  osname: macOS,   arch: arm64, target: aarch64-apple-darwin, pkg_config_path: "/usr/local/opt/openssl@1.1/lib/pkgconfig", library_path: "/usr/local/opt/openssl@1.1/lib", ld_library_path: "/usr/local/opt/openssl@1.1/lib" }
+          - { runner: ubuntu-latest, osname: linux,   arch: amd64, target: x86_64-unknown-linux-gnu, pkg_config_path: "/usr/lib/x86_64-linux-gnu/pkgconfig", library_path: "/usr/lib/x86_64-linux-gnu", ld_library_path: "/usr/lib/x86_64-linux-gnu" }
+          - { runner: ubuntu-latest, osname: linux,   arch: arm64, target: aarch64-unknown-linux-gnu, pkg_config_path: "/usr/lib/aarch64-linux-gnu/pkgconfig", library_path: "/usr/lib/aarch64-linux-gnu", ld_library_path: "/usr/lib/aarch64-linux-gnu" }
+          - { runner: windows-latest, osname: windows, arch: amd64, target: x86_64-pc-windows-msvc, extension: ".exe", openssl_dir: "C:\\Program Files\\OpenSSL-Win64" }
+          - { runner: windows-latest, osname: windows, arch: arm64, target: aarch64-unknown-linux-gnu, extension: ".exe", openssl_dir: "C:\\Program Files\\OpenSSL-Win64" }
 
     steps:
       - name: Checkout code
@@ -59,10 +59,10 @@ jobs:
       - name: Build
         uses: actions-rs/cargo@v1
         env:
-          PKG_CONFIG_PATH: ${{ env.PKG_CONFIG_PATH }}
-          LIBRARY_PATH: ${{ env.LIBRARY_PATH }}
-          LD_LIBRARY_PATH: ${{ env.LD_LIBRARY_PATH }}
-          OPENSSL_DIR: ${{ env.OPENSSL_DIR }}
+          PKG_CONFIG_PATH: ${{ matrix.pkg_config_path }}
+          LIBRARY_PATH: ${{ matrix.library_path }}
+          LD_LIBRARY_PATH: ${{ matrix.ld_library_path }}
+          OPENSSL_DIR: ${{ matrix.openssl_dir }}
         with:
           use-cross: true
           command: build
