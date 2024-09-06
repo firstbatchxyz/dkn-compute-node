@@ -51,9 +51,9 @@ jobs:
             echo "export LIBRARY_PATH=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
             echo "export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
           elif [ "${{ matrix.osname }}" = "windows" ]; then
-            winget install -e --id ShiningLight.OpenSSL
+            choco install openssl.light
             echo "export OPENSSL_DIR='C:\\Program Files\\OpenSSL-Win64'" >> $GITHUB_ENV
-            echo "export PATH='$OPENSSL_DIR\\bin:$PATH'" >> $GITHUB_ENV
+            echo "export PATH='C:\\Program Files\\OpenSSL-Win64\\bin:$PATH'" >> $GITHUB_ENV
           fi
 
       - name: Build
