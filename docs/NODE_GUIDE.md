@@ -8,13 +8,12 @@ Running a Dria Compute Node is pretty straightforward! You can either follow the
 
 Depending the AI models of your choice, you may have to install software:
 
-- **OpenAI models**: you don't have to do anything!
-- **Ollama models**: you have to install Ollama
+- **OpenAI models**: you don't have to install anything, we just need an `OPENAI_API_KEY`!
+- **Ollama models**: you have to install Ollama, see [download instructions here](https://ollama.com/download). After installing, confirm you have it with:
 
-```sh
-# prints Ollama version
-ollama -v
-```
+  ```sh
+  ollama --version
+  ```
 
 ### Hardware
 
