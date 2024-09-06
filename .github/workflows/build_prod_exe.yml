@@ -36,6 +36,7 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Install OpenSSL
+        shell: bash
         run: |
           if [ "${{ matrix.osname }}" = "macos" ]; then
             /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
