@@ -42,20 +42,20 @@ jobs:
         env:
           BINARY_NAME: dkn-compute${{ matrix.extension }}
           FOLDER_NAME: dkn-compute-node
-          TAR_NAME: dkn-compute-${{ matrix.osname }}-${{ matrix.arch }}
+          TAR_NAME: dkn-compute-binary-${{ matrix.osname }}-${{ matrix.arch }}
 
         run: |
           mkdir $FOLDER_NAME
           # move the binary
-          mv "target/${{ matrix.target }}/release/$BINARY_NAME" "$FOLDER_NAME"
+          mv target/${{ matrix.target }}/release/$BINARY_NAME $FOLDER_NAME
           
           tar -czvf $TAR_NAME.tar.gz $FOLDER_NAME
 
       - name: Upload Launch Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: dkn-compute-${{ matrix.osname }}-${{ matrix.arch }}
-          path: dkn-compute-${{ matrix.osname }}-${{ matrix.arch }}.tar.gz
+          name: dkn-compute-binary-${{ matrix.osname }}-${{ matrix.arch }}
+          path: dkn-compute-binary-${{ matrix.osname }}-${{ matrix.arch }}.tar.gz
 
 
   release:
