@@ -10,8 +10,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::builder()
         .format_timestamp(Some(env_logger::TimestampPrecision::Millis))
         .init();
+
     log::info!(
-        "Initializing Dria Compute Node (version {})",
+        r#"
+
+██████╗ ██████╗ ██╗ █████╗ 
+██╔══██╗██╔══██╗██║██╔══██╗   Dria Compute Node 
+██║  ██║██████╔╝██║███████║   v{}
+██║  ██║██╔══██╗██║██╔══██║   https://dria.co
+██████╔╝██║  ██║██║██║  ██║
+╚═════╝ ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝
+"#,
         dkn_compute::DRIA_COMPUTE_NODE_VERSION
     );
 
