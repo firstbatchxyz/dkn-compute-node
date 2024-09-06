@@ -15,11 +15,11 @@ jobs:
     strategy:
       matrix:
         include:
-          - { runner: macos-latest,  osname: macOS,   arch: amd64, target: x86_64-apple-darwin, command: build }
-          - { runner: macos-latest,  osname: macOS,   arch: arm64, target: aarch64-apple-darwin, command: build }
-          - { runner: ubuntu-latest, osname: linux,   arch: amd64, target: x86_64-unknown-linux-gnu, command: build }
-          - { runner: ubuntu-latest, osname: linux,   arch: arm64, target: aarch64-unknown-linux-gnu, command: build, build_args: --no-default-features }
-          # - { runner: windows-latest, osname: windows, arch: amd64, target: x86_64-pc-windows-msvc, command: build, extension: ".exe" }
+          # - { runner: macos-latest,  osname: macOS,   arch: amd64, target: x86_64-apple-darwin, command: build }
+          # - { runner: macos-latest,  osname: macOS,   arch: arm64, target: aarch64-apple-darwin, command: build }
+          # - { runner: ubuntu-latest, osname: linux,   arch: amd64, target: x86_64-unknown-linux-gnu, command: build }
+          # - { runner: ubuntu-latest, osname: linux,   arch: arm64, target: aarch64-unknown-linux-gnu, command: build, build_args: --no-default-features }
+          - { runner: windows-latest, osname: windows, arch: amd64, target: x86_64-pc-windows-msvc, command: build, extension: ".exe" }
           # - { runner: windows-latest, osname: windows, arch: arm64, target: aarch64-pc-windows-msvc, command: build, extension: ".exe", toolchain: nightly }
 
     steps:
@@ -41,11 +41,8 @@ jobs:
       - name: Prepare Release File
         env:
           BINARY_NAME: dkn-compute${{ matrix.extension }}
-          FOLDER_NAME: dkn-compute-node
-          TAR_NAME: dkn-compute-binary-${{ matrix.osname }}-${{ matrix.arch }}
 
         run: |
-          mkdir $FOLDER_NAME
           # move the binary
           mv target/${{ matrix.target }}/release/$BINARY_NAME ./dkn-compute-binary-${{ matrix.osname }}-${{ matrix.arch }}${{ matrix.extension }}
           
