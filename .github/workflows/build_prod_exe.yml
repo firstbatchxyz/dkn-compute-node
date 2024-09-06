@@ -62,6 +62,7 @@ jobs:
             echo "OPENSSL_INCLUDE_DIR=C:\\Program Files\\OpenSSL-Win64\\include" >> $GITHUB_ENV
             echo "OPENSSL_LIB_DIR=C:\\Program Files\\OpenSSL-Win64\\lib" >> $GITHUB_ENV
             echo "PKG_CONFIG_PATH=C:\\Program Files\\OpenSSL-Win64\\lib\\pkgconfig" >> $GITHUB_ENV
+          fi
 
 
       - name: Build
