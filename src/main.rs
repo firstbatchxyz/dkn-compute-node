@@ -19,6 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cancellation_token = token.clone();
     // add cancellation check
     tokio::spawn(async move {
+        // FIXME: weird feature-gating here bugs with IDE, fix this later
         #[cfg(feature = "profiling")]
         {
             const PROFILE_DURATION_SECS: u64 = 120;
@@ -86,22 +87,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Waits for SIGTERM or SIGINT, and cancels the given token when the signal is received.
+// FIXME: remove this `unused` once we have a better way to handle this
+/// Waits for various termination signals, and cancels the given token when the signal is received.
+///
+/// Handles Unix and Windows [target families](https://doc.rust-lang.org/reference/conditional-compilation.html#target_family).
 #[allow(unused)]
 async fn wait_for_termination(cancellation: CancellationToken) -> std::io::Result<()> {
-    use tokio::signal::unix::{signal, SignalKind};
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{signal, SignalKind};
+        let mut sigterm = signal(SignalKind::terminate())?; // Docker sends SIGTERM
+        let mut sigint = signal(SignalKind::interrupt())?; // Ctrl+C sends SIGINT
+        tokio::select! {
+            _ = sigterm.recv() => log::warn!("Recieved SIGTERM"),
+            _ = sigint.recv() => log::warn!("Recieved SIGINT"),
+            _ = cancellation.cancelled() => {
+                // no need to wait if cancelled anyways
+                // although this is not likely to happen
+                return Ok(());
+            }
+        };
+    }
 
-    let mut sigterm = signal(SignalKind::terminate())?; // Docker sends SIGTERM
-    let mut sigint = signal(SignalKind::interrupt())?; // Ctrl+C sends SIGINT
-    tokio::select! {
-        _ = sigterm.recv() => log::warn!("Recieved SIGTERM"),
-        _ = sigint.recv() => log::warn!("Recieved SIGINT"),
-        _ = cancellation.cancelled() => {
-            // no need to wait if cancelled anyways
-            // although this is not likely to happen
-            return Ok(());
-        }
-    };
+    #[cfg(windows)]
+    {
+        use tokio::signal::windows;
+
+        // https://learn.microsoft.com/en-us/windows/console/handlerroutine
+        let mut signal_c = windows::ctrl_c()?;
+        let mut signal_break = windows::ctrl_break()?;
+        let mut signal_close = windows::ctrl_close()?;
+        let mut signal_shutdown = windows::ctrl_shutdown()?;
+
+        tokio::select! {
+            _ = signal_c.recv() => log::warn!("Received CTRL_C"),
+            _ = signal_break.recv() => log::warn!("Received CTRL_BREAK"),
+            _ = signal_close.recv() => log::warn!("Received CTRL_CLOSE"),
+            _ = signal_shutdown.recv() => log::warn!("Received CTRL_SHUTDOWN"),
+            _ = cancellation.cancelled() => {
+                // no need to wait if cancelled anyways
+                // although this is not likely to happen
+                return Ok(());
+            }
+        };
+    }
 
     log::info!("Terminating the node...");
     cancellation.cancel();
