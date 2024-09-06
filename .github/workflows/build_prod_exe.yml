@@ -35,6 +35,17 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Install OpenSSL
+        run: |
+          if [ "${{ matrix.osname }}" = "macos" ]; then
+            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+            brew install openssl@1.1
+          else if [ "${{ matrix.osname }}" = "linux" ]; then
+            sudo apt-get install pkg-config libssl-dev
+          else if [ "${{ matrix.osname }}" = "windows-latest" ]; then
+            winget install -e --id ShiningLight.OpenSSL
+          fi
+
       - name: Build
         uses: actions-rs/cargo@v1
         with:
