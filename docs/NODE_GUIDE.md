@@ -6,15 +6,14 @@ Running a Dria Compute Node is pretty straightforward! You can either follow the
 
 ### Software
 
-You only **Docker** to run the node! You can check if you have it by printing its version:
+Depending the AI models of your choice, you may have to install software:
 
-```sh
-docker -v
-```
+- **OpenAI models**: you don't have to install anything, we just need an `OPENAI_API_KEY`!
+- **Ollama models**: you have to install Ollama, see [download instructions here](https://ollama.com/download). After installing, confirm you have it with:
 
-> [!CAUTION]
->
-> In **Windows** machines, Docker Desktop is requried to be running with **WSL2**. You can check the Docker Desktop Windows installation guide from [here](https://docs.docker.com/desktop/install/windows-install/)
+  ```sh
+  ollama --version
+  ```
 
 ### Hardware
 
@@ -107,35 +106,37 @@ Download the appropriate ZIP file for your system using the commands below or fr
 1. Check your architecture:
 
    - Open System Information:
-     - Press `Win + R` to open the Run dialog.
-     - Type `msinfo32` and press Enter.
+     - Press <kbd>⊞ Win + R</kbd> to open the Run dialog.
+     - Type `msinfo32` and press <kbd>Enter</kbd>.
    - Look for the line labeled "Processor" or "CPU":
      - If it includes "x64" or refers to Intel or AMD, it is likely x86 (amd64).
      - If it mentions ARM, then it's an ARM processor.
 
 2. Download the ZIP file using a web browser or in PowerShell:
 
-   ```cmd
+   ```sh
    # for x64, use amd64
    Invoke-WebRequest -Uri "https://github.com/firstbatchxyz/dkn-compute-launcher/releases/latest/download/dkn-compute-launcher-windows-amd64.zip" -OutFile "dkn-compute-node.zip"
    ```
 
-   ```cmd
+   ```sh
    # for ARM, use arm64
    Invoke-WebRequest -Uri "https://github.com/firstbatchxyz/dkn-compute-launcher/releases/latest/download/dkn-compute-launcher-windows-arm64.zip" -OutFile "dkn-compute-node.zip"
    ```
 
 3. Unzip the downloaded file using File Explorer or in PowerShell:
-   ```cmd
+   ```sh
    Expand-Archive -Path "dkn-compute-node.zip" -DestinationPath "dkn-compute-node"
    cd dkn-compute-node
    ```
 
 ### 2. Prepare Environment Variables
 
-With our launcher, setting up the environment variables happen on the fly by just running the `dkn-compute-launcher` CLI application directly, it'll ask you to enter the required environment variables if you don't have them! This way, you won't have to manually do the copying and creating environment variables yourself, and instead let the CLI do it for you.
+With our launcher, setting up the environment variables happen on the fly! The CLI application will ask you to enter the required environment variables if you don't have them.
 
-If you prefer this method, you can move directly on to the [Usage](#usage) section. If you would like to do this part manually, you can continue reading this section.
+This way, you won't have to manually do the copying and creating environment variables yourself, and instead let the CLI do it for you. You can move directly on to the [Usage](#usage) section.
+
+> If you would like to do this part manually, you can continue reading this section.
 
 #### Create `.env` File
 
@@ -191,11 +192,9 @@ OPENAI_API_KEY=<YOUR_KEY>
 
 #### For Ollama
 
-First you have to install Ollama, if you haven't already! See their [download page](https://ollama.com/download) and follow their instructions there. The models that we want to use have to be pulled to Ollama before we can use them.
+First you have to install [Ollama](#requirements), if you haven't already! The compute node is set to download any missing model automatically at the start by default. This is enabled via the `OLLAMA_AUTO_PULL=true` in `.env`.
 
-> [!TIP]
->
-> The compute node is set to download any missing model automatically at the start by default. This is enabled via the `OLLAMA_AUTO_PULL=true` in `.env`. If you would like to disable this feature, set `OLLAMA_AUTO_PULL=false` and then continue reading this section, otherwise you can skip to [optional services](#optional-services).
+If you would like to disable this feature, set `OLLAMA_AUTO_PULL=false` and then continue reading this section, otherwise you can skip to [optional services](#optional-services).
 
 First, you must **first pull a small embedding model that is used internally**.
 
@@ -221,11 +220,51 @@ JINA_API_KEY=<key-here>
 
 ## Usage
 
-With all setup steps above completed, we are ready to start a node!
+**With all setup steps above completed, we are ready to start a node!** Either double-click the downloaded launcher `dkn-compute-launcher` app (`dkn-compute-launcher.exe` on Windows), or run it from the terminal from your file explorer, or use it from terminal (or `cmd/powershell` in Windows).
 
-### 1. Choose Model(s)
+See the available commands with:
 
-Based on the resources of your machine, you must decide which models that you will be running locally. For example, you can use OpenAI with their models, not running anything locally at all; or you can use Ollama with several models loaded to disk, and only one loaded to memory during its respective task. Available models (see [here](https://github.com/andthattoo/ollama-workflows/blob/main/src/program/atomics.rs#L269) for latest) are:
+```sh
+# macos or linux
+./dkn-compute-launcher --help
+```
+
+```sh
+# windows
+.\dkn-compute-launcher.exe --help
+```
+
+Then simply run the cli app, it will ask you to enter required inputs:
+
+```sh
+# macos or linux
+./dkn-compute-launcher
+```
+
+```sh
+# windows
+.\dkn-compute-launcher.exe
+```
+
+You will see logs of the compute node on the same terminal!
+
+You can stop the node as usual by pressing <kbd>Control + C</kbd>, or kill it from the terminal.
+
+### Choosing Models
+
+You will be asked to provide your choice of models within the CLI. You can also pass them from the command line using `-m` flags:
+
+```sh
+# macos or linux
+./dkn-compute-launcher -m=llama3.1:latest -m=gpt-3.5-turbo
+```
+
+```sh
+# windows
+.\dkn-compute-launcher.exe -m=llama3.1:latest -m=gpt-3.5-turbo
+```
+
+[Available models](https://github.com/andthattoo/ollama-workflows/blob/main/src/program/models.rs) are given below:
 
 #### Ollama Models
 
@@ -245,116 +284,11 @@ Based on the resources of your machine, you must decide which models that you wi
 - `gpt-4o`
 - `gpt-4o-mini`
 
-> [!TIP]
->
-> If you are using Ollama, make sure you have pulled the required models, as specified in the [section above](#4-setup-ollama-for-ollama-users)!
-
-### 2. Start Docker
-
-Our node will be running within a Docker container, so we should make sure that Docker is running before the next step. You can launch Docker via its [desktop application](https://www.docker.com/products/docker-desktop/), or a command such as:
-
-```sh
-sudo systemctl start docker
-```
-
-> [!NOTE]
->
-> You don't need to do this step if Docker is already running in the background.
-
-### 3. Run Node
-
-It's time to run our compute node. We have a launcher cli app that makes this much easier: you can either run it by double-clicking the `dkn-compute-launcher` app (`dkn-compute-launcher.exe` on Windows) from your file explorer, or use it from terminal (or cmd/powershell in Windows).
-
-See the available commands with:
-
-```sh
-# macos or linux
-./dkn-compute-launcher --help
-
-# windows
-.\dkn-compute-launcher.exe --help
-```
-
-Then simply run the cli app, it will ask you to enter required inputs:
-
-```sh
-# macos or linux
-./dkn-compute-launcher
-
-# windows
-.\dkn-compute-launcher.exe
-```
-
-Or you can directly pass the running models using `-m` flags
-
-```sh
-# macos or linux
-./dkn-compute-launcher -m=llama3.1:latest -m=gpt-3.5-turbo
-
-# windows
-.\dkn-compute-launcher.exe -m=llama3.1:latest -m=gpt-3.5-turbo
-```
-
-Launcher app will run the containers in the background. You can check their logs either via the terminal or from [Docker Desktop](https://www.docker.com/products/docker-desktop/).
-
-#### Running in Debug Mode
-
-To print DEBUG-level logs for the compute node, you can add `--dev` argument to the launcher app. For example:
-
-```sh
-./dkn-compute-launcher -m=gpt-4o-mini --dev
-```
-
-Running in debug mode will also allow you to see behind the scenes of Ollama Workflows, i.e. you can see the reasoning of the LLM as it executes the task.
-
-> Similarly, you can run in trace mode with `--trace` to see trace logs, which cover low-level logs from the p2p client.
-
-### 4. Looking at Logs
-
-To see your logs, you can go to [Docker Desktop](https://www.docker.com/products/docker-desktop/) and see the running containers and find `dkn-compute-node`. There, open the containers within the compose (click on `>` to the left) and click on any of the container to see its logs.
-
-Alternatively, you can use `docker compose logs` such as below:
-
-```sh
-docker compose logs -f compute  # compute node logs
-docker compose logs -f ollama   # ollama logs
-```
-
-The `-f` option is so that you can track the logs from terminal. If you prefer to simply check the latest logs, you can use a command such as:
-
-```sh
-# logs from last 1 hour
-docker compose logs --since=1h compute
-
-# logs from last 30 minutes
-docker compose logs --since=30m compute
-```
-
-### 5. Stopping the Node
-
-When you start your node with `dkn-compute-launcher`, it will wait for you in the same terminal to do CTRL+C before stopping. Once you do that, the containers will be stopped and removed. You can also kill the containers manually, doing CTRL+C afterwards will do nothing in such a case.
-
-> [!NOTE]
->
-> Sometimes it may not immediately exit whilst executing a task, if you REALLY need to quite the process you can kill it manually.
-
-### Using Ollama
-
-> If you don't have Ollama installed, you can ignore this section.
-
-If you have Ollama installed already (e.g. via `brew install ollama`) then the launcher script app always use it. Even if the Ollama server is not running, the launcher app will initiate it with `ollama serve` and terminate it when the node is being stopped.
-
-If you would like to explicitly use Docker Ollama instead, you can do this by passing the `--docker-ollama` option.
-
-```sh
-# Run with local ollama
-./dkn-compute-launcher -m=phi3 --docker-ollama
-```
-
-> [!TIP]
->
-> There are three Docker Compose Ollama options: `ollama-cpu`, `ollama-cuda`, and `ollama-rocm`. The launcher app will decide which option to use based on the host machine's GPU specifications.
-
 ### Additional Static Nodes
 
 You can add additional relay nodes & bootstrap nodes from environment, using the `DKN_RELAY_NODES` and `DKN_BOOTSTRAP_NODES` variables respectively. Simply write the `Multiaddr` string of the static nodes as comma-separated values, and the compute node will pick them up at the start.
+
+```sh
+# dummy example
+DKN_BOOTSTRAP_NODES=/ip4/44.206.245.139/tcp/4001/p2p/16Uiu2HAm4q3LZU2TeeejKK4fff6KZdddq8Kcccyae4bbbF7uqaaa
+```

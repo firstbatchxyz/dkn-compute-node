@@ -192,7 +192,7 @@ impl Default for DriaComputeNodeConfig {
             "DKN_WALLET_SECRET_KEY",
             "6e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f6465",
         );
-        env::set_var("DKN_MODELS", "phi3:3.8b");
+        env::set_var("DKN_MODELS", "gpt-3.5-turbo");
 
         Self::new()
     }
