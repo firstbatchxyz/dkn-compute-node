@@ -15,10 +15,10 @@ jobs:
     strategy:
       matrix:
         include:
-          - { runner: macos-latest,  osname: macOS,   arch: amd64, target: x86_64-apple-darwin, command: build }
+          # - { runner: macos-latest,  osname: macOS,   arch: amd64, target: x86_64-apple-darwin, command: build }
           - { runner: macos-latest,  osname: macOS,   arch: arm64, target: aarch64-apple-darwin, command: build }
-          - { runner: ubuntu-latest, osname: linux,   arch: amd64, target: x86_64-unknown-linux-gnu, command: build }
-          - { runner: ubuntu-latest, osname: linux,   arch: arm64, target: aarch64-unknown-linux-gnu, command: build, build_args: --no-default-features }
+          # - { runner: ubuntu-latest, osname: linux,   arch: amd64, target: x86_64-unknown-linux-gnu, command: build }
+          # - { runner: ubuntu-latest, osname: linux,   arch: arm64, target: aarch64-unknown-linux-gnu, command: build, build_args: --no-default-features }
           # - { runner: windows-latest, osname: windows, arch: amd64, target: x86_64-pc-windows-msvc, command: build, extension: ".exe" }
           # - { runner: windows-latest, osname: windows, arch: arm64, target: aarch64-pc-windows-msvc, command: build, extension: ".exe", toolchain: nightly }
 
@@ -42,20 +42,20 @@ jobs:
         env:
           BINARY_NAME: dkn-compute${{ matrix.extension }}
           FOLDER_NAME: dkn-compute-node
-          ZIP_NAME: dkn-compute-${{ matrix.osname }}-${{ matrix.arch }}
+          TAR_NAME: dkn-compute-${{ matrix.osname }}-${{ matrix.arch }}
 
         run: |
           mkdir $FOLDER_NAME
           # move the binary
           mv "target/${{ matrix.target }}/release/$BINARY_NAME" "$FOLDER_NAME"
           
-          zip -r $ZIP_NAME.zip $FOLDER_NAME
+          tar -czvf $TAR_NAME.tar.gz $FOLDER_NAME
 
       - name: Upload Launch Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: dkn-compute-${{ matrix.osname }}-${{ matrix.arch }}
-          path: dkn-compute-${{ matrix.osname }}-${{ matrix.arch }}.zip
+          path: dkn-compute-${{ matrix.osname }}-${{ matrix.arch }}.tar.gz
 
 
   release:
@@ -97,6 +97,6 @@ jobs:
           name: ${{ env.LATEST_RELEASE }}
           tag: ${{ env.LATEST_TAG }}
           artifacts: "artifacts/*"
-          artifactContentType: application/zip
+          artifactContentType: application/gzip
           allowUpdates: true
           # draft: true
