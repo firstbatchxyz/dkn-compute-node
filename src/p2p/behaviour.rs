@@ -41,8 +41,6 @@ fn create_kademlia_behavior(local_peer_id: PeerId) -> kad::Behaviour<MemoryStore
     const QUERY_TIMEOUT_SECS: u64 = 5 * 60;
     const RECORD_TTL_SECS: u64 = 30;
 
-    // TODO: use versioning here?
-
     let mut cfg = Config::new(P2P_KADEMLIA_PROTOCOL);
     cfg.set_query_timeout(Duration::from_secs(QUERY_TIMEOUT_SECS))
         .set_record_ttl(Some(Duration::from_secs(RECORD_TTL_SECS)));

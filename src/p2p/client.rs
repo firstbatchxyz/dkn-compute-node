@@ -226,7 +226,7 @@ impl P2PClient {
                     log::warn!("Local node is listening on {}", address);
                 }
                 SwarmEvent::ExternalAddrConfirmed { address } => {
-                    log::warn!("External address confirmed: {}", address);
+                    log::info!("External address confirmed: {}", address);
                 }
                 event => log::trace!("Unhandled Swarm Event: {:?}", event),
             }
@@ -245,7 +245,7 @@ impl P2PClient {
         // check protocol string
         if info.protocol_version != P2P_PROTOCOL_STRING {
             log::warn!(
-                "Identify: Peer {} has different Identify protocol: (have {}, want {})",
+                "Identify: Peer {} has different Identify protocol: (them {}, you {})",
                 peer_id,
                 info.protocol_version,
                 P2P_PROTOCOL_STRING
@@ -274,7 +274,7 @@ impl P2PClient {
                     .add_address(&peer_id, addr);
             } else {
                 log::warn!(
-                    "Identify: Peer {} has different Kademlia version: (have {}, want {})",
+                    "Identify: Peer {} has different Kademlia version: (them {}, you {})",
                     peer_id,
                     kad_protocol,
                     P2P_KADEMLIA_PROTOCOL
