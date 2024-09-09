@@ -33,7 +33,7 @@ To be able to run a node, we need to make a few simple preparations. Follow the 
 
 We have a [cross-platform node launcher](https://github.com/firstbatchxyz/dkn-compute-launcher) to easily set up the environment and running the compute node. We will install that first.
 
-Download the appropriate ZIP file for your system using the commands below or from [browser](https://github.com/firstbatchxyz/dkn-compute-launcher/releases/tag/v0.0.1). Make sure to replace the URL with the correct version for your operating system and architecture.
+Download the appropriate ZIP file for your system using the commands below or from [your browser](https://github.com/firstbatchxyz/dkn-compute-launcher/releases). Make sure to replace the URL with the correct version for your operating system and architecture.
 
 #### macOS:
 
@@ -143,7 +143,7 @@ This way, you won't have to manually do the copying and creating environment var
 Dria Compute Node makes use of several environment variables. Let's create an `.env` file from the given example first.
 
 ```sh
-cp .env.example .ev
+cp .env.example .env
 ```
 
 We will fill out the missing parts witin `.env` file in a moment.
