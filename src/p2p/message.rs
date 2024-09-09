@@ -18,13 +18,11 @@ use serde::{Deserialize, Serialize};
 ///
 /// TODO: these are all available at protocol level as well
 /// - payload is the data itself
-/// - topic is available as TopicHash of Gossipsub
 /// - version is given within the Identify protocol
 /// - timestamp is available at protocol level via DataTransform
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct P2PMessage {
     pub(crate) payload: String,
-    pub(crate) topic: String,
     pub(crate) version: String,
     pub(crate) timestamp: u128,
 }
@@ -39,29 +37,23 @@ const SIGNATURE_SIZE_HEX: usize = 130;
 impl P2PMessage {
     /// Creates a new message with current timestamp and version equal to the crate version.
     ///
-    /// - `payload` is gives as bytes. It is to be `base64` encoded internally.
-    /// - `topic` is the name of the [gossipsub topic](https://docs.libp2p.io/concepts/pubsub/overview/).
-    pub fn new(payload: impl AsRef<[u8]>, topic: &str) -> Self {
+    /// - `payload` is given as bytes. It is to be `base64` encoded internally.
+    pub fn new(payload: impl AsRef<[u8]>) -> Self {
         Self {
             payload: BASE64_STANDARD.encode(payload),
-            topic: topic.to_string(),
             version: crate::DRIA_COMPUTE_NODE_VERSION.to_string(),
             timestamp: get_current_time_nanos(),
         }
     }
 
     /// Creates a new Message by signing the SHA256 of the payload, and prepending the signature.
-    pub fn new_signed(
-        payload: impl AsRef<[u8]> + Clone,
-        topic: &str,
-        signing_key: &SecretKey,
-    ) -> Self {
+    pub fn new_signed(payload: impl AsRef<[u8]> + Clone, signing_key: &SecretKey) -> Self {
         let signature_bytes = sign_bytes_recoverable(&sha256hash(payload.clone()), signing_key);
 
         let mut signed_payload = Vec::new();
         signed_payload.extend_from_slice(signature_bytes.as_ref());
         signed_payload.extend_from_slice(payload.as_ref());
-        Self::new(signed_payload, topic)
+        Self::new(signed_payload)
     }
 
     /// Creates the payload of a computation result, as per Dria Whitepaper section 5.1 algorithm 2:
@@ -141,11 +133,7 @@ impl fmt::Display for P2PMessage {
             .unwrap_or(self.payload.as_bytes().to_vec());
 
         let payload_str = String::from_utf8(payload_decoded).unwrap_or(self.payload.clone());
-        write!(
-            f,
-            "{} message at {}\n{}",
-            self.topic, self.timestamp, payload_str
-        )
+        write!(f, "Message at {}\n{}", self.timestamp, payload_str)
     }
 }
 
@@ -180,20 +168,12 @@ mod tests {
         }
     }
 
-    const TOPIC: &str = "test-topic";
-
-    #[test]
-    fn test_display_message() {
-        let message = P2PMessage::new(b"hello world", "test-topic");
-        println!("{}", message);
-    }
-
     #[test]
     fn test_unsigned_message() {
         // create payload & message
         let body = TestStruct::default();
         let payload = serde_json::to_vec(&json!(body)).expect("Should serialize");
-        let message = P2PMessage::new(payload, TOPIC);
+        let message = P2PMessage::new(payload);
 
         // decode message
         let message_body = message.decode_payload().expect("Should decode");
@@ -202,7 +182,6 @@ mod tests {
             serde_json::to_string(&body).expect("Should stringify"),
             "{\"hello\":\"world\"}"
         );
-        assert_eq!(message.topic, "test-topic");
         assert_eq!(message.version, crate::DRIA_COMPUTE_NODE_VERSION);
         assert!(message.timestamp > 0);
 
@@ -219,7 +198,7 @@ mod tests {
         // create payload & message with signature & body
         let body = TestStruct::default();
         let body_str = serde_json::to_string(&body).unwrap();
-        let message = P2PMessage::new_signed(body_str, TOPIC, &sk);
+        let message = P2PMessage::new_signed(body_str, &sk);
 
         // decode message
         let message_body = message.decode_payload().expect("Should decode");
@@ -229,7 +208,6 @@ mod tests {
             serde_json::to_string(&body).expect("Should stringify"),
             "{\"hello\":\"world\"}"
         );
-        assert_eq!(message.topic, "test-topic");
         assert_eq!(message.version, crate::DRIA_COMPUTE_NODE_VERSION);
         assert!(message.timestamp > 0);
 

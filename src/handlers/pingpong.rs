@@ -54,10 +54,9 @@ impl ComputeHandler for PingpongHandler {
         };
         let response = P2PMessage::new_signed(
             serde_json::json!(response_body).to_string(),
-            result_topic,
             &node.config.secret_key,
         );
-        node.publish(response)?;
+        node.publish(response, result_topic)?;
 
         // accept message, someone else may be included in the filter
         Ok(MessageAcceptance::Accept)
@@ -87,7 +86,6 @@ mod tests {
         .expect("Should parse public key");
         let message = P2PMessage {
             payload: "Y2RmODcyNDlhY2U3YzQ2MDIzYzNkMzBhOTc4ZWY3NjViMWVhZDlmNWJhMDUyY2MxMmY0NzIzMjQyYjc0YmYyODFjMDA1MTdmMGYzM2VkNTgzMzk1YWUzMTY1ODQ3NWQyNDRlODAxYzAxZDE5MjYwMDM1MTRkNzEwMThmYTJkNjEwMXsidXVpZCI6ICI4MWE2M2EzNC05NmM2LTRlNWEtOTliNS02YjI3NGQ5ZGUxNzUiLCAiZGVhZGxpbmUiOiAxNzE0MTI4NzkyfQ==".to_string(),
-            topic: "heartbeat".to_string(),
             version: "0.0.0".to_string(),
             timestamp: 1714129073557846272,
         };

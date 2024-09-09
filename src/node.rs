@@ -89,10 +89,10 @@ impl DriaComputeNode {
 
     /// Publishes a given message to the network.
     /// The topic is expected to be provided within the message struct.
-    pub fn publish(&mut self, message: P2PMessage) -> NodeResult<()> {
-        let message_bytes = message.payload.as_bytes().to_vec();
-        let message_id = self.p2p.publish(&message.topic, message_bytes)?;
-        log::info!("Published message ({}) to {}", message_id, message.topic);
+    pub fn publish(&mut self, message: P2PMessage, topic: &str) -> NodeResult<()> {
+        let message_bytes = serde_json::to_vec(&message)?;
+        let message_id = self.p2p.publish(topic, message_bytes)?;
+        log::info!("Published message ({}) to {}", message_id, topic);
         Ok(())
     }
 
@@ -258,9 +258,9 @@ impl DriaComputeNode {
             &self.config.secret_key,
         )?;
         let payload_str = payload.to_string()?;
-        let message = P2PMessage::new(payload_str, response_topic);
+        let message = P2PMessage::new(payload_str);
 
-        self.publish(message)
+        self.publish(message, response_topic)
     }
 }
 
@@ -292,9 +292,9 @@ mod tests {
 
         // publish a dummy message
         let topic = "foo";
-        let message = P2PMessage::new("hello from the other side", topic);
+        let message = P2PMessage::new("hello from the other side");
         node.subscribe(topic).expect("should subscribe");
-        node.publish(message).expect("should publish");
+        node.publish(message, topic).expect("should publish");
         node.unsubscribe(topic).expect("should unsubscribe");
     }
 }
