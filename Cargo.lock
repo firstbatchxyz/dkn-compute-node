@@ -1035,7 +1035,7 @@ dependencies = [
 
 [[package]]
 name = "dkn-compute"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -3458,7 +3458,7 @@ dependencies = [
 [[package]]
 name = "ollama-workflows"
 version = "0.1.0"
-source = "git+https://github.com/andthattoo/ollama-workflows?rev=875f403#875f40336e68c5feb6a62941eeca6f7e07f22944"
+source = "git+https://github.com/andthattoo/ollama-workflows?rev=31b6da6#31b6da648df32aa278ac491d557a4f13121ba538"
 dependencies = [
  "async-trait",
  "colored",

@@ -143,10 +143,10 @@ mod tests {
 
     #[test]
     fn test_model_matching() {
-        let cfg = ModelConfig::new_from_csv(Some("gpt-3.5-turbo,llama3.1:latest".to_string()));
+        let cfg = ModelConfig::new_from_csv(Some("gpt-4o,llama3.1:latest".to_string()));
         assert_eq!(
             cfg.get_matching_model("openai".to_string()).unwrap().1,
-            Model::GPT3_5Turbo,
+            Model::GPT4o,
             "Should find existing model"
         );
 
@@ -159,7 +159,7 @@ mod tests {
         );
 
         assert!(
-            cfg.get_matching_model("gpt-4o".to_string()).is_err(),
+            cfg.get_matching_model("gpt-4o-mini".to_string()).is_err(),
             "Should not find anything for unsupported model"
         );
 

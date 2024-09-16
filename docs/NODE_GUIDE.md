@@ -256,33 +256,15 @@ You will be asked to provide your choice of models within the CLI. You can also 
 
 ```sh
 # macos or linux
-./dkn-compute-launcher -m=llama3.1:latest -m=gpt-3.5-turbo
+./dkn-compute-launcher -m=llama3.1:latest -m=gpt-4o-mini
 ```
 
 ```sh
 # windows
-.\dkn-compute-launcher.exe -m=llama3.1:latest -m=gpt-3.5-turbo
+.\dkn-compute-launcher.exe -m=llama3.1:latest -m=gpt-4o-mini
 ```
 
-[Available models](https://github.com/andthattoo/ollama-workflows/blob/main/src/program/models.rs) are given below:
-
-#### Ollama Models
-
-- `finalend/hermes-3-llama-3.1:8b-q8_0`
-- `phi3:14b-medium-4k-instruct-q4_1`
-- `phi3:14b-medium-128k-instruct-q4_1`
-- `phi3.5:3.8b`
-- `phi3.5:3.8b-mini-instruct-fp16`
-- `llama3.1:latest`
-- `llama3.1:8b-instruct-q8_0`
-- `gemma2:9b-instruct-q8_0`
-
-#### OpenAI Models
-
-- `gpt-3.5-turbo`
-- `gpt-4-turbo`
-- `gpt-4o`
-- `gpt-4o-mini`
+Available models can be seen within the launcher, or under [`ollama-workflows/models`](https://github.com/andthattoo/ollama-workflows/blob/main/src/program/models.rs).
 
 ### Additional Static Nodes
 

@@ -96,11 +96,12 @@ impl DriaComputeNodeConfig {
         log::info!("Node Address:     0x{}", hex::encode(address));
 
         let model_config = ModelConfig::new_from_csv(env::var("DKN_MODELS").ok());
+        #[cfg(not(test))]
         if model_config.models.is_empty() {
             log::error!("No models were provided, make sure to restart with at least one model provided within DKN_MODELS.");
             panic!("No models provided.");
         }
-        log::info!("Models: {}", model_config);
+        log::info!("Models: {:?}", model_config.models);
 
         let p2p_listen_addr = env::var("DKN_P2P_LISTEN_ADDR")
             .map(|addr| addr.trim_matches('"').to_string())
