@@ -1,7 +1,10 @@
 name: Create Prod Image
-on:
-  release:
-    types: [published]
+on: 
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Image tag'     
+        required: true
 
 jobs:
   check-release:
@@ -16,7 +19,7 @@ jobs:
 
       - name: Set Image Tag
         id: itag
-        run: echo "itag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+        run: echo "itag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
 
       - name: Check Release Tag
         run: |
@@ -28,7 +31,7 @@ jobs:
 
       - name: Check Cargo.toml Version
         run: |
-          CARGO_VERSION=$(grep '^version =' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+          CARGO_VERSION=$(awk '/\[package\]/ {flag=1} flag && /version =/ {print $3; flag=0}' Cargo.toml | sed 's/"//g')
           TAG_VERSION=${{ steps.itag.outputs.itag }}
           TAG_VERSION=${TAG_VERSION#"v"} # Remove the leading 'v' from the tag
 
