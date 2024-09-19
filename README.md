@@ -73,7 +73,7 @@ make run      # info-level logs
 make debug    # debug-level logs
 ```
 
-You can run the latest Docker image via compose as well:
+If you have a valid `.env` file, you can run the latest Docker image via compose as well:
 
 ```sh
 docker compose up

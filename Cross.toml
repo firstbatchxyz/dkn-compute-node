@@ -1,5 +1,8 @@
+# this setting here helps with OpenSSL problems
+# but we may remove it now that we use vendored OpenSSL
+# see: https://github.com/cross-rs/cross/wiki/Recipes#pre-build
 [target.aarch64-unknown-linux-gnu]
 pre-build = [
     "dpkg --add-architecture $CROSS_DEB_ARCH",
-    "apt-get update && apt-get install --assume-yes libssl-dev:$CROSS_DEB_ARCH"
+    "apt-get update && apt-get install --assume-yes libssl-dev:$CROSS_DEB_ARCH",
 ]
