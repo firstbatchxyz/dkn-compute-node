@@ -73,6 +73,19 @@ make run      # info-level logs
 make debug    # debug-level logs
 ```
 
+You can run the latest Docker image via compose as well:
+
+```sh
+docker compose up
+
+# Ollama without any GPUs
+docker compose --profile=ollama-cpu up
+# Ollama for NVIDIA gpus
+docker compose --profile=ollama-cuda up
+# Ollama for AMD gpus
+docker compose --profile=ollama-rocm up
+```
+
 ### Testing
 
 You can the tests as follows:
