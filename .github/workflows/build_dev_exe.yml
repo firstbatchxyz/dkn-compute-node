@@ -1,4 +1,4 @@
-name: Build and Publish Compute Releases
+name: Build and Publish Compute Dev Releases
 
 on:
   release:
