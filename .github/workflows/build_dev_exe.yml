@@ -10,7 +10,7 @@ permissions:
 jobs:
 
   check_release:
-    if: "! contains(github.event.release.tag_name, '-dev')"  # skip if the tag ends with -dev
+    if: "contains(github.event.release.tag_name, '-dev')"  # continue if the tag ends with -dev
     runs-on: ubuntu-latest
     steps:
       - name: Echo tag
