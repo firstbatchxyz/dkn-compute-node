@@ -15,7 +15,7 @@ use std::{env, time::Duration};
 const CHECK_TIMEOUT_DURATION: Duration = Duration::from_secs(80);
 
 /// Minimum tokens per second (TPS) for checking model performance during a generation.
-const CHECK_TPS: f64 = 20.0;
+const CHECK_TPS: f64 = 15.0;
 
 #[derive(Debug, Clone)]
 pub struct DriaComputeNodeConfig {
