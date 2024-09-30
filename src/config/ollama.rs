@@ -2,7 +2,11 @@ use std::time::Duration;
 
 use ollama_workflows::{
     ollama_rs::{
-        generation::{completion::request::GenerationRequest, options::GenerationOptions},
+        generation::{
+            completion::request::GenerationRequest,
+            embeddings::request::{EmbeddingsInput, GenerateEmbeddingsRequest},
+            options::GenerationOptions,
+        },
         Ollama,
     },
     Model,
@@ -169,10 +173,11 @@ impl OllamaConfig {
         log::info!("Testing model {}", model);
 
         // first generate a dummy embedding to load the model into memory (warm-up)
-        if let Err(err) = ollama
-            .generate_embeddings(model.to_string(), "foobar".to_string(), Default::default())
-            .await
-        {
+        let request = GenerateEmbeddingsRequest::new(
+            model.to_string(),
+            EmbeddingsInput::Single("embedme".into()),
+        );
+        if let Err(err) = ollama.generate_embeddings(request).await {
             log::error!("Failed to generate embedding for model {}: {}", model, err);
             return false;
         };

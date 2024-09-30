@@ -1035,7 +1035,7 @@ dependencies = [
 
 [[package]]
 name = "dkn-compute"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -3440,8 +3440,8 @@ dependencies = [
 
 [[package]]
 name = "ollama-rs"
-version = "0.2.0"
-source = "git+https://github.com/andthattoo/ollama-rs?rev=e566515#e56651586c468546a46a995e3176539396d85243"
+version = "0.2.1"
+source = "git+https://github.com/andthattoo/ollama-rs?rev=00c67cf#00c67cf362c5baa8178906b526605cafadcdbd6e"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -3458,7 +3458,7 @@ dependencies = [
 [[package]]
 name = "ollama-workflows"
 version = "0.1.0"
-source = "git+https://github.com/andthattoo/ollama-workflows?rev=320d923#320d9231a00515e9bf0dde7f8a3202ef84192a7b"
+source = "git+https://github.com/andthattoo/ollama-workflows?rev=09f8579#09f8579d7cff2ca0a644f82ab0232ae6ba2269c3"
 dependencies = [
  "async-trait",
  "colored",
