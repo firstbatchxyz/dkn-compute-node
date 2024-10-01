@@ -37,8 +37,4 @@ pub use behaviour::{DriaBehaviour, DriaBehaviourEvent};
 mod client;
 pub use client::P2PClient;
 
-mod message;
-
-pub use message::P2PMessage;
-
 mod data_transform;

@@ -1,4 +1,7 @@
-use crate::{node::DriaComputeNode, p2p::P2PMessage, utils::get_current_time_nanos};
+use crate::{
+    node::DriaComputeNode,
+    utils::{get_current_time_nanos, P2PMessage},
+};
 use async_trait::async_trait;
 use eyre::Result;
 use libp2p::gossipsub::MessageAcceptance;
@@ -66,10 +69,10 @@ impl ComputeHandler for PingpongHandler {
 #[cfg(test)]
 mod tests {
     use crate::{
-        p2p::P2PMessage,
         utils::{
             crypto::{sha256hash, to_address},
             filter::FilterPayload,
+            P2PMessage,
         },
         DriaComputeNodeConfig,
     };

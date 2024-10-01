@@ -1,3 +1,4 @@
+use eyre::{Context, Result};
 use fastbloom_rs::{BloomFilter, Hashes, Membership};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, to_string};
@@ -14,8 +15,10 @@ pub struct FilterPayload {
 impl FilterPayload {
     /// Shorthand function to create the underlying `BloomFilter` and check if it contains the given address.
     #[inline]
-    pub fn contains(&self, address: &[u8]) -> Result<bool, hex::FromHexError> {
-        BloomFilter::try_from(self).map(|filter| filter.contains(address))
+    pub fn contains(&self, address: &[u8]) -> Result<bool> {
+        BloomFilter::try_from(self)
+            .map(|filter| filter.contains(address))
+            .wrap_err("Could not create filter.")
     }
 }
 

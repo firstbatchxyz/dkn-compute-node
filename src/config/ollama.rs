@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use eyre::{eyre, Result};
 use ollama_workflows::{
     ollama_rs::{
         generation::{
@@ -81,7 +82,7 @@ impl OllamaConfig {
         external_models: Vec<Model>,
         timeout: Duration,
         min_tps: f64,
-    ) -> Result<Vec<Model>, String> {
+    ) -> Result<Vec<Model>> {
         log::info!(
             "Checking Ollama requirements (auto-pull {}, workflow timeout: {}s)",
             if self.auto_pull { "on" } else { "off" },
@@ -96,7 +97,7 @@ impl OllamaConfig {
             Err(e) => {
                 return {
                     log::error!("Could not fetch local models from Ollama, is it online?");
-                    Err(e.to_string())
+                    Err(e.into())
                 }
             }
         };
@@ -137,7 +138,7 @@ impl OllamaConfig {
     }
 
     /// Pulls a model if `auto_pull` exists, otherwise returns an error.
-    async fn try_pull(&self, ollama: &Ollama, model: String) -> Result<(), String> {
+    async fn try_pull(&self, ollama: &Ollama, model: String) -> Result<()> {
         log::warn!("Model {} not found in Ollama", model);
         if self.auto_pull {
             // if auto-pull is enabled, pull the model
@@ -145,17 +146,14 @@ impl OllamaConfig {
                 "Downloading missing model {} (this may take a while)",
                 model
             );
-            let status = ollama
-                .pull_model(model, false)
-                .await
-                .map_err(|e| format!("Error pulling model with Ollama: {}", e))?;
+            let status = ollama.pull_model(model, false).await?;
             log::debug!("Pulled model with Ollama, final status: {:#?}", status);
             Ok(())
         } else {
             // otherwise, give error
             log::error!("Please download missing model with: ollama pull {}", model);
             log::error!("Or, set OLLAMA_AUTO_PULL=true to pull automatically.");
-            Err("Required model not pulled in Ollama.".into())
+            Err(eyre!("Required model not pulled in Ollama."))
         }
     }
 

@@ -5,9 +5,8 @@ use ollama_workflows::{Entry, Executor, ModelProvider, ProgramMemory, Workflow};
 use serde::Deserialize;
 
 use crate::node::DriaComputeNode;
-use crate::p2p::P2PMessage;
-use crate::utils::get_current_time_nanos;
 use crate::utils::payload::{TaskRequest, TaskRequestPayload};
+use crate::utils::{get_current_time_nanos, P2PMessage};
 
 use super::ComputeHandler;
 

@@ -6,8 +6,8 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     config::DriaComputeNodeConfig,
     handlers::{ComputeHandler, PingpongHandler, WorkflowHandler},
-    p2p::{P2PClient, P2PMessage},
-    utils::{crypto::secret_to_keypair, AvailableNodes},
+    p2p::P2PClient,
+    utils::{crypto::secret_to_keypair, AvailableNodes, P2PMessage},
 };
 
 /// Number of seconds between refreshing the Admin RPC PeerIDs from Dria server.
@@ -38,10 +38,9 @@ impl DriaComputeNode {
     pub async fn new(
         config: DriaComputeNodeConfig,
         cancellation: CancellationToken,
-    ) -> Result<Self, String> {
+    ) -> Result<Self> {
         let keypair = secret_to_keypair(&config.secret_key);
-        let listen_addr =
-            Multiaddr::from_str(config.p2p_listen_addr.as_str()).map_err(|e| e.to_string())?;
+        let listen_addr = Multiaddr::from_str(config.p2p_listen_addr.as_str())?;
 
         // get available nodes (bootstrap, relay, rpc) for p2p
         let available_nodes = AvailableNodes::default()
@@ -266,9 +265,8 @@ impl DriaComputeNode {
 
 #[cfg(test)]
 mod tests {
-    use crate::{p2p::P2PMessage, DriaComputeNode, DriaComputeNodeConfig};
+    use super::*;
     use std::env;
-    use tokio_util::sync::CancellationToken;
 
     #[tokio::test]
     #[ignore = "run this manually"]

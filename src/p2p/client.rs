@@ -1,3 +1,4 @@
+use eyre::Result;
 use libp2p::futures::StreamExt;
 use libp2p::gossipsub::{
     Message, MessageAcceptance, MessageId, PublishError, SubscriptionError, TopicHash,
@@ -17,6 +18,7 @@ use super::{DriaBehaviour, DriaBehaviourEvent, P2P_KADEMLIA_PROTOCOL, P2P_PROTOC
 
 /// Underlying libp2p client.
 pub struct P2PClient {
+    /// `Swarm` instance, everything is accesses through this one.
     swarm: Swarm<DriaBehaviour>,
     /// Peer count for (All, Mesh).
     peer_count: (usize, usize),
@@ -36,7 +38,7 @@ impl P2PClient {
         keypair: Keypair,
         listen_addr: Multiaddr,
         available_nodes: &AvailableNodes,
-    ) -> Result<Self, String> {
+    ) -> Result<Self> {
         // this is our peerId
         let node_peerid = keypair.public().to_peer_id();
         log::info!("Compute node peer address: {}", node_peerid);
@@ -47,13 +49,10 @@ impl P2PClient {
                 tcp::Config::default(),
                 noise::Config::new,
                 yamux::Config::default,
-            )
-            .map_err(|e| e.to_string())?
+            )?
             .with_quic()
-            .with_relay_client(noise::Config::new, yamux::Config::default)
-            .map_err(|e| e.to_string())?
-            .with_behaviour(|key, relay_behavior| Ok(DriaBehaviour::new(key, relay_behavior)))
-            .map_err(|e| e.to_string())?
+            .with_relay_client(noise::Config::new, yamux::Config::default)?
+            .with_behaviour(|key, relay_behavior| Ok(DriaBehaviour::new(key, relay_behavior)))?
             .with_swarm_config(|c| {
                 c.with_idle_connection_timeout(Duration::from_secs(IDLE_CONNECTION_TIMEOUT_SECS))
             })
@@ -76,7 +75,7 @@ impl P2PClient {
                 _ => None,
             }) {
                 log::info!("Dialling peer: {}", addr);
-                swarm.dial(addr.clone()).map_err(|e| e.to_string())?;
+                swarm.dial(addr.clone())?;
                 log::info!("Adding {} to Kademlia routing table", addr);
                 swarm
                     .behaviour_mut()
@@ -94,24 +93,18 @@ impl P2PClient {
             .behaviour_mut()
             .kademlia
             .get_closest_peers(random_peer);
-        swarm
-            .behaviour_mut()
-            .kademlia
-            .bootstrap()
-            .map_err(|e| e.to_string())?;
+        swarm.behaviour_mut().kademlia.bootstrap()?;
 
         // listen on all interfaces for incoming connections
         log::info!("Listening p2p network on: {}", listen_addr);
-        swarm.listen_on(listen_addr).map_err(|e| e.to_string())?;
+        swarm.listen_on(listen_addr)?;
 
         log::info!(
             "Listening to relay nodes: {:#?}",
             available_nodes.relay_nodes
         );
         for addr in &available_nodes.relay_nodes {
-            swarm
-                .listen_on(addr.clone().with(Protocol::P2pCircuit))
-                .map_err(|e| e.to_string())?;
+            swarm.listen_on(addr.clone().with(Protocol::P2pCircuit))?;
         }
 
         Ok(Self {
@@ -138,6 +131,8 @@ impl P2PClient {
     }
 
     /// Publish a message to a topic.
+    ///
+    /// Returns the message ID.
     pub fn publish(
         &mut self,
         topic_name: &str,
@@ -168,7 +163,7 @@ impl P2PClient {
         msg_id: &MessageId,
         propagation_source: &PeerId,
         acceptance: MessageAcceptance,
-    ) -> Result<(), PublishError> {
+    ) -> Result<()> {
         log::trace!("Validating message ({}): {:?}", msg_id, acceptance);
 
         let msg_was_in_cache = self
@@ -240,6 +235,7 @@ impl P2PClient {
     /// - For Kademlia, we check the kademlia protocol and then add the address to the Kademlia routing table.
     fn handle_identify_event(&mut self, peer_id: PeerId, info: identify::Info) {
         // we only care about the observed address, although there may be other addresses at `info.listen_addrs`
+        // TODO: this may be wrong
         let addr = info.observed_addr;
 
         // check protocol string

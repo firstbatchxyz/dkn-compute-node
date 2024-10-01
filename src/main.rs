@@ -1,8 +1,9 @@
 use dkn_compute::{DriaComputeNode, DriaComputeNodeConfig};
+use eyre::Result;
 use tokio_util::sync::CancellationToken;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<()> {
     if let Err(e) = dotenvy::dotenv() {
         log::warn!("Could not load .env file: {}", e);
     }

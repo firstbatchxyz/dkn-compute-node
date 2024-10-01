@@ -1,5 +1,6 @@
+use eyre::Result;
 use libp2p::{Multiaddr, PeerId};
-use std::{fmt::Debug, str::FromStr};
+use std::{env, fmt::Debug, str::FromStr};
 
 use crate::utils::split_comma_separated;
 
@@ -47,7 +48,7 @@ impl AvailableNodes {
     /// - `DRIA_RELAY_NODES`: comma-separated list of relay nodes
     pub fn new_from_env() -> Self {
         // parse bootstrap nodes
-        let bootstrap_nodes = split_comma_separated(std::env::var("DKN_BOOTSTRAP_NODES").ok());
+        let bootstrap_nodes = split_comma_separated(env::var("DKN_BOOTSTRAP_NODES").ok());
         if bootstrap_nodes.is_empty() {
             log::debug!("No additional bootstrap nodes provided.");
         } else {
@@ -55,7 +56,7 @@ impl AvailableNodes {
         }
 
         // parse relay nodes
-        let relay_nodes = split_comma_separated(std::env::var("DKN_RELAY_NODES").ok());
+        let relay_nodes = split_comma_separated(env::var("DKN_RELAY_NODES").ok());
         if relay_nodes.is_empty() {
             log::debug!("No additional relay nodes provided.");
         } else {
@@ -69,6 +70,7 @@ impl AvailableNodes {
         }
     }
 
+    /// Creates a new `AvailableNodes` struct from the static nodes, hardcoded within the code.
     pub fn new_from_statics() -> Self {
         Self {
             bootstrap_nodes: parse_vec(STATIC_BOOTSTRAP_NODES.to_vec()),
@@ -77,7 +79,7 @@ impl AvailableNodes {
         }
     }
 
-    /// Joins the available nodes from another `AvailableNodes` struct.
+    /// Joins the struct with another `AvailableNodes` struct.
     pub fn join(mut self, other: Self) -> Self {
         self.bootstrap_nodes.extend(other.bootstrap_nodes);
         self.relay_nodes.extend(other.relay_nodes);
@@ -101,9 +103,7 @@ impl AvailableNodes {
     }
 
     /// Refreshes the available nodes for Bootstrap, Relay and RPC nodes.
-    ///
-    /// Returns immediately if its too early to do that.
-    pub async fn get_available_nodes() -> Result<Self, reqwest::Error> {
+    pub async fn get_available_nodes() -> Result<Self> {
         let response = reqwest::get(RPC_PEER_ID_REFRESH_API_URL).await?;
         let response_body = response.json::<AvailableNodesApiResponse>().await?;
 

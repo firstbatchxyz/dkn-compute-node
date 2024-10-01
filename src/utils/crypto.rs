@@ -5,13 +5,13 @@ use sha2::{Digest, Sha256};
 use sha3::Keccak256;
 
 /// Generic SHA256 function.
-#[inline]
+#[inline(always)]
 pub fn sha256hash(data: impl AsRef<[u8]>) -> [u8; 32] {
     Sha256::digest(data).into()
 }
 
 /// Generic KECCAK256 function.
-#[inline]
+#[inline(always)]
 pub fn keccak256hash(data: impl AsRef<[u8]>) -> [u8; 32] {
     Keccak256::digest(data).into()
 }

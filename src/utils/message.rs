@@ -159,7 +159,7 @@ impl TryFrom<libp2p::gossipsub::Message> for P2PMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{p2p::P2PMessage, utils::crypto::sha256hash, DriaComputeNodeConfig};
+    use crate::{utils::crypto::sha256hash, DriaComputeNodeConfig};
     use ecies::decrypt;
     use libsecp256k1::SecretKey;
     use libsecp256k1::{verify, Message, PublicKey, RecoveryId, Signature};
