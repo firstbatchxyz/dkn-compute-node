@@ -1,7 +1,6 @@
 use crate::utils::{
     crypto::{sha256hash, sign_bytes_recoverable},
     get_current_time_nanos,
-    payload::TaskResponsePayload,
 };
 use base64::{prelude::BASE64_STANDARD, Engine};
 use core::fmt;
@@ -10,19 +9,22 @@ use eyre::Result;
 use libsecp256k1::SecretKey;
 use serde::{Deserialize, Serialize};
 
-/// A parsed message from gossipsub. When first received, the message data is simply a vector of bytes.
-/// We treat that bytearray as a stringified JSON object, and parse it into this struct.
-///
-/// TODO: these are all available at protocol level as well
-/// - payload is the data itself
-/// - topic is available as TopicHash of Gossipsub
-/// - version is given within the Identify protocol
-/// - timestamp is available at protocol level via DataTransform
+/// A message within Dria Knowledge Network.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DKNMessage {
+    /// Base64 encoded data
     pub(crate) payload: String,
+    /// The topic of the message, derived from `TopicHash`
+    ///
+    /// NOTE: This can be obtained via TopicHash in GossipSub
     pub(crate) topic: String,
+    /// The version of the Dria Compute Node
+    ///
+    /// NOTE: This can be obtained via Identify protocol version
     pub(crate) version: String,
+    /// The timestamp of the message, in nanoseconds
+    ///
+    /// NOTE: This can be obtained via DataTransform in GossipSub
     pub(crate) timestamp: u128,
 }
 
@@ -59,39 +61,6 @@ impl DKNMessage {
         signed_payload.extend_from_slice(signature_bytes.as_ref());
         signed_payload.extend_from_slice(payload.as_ref());
         Self::new(signed_payload, topic)
-    }
-
-    /// Creates the payload of a computation result.
-    ///
-    /// - Sign `task_id || payload` with node `self.secret_key`
-    /// - Encrypt `result` with `task_public_key`
-    /// TODO: this is not supposed to be here
-    pub fn new_signed_encrypted_payload(
-        payload: impl AsRef<[u8]>,
-        task_id: &str,
-        encrypting_public_key: &[u8],
-        signing_secret_key: &SecretKey,
-    ) -> Result<TaskResponsePayload> {
-        // create the message `task_id || payload`
-        let mut preimage = Vec::new();
-        preimage.extend_from_slice(task_id.as_ref());
-        preimage.extend_from_slice(payload.as_ref());
-
-        // sign the message
-        // TODO: use `sign_recoverable` here instead?
-        let digest = libsecp256k1::Message::parse(&sha256hash(preimage));
-        let (signature, recid) = libsecp256k1::sign(&digest, signing_secret_key);
-        let signature: [u8; 64] = signature.serialize();
-        let recid: [u8; 1] = [recid.serialize()];
-
-        // encrypt payload itself
-        let ciphertext = ecies::encrypt(encrypting_public_key, payload.as_ref())?;
-
-        Ok(TaskResponsePayload {
-            ciphertext: hex::encode(ciphertext),
-            signature: format!("{}{}", hex::encode(signature), hex::encode(recid)),
-            task_id: task_id.to_string(),
-        })
     }
 
     /// Decodes the base64 payload into bytes.
@@ -161,6 +130,7 @@ impl TryFrom<libp2p::gossipsub::Message> for DKNMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::payload::TaskResponsePayload;
     use crate::{utils::crypto::sha256hash, DriaComputeNodeConfig};
     use ecies::decrypt;
     use libsecp256k1::SecretKey;
@@ -252,7 +222,7 @@ mod tests {
         let task_public_key = PublicKey::from_secret_key(&task_secret_key);
 
         // create payload
-        let payload = DKNMessage::new_signed_encrypted_payload(
+        let payload = TaskResponsePayload::new(
             RESULT,
             TASK_ID,
             &task_public_key.serialize(),

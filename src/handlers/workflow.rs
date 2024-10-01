@@ -5,7 +5,7 @@ use ollama_workflows::{Entry, Executor, ModelProvider, ProgramMemory, Workflow};
 use serde::Deserialize;
 
 use crate::node::DriaComputeNode;
-use crate::utils::payload::{TaskRequest, TaskRequestPayload};
+use crate::utils::payload::{TaskRequestPayload, TaskResponsePayload};
 use crate::utils::{get_current_time_nanos, DKNMessage};
 
 use super::ComputeHandler;
@@ -62,12 +62,6 @@ impl ComputeHandler for WorkflowHandler {
         // obtain public key from the payload
         let task_public_key = hex::decode(&task.public_key)?;
 
-        let task = TaskRequest {
-            task_id: task.task_id,
-            input: task.input,
-            public_key: task_public_key,
-        };
-
         // read model / provider from the task
         let (model_provider, model) = node
             .config
@@ -112,16 +106,16 @@ impl ComputeHandler for WorkflowHandler {
         }
 
         // prepare signed and encrypted payload
-        let payload = DKNMessage::new_signed_encrypted_payload(
+        let payload = TaskResponsePayload::new(
             result,
             &task.task_id,
-            &task.public_key,
+            &task_public_key,
             &node.config.secret_key,
         )?;
         let payload_str = payload.to_string()?;
-        let message = DKNMessage::new(payload_str, result_topic);
 
         // publish the result
+        let message = DKNMessage::new(payload_str, result_topic);
         node.publish(message)?;
 
         Ok(MessageAcceptance::Accept)
