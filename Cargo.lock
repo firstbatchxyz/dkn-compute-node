@@ -1039,7 +1039,6 @@ version = "0.2.5"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
- "colored",
  "dotenvy",
  "ecies",
  "env_logger 0.11.5",
