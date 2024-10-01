@@ -60,8 +60,8 @@ mod tests {
     use hex::decode;
     use libsecp256k1::{recover, sign, verify, Message, PublicKey, SecretKey};
 
-    const DUMMY_KEY: &[u8; 32] = b"driadriadriadriadriadriadriadria";
-    const MESSAGE: &[u8] = "hello world".as_bytes();
+    const DUMMY_SECRET_KEY: &[u8; 32] = b"driadriadriadriadriadriadriadria";
+    const MESSAGE: &[u8] = b"hello world";
 
     #[test]
     fn test_hash() {
@@ -73,7 +73,7 @@ mod tests {
 
     #[test]
     fn test_address() {
-        let sk = SecretKey::parse_slice(DUMMY_KEY).expect("Should parse key.");
+        let sk = SecretKey::parse_slice(DUMMY_SECRET_KEY).expect("Should parse key.");
         let pk = PublicKey::from_secret_key(&sk);
         let addr = to_address(&pk);
         assert_eq!(
@@ -84,7 +84,7 @@ mod tests {
 
     #[test]
     fn test_encrypt_decrypt() {
-        let sk = SecretKey::parse_slice(DUMMY_KEY).expect("Should parse private key slice.");
+        let sk = SecretKey::parse_slice(DUMMY_SECRET_KEY).expect("Should parse private key slice.");
         let pk = PublicKey::from_secret_key(&sk);
         let (sk, pk) = (&sk.serialize(), &pk.serialize());
 
@@ -96,7 +96,7 @@ mod tests {
     #[test]
     fn test_sign_verify() {
         let secret_key =
-            SecretKey::parse_slice(DUMMY_KEY).expect("Should parse private key slice.");
+            SecretKey::parse_slice(DUMMY_SECRET_KEY).expect("Should parse private key slice.");
 
         // sign the message using the secret key
         let digest = sha256hash(MESSAGE);
@@ -121,7 +121,7 @@ mod tests {
     #[ignore = "run only with profiler if wanted"]
     fn test_memory_usage() {
         let secret_key =
-            SecretKey::parse_slice(DUMMY_KEY).expect("Should parse private key slice.");
+            SecretKey::parse_slice(DUMMY_SECRET_KEY).expect("Should parse private key slice.");
         let public_key = PublicKey::from_secret_key(&secret_key);
 
         // sign the message using the secret key

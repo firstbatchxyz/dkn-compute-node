@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 /// - version is given within the Identify protocol
 /// - timestamp is available at protocol level via DataTransform
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct P2PMessage {
+pub struct DKNMessage {
     pub(crate) payload: String,
     pub(crate) topic: String,
     pub(crate) version: String,
@@ -33,7 +33,7 @@ pub struct P2PMessage {
 /// and therefore use 128 characters: SIGNATURE_SIZE - 2.
 const SIGNATURE_SIZE_HEX: usize = 130;
 
-impl P2PMessage {
+impl DKNMessage {
     /// Creates a new message with current timestamp and version equal to the crate version.
     ///
     /// - `payload` is gives as bytes. It is to be `base64` encoded internally.
@@ -91,7 +91,6 @@ impl P2PMessage {
             ciphertext: hex::encode(ciphertext),
             signature: format!("{}{}", hex::encode(signature), hex::encode(recid)),
             task_id: task_id.to_string(),
-            timestamp: get_current_time_nanos(),
         })
     }
 
@@ -136,7 +135,7 @@ impl P2PMessage {
     }
 }
 
-impl fmt::Display for P2PMessage {
+impl fmt::Display for DKNMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let payload_decoded = self
             .decode_payload()
@@ -151,7 +150,7 @@ impl fmt::Display for P2PMessage {
     }
 }
 
-impl TryFrom<libp2p::gossipsub::Message> for P2PMessage {
+impl TryFrom<libp2p::gossipsub::Message> for DKNMessage {
     type Error = serde_json::Error;
 
     fn try_from(value: libp2p::gossipsub::Message) -> Result<Self, Self::Error> {
@@ -186,7 +185,7 @@ mod tests {
 
     #[test]
     fn test_display_message() {
-        let message = P2PMessage::new(b"hello world", "test-topic");
+        let message = DKNMessage::new(b"hello world", "test-topic");
         println!("{}", message);
     }
 
@@ -195,7 +194,7 @@ mod tests {
         // create payload & message
         let body = TestStruct::default();
         let payload = serde_json::to_vec(&json!(body)).expect("Should serialize");
-        let message = P2PMessage::new(payload, TOPIC);
+        let message = DKNMessage::new(payload, TOPIC);
 
         // decode message
         let message_body = message.decode_payload().expect("Should decode");
@@ -221,7 +220,7 @@ mod tests {
         // create payload & message with signature & body
         let body = TestStruct::default();
         let body_str = serde_json::to_string(&body).unwrap();
-        let message = P2PMessage::new_signed(body_str, TOPIC, &sk);
+        let message = DKNMessage::new_signed(body_str, TOPIC, &sk);
 
         // decode message
         let message_body = message.decode_payload().expect("Should decode");
@@ -253,7 +252,7 @@ mod tests {
         let task_public_key = PublicKey::from_secret_key(&task_secret_key);
 
         // create payload
-        let payload = P2PMessage::new_signed_encrypted_payload(
+        let payload = DKNMessage::new_signed_encrypted_payload(
             RESULT,
             TASK_ID,
             &task_public_key.serialize(),

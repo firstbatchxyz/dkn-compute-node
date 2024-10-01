@@ -1,6 +1,6 @@
 use crate::{
     node::DriaComputeNode,
-    utils::{get_current_time_nanos, P2PMessage},
+    utils::{get_current_time_nanos, DKNMessage},
 };
 use async_trait::async_trait;
 use eyre::Result;
@@ -29,7 +29,7 @@ struct PingpongResponse {
 impl ComputeHandler for PingpongHandler {
     async fn handle_compute(
         node: &mut DriaComputeNode,
-        message: P2PMessage,
+        message: DKNMessage,
         result_topic: &str,
     ) -> Result<MessageAcceptance> {
         let pingpong = message.parse_payload::<PingpongPayload>(true)?;
@@ -54,12 +54,13 @@ impl ComputeHandler for PingpongHandler {
             models: node.config.model_config.models.clone(),
             timestamp: get_current_time_nanos(),
         };
-        let response = P2PMessage::new_signed(
+
+        let message = DKNMessage::new_signed(
             serde_json::json!(response_body).to_string(),
             result_topic,
             &node.config.secret_key,
         );
-        node.publish(response)?;
+        node.publish(message)?;
 
         // accept message, someone else may be included in the filter
         Ok(MessageAcceptance::Accept)
@@ -72,7 +73,7 @@ mod tests {
         utils::{
             crypto::{sha256hash, to_address},
             filter::FilterPayload,
-            P2PMessage,
+            DKNMessage,
         },
         DriaComputeNodeConfig,
     };
@@ -87,7 +88,7 @@ mod tests {
             "0208ef5e65a9c656a6f92fb2c770d5d5e2ecffe02a6aade19207f75110be6ae658"
         ))
         .expect("Should parse public key");
-        let message = P2PMessage {
+        let message = DKNMessage {
             payload: "Y2RmODcyNDlhY2U3YzQ2MDIzYzNkMzBhOTc4ZWY3NjViMWVhZDlmNWJhMDUyY2MxMmY0NzIzMjQyYjc0YmYyODFjMDA1MTdmMGYzM2VkNTgzMzk1YWUzMTY1ODQ3NWQyNDRlODAxYzAxZDE5MjYwMDM1MTRkNzEwMThmYTJkNjEwMXsidXVpZCI6ICI4MWE2M2EzNC05NmM2LTRlNWEtOTliNS02YjI3NGQ5ZGUxNzUiLCAiZGVhZGxpbmUiOiAxNzE0MTI4NzkyfQ==".to_string(),
             topic: "heartbeat".to_string(),
             version: "0.0.0".to_string(),

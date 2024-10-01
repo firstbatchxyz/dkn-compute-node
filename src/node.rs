@@ -7,7 +7,7 @@ use crate::{
     config::DriaComputeNodeConfig,
     handlers::{ComputeHandler, PingpongHandler, WorkflowHandler},
     p2p::P2PClient,
-    utils::{crypto::secret_to_keypair, AvailableNodes, P2PMessage},
+    utils::{crypto::secret_to_keypair, AvailableNodes, DKNMessage},
 };
 
 /// Number of seconds between refreshing the Admin RPC PeerIDs from Dria server.
@@ -56,8 +56,8 @@ impl DriaComputeNode {
         let p2p = P2PClient::new(keypair, listen_addr, &available_nodes)?;
 
         Ok(DriaComputeNode {
-            config,
             p2p,
+            config,
             cancellation,
             available_nodes,
             available_nodes_last_refreshed: tokio::time::Instant::now(),
@@ -86,16 +86,18 @@ impl DriaComputeNode {
         Ok(())
     }
 
-    /// Publishes a given message to the network.
-    /// The topic is expected to be provided within the message struct.
-    pub fn publish(&mut self, message: P2PMessage) -> Result<()> {
-        let message_bytes = message.payload.as_bytes().to_vec();
+    /// Publishes a given message to the network w.r.t the topic of it.
+    ///
+    /// Internally, the message is JSON serialized to bytes and then published to the network as is.
+    pub fn publish(&mut self, message: DKNMessage) -> Result<()> {
+        let message_bytes = serde_json::to_vec(&message)?;
         let message_id = self.p2p.publish(&message.topic, message_bytes)?;
         log::info!("Published message ({}) to {}", message_id, message.topic);
         Ok(())
     }
 
     /// Returns the list of connected peers.
+    #[inline(always)]
     pub fn peers(&self) -> Vec<(&libp2p_identity::PeerId, Vec<&gossipsub::TopicHash>)> {
         self.p2p.peers()
     }
@@ -223,13 +225,14 @@ impl DriaComputeNode {
     /// This prepared message includes the topic, payload, version and timestamp.
     ///
     /// This also checks the signature of the message, expecting a valid signature from admin node.
+    // TODO: move this somewhere?
     pub fn parse_message_to_prepared_message(
         &self,
         message: gossipsub::Message,
-    ) -> Result<P2PMessage> {
+    ) -> Result<DKNMessage> {
         // the received message is expected to use IdentHash for the topic, so we can see the name of the topic immediately.
         log::debug!("Parsing {} message.", message.topic.as_str());
-        let message = P2PMessage::try_from(message)?;
+        let message = DKNMessage::try_from(message)?;
         log::debug!("Parsed: {}", message);
 
         // check dria signature
@@ -270,7 +273,7 @@ mod tests {
 
         // publish a dummy message
         let topic = "foo";
-        let message = P2PMessage::new("hello from the other side", topic);
+        let message = DKNMessage::new("hello from the other side", topic);
         node.subscribe(topic).expect("should subscribe");
         node.publish(message).expect("should publish");
         node.unsubscribe(topic).expect("should unsubscribe");

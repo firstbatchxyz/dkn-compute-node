@@ -3,7 +3,7 @@ pub mod filter;
 pub mod payload;
 
 mod message;
-pub use message::P2PMessage;
+pub use message::DKNMessage;
 
 mod available_nodes;
 pub use available_nodes::AvailableNodes;

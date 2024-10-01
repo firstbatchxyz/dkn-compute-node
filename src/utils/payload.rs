@@ -13,14 +13,12 @@ use crate::utils::{filter::FilterPayload, get_current_time_nanos};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskResponsePayload {
+    /// The unique identifier of the task.
+    pub task_id: String,
     /// A signature on the digest of plaintext result, prepended with task id.
     pub signature: String,
     /// Computation result encrypted with the public key of the task.
     pub ciphertext: String,
-    /// The unique identifier of the task.
-    pub task_id: String,
-    /// Timestamp of the response.
-    pub timestamp: u128,
 }
 
 impl TaskResponsePayload {

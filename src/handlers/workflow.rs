@@ -6,7 +6,7 @@ use serde::Deserialize;
 
 use crate::node::DriaComputeNode;
 use crate::utils::payload::{TaskRequest, TaskRequestPayload};
-use crate::utils::{get_current_time_nanos, P2PMessage};
+use crate::utils::{get_current_time_nanos, DKNMessage};
 
 use super::ComputeHandler;
 
@@ -29,7 +29,7 @@ struct WorkflowPayload {
 impl ComputeHandler for WorkflowHandler {
     async fn handle_compute(
         node: &mut DriaComputeNode,
-        message: P2PMessage,
+        message: DKNMessage,
         result_topic: &str,
     ) -> Result<MessageAcceptance> {
         let task = message.parse_payload::<TaskRequestPayload<WorkflowPayload>>(true)?;
@@ -111,16 +111,17 @@ impl ComputeHandler for WorkflowHandler {
             }
         }
 
-        // publish the result
-        let payload = P2PMessage::new_signed_encrypted_payload(
+        // prepare signed and encrypted payload
+        let payload = DKNMessage::new_signed_encrypted_payload(
             result,
             &task.task_id,
             &task.public_key,
             &node.config.secret_key,
         )?;
         let payload_str = payload.to_string()?;
-        let message = P2PMessage::new(payload_str, result_topic);
+        let message = DKNMessage::new(payload_str, result_topic);
 
+        // publish the result
         node.publish(message)?;
 
         Ok(MessageAcceptance::Accept)

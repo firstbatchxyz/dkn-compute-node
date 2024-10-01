@@ -8,13 +8,13 @@ pub use pingpong::PingpongHandler;
 mod workflow;
 pub use workflow::WorkflowHandler;
 
-use crate::{utils::P2PMessage, DriaComputeNode};
+use crate::{utils::DKNMessage, DriaComputeNode};
 
 #[async_trait]
 pub trait ComputeHandler {
     async fn handle_compute(
         node: &mut DriaComputeNode,
-        message: P2PMessage,
+        message: DKNMessage,
         result_topic: &str,
     ) -> Result<MessageAcceptance>;
 }
