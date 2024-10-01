@@ -92,6 +92,7 @@ impl ComputeHandler for WorkflowHandler {
             .map(|prompt| Entry::try_value_or_str(&prompt));
 
         // execute workflow with cancellation
+        // TODO: is there a better way to handle this?
         let result: String;
         tokio::select! {
             _ = node.cancellation.cancelled() => {
@@ -111,7 +112,17 @@ impl ComputeHandler for WorkflowHandler {
         }
 
         // publish the result
-        node.send_result(result_topic, &task.public_key, &task.task_id, result)?;
+        let payload = P2PMessage::new_signed_encrypted_payload(
+            result,
+            &task.task_id,
+            &task.public_key,
+            &node.config.secret_key,
+        )?;
+        let payload_str = payload.to_string()?;
+        let message = P2PMessage::new(payload_str, result_topic);
+
+        node.publish(message)?;
+
         Ok(MessageAcceptance::Accept)
     }
 }

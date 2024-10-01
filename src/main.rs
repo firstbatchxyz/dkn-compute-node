@@ -1,4 +1,4 @@
-use dkn_compute::{DriaComputeNode, DriaComputeNodeConfig};
+use dkn_compute::*;
 use eyre::Result;
 use tokio_util::sync::CancellationToken;
 
@@ -17,12 +17,11 @@ async fn main() -> Result<()> {
 
 ██████╗ ██████╗ ██╗ █████╗ 
 ██╔══██╗██╔══██╗██║██╔══██╗   Dria Compute Node 
-██║  ██║██████╔╝██║███████║   v{}
+██║  ██║██████╔╝██║███████║   v{DRIA_COMPUTE_NODE_VERSION}
 ██║  ██║██╔══██╗██║██╔══██║   https://dria.co
 ██████╔╝██║  ██║██║██║  ██║
 ╚═════╝ ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝
 "#,
-        dkn_compute::DRIA_COMPUTE_NODE_VERSION
     );
 
     let token = CancellationToken::new();

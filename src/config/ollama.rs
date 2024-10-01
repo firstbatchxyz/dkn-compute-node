@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use eyre::{eyre, Result};
 use ollama_workflows::{
     ollama_rs::{
@@ -12,6 +10,7 @@ use ollama_workflows::{
     },
     Model,
 };
+use std::time::Duration;
 
 const DEFAULT_OLLAMA_HOST: &str = "http://127.0.0.1";
 const DEFAULT_OLLAMA_PORT: u16 = 11434;

@@ -10,7 +10,7 @@ use crate::utils::{filter::FilterPayload, get_current_time_nanos};
 ///
 /// To check the commitment, one must decrypt the ciphertext and parse plaintext from it,
 /// and compute the digest using SHA256. That digest will then be used for the signature check.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskResponsePayload {
     /// A signature on the digest of plaintext result, prepended with task id.
@@ -30,7 +30,7 @@ impl TaskResponsePayload {
 }
 
 /// A generic task request, given by Dria.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskRequestPayload<T> {
     /// The unique identifier of the task.

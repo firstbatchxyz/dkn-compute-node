@@ -12,15 +12,17 @@ use libp2p_identity::Keypair;
 use std::time::Duration;
 use std::time::Instant;
 
+use super::*;
 use crate::utils::AvailableNodes;
 
-use super::{DriaBehaviour, DriaBehaviourEvent, P2P_KADEMLIA_PROTOCOL, P2P_PROTOCOL_STRING};
-
-/// Underlying libp2p client.
+/// P2P client, exposes a simple interface to handle P2P communication.
 pub struct P2PClient {
     /// `Swarm` instance, everything is accesses through this one.
     swarm: Swarm<DriaBehaviour>,
-    /// Peer count for (All, Mesh).
+    /// Peer count for All and Mesh peers.
+    ///
+    /// Mesh usually contains much fewer peers than All, as they are the ones
+    /// used for actual gossipping.
     peer_count: (usize, usize),
     /// Last time the peer count was refreshed.
     peer_last_refreshed: Instant,
@@ -253,7 +255,7 @@ impl P2PClient {
         if let Some(kad_protocol) = info
             .protocols
             .iter()
-            .find(|p| p.to_string().starts_with(P2P_KADEMLIA_PREFIX!()))
+            .find(|p| p.to_string().starts_with(P2P_KADEMLIA_PREFIX))
         {
             // if it matches our protocol, add it to the Kademlia routing table
             if *kad_protocol == P2P_KADEMLIA_PROTOCOL {

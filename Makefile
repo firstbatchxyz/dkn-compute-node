@@ -37,10 +37,6 @@ profile-mem:
 version:
 	  @cargo pkgid | cut -d@ -f2
 
-.PHONY: ollama-cpu #  | Run Ollama CPU container
-ollama-cpu:
-		docker run -p=11434:11434 -v=${HOME}/.ollama:/root/.ollama ollama/ollama
-
 ###############################################################################
 .PHONY: test #         | Run tests
 test:
@@ -58,7 +54,7 @@ format:
 ###############################################################################
 .PHONY: docs #         | Generate & open crate documentation
 docs:
-		cargo doc --open --no-deps
+		cargo doc --open --no-deps --document-private-items
 
 .PHONY: env #          | Print active environment
 env:

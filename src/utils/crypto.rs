@@ -22,13 +22,11 @@ pub fn keccak256hash(data: impl AsRef<[u8]>) -> [u8; 32] {
 /// and then (x || y) is hashed using Keccak256. The last 20 bytes of this hash is taken as the address.
 #[inline]
 pub fn to_address(public_key: &PublicKey) -> [u8; 20] {
-    let public_key_serial = &public_key.serialize()[1..];
+    let public_key_xy = &public_key.serialize()[1..];
     let mut addr = [0u8; 20];
-    addr.copy_from_slice(&keccak256hash(public_key_serial)[12..32]);
+    addr.copy_from_slice(&keccak256hash(public_key_xy)[12..32]);
     addr
 }
-
-// TODO: add peerId
 
 /// Shorthand to sign a digest (bytes) with node's secret key and return signature & recovery id
 /// serialized to 65 byte hex-string.

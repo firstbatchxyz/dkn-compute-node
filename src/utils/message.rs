@@ -3,7 +3,6 @@ use crate::utils::{
     get_current_time_nanos,
     payload::TaskResponsePayload,
 };
-
 use base64::{prelude::BASE64_STANDARD, Engine};
 use core::fmt;
 use ecies::PublicKey;
@@ -62,26 +61,30 @@ impl P2PMessage {
         Self::new(signed_payload, topic)
     }
 
-    /// Creates the payload of a computation result, as per Dria Whitepaper section 5.1 algorithm 2:
+    /// Creates the payload of a computation result.
     ///
     /// - Sign `task_id || payload` with node `self.secret_key`
     /// - Encrypt `result` with `task_public_key`
+    /// TODO: this is not supposed to be here
     pub fn new_signed_encrypted_payload(
         payload: impl AsRef<[u8]>,
         task_id: &str,
         encrypting_public_key: &[u8],
         signing_secret_key: &SecretKey,
     ) -> Result<TaskResponsePayload> {
-        // sign payload
+        // create the message `task_id || payload`
         let mut preimage = Vec::new();
         preimage.extend_from_slice(task_id.as_ref());
         preimage.extend_from_slice(payload.as_ref());
+
+        // sign the message
+        // TODO: use `sign_recoverable` here instead?
         let digest = libsecp256k1::Message::parse(&sha256hash(preimage));
         let (signature, recid) = libsecp256k1::sign(&digest, signing_secret_key);
         let signature: [u8; 64] = signature.serialize();
         let recid: [u8; 1] = [recid.serialize()];
 
-        // encrypt payload
+        // encrypt payload itself
         let ciphertext = ecies::encrypt(encrypting_public_key, payload.as_ref())?;
 
         Ok(TaskResponsePayload {

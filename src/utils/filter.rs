@@ -14,13 +14,14 @@ pub struct FilterPayload {
 
 impl FilterPayload {
     /// Shorthand function to create the underlying `BloomFilter` and check if it contains the given address.
-    #[inline]
     pub fn contains(&self, address: &[u8]) -> Result<bool> {
         BloomFilter::try_from(self)
             .map(|filter| filter.contains(address))
             .wrap_err("Could not create filter.")
     }
 }
+
+// FIXME: too many TryFrom's here, simplify in a single function here!
 
 impl TryFrom<&FilterPayload> for String {
     type Error = serde_json::Error;
@@ -108,29 +109,5 @@ mod tests {
         };
 
         BloomFilter::try_from(&filter_payload).expect("Should parse filter");
-    }
-
-    #[test]
-    fn test_filter_read_3() {
-        const FILTER_HEX: &str = "e7799ef73dcff3bc";
-        let filter_payload = FilterPayload {
-            hex: FILTER_HEX.to_string(),
-            hashes: 45,
-        };
-
-        let bf = BloomFilter::try_from(&filter_payload).expect("Should parse filter");
-
-        let addr = "6c460f37b78a2088a71e09dfb1c6238d7a34a346";
-        let addr_hex = hex::decode(addr).unwrap();
-        println!(
-            "{} ({}): {}",
-            addr,
-            addr_hex.len(),
-            bf.contains(&hex::decode(addr).unwrap())
-        );
-
-        let addr = "90c010775ffb266bc2136a13c08aa20ef11fe5cb";
-        let addr_hex = hex::decode(addr).unwrap();
-        println!("{} ({}): {}", addr, addr_hex.len(), bf.contains(&addr_hex));
     }
 }

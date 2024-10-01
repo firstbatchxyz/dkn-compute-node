@@ -185,7 +185,6 @@ impl DriaComputeNode {
                         // validate the message based on the result
                         match handle_result {
                             Ok(acceptance) => {
-
                                 self.p2p.validate_message(&message_id, &peer_id, acceptance)?;
                             },
                             Err(err) => {
@@ -235,31 +234,12 @@ impl DriaComputeNode {
 
         // check dria signature
         // NOTE: when we have many public keys, we should check the signature against all of them
+        // TODO: public key here will be given dynamically
         if !message.is_signed(&self.config.admin_public_key)? {
             return Err(eyre!("Invalid signature."));
         }
 
         Ok(message)
-    }
-
-    /// Given a task with `id` and respective `public_key`, sign-then-encrypt the result.
-    pub fn send_result<R: AsRef<[u8]>>(
-        &mut self,
-        response_topic: &str,
-        public_key: &[u8],
-        task_id: &str,
-        result: R,
-    ) -> Result<()> {
-        let payload = P2PMessage::new_signed_encrypted_payload(
-            result.as_ref(),
-            task_id,
-            public_key,
-            &self.config.secret_key,
-        )?;
-        let payload_str = payload.to_string()?;
-        let message = P2PMessage::new(payload_str, response_topic);
-
-        self.publish(message)
     }
 }
 
