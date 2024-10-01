@@ -1,9 +1,9 @@
 use async_trait::async_trait;
+use eyre::{eyre, Result};
 use libp2p::gossipsub::MessageAcceptance;
 use ollama_workflows::{Entry, Executor, ModelProvider, ProgramMemory, Workflow};
 use serde::Deserialize;
 
-use crate::errors::NodeResult;
 use crate::node::DriaComputeNode;
 use crate::p2p::P2PMessage;
 use crate::utils::get_current_time_nanos;
@@ -32,7 +32,7 @@ impl ComputeHandler for WorkflowHandler {
         node: &mut DriaComputeNode,
         message: P2PMessage,
         result_topic: &str,
-    ) -> NodeResult<MessageAcceptance> {
+    ) -> Result<MessageAcceptance> {
         let task = message.parse_payload::<TaskRequestPayload<WorkflowPayload>>(true)?;
 
         // check if deadline is past or not
@@ -102,10 +102,10 @@ impl ComputeHandler for WorkflowHandler {
             exec_result = executor.execute(entry.as_ref(), task.input.workflow, &mut memory) => {
                 match exec_result {
                     Ok(exec_result) => {
-                        result =  exec_result;
+                        result = exec_result;
                     }
                     Err(e) => {
-                        return Err(format!("Workflow failed with error {}", e).into());
+                        return Err(eyre!("Workflow failed with error {}", e));
                     }
                 }
             }

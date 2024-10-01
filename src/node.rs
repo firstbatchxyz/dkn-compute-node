@@ -1,10 +1,10 @@
+use eyre::{eyre, Result};
 use libp2p::{gossipsub, Multiaddr};
 use std::{str::FromStr, time::Duration};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
     config::DriaComputeNodeConfig,
-    errors::NodeResult,
     handlers::{ComputeHandler, PingpongHandler, WorkflowHandler},
     p2p::{P2PClient, P2PMessage},
     utils::{crypto::secret_to_keypair, AvailableNodes},
@@ -66,7 +66,7 @@ impl DriaComputeNode {
     }
 
     /// Subscribe to a certain task with its topic.
-    pub fn subscribe(&mut self, topic: &str) -> NodeResult<()> {
+    pub fn subscribe(&mut self, topic: &str) -> Result<()> {
         let ok = self.p2p.subscribe(topic)?;
         if ok {
             log::info!("Subscribed to {}", topic);
@@ -77,7 +77,7 @@ impl DriaComputeNode {
     }
 
     /// Unsubscribe from a certain task with its topic.
-    pub fn unsubscribe(&mut self, topic: &str) -> NodeResult<()> {
+    pub fn unsubscribe(&mut self, topic: &str) -> Result<()> {
         let ok = self.p2p.unsubscribe(topic)?;
         if ok {
             log::info!("Unsubscribed from {}", topic);
@@ -89,7 +89,7 @@ impl DriaComputeNode {
 
     /// Publishes a given message to the network.
     /// The topic is expected to be provided within the message struct.
-    pub fn publish(&mut self, message: P2PMessage) -> NodeResult<()> {
+    pub fn publish(&mut self, message: P2PMessage) -> Result<()> {
         let message_bytes = message.payload.as_bytes().to_vec();
         let message_id = self.p2p.publish(&message.topic, message_bytes)?;
         log::info!("Published message ({}) to {}", message_id, message.topic);
@@ -103,7 +103,7 @@ impl DriaComputeNode {
 
     /// Launches the main loop of the compute node.
     /// This method is not expected to return until cancellation occurs.
-    pub async fn launch(&mut self) -> NodeResult<()> {
+    pub async fn launch(&mut self) -> Result<()> {
         const PINGPONG_LISTEN_TOPIC: &str = "ping";
         const PINGPONG_RESPONSE_TOPIC: &str = "pong";
         const WORKFLOW_LISTEN_TOPIC: &str = "task";
@@ -228,7 +228,7 @@ impl DriaComputeNode {
     pub fn parse_message_to_prepared_message(
         &self,
         message: gossipsub::Message,
-    ) -> NodeResult<P2PMessage> {
+    ) -> Result<P2PMessage> {
         // the received message is expected to use IdentHash for the topic, so we can see the name of the topic immediately.
         log::debug!("Parsing {} message.", message.topic.as_str());
         let message = P2PMessage::try_from(message)?;
@@ -237,7 +237,7 @@ impl DriaComputeNode {
         // check dria signature
         // NOTE: when we have many public keys, we should check the signature against all of them
         if !message.is_signed(&self.config.admin_public_key)? {
-            return Err("Invalid signature.".into());
+            return Err(eyre!("Invalid signature."));
         }
 
         Ok(message)
@@ -250,7 +250,7 @@ impl DriaComputeNode {
         public_key: &[u8],
         task_id: &str,
         result: R,
-    ) -> NodeResult<()> {
+    ) -> Result<()> {
         let payload = P2PMessage::new_signed_encrypted_payload(
             result.as_ref(),
             task_id,

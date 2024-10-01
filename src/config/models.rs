@@ -1,4 +1,5 @@
 use crate::utils::split_comma_separated;
+use eyre::{eyre, Result};
 use ollama_workflows::{Model, ModelProvider};
 use rand::seq::IteratorRandom; // provides Vec<_>.choose
 
@@ -58,27 +59,27 @@ impl ModelConfig {
     /// If this is a provider, the first matching model in the node config is returned.
     ///
     /// If there are no matching models with this logic, an error is returned.
-    pub fn get_matching_model(
-        &self,
-        model_or_provider: String,
-    ) -> Result<(ModelProvider, Model), String> {
+    pub fn get_matching_model(&self, model_or_provider: String) -> Result<(ModelProvider, Model)> {
         if let Ok(provider) = ModelProvider::try_from(model_or_provider.clone()) {
             // this is a valid provider, return the first matching model in the config
             self.models
                 .iter()
                 .find(|(p, _)| *p == provider)
-                .ok_or_else(|| format!("Provider {} is not supported by this node.", provider))
+                .ok_or(eyre!(
+                    "Provider {} is not supported by this node.",
+                    provider
+                ))
                 .cloned()
         } else if let Ok(model) = Model::try_from(model_or_provider.clone()) {
             // this is a valid model, return it if it is supported by the node
             self.models
                 .iter()
                 .find(|(_, m)| *m == model)
-                .ok_or_else(|| format!("Model {} is not supported by this node.", model))
+                .ok_or(eyre!("Model {} is not supported by this node.", model))
                 .cloned()
         } else {
             // this is neither a valid provider or model for this node
-            Err(format!(
+            Err(eyre!(
                 "Given string '{}' is neither a model nor provider.",
                 model_or_provider
             ))
@@ -89,7 +90,7 @@ impl ModelConfig {
     pub fn get_any_matching_model(
         &self,
         list_model_or_provider: Vec<String>,
-    ) -> Result<(ModelProvider, Model), String> {
+    ) -> Result<(ModelProvider, Model)> {
         // filter models w.r.t supported ones
         let matching_models = list_model_or_provider
             .into_iter()
@@ -109,7 +110,7 @@ impl ModelConfig {
         matching_models
             .into_iter()
             .choose(&mut rand::thread_rng())
-            .ok_or_else(|| "No matching models found.".to_string())
+            .ok_or(eyre!("No matching models found."))
     }
 
     /// Returns the list of unique providers in the config.

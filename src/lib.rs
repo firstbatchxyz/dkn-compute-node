@@ -2,7 +2,6 @@
 // TODO: this line breaks docker, find a way to ignore during compose?
 
 pub(crate) mod config;
-pub(crate) mod errors;
 pub(crate) mod handlers;
 pub(crate) mod node;
 pub(crate) mod p2p;

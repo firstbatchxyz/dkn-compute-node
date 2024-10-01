@@ -1,11 +1,9 @@
+use eyre::Result;
 use fastbloom_rs::BloomFilter;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    errors::NodeResult,
-    utils::{filter::FilterPayload, get_current_time_nanos},
-};
+use crate::utils::{filter::FilterPayload, get_current_time_nanos};
 
 /// A computation task is the task of computing a result from a given input. The result is encrypted with the public key of the requester.
 /// Plain result is signed by the compute node's private key, and a commitment is computed from the signature and plain result.
@@ -26,8 +24,8 @@ pub struct TaskResponsePayload {
 }
 
 impl TaskResponsePayload {
-    pub fn to_string(&self) -> NodeResult<String> {
-        serde_json::to_string(&serde_json::json!(self)).map_err(|e| e.into())
+    pub fn to_string(&self) -> Result<String> {
+        serde_json::to_string(&serde_json::json!(self)).map_err(Into::into)
     }
 }
 

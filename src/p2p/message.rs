@@ -1,15 +1,13 @@
-use crate::{
-    errors::NodeResult,
-    utils::{
-        crypto::{sha256hash, sign_bytes_recoverable},
-        get_current_time_nanos,
-        payload::TaskResponsePayload,
-    },
+use crate::utils::{
+    crypto::{sha256hash, sign_bytes_recoverable},
+    get_current_time_nanos,
+    payload::TaskResponsePayload,
 };
 
 use base64::{prelude::BASE64_STANDARD, Engine};
 use core::fmt;
 use ecies::PublicKey;
+use eyre::Result;
 use libsecp256k1::SecretKey;
 use serde::{Deserialize, Serialize};
 
@@ -73,7 +71,7 @@ impl P2PMessage {
         task_id: &str,
         encrypting_public_key: &[u8],
         signing_secret_key: &SecretKey,
-    ) -> NodeResult<TaskResponsePayload> {
+    ) -> Result<TaskResponsePayload> {
         // sign payload
         let mut preimage = Vec::new();
         preimage.extend_from_slice(task_id.as_ref());
@@ -100,7 +98,7 @@ impl P2PMessage {
     }
 
     /// Decodes and parses the payload into JSON.
-    pub fn parse_payload<T: for<'a> Deserialize<'a>>(&self, signed: bool) -> NodeResult<T> {
+    pub fn parse_payload<T: for<'a> Deserialize<'a>>(&self, signed: bool) -> Result<T> {
         let payload = self.decode_payload()?;
 
         let body = if signed {
@@ -115,18 +113,19 @@ impl P2PMessage {
     }
 
     /// Checks if the payload is signed by the given public key.
-    pub fn is_signed(&self, public_key: &PublicKey) -> NodeResult<bool> {
+    pub fn is_signed(&self, public_key: &PublicKey) -> Result<bool> {
         // decode base64 payload
         let payload = self.decode_payload()?;
 
-        // parse signature (64 bytes = 128 hex chars, although the full 65-byte RSV signature is given)
-        let (signature, body) = (
+        // parse signature (64 bytes = 32 (x coord) + 32 (y coord))
+        // skip the recovery id (1 byte)
+        let (signature_hex, body) = (
             &payload[..SIGNATURE_SIZE_HEX - 2],
             &payload[SIGNATURE_SIZE_HEX..],
         );
-        let signature = hex::decode(signature).expect("could not decode");
-        let signature =
-            libsecp256k1::Signature::parse_standard_slice(&signature).expect("could not parse");
+        let signature_bytes = hex::decode(signature_hex).expect("could not decode");
+        let signature = libsecp256k1::Signature::parse_standard_slice(&signature_bytes)
+            .expect("could not parse");
 
         // verify signature
         let digest = libsecp256k1::Message::parse(&sha256hash(body));

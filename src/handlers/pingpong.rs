@@ -1,7 +1,6 @@
-use crate::{
-    errors::NodeResult, node::DriaComputeNode, p2p::P2PMessage, utils::get_current_time_nanos,
-};
+use crate::{node::DriaComputeNode, p2p::P2PMessage, utils::get_current_time_nanos};
 use async_trait::async_trait;
+use eyre::Result;
 use libp2p::gossipsub::MessageAcceptance;
 use ollama_workflows::{Model, ModelProvider};
 use serde::{Deserialize, Serialize};
@@ -29,7 +28,7 @@ impl ComputeHandler for PingpongHandler {
         node: &mut DriaComputeNode,
         message: P2PMessage,
         result_topic: &str,
-    ) -> NodeResult<MessageAcceptance> {
+    ) -> Result<MessageAcceptance> {
         let pingpong = message.parse_payload::<PingpongPayload>(true)?;
 
         // check deadline

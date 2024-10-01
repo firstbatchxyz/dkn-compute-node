@@ -33,9 +33,10 @@ urlencoding = "2.1.3"
 uuid = { version = "1.8.0", features = ["v4"] }
 rand = "0.8.5"
 
-# logging
+# logging & errors
 env_logger = "0.11.3"
 log = "0.4.21"
+eyre = "0.6.12"
 
 # encryption (ecies) & signatures (ecdsa) & hashing & bloom-filters
 ecies = { version = "0.2", default-features = false, features = ["pure"] }
@@ -68,6 +69,7 @@ libp2p = { git = "https://github.com/anilaltuner/rust-libp2p.git", rev = "7ce9f9
 libp2p-identity = { version = "0.2.9", features = ["secp256k1"] }
 tracing = { version = "0.1.40" }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+
 
 [dependencies.openssl]
 version = "*"
