@@ -121,9 +121,11 @@ fn create_gossipsub_behavior(author: PeerId) -> gossipsub::Behaviour {
 
     // message id's are simply hashes of the message data
     let message_id_fn = |message: &Message| {
+        // uses siphash by default
         let mut hasher = hash_map::DefaultHasher::new();
         message.data.hash(&mut hasher);
-        MessageId::from(hasher.finish().to_string())
+        let digest = hasher.finish();
+        MessageId::from(digest.to_be_bytes())
     };
 
     // TODO: add data transform here later
