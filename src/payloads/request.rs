@@ -1,7 +1,5 @@
-use crate::utils::{filter::TaskFilter, get_current_time_nanos};
-use fastbloom_rs::BloomFilter;
+use crate::utils::filter::TaskFilter;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 /// A generic task request, given by Dria.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -17,17 +15,4 @@ pub struct TaskRequestPayload<T> {
     pub(crate) filter: TaskFilter,
     /// The public key of the requester, in hexadecimals.
     pub(crate) public_key: String,
-}
-
-impl<T> TaskRequestPayload<T> {
-    #[allow(unused)]
-    pub fn new(input: T, filter: BloomFilter, time_ns: u128, public_key: Option<String>) -> Self {
-        Self {
-            task_id: Uuid::new_v4().into(),
-            deadline: get_current_time_nanos() + time_ns,
-            input,
-            filter: filter.into(),
-            public_key: public_key.unwrap_or_default(),
-        }
-    }
 }
