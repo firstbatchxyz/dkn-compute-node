@@ -23,6 +23,8 @@ pub trait ComputeHandler {
     /// A generic handler for DKN tasks.
     ///
     /// Returns a `MessageAcceptance` value that tells the P2P client to accept the incoming message.
+    ///
+    /// The handler has mutable reference to the compute node, and therefore can respond within the handler itself in any way it would like.
     async fn handle_compute(
         node: &mut DriaComputeNode,
         message: DKNMessage,

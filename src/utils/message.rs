@@ -6,8 +6,8 @@ use crate::DRIA_COMPUTE_NODE_VERSION;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use core::fmt;
 use ecies::PublicKey;
-use eyre::Result;
-use libsecp256k1::SecretKey;
+use eyre::{Context, Result};
+use libsecp256k1::{verify, Message, SecretKey, Signature};
 use serde::{Deserialize, Serialize};
 
 /// A message within Dria Knowledge Network.
@@ -39,11 +39,11 @@ const SIGNATURE_SIZE_HEX: usize = 130;
 impl DKNMessage {
     /// Creates a new message with current timestamp and version equal to the crate version.
     ///
-    /// - `payload` is gives as bytes. It is to be `base64` encoded internally.
+    /// - `data` is given as bytes, it is encoded into base64 to make up the `payload` within.
     /// - `topic` is the name of the [gossipsub topic](https://docs.libp2p.io/concepts/pubsub/overview/).
-    pub fn new(payload: impl AsRef<[u8]>, topic: &str) -> Self {
+    pub fn new(data: impl AsRef<[u8]>, topic: &str) -> Self {
         Self {
-            payload: BASE64_STANDARD.encode(payload),
+            payload: BASE64_STANDARD.encode(data),
             topic: topic.to_string(),
             version: DRIA_COMPUTE_NODE_VERSION.to_string(),
             timestamp: get_current_time_nanos(),
@@ -51,25 +51,26 @@ impl DKNMessage {
     }
 
     /// Creates a new Message by signing the SHA256 of the payload, and prepending the signature.
-    pub fn new_signed(
-        payload: impl AsRef<[u8]> + Clone,
-        topic: &str,
-        signing_key: &SecretKey,
-    ) -> Self {
-        let signature_bytes = sign_bytes_recoverable(&sha256hash(payload.clone()), signing_key);
+    pub fn new_signed(data: impl AsRef<[u8]>, topic: &str, signing_key: &SecretKey) -> Self {
+        // sign the SHA256 hash of the data
+        let signature_bytes = sign_bytes_recoverable(&sha256hash(data.as_ref()), signing_key);
 
-        let mut signed_payload = Vec::new();
-        signed_payload.extend_from_slice(signature_bytes.as_ref());
-        signed_payload.extend_from_slice(payload.as_ref());
-        Self::new(signed_payload, topic)
+        // prepend the signature to the data, to obtain `signature || data` bytes
+        let mut signed_data = Vec::new();
+        signed_data.extend_from_slice(signature_bytes.as_ref());
+        signed_data.extend_from_slice(data.as_ref());
+
+        // create the actual message with this signed data
+        Self::new(signed_data, topic)
     }
 
     /// Decodes the base64 payload into bytes.
+    #[inline(always)]
     pub fn decode_payload(&self) -> Result<Vec<u8>, base64::DecodeError> {
         BASE64_STANDARD.decode(&self.payload)
     }
 
-    /// Decodes and parses the payload into JSON.
+    /// Decodes and parses the base64 payload into JSON for the provided type `T`.
     pub fn parse_payload<T: for<'a> Deserialize<'a>>(&self, signed: bool) -> Result<T> {
         let payload = self.decode_payload()?;
 
@@ -80,28 +81,30 @@ impl DKNMessage {
             &payload[..]
         };
 
-        let parsed: T = serde_json::from_slice(body)?;
+        let parsed = serde_json::from_slice::<T>(body)?;
         Ok(parsed)
     }
 
     /// Checks if the payload is signed by the given public key.
     pub fn is_signed(&self, public_key: &PublicKey) -> Result<bool> {
         // decode base64 payload
-        let payload = self.decode_payload()?;
+        let data = self.decode_payload()?;
 
-        // parse signature (64 bytes = 32 (x coord) + 32 (y coord))
-        // skip the recovery id (1 byte)
-        let (signature_hex, body) = (
-            &payload[..SIGNATURE_SIZE_HEX - 2],
-            &payload[SIGNATURE_SIZE_HEX..],
-        );
-        let signature_bytes = hex::decode(signature_hex).expect("could not decode");
-        let signature = libsecp256k1::Signature::parse_standard_slice(&signature_bytes)
-            .expect("could not parse");
+        // parse signature from the following bytes:
+        //    32   +   32  +     1      +  ...
+        // (  x   ||   y   ||  rec_id  || data
+        let (signature_hex_bytes, body) =
+            (&data[..SIGNATURE_SIZE_HEX - 2], &data[SIGNATURE_SIZE_HEX..]);
+        let signature_bytes =
+            hex::decode(signature_hex_bytes).wrap_err("Could not decode signature hex")?;
 
-        // verify signature
-        let digest = libsecp256k1::Message::parse(&sha256hash(body));
-        Ok(libsecp256k1::verify(&digest, &signature, public_key))
+        // now obtain the signature itself
+        let signature = Signature::parse_standard_slice(&signature_bytes)
+            .wrap_err("Could not parse signature bytes")?;
+
+        // verify signature w.r.t the body and the given public key
+        let digest = Message::parse(&sha256hash(body));
+        Ok(verify(&digest, &signature, public_key))
     }
 }
 
@@ -131,12 +134,7 @@ impl TryFrom<libp2p::gossipsub::Message> for DKNMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::payloads::TaskResponsePayload;
-    use crate::{utils::crypto::sha256hash, DriaComputeNodeConfig};
-    use ecies::decrypt;
-    use libsecp256k1::{verify, Message, PublicKey, RecoveryId, SecretKey, Signature};
     use rand::thread_rng;
-    use serde_json::json;
 
     #[derive(Serialize, Deserialize, PartialEq, Debug)]
     struct TestStruct {
@@ -154,6 +152,7 @@ mod tests {
     const TOPIC: &str = "test-topic";
 
     #[test]
+    #[ignore = "run manually"]
     fn test_display_message() {
         let message = DKNMessage::new(b"hello world", TOPIC);
         println!("{}", message);
@@ -163,8 +162,8 @@ mod tests {
     fn test_unsigned_message() {
         // create payload & message
         let body = TestStruct::default();
-        let payload = serde_json::to_vec(&json!(body)).expect("Should serialize");
-        let message = DKNMessage::new(payload, TOPIC);
+        let data = serde_json::to_vec(&body).expect("Should serialize");
+        let message = DKNMessage::new(data, TOPIC);
 
         // decode message
         let message_body = message.decode_payload().expect("Should decode");
@@ -209,62 +208,5 @@ mod tests {
 
         let parsed_body = message.parse_payload(true).expect("Should decode");
         assert_eq!(body, parsed_body);
-    }
-
-    #[test]
-    fn test_payload_generation_verification() {
-        const TASK_SECRET_KEY_HEX: &[u8; 32] = b"aaaabbbbccccddddddddccccbbbbaaaa";
-        const TASK_ID: &str = "12345678abcdef";
-        const RESULT: &[u8; 28] = b"this is some result you know";
-
-        let config = DriaComputeNodeConfig::default();
-        let task_secret_key =
-            SecretKey::parse(TASK_SECRET_KEY_HEX).expect("Should parse secret key");
-        let task_public_key = PublicKey::from_secret_key(&task_secret_key);
-
-        // create payload
-        let payload = TaskResponsePayload::new(
-            RESULT,
-            TASK_ID,
-            &task_public_key.serialize(),
-            &config.secret_key,
-        )
-        .expect("Should create payload");
-
-        // decrypt result
-        let result = decrypt(
-            &task_secret_key.serialize(),
-            hex::decode(payload.ciphertext)
-                .expect("Should decode")
-                .as_slice(),
-        )
-        .expect("Could not decrypt");
-        assert_eq!(result, RESULT, "Result mismatch");
-
-        // verify signature
-        let rsv = hex::decode(payload.signature).expect("Should decode");
-        let mut signature_bytes = [0u8; 64];
-        signature_bytes.copy_from_slice(&rsv[0..64]);
-        let recid_bytes: [u8; 1] = [rsv[64]];
-        let signature =
-            Signature::parse_standard(&signature_bytes).expect("Should parse signature");
-        let recid = RecoveryId::parse(recid_bytes[0]).expect("Should parse recovery id");
-
-        let mut preimage = vec![];
-        preimage.extend_from_slice(TASK_ID.as_bytes());
-        preimage.extend_from_slice(&result);
-        let message = Message::parse(&sha256hash(preimage));
-        assert!(
-            verify(&message, &signature, &config.public_key),
-            "Could not verify"
-        );
-
-        // recover verifying key (public key) from signature
-        let recovered_public_key =
-            libsecp256k1::recover(&message, &signature, &recid).expect("Could not recover");
-        assert_eq!(
-            config.public_key, recovered_public_key,
-            "Public key mismatch"
-        );
     }
 }

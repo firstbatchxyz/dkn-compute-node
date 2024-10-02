@@ -1,6 +1,7 @@
 use ecies::PublicKey;
+use eyre::{Context, Result};
 use libp2p_identity::Keypair;
-use libsecp256k1::{sign, Message, SecretKey};
+use libsecp256k1::{Message, SecretKey};
 use sha2::{Digest, Sha256};
 use sha3::Keccak256;
 
@@ -33,13 +34,22 @@ pub fn to_address(public_key: &PublicKey) -> [u8; 20] {
 #[inline]
 pub fn sign_bytes_recoverable(message: &[u8; 32], secret_key: &SecretKey) -> String {
     let message = Message::parse(message);
-    let (signature, recid) = sign(&message, secret_key);
+    let (signature, recid) = libsecp256k1::sign(&message, secret_key);
 
     format!(
         "{}{}",
         hex::encode(signature.serialize()),
         hex::encode([recid.serialize()])
     )
+}
+
+/// Shorthand to encrypt bytes with a given public key.
+/// Returns hexadecimal encoded ciphertext.
+#[inline]
+pub fn encrypt_bytes(data: impl AsRef<[u8]>, public_key: &PublicKey) -> Result<String> {
+    ecies::encrypt(public_key.serialize().as_slice(), data.as_ref())
+        .wrap_err("could not encrypt data")
+        .map(hex::encode)
 }
 
 /// Converts a `libsecp256k1::SecretKey` to a `libp2p_identity::secp256k1::Keypair`.

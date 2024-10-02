@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use eyre::{eyre, Context, Result};
 use libp2p::gossipsub::MessageAcceptance;
+use libsecp256k1::PublicKey;
 use ollama_workflows::{Entry, Executor, ModelProvider, ProgramMemory, Workflow};
 use serde::Deserialize;
 
@@ -37,7 +38,7 @@ impl ComputeHandler for WorkflowHandler {
         let config = &node.config;
         let task = message
             .parse_payload::<TaskRequestPayload<WorkflowPayload>>(true)
-            .wrap_err("Could not parse error")?;
+            .wrap_err("Could not parse workflow task")?;
 
         // check if deadline is past or not
         let current_time = get_current_time_nanos();
@@ -97,8 +98,9 @@ impl ComputeHandler for WorkflowHandler {
         match exec_result {
             Ok(result) => {
                 // obtain public key from the payload
-                let task_public_key =
+                let task_public_key_bytes =
                     hex::decode(&task.public_key).wrap_err("Could not decode public key")?;
+                let task_public_key = PublicKey::parse_slice(&task_public_key_bytes, None)?;
 
                 // prepare signed and encrypted payload
                 let payload = TaskResponsePayload::new(
