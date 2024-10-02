@@ -47,7 +47,7 @@ pub fn sign_bytes_recoverable(message: &[u8; 32], secret_key: &SecretKey) -> Str
 /// Returns hexadecimal encoded ciphertext.
 #[inline]
 pub fn encrypt_bytes(data: impl AsRef<[u8]>, public_key: &PublicKey) -> Result<String> {
-    ecies::encrypt(public_key.serialize().as_slice(), data.as_ref())
+    ecies::encrypt(&public_key.serialize(), data.as_ref())
         .wrap_err("could not encrypt data")
         .map(hex::encode)
 }

@@ -35,13 +35,14 @@ impl TaskResponsePayload {
         preimage.extend_from_slice(task_id.as_ref());
         preimage.extend_from_slice(result.as_ref());
 
+        let task_id = task_id.to_string();
         let signature = sign_bytes_recoverable(&sha256hash(preimage), signing_secret_key);
         let ciphertext = encrypt_bytes(result, encrypting_public_key)?;
 
         Ok(TaskResponsePayload {
-            ciphertext: hex::encode(ciphertext),
+            task_id,
             signature,
-            task_id: task_id.to_string(),
+            ciphertext,
         })
     }
 }

@@ -980,7 +980,7 @@ dependencies = [
 
 [[package]]
 name = "dkn-compute"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
