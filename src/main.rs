@@ -38,7 +38,7 @@ async fn main() -> Result<()> {
 
         #[cfg(not(feature = "profiling"))]
         if let Err(err) = wait_for_termination(cancellation_token.clone()).await {
-            log::error!("Error waiting for termination: {}", err);
+            log::error!("Error waiting for termination: {:?}", err);
             log::error!("Cancelling due to unexpected error.");
             cancellation_token.cancel();
         };
@@ -55,7 +55,7 @@ async fn main() -> Result<()> {
             }
             result = config_clone.check_services() => {
                 if let Err(err) = result {
-                    log::error!("Error checking services: {}", err);
+                    log::error!("Error checking services: {:?}", err);
                     panic!("Service check failed.")
                 }
             }
@@ -101,7 +101,7 @@ async fn main() -> Result<()> {
 ///
 /// Handles Unix and Windows [target families](https://doc.rust-lang.org/reference/conditional-compilation.html#target_family).
 #[allow(unused)]
-async fn wait_for_termination(cancellation: CancellationToken) -> std::io::Result<()> {
+async fn wait_for_termination(cancellation: CancellationToken) -> Result<()> {
     #[cfg(unix)]
     {
         use tokio::signal::unix::{signal, SignalKind};

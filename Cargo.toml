@@ -4,6 +4,7 @@ version = "0.2.6"
 edition = "2021"
 license = "Apache-2.0"
 readme = "README.md"
+authors = ["Erhan Tezcan <erhan@firstbatch.xyz>"]
 
 # profiling build for flamegraphs
 [profile.profiling]

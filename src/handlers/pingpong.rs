@@ -27,10 +27,12 @@ struct PingpongResponse {
 
 #[async_trait]
 impl ComputeHandler for PingpongHandler {
+    const LISTEN_TOPIC: &'static str = "ping";
+    const RESPONSE_TOPIC: &'static str = "pong";
+
     async fn handle_compute(
         node: &mut DriaComputeNode,
         message: DKNMessage,
-        result_topic: &str,
     ) -> Result<MessageAcceptance> {
         let pingpong = message.parse_payload::<PingpongPayload>(true)?;
 
@@ -58,7 +60,7 @@ impl ComputeHandler for PingpongHandler {
         // publish message
         let message = DKNMessage::new_signed(
             serde_json::json!(response_body).to_string(),
-            result_topic,
+            Self::RESPONSE_TOPIC,
             &node.config.secret_key,
         );
         node.publish(message)?;

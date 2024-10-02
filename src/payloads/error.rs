@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-/// A generic task request, given by Dria.
+/// A task error response.
+/// Returning this as the payload helps to debug the errors received at client side.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskErrorPayload {

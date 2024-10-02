@@ -4,7 +4,7 @@ use std::{str::FromStr, time::Duration};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    config::DriaComputeNodeConfig,
+    config::*,
     handlers::*,
     p2p::P2PClient,
     utils::{crypto::secret_to_keypair, AvailableNodes, DKNMessage},
@@ -13,6 +13,19 @@ use crate::{
 /// Number of seconds between refreshing the Admin RPC PeerIDs from Dria server.
 const RPC_PEER_ID_REFRESH_INTERVAL_SECS: u64 = 30;
 
+/// **Dria Compute Node**
+///
+/// Internally, the node will create a new P2P client with the given secret key.
+/// This P2P client, although created synchronously, requires a tokio runtime.
+///
+/// ### Example
+///
+/// ```rs
+/// let config = DriaComputeNodeConfig::new();
+/// let mut node = DriaComputeNode::new(config, CancellationToken::new())?;
+/// node.check_services().await?;
+/// node.launch().await?;
+/// ```
 pub struct DriaComputeNode {
     pub config: DriaComputeNodeConfig,
     pub p2p: P2PClient,
@@ -22,19 +35,6 @@ pub struct DriaComputeNode {
 }
 
 impl DriaComputeNode {
-    /// Create a new compute node with the given configuration and cancellation token.
-    ///
-    /// Internally, the node will create a new P2P client with the given secret key.
-    /// This P2P client, although created synchronously, requires a tokio runtime.
-    ///
-    /// ### Example
-    ///
-    /// ```rs
-    /// let config = DriaComputeNodeConfig::new();
-    /// let mut node = DriaComputeNode::new(config, CancellationToken::new())?;
-    /// node.check_services().await?;
-    /// node.launch().await?;
-    /// ```
     pub async fn new(
         config: DriaComputeNodeConfig,
         cancellation: CancellationToken,
@@ -106,10 +106,10 @@ impl DriaComputeNode {
     /// This method is not expected to return until cancellation occurs.
     pub async fn launch(&mut self) -> Result<()> {
         // subscribe to topics
-        self.subscribe(PINGPONG_LISTEN_TOPIC)?;
-        self.subscribe(PINGPONG_RESPONSE_TOPIC)?;
-        self.subscribe(WORKFLOW_LISTEN_TOPIC)?;
-        self.subscribe(WORKFLOW_RESPONSE_TOPIC)?;
+        self.subscribe(PingpongHandler::LISTEN_TOPIC)?;
+        self.subscribe(PingpongHandler::RESPONSE_TOPIC)?;
+        self.subscribe(WorkflowHandler::LISTEN_TOPIC)?;
+        self.subscribe(WorkflowHandler::RESPONSE_TOPIC)?;
 
         // main loop, listens for message events in particular
         // the underlying p2p client is expected to handle the rest within its own loop
@@ -127,7 +127,7 @@ impl DriaComputeNode {
                     let topic_str = topic.as_str();
 
                     // handle message w.r.t topic
-                    if std::matches!(topic_str, PINGPONG_LISTEN_TOPIC | WORKFLOW_LISTEN_TOPIC) {
+                    if std::matches!(topic_str, PingpongHandler::LISTEN_TOPIC | WorkflowHandler::LISTEN_TOPIC) {
                         // ensure that the message is from a valid source (origin)
                         let source_peer_id = match message.source {
                             Some(peer) => peer,
@@ -159,7 +159,7 @@ impl DriaComputeNode {
                         let message = match self.parse_message_to_prepared_message(message.clone()) {
                             Ok(message) => message,
                             Err(e) => {
-                                log::error!("Error parsing message: {}", e);
+                                log::error!("Error parsing message: {:?}", e);
                                 log::debug!("Message: {}", String::from_utf8_lossy(&message.data));
                                 self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore)?;
                                 continue;
@@ -168,11 +168,11 @@ impl DriaComputeNode {
 
                         // then handle the prepared message
                         let handler_result = match topic_str {
-                            WORKFLOW_LISTEN_TOPIC => {
-                                WorkflowHandler::handle_compute(self, message, WORKFLOW_RESPONSE_TOPIC).await
+                            WorkflowHandler::LISTEN_TOPIC => {
+                                WorkflowHandler::handle_compute(self, message).await
                             }
-                            PINGPONG_LISTEN_TOPIC => {
-                                PingpongHandler::handle_compute(self, message, PINGPONG_RESPONSE_TOPIC).await
+                            PingpongHandler::LISTEN_TOPIC => {
+                                PingpongHandler::handle_compute(self, message).await
                             }
                             // TODO: can we do this in a nicer way?
                             // TODO: yes, cast to enum above and let type-casting do the work
@@ -185,11 +185,11 @@ impl DriaComputeNode {
                                 self.p2p.validate_message(&message_id, &peer_id, acceptance)?;
                             },
                             Err(err) => {
-                                log::error!("Error handling {} message: {}", topic_str, err);
+                                log::error!("Error handling {} message: {:?}", topic_str, err);
                                 self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore)?;
                             }
                         }
-                    } else if std::matches!(topic_str, PINGPONG_RESPONSE_TOPIC | WORKFLOW_RESPONSE_TOPIC) {
+                    } else if std::matches!(topic_str, PingpongHandler::RESPONSE_TOPIC | WorkflowHandler::RESPONSE_TOPIC) {
                         // since we are responding to these topics, we might receive messages from other compute nodes
                         // we can gracefully ignore them and propagate it to to others
                         log::debug!("Ignoring message for topic: {}", topic_str);
@@ -205,10 +205,10 @@ impl DriaComputeNode {
         }
 
         // unsubscribe from topics
-        self.unsubscribe(PINGPONG_LISTEN_TOPIC)?;
-        self.unsubscribe(PINGPONG_RESPONSE_TOPIC)?;
-        self.unsubscribe(WORKFLOW_LISTEN_TOPIC)?;
-        self.unsubscribe(WORKFLOW_RESPONSE_TOPIC)?;
+        self.unsubscribe(PingpongHandler::LISTEN_TOPIC)?;
+        self.unsubscribe(PingpongHandler::RESPONSE_TOPIC)?;
+        self.unsubscribe(WorkflowHandler::LISTEN_TOPIC)?;
+        self.unsubscribe(WorkflowHandler::RESPONSE_TOPIC)?;
 
         Ok(())
     }
