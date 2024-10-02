@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+use eyre::{eyre, Context, Result};
 use ollama_workflows::Model;
 use serde::Deserialize;
 
@@ -39,15 +40,13 @@ impl OpenAIConfig {
         Self { api_key }
     }
 
-    /// Check if requested models exist &
-    ///
-    ///
-    pub async fn check(&self, models: Vec<Model>) -> Result<Vec<Model>, String> {
+    /// Check if requested models exist & are available in the OpenAI account.
+    pub async fn check(&self, models: Vec<Model>) -> Result<Vec<Model>> {
         log::info!("Checking OpenAI requirements");
 
         // check API key
         let Some(api_key) = &self.api_key else {
-            return Err("OpenAI API key not found".into());
+            return Err(eyre!("OpenAI API key not found"));
         };
 
         // fetch models
@@ -56,24 +55,21 @@ impl OpenAIConfig {
             .get(OPENAI_MODELS_API)
             .header("Authorization", format!("Bearer {}", api_key))
             .build()
-            .map_err(|e| format!("Failed to build request: {}", e))?;
+            .wrap_err("Failed to build request")?;
 
         let response = client
             .execute(request)
             .await
-            .map_err(|e| format!("Failed to send request: {}", e))?;
+            .wrap_err("Failed to send request")?;
 
         // parse response
         if response.status().is_client_error() {
-            return Err(format!(
+            return Err(eyre!(
                 "Failed to fetch OpenAI models:\n{}",
                 response.text().await.unwrap_or_default()
             ));
         }
-        let openai_models = response
-            .json::<OpenAIModelsResponse>()
-            .await
-            .map_err(|e| e.to_string())?;
+        let openai_models = response.json::<OpenAIModelsResponse>().await?;
 
         // check if models exist and select those that are available
         let mut available_models = Vec::new();

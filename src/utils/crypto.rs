@@ -1,17 +1,18 @@
 use ecies::PublicKey;
+use eyre::{Context, Result};
 use libp2p_identity::Keypair;
-use libsecp256k1::{sign, Message, SecretKey};
+use libsecp256k1::{Message, SecretKey};
 use sha2::{Digest, Sha256};
 use sha3::Keccak256;
 
 /// Generic SHA256 function.
-#[inline]
+#[inline(always)]
 pub fn sha256hash(data: impl AsRef<[u8]>) -> [u8; 32] {
     Sha256::digest(data).into()
 }
 
 /// Generic KECCAK256 function.
-#[inline]
+#[inline(always)]
 pub fn keccak256hash(data: impl AsRef<[u8]>) -> [u8; 32] {
     Keccak256::digest(data).into()
 }
@@ -22,26 +23,33 @@ pub fn keccak256hash(data: impl AsRef<[u8]>) -> [u8; 32] {
 /// and then (x || y) is hashed using Keccak256. The last 20 bytes of this hash is taken as the address.
 #[inline]
 pub fn to_address(public_key: &PublicKey) -> [u8; 20] {
-    let public_key_serial = &public_key.serialize()[1..];
+    let public_key_xy = &public_key.serialize()[1..];
     let mut addr = [0u8; 20];
-    addr.copy_from_slice(&keccak256hash(public_key_serial)[12..32]);
+    addr.copy_from_slice(&keccak256hash(public_key_xy)[12..32]);
     addr
 }
-
-// TODO: add peerId
 
 /// Shorthand to sign a digest (bytes) with node's secret key and return signature & recovery id
 /// serialized to 65 byte hex-string.
 #[inline]
 pub fn sign_bytes_recoverable(message: &[u8; 32], secret_key: &SecretKey) -> String {
     let message = Message::parse(message);
-    let (signature, recid) = sign(&message, secret_key);
+    let (signature, recid) = libsecp256k1::sign(&message, secret_key);
 
     format!(
         "{}{}",
         hex::encode(signature.serialize()),
         hex::encode([recid.serialize()])
     )
+}
+
+/// Shorthand to encrypt bytes with a given public key.
+/// Returns hexadecimal encoded ciphertext.
+#[inline]
+pub fn encrypt_bytes(data: impl AsRef<[u8]>, public_key: &PublicKey) -> Result<String> {
+    ecies::encrypt(public_key.serialize().as_slice(), data.as_ref())
+        .wrap_err("could not encrypt data")
+        .map(hex::encode)
 }
 
 /// Converts a `libsecp256k1::SecretKey` to a `libp2p_identity::secp256k1::Keypair`.
@@ -62,8 +70,8 @@ mod tests {
     use hex::decode;
     use libsecp256k1::{recover, sign, verify, Message, PublicKey, SecretKey};
 
-    const DUMMY_KEY: &[u8; 32] = b"driadriadriadriadriadriadriadria";
-    const MESSAGE: &[u8] = "hello world".as_bytes();
+    const DUMMY_SECRET_KEY: &[u8; 32] = b"driadriadriadriadriadriadriadria";
+    const MESSAGE: &[u8] = b"hello world";
 
     #[test]
     fn test_hash() {
@@ -75,7 +83,7 @@ mod tests {
 
     #[test]
     fn test_address() {
-        let sk = SecretKey::parse_slice(DUMMY_KEY).expect("Should parse key.");
+        let sk = SecretKey::parse_slice(DUMMY_SECRET_KEY).expect("Should parse key.");
         let pk = PublicKey::from_secret_key(&sk);
         let addr = to_address(&pk);
         assert_eq!(
@@ -86,7 +94,7 @@ mod tests {
 
     #[test]
     fn test_encrypt_decrypt() {
-        let sk = SecretKey::parse_slice(DUMMY_KEY).expect("Should parse private key slice.");
+        let sk = SecretKey::parse_slice(DUMMY_SECRET_KEY).expect("Should parse private key slice.");
         let pk = PublicKey::from_secret_key(&sk);
         let (sk, pk) = (&sk.serialize(), &pk.serialize());
 
@@ -98,7 +106,7 @@ mod tests {
     #[test]
     fn test_sign_verify() {
         let secret_key =
-            SecretKey::parse_slice(DUMMY_KEY).expect("Should parse private key slice.");
+            SecretKey::parse_slice(DUMMY_SECRET_KEY).expect("Should parse private key slice.");
 
         // sign the message using the secret key
         let digest = sha256hash(MESSAGE);
@@ -123,7 +131,7 @@ mod tests {
     #[ignore = "run only with profiler if wanted"]
     fn test_memory_usage() {
         let secret_key =
-            SecretKey::parse_slice(DUMMY_KEY).expect("Should parse private key slice.");
+            SecretKey::parse_slice(DUMMY_SECRET_KEY).expect("Should parse private key slice.");
         let public_key = PublicKey::from_secret_key(&secret_key);
 
         // sign the message using the secret key

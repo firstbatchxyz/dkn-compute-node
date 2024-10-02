@@ -33,14 +33,6 @@ profile-cpu:
 profile-mem:
 	  cargo instruments --profile=profiling --features=profiling -t Allocations
 
-.PHONY: version #      | Print version
-version:
-	  @cargo pkgid | cut -d@ -f2
-
-.PHONY: ollama-cpu #  | Run Ollama CPU container
-ollama-cpu:
-		docker run -p=11434:11434 -v=${HOME}/.ollama:/root/.ollama ollama/ollama
-
 ###############################################################################
 .PHONY: test #         | Run tests
 test:
@@ -55,10 +47,13 @@ lint:
 format:
 		cargo fmt -v
 
-###############################################################################
-.PHONY: docs #         | Generate & open crate documentation
+.PHONY: version #      | Print version
+version:
+	  @cargo pkgid | cut -d@ -f2
+
+.PHONY: docs #         | Generate & open documentation
 docs:
-		cargo doc --open --no-deps
+		cargo doc --open --no-deps --document-private-items
 
 .PHONY: env #          | Print active environment
 env:

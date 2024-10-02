@@ -3,6 +3,7 @@ mod ollama;
 mod openai;
 
 use crate::utils::crypto::to_address;
+use eyre::{eyre, Result};
 use libsecp256k1::{PublicKey, SecretKey};
 use models::ModelConfig;
 use ollama::OllamaConfig;
@@ -129,7 +130,7 @@ impl DriaComputeNodeConfig {
     /// If both type of models are used, both services are checked.
     /// In the end, bad models are filtered out and we simply check if we are left if any valid models at all.
     /// If not, an error is returned.
-    pub async fn check_services(&mut self) -> Result<(), String> {
+    pub async fn check_services(&mut self) -> Result<()> {
         log::info!("Checking configured services.");
 
         // TODO: can refactor (provider, model) logic here
@@ -171,7 +172,7 @@ impl DriaComputeNodeConfig {
 
         // update good models
         if good_models.is_empty() {
-            Err("No good models found, please check logs for errors.".into())
+            Err(eyre!("No good models found, please check logs for errors."))
         } else {
             self.model_config.models = good_models;
             Ok(())

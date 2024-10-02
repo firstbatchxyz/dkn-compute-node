@@ -3,11 +3,11 @@ on:
   push:
     branches: ["master"]
     paths:
-      - 'src/**'
-      - 'Cargo.lock'
-      - 'Cargo.toml'
-      - 'Dockerfile'
-      - 'compose.yml'
+      - "src/**"
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - "Dockerfile"
+      - "compose.yml"
 
 jobs:
   build-and-push:

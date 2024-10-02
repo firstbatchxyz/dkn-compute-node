@@ -1,8 +1,9 @@
-use dkn_compute::{DriaComputeNode, DriaComputeNodeConfig};
+use dkn_compute::*;
+use eyre::Result;
 use tokio_util::sync::CancellationToken;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<()> {
     if let Err(e) = dotenvy::dotenv() {
         log::warn!("Could not load .env file: {}", e);
     }
@@ -16,12 +17,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ██████╗ ██████╗ ██╗ █████╗ 
 ██╔══██╗██╔══██╗██║██╔══██╗   Dria Compute Node 
-██║  ██║██████╔╝██║███████║   v{}
+██║  ██║██████╔╝██║███████║   v{DRIA_COMPUTE_NODE_VERSION}
 ██║  ██║██╔══██╗██║██╔══██║   https://dria.co
 ██████╔╝██║  ██║██║██║  ██║
 ╚═════╝ ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝
 "#,
-        dkn_compute::DRIA_COMPUTE_NODE_VERSION
     );
 
     let token = CancellationToken::new();
@@ -38,7 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         #[cfg(not(feature = "profiling"))]
         if let Err(err) = wait_for_termination(cancellation_token.clone()).await {
-            log::error!("Error waiting for termination: {}", err);
+            log::error!("Error waiting for termination: {:?}", err);
             log::error!("Cancelling due to unexpected error.");
             cancellation_token.cancel();
         };
@@ -55,7 +55,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             result = config_clone.check_services() => {
                 if let Err(err) = result {
-                    log::error!("Error checking services: {}", err);
+                    log::error!("Error checking services: {:?}", err);
                     panic!("Service check failed.")
                 }
             }
@@ -101,7 +101,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ///
 /// Handles Unix and Windows [target families](https://doc.rust-lang.org/reference/conditional-compilation.html#target_family).
 #[allow(unused)]
-async fn wait_for_termination(cancellation: CancellationToken) -> std::io::Result<()> {
+async fn wait_for_termination(cancellation: CancellationToken) -> Result<()> {
     #[cfg(unix)]
     {
         use tokio::signal::unix::{signal, SignalKind};

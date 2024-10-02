@@ -1,13 +1,13 @@
 use async_trait::async_trait;
+use eyre::{eyre, Context, Result};
 use libp2p::gossipsub::MessageAcceptance;
+use libsecp256k1::PublicKey;
 use ollama_workflows::{Entry, Executor, ModelProvider, ProgramMemory, Workflow};
 use serde::Deserialize;
 
-use crate::errors::NodeResult;
-use crate::node::DriaComputeNode;
-use crate::p2p::P2PMessage;
-use crate::utils::get_current_time_nanos;
-use crate::utils::payload::{TaskRequest, TaskRequestPayload};
+use crate::payloads::{TaskErrorPayload, TaskRequestPayload, TaskResponsePayload};
+use crate::utils::{get_current_time_nanos, DKNMessage};
+use crate::DriaComputeNode;
 
 use super::ComputeHandler;
 
@@ -28,12 +28,17 @@ struct WorkflowPayload {
 
 #[async_trait]
 impl ComputeHandler for WorkflowHandler {
+    const LISTEN_TOPIC: &'static str = "task";
+    const RESPONSE_TOPIC: &'static str = "results";
+
     async fn handle_compute(
         node: &mut DriaComputeNode,
-        message: P2PMessage,
-        result_topic: &str,
-    ) -> NodeResult<MessageAcceptance> {
-        let task = message.parse_payload::<TaskRequestPayload<WorkflowPayload>>(true)?;
+        message: DKNMessage,
+    ) -> Result<MessageAcceptance> {
+        let config = &node.config;
+        let task = message
+            .parse_payload::<TaskRequestPayload<WorkflowPayload>>(true)
+            .wrap_err("Could not parse workflow task")?;
 
         // check if deadline is past or not
         let current_time = get_current_time_nanos();
@@ -50,39 +55,25 @@ impl ComputeHandler for WorkflowHandler {
         }
 
         // check task inclusion via the bloom filter
-        if !task.filter.contains(&node.config.address)? {
+        if !task.filter.contains(&config.address)? {
             log::info!(
                 "Task {} does not include this node within the filter.",
                 task.task_id
             );
 
-            // accept the message, someonelse may be included in filter
+            // accept the message, someone else may be included in filter
             return Ok(MessageAcceptance::Accept);
         }
 
-        // obtain public key from the payload
-        let task_public_key = hex::decode(&task.public_key)?;
-
-        let task = TaskRequest {
-            task_id: task.task_id,
-            input: task.input,
-            public_key: task_public_key,
-        };
-
         // read model / provider from the task
-        let (model_provider, model) = node
-            .config
+        let (model_provider, model) = config
             .model_config
             .get_any_matching_model(task.input.model)?;
         log::info!("Using model {} for task {}", model, task.task_id);
 
         // prepare workflow executor
         let executor = if model_provider == ModelProvider::Ollama {
-            Executor::new_at(
-                model,
-                &node.config.ollama_config.host,
-                node.config.ollama_config.port,
-            )
+            Executor::new_at(model, &config.ollama_config.host, config.ollama_config.port)
         } else {
             Executor::new(model)
         };
@@ -93,26 +84,57 @@ impl ComputeHandler for WorkflowHandler {
             .map(|prompt| Entry::try_value_or_str(&prompt));
 
         // execute workflow with cancellation
-        let result: String;
+        let exec_result: Result<String>;
         tokio::select! {
             _ = node.cancellation.cancelled() => {
                 log::info!("Received cancellation, quitting all tasks.");
-                return Ok(MessageAcceptance::Accept)
+                return Ok(MessageAcceptance::Accept);
             },
-            exec_result = executor.execute(entry.as_ref(), task.input.workflow, &mut memory) => {
-                match exec_result {
-                    Ok(exec_result) => {
-                        result =  exec_result;
-                    }
-                    Err(e) => {
-                        return Err(format!("Workflow failed with error {}", e).into());
-                    }
-                }
+            exec_result_inner = executor.execute(entry.as_ref(), task.input.workflow, &mut memory) => {
+                exec_result = exec_result_inner.map_err(|e| eyre!("Execution error: {}", e.to_string()));
             }
         }
 
-        // publish the result
-        node.send_result(result_topic, &task.public_key, &task.task_id, result)?;
-        Ok(MessageAcceptance::Accept)
+        match exec_result {
+            Ok(result) => {
+                // obtain public key from the payload
+                let task_public_key_bytes =
+                    hex::decode(&task.public_key).wrap_err("Could not decode public key")?;
+                let task_public_key = PublicKey::parse_slice(&task_public_key_bytes, None)?;
+
+                // prepare signed and encrypted payload
+                let payload = TaskResponsePayload::new(
+                    result,
+                    &task.task_id,
+                    &task_public_key,
+                    &config.secret_key,
+                )?;
+                let payload_str =
+                    serde_json::to_string(&payload).wrap_err("Could not serialize payload")?;
+
+                // publish the result
+                let message = DKNMessage::new(payload_str, Self::RESPONSE_TOPIC);
+                node.publish(message)?;
+
+                // accept so that if there are others included in filter they can do the task
+                Ok(MessageAcceptance::Accept)
+            }
+            Err(err) => {
+                // use pretty display string for error logging with causes
+                let err_string = format!("{:#}", err);
+                log::error!("Task {} failed: {}", task.task_id, err_string);
+
+                // prepare error payload
+                let error_payload = TaskErrorPayload::new(task.task_id, err_string);
+                let error_payload_str = serde_json::to_string(&error_payload)?;
+
+                // publish the error result for diagnostics
+                let message = DKNMessage::new(error_payload_str, Self::RESPONSE_TOPIC);
+                node.publish(message)?;
+
+                // ignore just in case, workflow may be bugged
+                Ok(MessageAcceptance::Ignore)
+            }
+        }
     }
 }
