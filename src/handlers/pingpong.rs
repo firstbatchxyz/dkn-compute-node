@@ -1,6 +1,6 @@
 use crate::{
-    node::DriaComputeNode,
     utils::{get_current_time_nanos, DKNMessage},
+    DriaComputeNode,
 };
 use async_trait::async_trait;
 use eyre::Result;
@@ -55,6 +55,7 @@ impl ComputeHandler for PingpongHandler {
             timestamp: get_current_time_nanos(),
         };
 
+        // publish message
         let message = DKNMessage::new_signed(
             serde_json::json!(response_body).to_string(),
             result_topic,
@@ -62,7 +63,6 @@ impl ComputeHandler for PingpongHandler {
         );
         node.publish(message)?;
 
-        // accept message, someone else may be included in the filter
         Ok(MessageAcceptance::Accept)
     }
 }

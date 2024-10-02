@@ -4,9 +4,9 @@ use libp2p::gossipsub::MessageAcceptance;
 use ollama_workflows::{Entry, Executor, ModelProvider, ProgramMemory, Workflow};
 use serde::Deserialize;
 
-use crate::node::DriaComputeNode;
-use crate::utils::payload::{TaskRequestPayload, TaskResponsePayload};
+use crate::payloads::{TaskErrorPayload, TaskRequestPayload, TaskResponsePayload};
 use crate::utils::{get_current_time_nanos, DKNMessage};
+use crate::DriaComputeNode;
 
 use super::ComputeHandler;
 
@@ -32,6 +32,7 @@ impl ComputeHandler for WorkflowHandler {
         message: DKNMessage,
         result_topic: &str,
     ) -> Result<MessageAcceptance> {
+        let config = &node.config;
         let task = message.parse_payload::<TaskRequestPayload<WorkflowPayload>>(true)?;
 
         // check if deadline is past or not
@@ -49,7 +50,7 @@ impl ComputeHandler for WorkflowHandler {
         }
 
         // check task inclusion via the bloom filter
-        if !task.filter.contains(&node.config.address)? {
+        if !task.filter.contains(&config.address)? {
             log::info!(
                 "Task {} does not include this node within the filter.",
                 task.task_id
@@ -59,23 +60,15 @@ impl ComputeHandler for WorkflowHandler {
             return Ok(MessageAcceptance::Accept);
         }
 
-        // obtain public key from the payload
-        let task_public_key = hex::decode(&task.public_key)?;
-
         // read model / provider from the task
-        let (model_provider, model) = node
-            .config
+        let (model_provider, model) = config
             .model_config
             .get_any_matching_model(task.input.model)?;
         log::info!("Using model {} for task {}", model, task.task_id);
 
         // prepare workflow executor
         let executor = if model_provider == ModelProvider::Ollama {
-            Executor::new_at(
-                model,
-                &node.config.ollama_config.host,
-                node.config.ollama_config.port,
-            )
+            Executor::new_at(model, &config.ollama_config.host, config.ollama_config.port)
         } else {
             Executor::new(model)
         };
@@ -86,38 +79,52 @@ impl ComputeHandler for WorkflowHandler {
             .map(|prompt| Entry::try_value_or_str(&prompt));
 
         // execute workflow with cancellation
-        // TODO: is there a better way to handle this?
-        let result: String;
+        let exec_result: Result<String>;
         tokio::select! {
             _ = node.cancellation.cancelled() => {
                 log::info!("Received cancellation, quitting all tasks.");
-                return Ok(MessageAcceptance::Accept)
+                return Ok(MessageAcceptance::Accept);
             },
-            exec_result = executor.execute(entry.as_ref(), task.input.workflow, &mut memory) => {
-                match exec_result {
-                    Ok(exec_result) => {
-                        result = exec_result;
-                    }
-                    Err(e) => {
-                        return Err(eyre!("Workflow failed with error {}", e));
-                    }
-                }
+            exec_result_inner = executor.execute(entry.as_ref(), task.input.workflow, &mut memory) => {
+                exec_result = exec_result_inner.map_err(|e| eyre!("{}", e.to_string()));
             }
         }
 
-        // prepare signed and encrypted payload
-        let payload = TaskResponsePayload::new(
-            result,
-            &task.task_id,
-            &task_public_key,
-            &node.config.secret_key,
-        )?;
-        let payload_str = payload.to_string()?;
+        match exec_result {
+            Ok(result) => {
+                // obtain public key from the payload
+                let task_public_key = hex::decode(&task.public_key)?;
 
-        // publish the result
-        let message = DKNMessage::new(payload_str, result_topic);
-        node.publish(message)?;
+                // prepare signed and encrypted payload
+                let payload = TaskResponsePayload::new(
+                    result,
+                    &task.task_id,
+                    &task_public_key,
+                    &config.secret_key,
+                )?;
+                let payload_str = serde_json::to_string(&payload)?;
 
-        Ok(MessageAcceptance::Accept)
+                // publish the result
+                let message = DKNMessage::new(payload_str, result_topic);
+                node.publish(message)?;
+
+                // accept so that if there are others included in filter they can do the task
+                Ok(MessageAcceptance::Accept)
+            }
+            Err(err) => {
+                log::error!("Task {} failed: {}", task.task_id, err);
+
+                // prepare error payload
+                let error_payload = TaskErrorPayload::new(task.task_id, err.to_string());
+                let error_payload_str = serde_json::to_string(&error_payload)?;
+
+                // publish the error result for diagnostics
+                let message = DKNMessage::new(error_payload_str, result_topic);
+                node.publish(message)?;
+
+                // ignore just in case, workflow may be bugged
+                Ok(MessageAcceptance::Ignore)
+            }
+        }
     }
 }

@@ -5,7 +5,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     config::DriaComputeNodeConfig,
-    handlers::{ComputeHandler, PingpongHandler, WorkflowHandler},
+    handlers::*,
     p2p::P2PClient,
     utils::{crypto::secret_to_keypair, AvailableNodes, DKNMessage},
 };
@@ -105,11 +105,6 @@ impl DriaComputeNode {
     /// Launches the main loop of the compute node.
     /// This method is not expected to return until cancellation occurs.
     pub async fn launch(&mut self) -> Result<()> {
-        const PINGPONG_LISTEN_TOPIC: &str = "ping";
-        const PINGPONG_RESPONSE_TOPIC: &str = "pong";
-        const WORKFLOW_LISTEN_TOPIC: &str = "task";
-        const WORKFLOW_RESPONSE_TOPIC: &str = "results";
-
         // subscribe to topics
         self.subscribe(PINGPONG_LISTEN_TOPIC)?;
         self.subscribe(PINGPONG_RESPONSE_TOPIC)?;
@@ -172,7 +167,7 @@ impl DriaComputeNode {
                         };
 
                         // then handle the prepared message
-                        let handle_result = match topic_str {
+                        let handler_result = match topic_str {
                             WORKFLOW_LISTEN_TOPIC => {
                                 WorkflowHandler::handle_compute(self, message, WORKFLOW_RESPONSE_TOPIC).await
                             }
@@ -185,26 +180,23 @@ impl DriaComputeNode {
                         };
 
                         // validate the message based on the result
-                        match handle_result {
+                        match handler_result {
                             Ok(acceptance) => {
                                 self.p2p.validate_message(&message_id, &peer_id, acceptance)?;
                             },
                             Err(err) => {
                                 log::error!("Error handling {} message: {}", topic_str, err);
-                                self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Reject)?;
+                                self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore)?;
                             }
                         }
                     } else if std::matches!(topic_str, PINGPONG_RESPONSE_TOPIC | WORKFLOW_RESPONSE_TOPIC) {
                         // since we are responding to these topics, we might receive messages from other compute nodes
-                        // we can gracefully ignore them
+                        // we can gracefully ignore them and propagate it to to others
                         log::debug!("Ignoring message for topic: {}", topic_str);
-
-                        // accept this message for propagation
                         self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Accept)?;
                     } else {
-                        log::warn!("Received message from unexpected topic: {}", topic_str);
-
                         // reject this message as its from a foreign topic
+                        log::warn!("Received message from unexpected topic: {}", topic_str);
                         self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Reject)?;
                     }
                 },

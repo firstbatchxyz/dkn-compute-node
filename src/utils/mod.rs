@@ -1,6 +1,5 @@
 pub mod crypto;
 pub mod filter;
-pub mod payload;
 
 mod message;
 pub use message::DKNMessage;

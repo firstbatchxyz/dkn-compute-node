@@ -5,6 +5,7 @@ pub(crate) mod config;
 pub(crate) mod handlers;
 pub(crate) mod node;
 pub(crate) mod p2p;
+pub(crate) mod payloads;
 pub(crate) mod utils;
 
 /// Crate version of the compute node.

@@ -130,7 +130,7 @@ impl TryFrom<libp2p::gossipsub::Message> for DKNMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::payload::TaskResponsePayload;
+    use crate::payloads::TaskResponsePayload;
     use crate::{utils::crypto::sha256hash, DriaComputeNodeConfig};
     use ecies::decrypt;
     use libsecp256k1::SecretKey;
