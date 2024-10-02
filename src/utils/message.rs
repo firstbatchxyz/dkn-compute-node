@@ -2,6 +2,7 @@ use crate::utils::{
     crypto::{sha256hash, sign_bytes_recoverable},
     get_current_time_nanos,
 };
+use crate::DRIA_COMPUTE_NODE_VERSION;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use core::fmt;
 use ecies::PublicKey;
@@ -12,7 +13,7 @@ use serde::{Deserialize, Serialize};
 /// A message within Dria Knowledge Network.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DKNMessage {
-    /// Base64 encoded data
+    /// Base64 encoded payload, stores the main result.
     pub(crate) payload: String,
     /// The topic of the message, derived from `TopicHash`
     ///
@@ -44,7 +45,7 @@ impl DKNMessage {
         Self {
             payload: BASE64_STANDARD.encode(payload),
             topic: topic.to_string(),
-            version: crate::DRIA_COMPUTE_NODE_VERSION.to_string(),
+            version: DRIA_COMPUTE_NODE_VERSION.to_string(),
             timestamp: get_current_time_nanos(),
         }
     }
@@ -133,8 +134,7 @@ mod tests {
     use crate::payloads::TaskResponsePayload;
     use crate::{utils::crypto::sha256hash, DriaComputeNodeConfig};
     use ecies::decrypt;
-    use libsecp256k1::SecretKey;
-    use libsecp256k1::{verify, Message, PublicKey, RecoveryId, Signature};
+    use libsecp256k1::{verify, Message, PublicKey, RecoveryId, SecretKey, Signature};
     use rand::thread_rng;
     use serde_json::json;
 
@@ -155,7 +155,7 @@ mod tests {
 
     #[test]
     fn test_display_message() {
-        let message = DKNMessage::new(b"hello world", "test-topic");
+        let message = DKNMessage::new(b"hello world", TOPIC);
         println!("{}", message);
     }
 
@@ -173,10 +173,11 @@ mod tests {
             serde_json::to_string(&body).expect("Should stringify"),
             "{\"hello\":\"world\"}"
         );
-        assert_eq!(message.topic, "test-topic");
-        assert_eq!(message.version, crate::DRIA_COMPUTE_NODE_VERSION);
+        assert_eq!(message.topic, TOPIC);
+        assert_eq!(message.version, DRIA_COMPUTE_NODE_VERSION);
         assert!(message.timestamp > 0);
 
+        // decode payload without signature
         let parsed_body = message.parse_payload(false).expect("Should decode");
         assert_eq!(body, parsed_body);
     }
@@ -200,8 +201,8 @@ mod tests {
             serde_json::to_string(&body).expect("Should stringify"),
             "{\"hello\":\"world\"}"
         );
-        assert_eq!(message.topic, "test-topic");
-        assert_eq!(message.version, crate::DRIA_COMPUTE_NODE_VERSION);
+        assert_eq!(message.topic, TOPIC);
+        assert_eq!(message.version, DRIA_COMPUTE_NODE_VERSION);
         assert!(message.timestamp > 0);
 
         assert!(message.is_signed(&pk).expect("Should check signature"));
