@@ -33,10 +33,6 @@ profile-cpu:
 profile-mem:
 	  cargo instruments --profile=profiling --features=profiling -t Allocations
 
-.PHONY: version #      | Print version
-version:
-	  @cargo pkgid | cut -d@ -f2
-
 ###############################################################################
 .PHONY: test #         | Run tests
 test:
@@ -51,8 +47,11 @@ lint:
 format:
 		cargo fmt -v
 
-###############################################################################
-.PHONY: docs #         | Generate & open crate documentation
+.PHONY: version #      | Print version
+version:
+	  @cargo pkgid | cut -d@ -f2
+
+.PHONY: docs #         | Generate & open documentation
 docs:
 		cargo doc --open --no-deps --document-private-items
 

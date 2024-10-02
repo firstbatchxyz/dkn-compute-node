@@ -7,12 +7,12 @@ use serde_json::{json, to_string};
 ///
 /// The filter is a Bloom Filter with a set of items and a false positive rate, it is serialized as a hex string.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct FilterPayload {
+pub struct TaskFilter {
     pub(crate) hex: String,
     pub(crate) hashes: u32,
 }
 
-impl FilterPayload {
+impl TaskFilter {
     /// Shorthand function to create the underlying `BloomFilter` and check if it contains the given address.
     pub fn contains(&self, address: &[u8]) -> Result<bool> {
         BloomFilter::try_from(self)
@@ -23,16 +23,16 @@ impl FilterPayload {
 
 // FIXME: too many TryFrom's here, simplify in a single function here!
 
-impl TryFrom<&FilterPayload> for String {
+impl TryFrom<&TaskFilter> for String {
     type Error = serde_json::Error;
 
-    fn try_from(value: &FilterPayload) -> Result<Self, Self::Error> {
+    fn try_from(value: &TaskFilter) -> Result<Self, Self::Error> {
         let string = to_string(&json!(value))?;
         Ok(string)
     }
 }
 
-impl TryFrom<String> for FilterPayload {
+impl TryFrom<String> for TaskFilter {
     type Error = serde_json::Error;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
@@ -41,18 +41,18 @@ impl TryFrom<String> for FilterPayload {
     }
 }
 
-impl TryFrom<&FilterPayload> for BloomFilter {
+impl TryFrom<&TaskFilter> for BloomFilter {
     type Error = hex::FromHexError;
 
-    fn try_from(value: &FilterPayload) -> Result<Self, Self::Error> {
+    fn try_from(value: &TaskFilter) -> Result<Self, Self::Error> {
         let filter = hex::decode(value.hex.as_str())?;
         Ok(BloomFilter::from_u8_array(&filter, value.hashes))
     }
 }
 
-impl From<BloomFilter> for FilterPayload {
+impl From<BloomFilter> for TaskFilter {
     fn from(value: BloomFilter) -> Self {
-        FilterPayload {
+        TaskFilter {
             hex: hex::encode(value.get_u8_array()),
             hashes: value.hashes(),
         }
@@ -76,7 +76,7 @@ mod tests {
     fn test_filter_read_1() {
         // 250 items, 0.01 fp rate (7 hashes), includes b"helloworld" and nothing else
         const FILTER_HEX: &str = "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004000000000000040000000000000400000000000004000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000000000004000000000000040000";
-        let filter_payload = FilterPayload {
+        let filter_payload = TaskFilter {
             hex: FILTER_HEX.to_string(),
             hashes: 7,
         };
@@ -90,7 +90,7 @@ mod tests {
     fn test_filter_read_2() {
         // 128 items, 0.01 fp rate (7 hashes), includes b"helloworld" and nothing else
         const FILTER_HEX: &str = "00000040000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000000000040000000000000000000000000004000000000000000000000000000000000000000000000040000000000000000000000000004000000000000000000000000000000000000";
-        let filter_payload = FilterPayload {
+        let filter_payload = TaskFilter {
             hex: FILTER_HEX.to_string(),
             hashes: 7,
         };
@@ -103,7 +103,7 @@ mod tests {
     #[test]
     #[ignore = "this panics, its a bug within the filter library"]
     fn test_filter_empty() {
-        let filter_payload = FilterPayload {
+        let filter_payload = TaskFilter {
             hex: "".to_string(),
             hashes: 0,
         };

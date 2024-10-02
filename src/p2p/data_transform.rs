@@ -1,9 +1,9 @@
-///! https://docs.rs/libp2p-gossipsub/latest/libp2p_gossipsub/trait.DataTransform.html
 use libp2p::gossipsub::{DataTransform, Message, RawMessage, TopicHash};
 use std::io::{Error, ErrorKind};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// A `DataTransform` implementation that adds & checks a timestamp to the message.
+/// A [DataTransform](https://docs.rs/libp2p-gossipsub/latest/libp2p_gossipsub/trait.DataTransform.html)
+/// implementation that adds & checks a timestamp to the message.
 pub struct TTLDataTransform {
     /// Time-to-live, e.g. obtained from some `duration.as_secs()`.
     ttl_secs: u64,

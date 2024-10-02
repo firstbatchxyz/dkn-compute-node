@@ -72,7 +72,7 @@ mod tests {
     use crate::{
         utils::{
             crypto::{sha256hash, to_address},
-            filter::FilterPayload,
+            filter::TaskFilter,
             DKNMessage,
         },
         DriaComputeNodeConfig,
@@ -130,7 +130,7 @@ mod tests {
         // admin node assigns the task to the compute node via Bloom Filter
         let mut bloom = FilterBuilder::new(100, 0.01).build_bloom_filter();
         bloom.add(&address);
-        let filter_payload = FilterPayload::from(bloom);
+        let filter_payload = TaskFilter::from(bloom);
 
         // compute node receives the filter and checks if it is tasked
         assert!(

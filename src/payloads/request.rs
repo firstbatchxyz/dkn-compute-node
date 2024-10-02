@@ -1,4 +1,4 @@
-use crate::utils::{filter::FilterPayload, get_current_time_nanos};
+use crate::utils::{filter::TaskFilter, get_current_time_nanos};
 use fastbloom_rs::BloomFilter;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -14,7 +14,7 @@ pub struct TaskRequestPayload<T> {
     /// The input to the compute function.
     pub(crate) input: T,
     /// The Bloom filter of the task.
-    pub(crate) filter: FilterPayload,
+    pub(crate) filter: TaskFilter,
     /// The public key of the requester, in hexadecimals.
     pub(crate) public_key: String,
 }
