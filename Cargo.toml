@@ -1,6 +1,6 @@
 [package]
 name = "dkn-compute"
-version = "0.2.8"
+version = "0.2.9"
 edition = "2021"
 license = "Apache-2.0"
 readme = "README.md"
@@ -70,6 +70,7 @@ libp2p = { git = "https://github.com/anilaltuner/rust-libp2p.git", rev = "7ce9f9
 libp2p-identity = { version = "0.2.9", features = ["secp256k1"] }
 tracing = { version = "0.1.40" }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+port_check = "0.2.1"
 
 # Vendor OpenSSL so that its easier to build cross-platform packages
 [dependencies.openssl]
