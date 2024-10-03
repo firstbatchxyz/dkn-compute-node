@@ -1,4 +1,4 @@
-use eyre::{eyre, Result};
+use eyre::{eyre, Context, Result};
 use ollama_workflows::{
     ollama_rs::{
         generation::{
@@ -63,9 +63,10 @@ impl OllamaConfig {
         // Ollama workflows may require specific models to be loaded regardless of the choices
         let hardcoded_models = HARDCODED_MODELS.iter().map(|s| s.to_string()).collect();
 
+        // auto-pull, its true by default
         let auto_pull = std::env::var("OLLAMA_AUTO_PULL")
             .map(|s| s == "true")
-            .unwrap_or_default();
+            .unwrap_or(true);
 
         Self {
             host,
@@ -109,7 +110,9 @@ impl OllamaConfig {
         // we dont check workflows for hardcoded models
         for model in &self.hardcoded_models {
             if !local_models.contains(model) {
-                self.try_pull(&ollama, model.to_owned()).await?;
+                self.try_pull(&ollama, model.to_owned())
+                    .await
+                    .wrap_err("Could not pull model")?;
             }
         }
 
@@ -118,7 +121,9 @@ impl OllamaConfig {
         let mut good_models = Vec::new();
         for model in external_models {
             if !local_models.contains(&model.to_string()) {
-                self.try_pull(&ollama, model.to_string()).await?;
+                self.try_pull(&ollama, model.to_string())
+                    .await
+                    .wrap_err("Could not pull model")?;
             }
 
             if self

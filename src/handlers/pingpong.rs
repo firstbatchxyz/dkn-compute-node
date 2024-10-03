@@ -1,3 +1,4 @@
+use super::ComputeHandler;
 use crate::{
     utils::{get_current_time_nanos, DKNMessage},
     DriaComputeNode,
@@ -7,8 +8,6 @@ use eyre::{Context, Result};
 use libp2p::gossipsub::MessageAcceptance;
 use ollama_workflows::{Model, ModelProvider};
 use serde::{Deserialize, Serialize};
-
-use super::ComputeHandler;
 
 pub struct PingpongHandler;
 

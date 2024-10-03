@@ -17,6 +17,8 @@ pub struct TaskResponsePayload {
     pub signature: String,
     /// Result encrypted with the public key of the task, Hexadecimally encoded.
     pub ciphertext: String,
+    /// Name of the model used for this task.
+    pub model: String,
 }
 
 impl TaskResponsePayload {
@@ -29,6 +31,7 @@ impl TaskResponsePayload {
         task_id: &str,
         encrypting_public_key: &PublicKey,
         signing_secret_key: &SecretKey,
+        model: String,
     ) -> Result<Self> {
         // create the message `task_id || payload`
         let mut preimage = Vec::new();
@@ -43,6 +46,7 @@ impl TaskResponsePayload {
             task_id,
             signature,
             ciphertext,
+            model,
         })
     }
 }
@@ -58,6 +62,7 @@ mod tests {
     fn test_task_response_payload() {
         // this is the result that we are "sending"
         const RESULT: &[u8; 44] = b"hey im an LLM and I came up with this output";
+        const MODEL: &str = "gpt-4-turbo";
 
         // the signer will sign the payload, and it will be verified
         let signer_sk = SecretKey::random(&mut thread_rng());
@@ -69,8 +74,9 @@ mod tests {
         let task_id = uuid::Uuid::new_v4().to_string();
 
         // creates a signed and encrypted payload
-        let payload = TaskResponsePayload::new(RESULT, &task_id, &task_pk, &signer_sk)
-            .expect("Should create payload");
+        let payload =
+            TaskResponsePayload::new(RESULT, &task_id, &task_pk, &signer_sk, MODEL.to_string())
+                .expect("Should create payload");
 
         // decrypt result and compare it to plaintext
         let ciphertext_bytes = hex::decode(payload.ciphertext).unwrap();

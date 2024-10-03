@@ -15,7 +15,7 @@ pub struct WorkflowHandler;
 
 #[derive(Debug, Deserialize)]
 struct WorkflowPayload {
-    /// Workflow object to be parsed.
+    /// [Workflow](https://github.com/andthattoo/ollama-workflows/) object to be parsed.
     pub(crate) workflow: Workflow,
     /// A lıst of model (that can be parsed into `Model`) or model provider names.
     /// If model provider is given, the first matching model in the node config is used for that.
@@ -69,7 +69,8 @@ impl ComputeHandler for WorkflowHandler {
         let (model_provider, model) = config
             .model_config
             .get_any_matching_model(task.input.model)?;
-        log::info!("Using model {} for task {}", model, task.task_id);
+        let model_name = model.to_string(); // get model name, we will pass it in payload
+        log::info!("Using model {} for task {}", model_name, task.task_id);
 
         // prepare workflow executor
         let executor = if model_provider == ModelProvider::Ollama {
@@ -108,9 +109,10 @@ impl ComputeHandler for WorkflowHandler {
                     &task.task_id,
                     &task_public_key,
                     &config.secret_key,
+                    model_name,
                 )?;
-                let payload_str =
-                    serde_json::to_string(&payload).wrap_err("Could not serialize payload")?;
+                let payload_str = serde_json::to_string(&payload)
+                    .wrap_err("Could not serialize response payload")?;
 
                 // publish the result
                 let message = DKNMessage::new(payload_str, Self::RESPONSE_TOPIC);
@@ -125,8 +127,9 @@ impl ComputeHandler for WorkflowHandler {
                 log::error!("Task {} failed: {}", task.task_id, err_string);
 
                 // prepare error payload
-                let error_payload = TaskErrorPayload::new(task.task_id, err_string);
-                let error_payload_str = serde_json::to_string(&error_payload)?;
+                let error_payload = TaskErrorPayload::new(task.task_id, err_string, model_name);
+                let error_payload_str = serde_json::to_string(&error_payload)
+                    .wrap_err("Could not serialize error payload")?;
 
                 // publish the error result for diagnostics
                 let message = DKNMessage::new(error_payload_str, Self::RESPONSE_TOPIC);

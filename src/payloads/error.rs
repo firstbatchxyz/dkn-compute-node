@@ -8,11 +8,17 @@ pub struct TaskErrorPayload {
     /// The unique identifier of the task.
     pub task_id: String,
     /// The stringified error object
-    pub(crate) error: String,
+    pub error: String,
+    /// Name of the model that caused the error.
+    pub model: String,
 }
 
 impl TaskErrorPayload {
-    pub fn new(task_id: String, error: String) -> Self {
-        Self { task_id, error }
+    pub fn new(task_id: String, error: String, model: String) -> Self {
+        Self {
+            task_id,
+            error,
+            model,
+        }
     }
 }
