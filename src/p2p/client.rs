@@ -236,11 +236,7 @@ impl P2PClient {
     ///
     /// - For Kademlia, we check the kademlia protocol and then add the address to the Kademlia routing table.
     fn handle_identify_event(&mut self, peer_id: PeerId, info: identify::Info) {
-        // we only care about the observed address, although there may be other addresses at `info.listen_addrs`
-        // TODO: this may be wrong
-        let addr = info.observed_addr;
-
-        // check protocol string
+        // check identify protocol string
         if info.protocol_version != P2P_PROTOCOL_STRING {
             log::warn!(
                 "Identify: Peer {} has different Identify protocol: (them {}, you {})",
@@ -259,17 +255,31 @@ impl P2PClient {
         {
             // if it matches our protocol, add it to the Kademlia routing table
             if *kad_protocol == P2P_KADEMLIA_PROTOCOL {
-                log::info!(
-                    "Identify: {} peer {} identified at {}",
-                    kad_protocol,
-                    peer_id,
-                    addr
-                );
+                // filter listen addresses
+                let addrs = info.listen_addrs.into_iter().filter(|listen_addr| {
+                    if let Some(Protocol::Ip4(ipv4_addr)) = listen_addr.iter().next() {
+                        // ignore private & localhost addresses
+                        !(ipv4_addr.is_private() || ipv4_addr.is_loopback())
+                    } else {
+                        // ignore non ipv4 addresses
+                        false
+                    }
+                });
 
-                self.swarm
-                    .behaviour_mut()
-                    .kademlia
-                    .add_address(&peer_id, addr);
+                // add them to kademlia
+                for addr in addrs {
+                    log::info!(
+                        "Identify: {} peer {} identified at {}",
+                        kad_protocol,
+                        peer_id,
+                        addr
+                    );
+
+                    self.swarm
+                        .behaviour_mut()
+                        .kademlia
+                        .add_address(&peer_id, addr);
+                }
             } else {
                 log::warn!(
                     "Identify: Peer {} has different Kademlia version: (them {}, you {})",

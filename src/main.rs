@@ -46,6 +46,7 @@ async fn main() -> Result<()> {
 
     // create configurations & check required services
     let config = DriaComputeNodeConfig::new();
+    config.check_address_in_use()?;
     let service_check_token = token.clone();
     let mut config_clone = config.clone();
     let service_check_handle = tokio::spawn(async move {

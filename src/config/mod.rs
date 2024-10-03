@@ -2,15 +2,16 @@ mod models;
 mod ollama;
 mod openai;
 
-use crate::utils::crypto::to_address;
+use crate::utils::{address_in_use, crypto::to_address};
 use eyre::{eyre, Result};
+use libp2p::Multiaddr;
 use libsecp256k1::{PublicKey, SecretKey};
 use models::ModelConfig;
 use ollama::OllamaConfig;
 use ollama_workflows::ModelProvider;
 use openai::OpenAIConfig;
 
-use std::{env, time::Duration};
+use std::{env, str::FromStr, time::Duration};
 
 /// Timeout duration for checking model performance during a generation.
 const CHECK_TIMEOUT_DURATION: Duration = Duration::from_secs(80);
@@ -28,8 +29,8 @@ pub struct DriaComputeNodeConfig {
     pub address: [u8; 20],
     /// Admin public key, used for message authenticity.
     pub admin_public_key: PublicKey,
-    /// P2P listen address as a string, e.g. `/ip4/0.0.0.0/tcp/4001`.
-    pub p2p_listen_addr: String,
+    /// P2P listen address, e.g. `/ip4/0.0.0.0/tcp/4001`.
+    pub p2p_listen_addr: Multiaddr,
     /// Available LLM models & providers for the node.
     pub model_config: ModelConfig,
     /// Even if Ollama is not used, we store the host & port here.
@@ -104,9 +105,11 @@ impl DriaComputeNodeConfig {
         }
         log::info!("Models: {:?}", model_config.models);
 
-        let p2p_listen_addr = env::var("DKN_P2P_LISTEN_ADDR")
+        let p2p_listen_addr_str = env::var("DKN_P2P_LISTEN_ADDR")
             .map(|addr| addr.trim_matches('"').to_string())
             .unwrap_or(DEFAULT_P2P_LISTEN_ADDR.to_string());
+        let p2p_listen_addr = Multiaddr::from_str(&p2p_listen_addr_str)
+            .expect("Could not parse the given P2P listen address.");
 
         Self {
             admin_public_key,
@@ -177,6 +180,18 @@ impl DriaComputeNodeConfig {
             self.model_config.models = good_models;
             Ok(())
         }
+    }
+
+    // ensure that listen address is free
+    pub fn check_address_in_use(&self) -> Result<()> {
+        if address_in_use(&self.p2p_listen_addr) {
+            return Err(eyre!(
+                "Listen address {} is already in use.",
+                self.p2p_listen_addr
+            ));
+        }
+
+        Ok(())
     }
 }
 

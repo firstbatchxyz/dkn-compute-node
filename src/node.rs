@@ -1,6 +1,6 @@
 use eyre::{eyre, Result};
-use libp2p::{gossipsub, Multiaddr};
-use std::{str::FromStr, time::Duration};
+use libp2p::gossipsub;
+use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -40,7 +40,6 @@ impl DriaComputeNode {
         cancellation: CancellationToken,
     ) -> Result<Self> {
         let keypair = secret_to_keypair(&config.secret_key);
-        let listen_addr = Multiaddr::from_str(config.p2p_listen_addr.as_str())?;
 
         // get available nodes (bootstrap, relay, rpc) for p2p
         let available_nodes = AvailableNodes::default()
@@ -53,7 +52,7 @@ impl DriaComputeNode {
             )
             .sort_dedup();
 
-        let p2p = P2PClient::new(keypair, listen_addr, &available_nodes)?;
+        let p2p = P2PClient::new(keypair, config.p2p_listen_addr.clone(), &available_nodes)?;
 
         Ok(DriaComputeNode {
             p2p,
