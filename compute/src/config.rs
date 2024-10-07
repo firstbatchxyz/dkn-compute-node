@@ -79,14 +79,14 @@ impl DriaComputeNodeConfig {
         let address = to_address(&public_key);
         log::info!("Node Address:     0x{}", hex::encode(address));
 
-        let model_config =
+        let workflows =
             DriaWorkflowsConfig::new_from_csv(&env::var("DKN_MODELS").unwrap_or_default());
         #[cfg(not(test))]
-        if model_config.models.is_empty() {
+        if workflows.models.is_empty() {
             log::error!("No models were provided, make sure to restart with at least one model provided within DKN_MODELS.");
             panic!("No models provided.");
         }
-        log::info!("Models: {:?}", model_config.models);
+        log::info!("Models: {:?}", workflows.models);
 
         let p2p_listen_addr_str = env::var("DKN_P2P_LISTEN_ADDR")
             .map(|addr| addr.trim_matches('"').to_string())
@@ -99,12 +99,13 @@ impl DriaComputeNodeConfig {
             secret_key,
             public_key,
             address,
-            workflows: model_config,
+            workflows,
             p2p_listen_addr,
         }
     }
 
     /// Asserts that the configured listen address is free.
+    /// Throws an error if the address is already in use.
     pub fn assert_address_not_in_use(&self) -> Result<()> {
         if address_in_use(&self.p2p_listen_addr) {
             return Err(eyre!(

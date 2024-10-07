@@ -27,11 +27,11 @@ build:
 
 .PHONY: profile-cpu #  | Profile CPU usage with flamegraph
 profile-cpu:
-	  cargo flamegraph --root --profile=profiling --features=profiling
+	  DKN_EXIT_TIMEOUT=120 cargo flamegraph --root --profile=profiling
 
 .PHONY: profile-mem #  | Profile memory usage with instruments
 profile-mem:
-	  cargo instruments --profile=profiling --features=profiling -t Allocations
+	  DKN_EXIT_TIMEOUT=120 cargo instruments --profile=profiling -t Allocations
 
 ###############################################################################
 .PHONY: test #         | Run tests
@@ -41,6 +41,7 @@ test:
 ###############################################################################
 .PHONY: lint #         | Run linter (clippy)
 lint:
+		cargo clippy
 		cargo clippy
 
 .PHONY: format #       | Run formatter (cargo fmt)

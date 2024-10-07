@@ -82,9 +82,10 @@ impl OllamaConfig {
     /// Check if requested models exist in Ollama, and then tests them using a workflow.
     pub async fn check(&self, external_models: Vec<Model>) -> Result<Vec<Model>> {
         log::info!(
-            "Checking Ollama requirements (auto-pull {}, workflow timeout: {}s)",
+            "Checking Ollama requirements (auto-pull {}, timeout: {}s, min tps: {})",
             if self.auto_pull { "on" } else { "off" },
-            self.timeout.as_secs()
+            self.timeout.as_secs(),
+            self.min_tps
         );
 
         let ollama = Ollama::new(&self.host, self.port);

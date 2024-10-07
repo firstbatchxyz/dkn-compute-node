@@ -6,15 +6,6 @@ license.workspace = true
 readme = "README.md"
 authors = ["Erhan Tezcan <erhan@firstbatch.xyz>"]
 
-# profiling build for flamegraphs
-[profile.profiling]
-inherits = "release"
-debug = true
-
-[features]
-# used by flamegraphs & instruments
-profiling = []
-
 [dependencies]
 tokio-util = { version = "0.7.10", features = ["rt"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }

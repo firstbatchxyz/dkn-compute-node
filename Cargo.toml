@@ -1,7 +1,14 @@
 [workspace]
 resolver = "2"
 members = ["compute", "p2p", "workflows"]
+# compute node is the default member, until Oracle comes in
+# then, a Launcher will be the default member
 default-members = ["compute"]
+
+# profiling build for flamegraphs
+[profile.profiling]
+inherits = "release"
+debug = true
 
 [workspace.package]
 edition = "2021"
