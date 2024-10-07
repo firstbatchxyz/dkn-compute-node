@@ -2,11 +2,11 @@ use std::collections::hash_map;
 use std::hash::{Hash, Hasher};
 use std::time::Duration;
 
-use libp2p::identity::{Keypair, PublicKey};
+use libp2p::identity::{Keypair, PeerId, PublicKey};
 use libp2p::kad::store::MemoryStore;
-use libp2p::{autonat, dcutr, gossipsub, identify, kad, relay, swarm::NetworkBehaviour, PeerId};
+use libp2p::{autonat, dcutr, gossipsub, identify, kad, relay, swarm::NetworkBehaviour};
 
-use super::{P2P_KADEMLIA_PROTOCOL, P2P_PROTOCOL_STRING};
+use crate::versioning::{P2P_KADEMLIA_PROTOCOL, P2P_PROTOCOL_STRING};
 
 #[derive(NetworkBehaviour)]
 pub struct DriaBehaviour {
@@ -119,9 +119,8 @@ fn create_gossipsub_behavior(author: PeerId) -> gossipsub::Behaviour {
     /// This helps to avoid memory exhaustion during high load
     const MAX_SEND_QUEUE_SIZE: usize = 400;
 
-    // message id's are simply hashes of the message data
+    // message id's are simply hashes of the message data, via SipHash13
     let message_id_fn = |message: &Message| {
-        // uses siphash by default
         let mut hasher = hash_map::DefaultHasher::new();
         message.data.hash(&mut hasher);
         let digest = hasher.finish();

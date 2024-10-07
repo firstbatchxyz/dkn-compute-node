@@ -1,6 +1,5 @@
-use dkn_workflows::{DriaWorkflowsConfig, ModelProvider};
+use dkn_workflows::{DriaWorkflowsConfig, Model, ModelProvider};
 use eyre::Result;
-use ollama_workflows::Model;
 use std::env;
 
 const LOG_LEVEL: &str = "none,dkn_workflows=debug";

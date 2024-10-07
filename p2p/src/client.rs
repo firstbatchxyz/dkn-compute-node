@@ -12,6 +12,7 @@ use libp2p::{Multiaddr, PeerId, Swarm, SwarmBuilder};
 use libp2p_identity::Keypair;
 use std::time::Duration;
 use std::time::Instant;
+use versioning::{P2P_KADEMLIA_PREFIX, P2P_KADEMLIA_PROTOCOL, P2P_PROTOCOL_STRING};
 
 /// P2P client, exposes a simple interface to handle P2P communication.
 pub struct DriaP2P {

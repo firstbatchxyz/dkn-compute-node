@@ -980,7 +980,7 @@ dependencies = [
 
 [[package]]
 name = "dkn-compute"
-version = "0.2.10"
+version = "0.2.11"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -1034,7 +1034,6 @@ dependencies = [
  "eyre",
  "log",
  "ollama-workflows",
- "parking_lot",
  "rand 0.8.5",
  "reqwest 0.12.8",
  "serde",
