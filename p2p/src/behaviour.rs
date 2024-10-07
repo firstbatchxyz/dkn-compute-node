@@ -4,9 +4,10 @@ use std::time::Duration;
 
 use libp2p::identity::{Keypair, PeerId, PublicKey};
 use libp2p::kad::store::MemoryStore;
+use libp2p::StreamProtocol;
 use libp2p::{autonat, dcutr, gossipsub, identify, kad, relay, swarm::NetworkBehaviour};
 
-use crate::versioning::{P2P_KADEMLIA_PROTOCOL, P2P_PROTOCOL_STRING};
+// use crate::versioning::{P2P_KADEMLIA_PROTOCOL, P2P_PROTOCOL_STRING};
 
 #[derive(NetworkBehaviour)]
 pub struct DriaBehaviour {
@@ -19,29 +20,37 @@ pub struct DriaBehaviour {
 }
 
 impl DriaBehaviour {
-    pub fn new(key: &Keypair, relay_behavior: relay::client::Behaviour) -> Self {
+    pub fn new(
+        key: &Keypair,
+        relay_behavior: relay::client::Behaviour,
+        identity_protocol: String,
+        kademlia_protocol: StreamProtocol,
+    ) -> Self {
         let public_key = key.public();
         let peer_id = public_key.to_peer_id();
         Self {
             relay: relay_behavior,
             gossipsub: create_gossipsub_behavior(peer_id),
-            kademlia: create_kademlia_behavior(peer_id),
+            kademlia: create_kademlia_behavior(peer_id, kademlia_protocol),
             autonat: create_autonat_behavior(peer_id),
             dcutr: create_dcutr_behavior(peer_id),
-            identify: create_identify_behavior(public_key),
+            identify: create_identify_behavior(public_key, identity_protocol),
         }
     }
 }
 
 /// Configures the Kademlia DHT behavior for the node.
 #[inline]
-fn create_kademlia_behavior(local_peer_id: PeerId) -> kad::Behaviour<MemoryStore> {
+fn create_kademlia_behavior(
+    local_peer_id: PeerId,
+    protocol_name: StreamProtocol,
+) -> kad::Behaviour<MemoryStore> {
     use kad::{Behaviour, Config};
 
     const QUERY_TIMEOUT_SECS: u64 = 5 * 60;
     const RECORD_TTL_SECS: u64 = 30;
 
-    let mut cfg = Config::new(P2P_KADEMLIA_PROTOCOL);
+    let mut cfg = Config::new(protocol_name);
     cfg.set_query_timeout(Duration::from_secs(QUERY_TIMEOUT_SECS))
         .set_record_ttl(Some(Duration::from_secs(RECORD_TTL_SECS)));
 
@@ -50,10 +59,13 @@ fn create_kademlia_behavior(local_peer_id: PeerId) -> kad::Behaviour<MemoryStore
 
 /// Configures the Identify behavior to allow nodes to exchange information like supported protocols.
 #[inline]
-fn create_identify_behavior(local_public_key: PublicKey) -> identify::Behaviour {
+fn create_identify_behavior(
+    local_public_key: PublicKey,
+    protocol_version: String,
+) -> identify::Behaviour {
     use identify::{Behaviour, Config};
 
-    let cfg = Config::new(P2P_PROTOCOL_STRING.to_string(), local_public_key);
+    let cfg = Config::new(protocol_version, local_public_key);
 
     Behaviour::new(cfg)
 }

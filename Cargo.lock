@@ -996,7 +996,6 @@ dependencies = [
  "libsecp256k1",
  "log",
  "openssl",
- "parking_lot",
  "port_check",
  "rand 0.8.5",
  "reqwest 0.12.8",
@@ -1022,6 +1021,7 @@ dependencies = [
  "libp2p",
  "libp2p-identity",
  "log",
+ "tokio 1.40.0",
 ]
 
 [[package]]

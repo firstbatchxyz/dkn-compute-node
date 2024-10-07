@@ -8,14 +8,12 @@ use libp2p::kad::{GetClosestPeersError, GetClosestPeersOk, QueryResult};
 use libp2p::{
     autonat, gossipsub, identify, kad, multiaddr::Protocol, noise, swarm::SwarmEvent, tcp, yamux,
 };
-use libp2p::{Multiaddr, PeerId, Swarm, SwarmBuilder};
+use libp2p::{Multiaddr, PeerId, StreamProtocol, Swarm, SwarmBuilder};
 use libp2p_identity::Keypair;
-use std::time::Duration;
-use std::time::Instant;
-use versioning::{P2P_KADEMLIA_PREFIX, P2P_KADEMLIA_PROTOCOL, P2P_PROTOCOL_STRING};
+use std::time::{Duration, Instant};
 
 /// P2P client, exposes a simple interface to handle P2P communication.
-pub struct DriaP2P {
+pub struct DriaP2PClient {
     /// `Swarm` instance, everything is accesses through this one.
     swarm: Swarm<DriaBehaviour>,
     /// Peer count for All and Mesh peers.
@@ -25,6 +23,10 @@ pub struct DriaP2P {
     peer_count: (usize, usize),
     /// Last time the peer count was refreshed.
     peer_last_refreshed: Instant,
+    /// Identity protocol string to be used for the Identity behaviour.
+    identity_protocol: String,
+    /// Kademlia protocol, must match with other peers in the network.
+    kademlia_protocol: StreamProtocol,
 }
 
 /// Number of seconds before an idle connection is closed.
@@ -33,14 +35,24 @@ const IDLE_CONNECTION_TIMEOUT_SECS: u64 = 60;
 /// Number of seconds between refreshing the Kademlia DHT.
 const PEER_REFRESH_INTERVAL_SECS: u64 = 30;
 
-impl DriaP2P {
+impl DriaP2PClient {
     /// Creates a new P2P client with the given keypair and listen address.
+    ///
+    /// Can provide a list of bootstrap and relay nodes to connect to as well at the start.
+    ///
+    /// The `version` is used to create the protocol strings for the client, and its very important that
+    /// they match with the clients existing within the network.
     pub fn new(
         keypair: Keypair,
         listen_addr: Multiaddr,
         bootstraps: &[Multiaddr],
         relays: &[Multiaddr],
+        version: &str,
     ) -> Result<Self> {
+        let identity_protocol = format!("{}{}", P2P_IDENTITY_PREFIX, version);
+        let kademlia_protocol =
+            StreamProtocol::try_from_owned(format!("{}{}", P2P_KADEMLIA_PREFIX, version))?;
+
         // this is our peerId
         let node_peerid = keypair.public().to_peer_id();
         log::info!("Compute node peer address: {}", node_peerid);
@@ -54,7 +66,14 @@ impl DriaP2P {
             )?
             .with_quic()
             .with_relay_client(noise::Config::new, yamux::Config::default)?
-            .with_behaviour(|key, relay_behavior| Ok(DriaBehaviour::new(key, relay_behavior)))?
+            .with_behaviour(|key, relay_behavior| {
+                Ok(DriaBehaviour::new(
+                    key,
+                    relay_behavior,
+                    identity_protocol.clone(),
+                    kademlia_protocol.clone(),
+                ))
+            })?
             .with_swarm_config(|c| {
                 c.with_idle_connection_timeout(Duration::from_secs(IDLE_CONNECTION_TIMEOUT_SECS))
             })
@@ -107,6 +126,8 @@ impl DriaP2P {
             swarm,
             peer_count: (0, 0),
             peer_last_refreshed: Instant::now(),
+            identity_protocol,
+            kademlia_protocol,
         })
     }
 
@@ -231,12 +252,12 @@ impl DriaP2P {
     /// - For Kademlia, we check the kademlia protocol and then add the address to the Kademlia routing table.
     fn handle_identify_event(&mut self, peer_id: PeerId, info: identify::Info) {
         // check identify protocol string
-        if info.protocol_version != P2P_PROTOCOL_STRING {
+        if info.protocol_version != self.identity_protocol {
             log::warn!(
                 "Identify: Peer {} has different Identify protocol: (them {}, you {})",
                 peer_id,
                 info.protocol_version,
-                P2P_PROTOCOL_STRING
+                self.identity_protocol
             );
             return;
         }
@@ -248,7 +269,7 @@ impl DriaP2P {
             .find(|p| p.to_string().starts_with(P2P_KADEMLIA_PREFIX))
         {
             // if it matches our protocol, add it to the Kademlia routing table
-            if *kad_protocol == P2P_KADEMLIA_PROTOCOL {
+            if *kad_protocol == self.kademlia_protocol {
                 // filter listen addresses
                 let addrs = info.listen_addrs.into_iter().filter(|listen_addr| {
                     if let Some(Protocol::Ip4(ipv4_addr)) = listen_addr.iter().next() {
@@ -279,7 +300,7 @@ impl DriaP2P {
                     "Identify: Peer {} has different Kademlia version: (them {}, you {})",
                     peer_id,
                     kad_protocol,
-                    P2P_KADEMLIA_PROTOCOL
+                    self.kademlia_protocol
                 );
             }
         }

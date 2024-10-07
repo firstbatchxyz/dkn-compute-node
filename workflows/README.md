@@ -8,7 +8,13 @@ This crate handles the configurations of models to be used, and implements vario
 
 ## Installation
 
-TODO: !!!
+Add the package via `git` within your Cargo dependencies:
+
+```toml
+dkn-workflows = { git = "https://github.com/firstbatchxyz/dkn-compute-node" }
+```
+
+Note that the underlying Ollama Workflows crate is re-exported by this crate.
 
 ## Usage
 

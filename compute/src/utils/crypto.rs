@@ -1,4 +1,4 @@
-use dkn_p2p::libp2p_identity::Keypair;
+use dkn_p2p::libp2p_identity;
 use ecies::PublicKey;
 use eyre::{Context, Result};
 use libsecp256k1::{Message, SecretKey};
@@ -55,12 +55,12 @@ pub fn encrypt_bytes(data: impl AsRef<[u8]>, public_key: &PublicKey) -> Result<S
 /// Converts a `libsecp256k1::SecretKey` to a `libp2p_identity::secp256k1::Keypair`.
 /// To do this, we serialize the secret key and create a new keypair from it.
 #[inline]
-pub fn secret_to_keypair(secret_key: &SecretKey) -> Keypair {
+pub fn secret_to_keypair(secret_key: &SecretKey) -> libp2p_identity::Keypair {
     let bytes = secret_key.serialize();
 
     let secret_key = dkn_p2p::libp2p_identity::secp256k1::SecretKey::try_from_bytes(bytes)
         .expect("Failed to create secret key");
-    dkn_p2p::libp2p_identity::secp256k1::Keypair::from(secret_key).into()
+    libp2p_identity::secp256k1::Keypair::from(secret_key).into()
 }
 
 #[cfg(test)]

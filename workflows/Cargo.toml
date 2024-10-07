@@ -8,6 +8,9 @@ authors = ["Erhan Tezcan <erhan@firstbatch.xyz>"]
 
 
 [dependencies]
+# ollama-rs is re-exported from ollama-workflows as well
+ollama-workflows = { git = "https://github.com/andthattoo/ollama-workflows" }
+
 tokio-util.workspace = true
 tokio.workspace = true
 serde.workspace = true
@@ -17,9 +20,6 @@ reqwest.workspace = true
 rand.workspace = true
 log.workspace = true
 eyre.workspace = true
-
-# ollama-rs is re-exported from ollama-workflows
-ollama-workflows = { git = "https://github.com/andthattoo/ollama-workflows" }
 
 [dev-dependencies]
 env_logger.workspace = true

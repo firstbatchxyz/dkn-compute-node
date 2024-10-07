@@ -1,8 +1,7 @@
 use dkn_p2p::libp2p::{Multiaddr, PeerId};
+use dkn_workflows::split_csv_line;
 use eyre::Result;
 use std::{env, fmt::Debug, str::FromStr};
-
-use dkn_workflows::split_csv_line;
 
 /// Static bootstrap nodes for the Kademlia DHT bootstrap step.
 const STATIC_BOOTSTRAP_NODES: [&str; 4] = [
