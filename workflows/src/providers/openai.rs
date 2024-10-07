@@ -1,5 +1,6 @@
 use eyre::{eyre, Context, Result};
 use ollama_workflows::Model;
+use reqwest::Client;
 use serde::Deserialize;
 
 const OPENAI_MODELS_API: &str = "https://api.openai.com/v1/models";
@@ -29,6 +30,7 @@ struct OpenAIModelsResponse {
 
 #[derive(Debug, Clone, Default)]
 pub struct OpenAIConfig {
+    /// API key, if available.
     pub(crate) api_key: Option<String>,
 }
 
@@ -50,17 +52,17 @@ impl OpenAIConfig {
         };
 
         // fetch models
-        let client = reqwest::Client::new();
+        let client = Client::new();
         let request = client
             .get(OPENAI_MODELS_API)
             .header("Authorization", format!("Bearer {}", api_key))
             .build()
-            .wrap_err("Failed to build request")?;
+            .wrap_err("failed to build request")?;
 
         let response = client
             .execute(request)
             .await
-            .wrap_err("Failed to send request")?;
+            .wrap_err("failed to send request")?;
 
         // parse response
         if response.status().is_client_error() {

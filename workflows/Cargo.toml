@@ -21,3 +21,6 @@ eyre.workspace = true
 
 # ollama-rs is re-exported from ollama-workflows
 ollama-workflows = { git = "https://github.com/andthattoo/ollama-workflows" }
+
+[dev-dependencies]
+env_logger.workspace = true

@@ -227,7 +227,7 @@ mod tests {
     use ollama_workflows::{Executor, Model, ProgramMemory, Workflow};
 
     #[tokio::test]
-    #[ignore = "run this manually"]
+    #[ignore = "requires Ollama"]
     async fn test_ollama_prompt() {
         let model = Model::default().to_string();
         let ollama = Ollama::default();
@@ -246,7 +246,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "run this manually"]
+    #[ignore = "requires Ollama"]
     async fn test_ollama_workflow() {
         let workflow = r#"{
         "name": "Simple",

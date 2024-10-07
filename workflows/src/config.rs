@@ -15,26 +15,28 @@ pub struct ModelConfig {
 }
 
 impl ModelConfig {
+    pub fn new(models: Vec<Model>) -> Self {
+        let models_and_providers = models
+            .into_iter()
+            .map(|model| (model.clone().into(), model))
+            .collect::<Vec<_>>();
+
+        Self {
+            models: models_and_providers,
+            openai: OpenAIConfig::new(),
+            ollama: OllamaConfig::new(),
+        }
+    }
     /// Parses Ollama-Workflows compatible models from a comma-separated values string.
-    pub fn new_from_csv(input: Option<String>) -> Self {
+    pub fn new_from_csv(input: &str) -> Self {
         let models_str = split_comma_separated(input);
 
         let models = models_str
             .into_iter()
-            .filter_map(|s| match Model::try_from(s) {
-                Ok(model) => Some((model.clone().into(), model)),
-                Err(e) => {
-                    log::warn!("Error parsing model: {}", e);
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
+            .filter_map(|s| Model::try_from(s).ok())
+            .collect();
 
-        Self {
-            models,
-            openai: OpenAIConfig::new(),
-            ollama: OllamaConfig::new(),
-        }
+        Self::new(models)
     }
 
     /// Returns the models that belong to a given providers from the config.
@@ -209,19 +211,18 @@ mod tests {
 
     #[test]
     fn test_csv_parser() {
-        let cfg =
-            ModelConfig::new_from_csv(Some("idontexist,i dont either,i332287648762".to_string()));
+        let cfg = ModelConfig::new_from_csv("idontexist,i dont either,i332287648762");
         assert_eq!(cfg.models.len(), 0);
 
-        let cfg = ModelConfig::new_from_csv(Some(
-            "gemma2:9b-instruct-q8_0,phi3:14b-medium-4k-instruct-q4_1,balblablabl".to_string(),
-        ));
+        let cfg = ModelConfig::new_from_csv(
+            "gemma2:9b-instruct-q8_0,phi3:14b-medium-4k-instruct-q4_1,balblablabl",
+        );
         assert_eq!(cfg.models.len(), 2);
     }
 
     #[test]
     fn test_model_matching() {
-        let cfg = ModelConfig::new_from_csv(Some("gpt-4o,llama3.1:latest".to_string()));
+        let cfg = ModelConfig::new_from_csv("gpt-4o,llama3.1:latest");
         assert_eq!(
             cfg.get_matching_model("openai".to_string()).unwrap().1,
             Model::GPT4o,
@@ -250,7 +251,7 @@ mod tests {
 
     #[test]
     fn test_get_any_matching_model() {
-        let cfg = ModelConfig::new_from_csv(Some("gpt-3.5-turbo,llama3.1:latest".to_string()));
+        let cfg = ModelConfig::new_from_csv("gpt-3.5-turbo,llama3.1:latest");
         let result = cfg.get_any_matching_model(vec![
             "i-dont-exist".to_string(),
             "llama3.1:latest".to_string(),
