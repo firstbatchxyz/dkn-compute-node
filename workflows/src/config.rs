@@ -1,4 +1,4 @@
-use crate::{split_comma_separated, OllamaConfig, OpenAIConfig};
+use crate::{split_csv_line, OllamaConfig, OpenAIConfig};
 use eyre::{eyre, Result};
 use ollama_workflows::{Model, ModelProvider};
 use rand::seq::IteratorRandom; // provides Vec<_>.choose
@@ -29,7 +29,7 @@ impl ModelConfig {
     }
     /// Parses Ollama-Workflows compatible models from a comma-separated values string.
     pub fn new_from_csv(input: &str) -> Self {
-        let models_str = split_comma_separated(input);
+        let models_str = split_csv_line(input);
 
         let models = models_str
             .into_iter()

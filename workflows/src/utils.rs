@@ -1,8 +1,8 @@
-/// Utility to parse comma-separated string values, mostly read from the environment.
+/// Utility to parse comma-separated string value line.
 ///
-/// - Trims `"` from both ends at the start
+/// - Trims `"` from both ends for the input
 /// - For each item, trims whitespace from both ends
-pub fn split_comma_separated(input: &str) -> Vec<String> {
+pub fn split_csv_line(input: &str) -> Vec<String> {
     input
         .trim_matches('"')
         .split(',')
@@ -26,11 +26,11 @@ mod tests {
         // should ignore whitespaces and `"` at both ends, and ignore empty items
         let input = "\"a,    b , c ,,  \"";
         let expected = vec!["a".to_string(), "b".to_string(), "c".to_string()];
-        assert_eq!(split_comma_separated(input), expected);
+        assert_eq!(split_csv_line(input), expected);
     }
 
     #[test]
     fn test_empty() {
-        assert!(split_comma_separated(Default::default()).is_empty());
+        assert!(split_csv_line(Default::default()).is_empty());
     }
 }

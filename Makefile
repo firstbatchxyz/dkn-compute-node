@@ -7,15 +7,15 @@ endif
 ###############################################################################
 .PHONY: launch #       | Run with INFO logs in release mode
 launch:
-		RUST_LOG=none,dkn_compute=info cargo run --release
+		RUST_LOG=none,dkn_compute=info,dkn_workflows=info cargo run --release
 
 .PHONY: run #          | Run with INFO logs
 run:
-		RUST_LOG=none,dkn_compute=info cargo run
+		RUST_LOG=none,dkn_compute=info,dkn_workflows=info cargo run
 
 .PHONY: debug #        | Run with DEBUG logs with INFO log-level workflows
 debug:
-		RUST_LOG=warn,dkn_compute=debug,ollama_workflows=info cargo run
+		RUST_LOG=warn,dkn_compute=debug,,dkn_workflows=debug,ollama_workflows=info cargo run
 
 .PHONY: trace #        | Run with TRACE logs
 trace:

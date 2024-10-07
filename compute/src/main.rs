@@ -46,7 +46,7 @@ async fn main() -> Result<()> {
 
     // create configurations & check required services
     let config = DriaComputeNodeConfig::new();
-    config.check_address_in_use()?;
+    config.assert_address_not_in_use()?;
     let service_check_token = token.clone();
     let mut config_clone = config.clone();
     let service_check_handle = tokio::spawn(async move {
@@ -54,7 +54,7 @@ async fn main() -> Result<()> {
             _ = service_check_token.cancelled() => {
                 log::info!("Service check cancelled.");
             }
-            result = config_clone.check_services() => {
+            result = config_clone.model_config.check_services() => {
                 if let Err(err) = result {
                     log::error!("Error checking services: {:?}", err);
                     panic!("Service check failed.")

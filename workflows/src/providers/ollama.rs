@@ -31,9 +31,9 @@ const TEST_PROMPT: &str = "Please write a poem about Kapadokya.";
 #[derive(Debug, Clone)]
 pub struct OllamaConfig {
     /// Host, usually `http://127.0.0.1`.
-    host: String,
+    pub host: String,
     /// Port, usually `11434`.
-    port: u16,
+    pub port: u16,
     /// Whether to automatically pull models from Ollama.
     /// This is useful for CI/CD workflows.
     auto_pull: bool,

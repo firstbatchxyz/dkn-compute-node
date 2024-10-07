@@ -24,3 +24,4 @@ ollama-workflows = { git = "https://github.com/andthattoo/ollama-workflows" }
 
 [dev-dependencies]
 env_logger.workspace = true
+dotenvy.workspace = true

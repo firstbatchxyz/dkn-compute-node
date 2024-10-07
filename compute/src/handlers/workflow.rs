@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use dkn_p2p::libp2p::gossipsub::MessageAcceptance;
+use dkn_workflows::ollama_workflows::{Entry, Executor, ModelProvider, ProgramMemory, Workflow};
 use eyre::{eyre, Context, Result};
 use libsecp256k1::PublicKey;
-use ollama_workflows::{Entry, Executor, ModelProvider, ProgramMemory, Workflow};
 use serde::Deserialize;
 
 use crate::payloads::{TaskErrorPayload, TaskRequestPayload, TaskResponsePayload};
@@ -74,7 +74,11 @@ impl ComputeHandler for WorkflowHandler {
 
         // prepare workflow executor
         let executor = if model_provider == ModelProvider::Ollama {
-            Executor::new_at(model, &config.ollama_config.host, config.ollama_config.port)
+            Executor::new_at(
+                model,
+                &config.model_config.ollama.host,
+                config.model_config.ollama.port,
+            )
         } else {
             Executor::new(model)
         };

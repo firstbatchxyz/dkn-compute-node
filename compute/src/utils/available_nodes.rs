@@ -2,7 +2,7 @@ use dkn_p2p::libp2p::{Multiaddr, PeerId};
 use eyre::Result;
 use std::{env, fmt::Debug, str::FromStr};
 
-use crate::utils::split_comma_separated;
+use dkn_workflows::split_csv_line;
 
 /// Static bootstrap nodes for the Kademlia DHT bootstrap step.
 const STATIC_BOOTSTRAP_NODES: [&str; 4] = [
@@ -48,7 +48,7 @@ impl AvailableNodes {
     /// - `DRIA_RELAY_NODES`: comma-separated list of relay nodes
     pub fn new_from_env() -> Self {
         // parse bootstrap nodes
-        let bootstrap_nodes = split_comma_separated(env::var("DKN_BOOTSTRAP_NODES").ok());
+        let bootstrap_nodes = split_csv_line(&env::var("DKN_BOOTSTRAP_NODES").unwrap_or_default());
         if bootstrap_nodes.is_empty() {
             log::debug!("No additional bootstrap nodes provided.");
         } else {
@@ -56,7 +56,7 @@ impl AvailableNodes {
         }
 
         // parse relay nodes
-        let relay_nodes = split_comma_separated(env::var("DKN_RELAY_NODES").ok());
+        let relay_nodes = split_csv_line(&env::var("DKN_RELAY_NODES").unwrap_or_default());
         if relay_nodes.is_empty() {
             log::debug!("No additional relay nodes provided.");
         } else {

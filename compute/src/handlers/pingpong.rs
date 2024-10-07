@@ -5,8 +5,8 @@ use crate::{
 };
 use async_trait::async_trait;
 use dkn_p2p::libp2p::gossipsub::MessageAcceptance;
+use dkn_workflows::{Model, ModelProvider};
 use eyre::{Context, Result};
-use ollama_workflows::{Model, ModelProvider};
 use serde::{Deserialize, Serialize};
 
 pub struct PingpongHandler;

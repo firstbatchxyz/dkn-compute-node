@@ -985,6 +985,7 @@ dependencies = [
  "async-trait",
  "base64 0.22.1",
  "dkn-p2p",
+ "dkn-workflows",
  "dotenvy",
  "ecies",
  "env_logger 0.11.5",
@@ -994,7 +995,6 @@ dependencies = [
  "hex-literal",
  "libsecp256k1",
  "log",
- "ollama-workflows",
  "openssl",
  "parking_lot",
  "port_check",
@@ -1029,6 +1029,7 @@ name = "dkn-workflows"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "dotenvy",
  "env_logger 0.11.5",
  "eyre",
  "log",
