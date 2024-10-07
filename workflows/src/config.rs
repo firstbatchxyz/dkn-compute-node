@@ -4,17 +4,18 @@ use ollama_workflows::{Model, ModelProvider};
 use rand::seq::IteratorRandom; // provides Vec<_>.choose
 
 #[derive(Debug, Clone)]
-pub struct ModelConfig {
+pub struct DriaWorkflowsConfig {
     /// List of models with their providers.
     pub models: Vec<(ModelProvider, Model)>,
-    /// Even if Ollama is not used, we store the host & port here.
-    /// If Ollama is used, this config will be respected during its instantiations.
+    /// Ollama configurations, in case Ollama is used.
+    /// Otherwise, can be ignored.
     pub ollama: OllamaConfig,
-    /// OpenAI API key & its service check implementation.
+    /// OpenAI configurations, e.g. API key, in case OpenAI is used.
+    /// Otherwise, can be ignored.
     pub openai: OpenAIConfig,
 }
 
-impl ModelConfig {
+impl DriaWorkflowsConfig {
     pub fn new(models: Vec<Model>) -> Self {
         let models_and_providers = models
             .into_iter()
@@ -193,7 +194,7 @@ impl ModelConfig {
     }
 }
 
-impl std::fmt::Display for ModelConfig {
+impl std::fmt::Display for DriaWorkflowsConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let models_str = self
             .models
@@ -211,10 +212,10 @@ mod tests {
 
     #[test]
     fn test_csv_parser() {
-        let cfg = ModelConfig::new_from_csv("idontexist,i dont either,i332287648762");
+        let cfg = DriaWorkflowsConfig::new_from_csv("idontexist,i dont either,i332287648762");
         assert_eq!(cfg.models.len(), 0);
 
-        let cfg = ModelConfig::new_from_csv(
+        let cfg = DriaWorkflowsConfig::new_from_csv(
             "gemma2:9b-instruct-q8_0,phi3:14b-medium-4k-instruct-q4_1,balblablabl",
         );
         assert_eq!(cfg.models.len(), 2);
@@ -222,7 +223,7 @@ mod tests {
 
     #[test]
     fn test_model_matching() {
-        let cfg = ModelConfig::new_from_csv("gpt-4o,llama3.1:latest");
+        let cfg = DriaWorkflowsConfig::new_from_csv("gpt-4o,llama3.1:latest");
         assert_eq!(
             cfg.get_matching_model("openai".to_string()).unwrap().1,
             Model::GPT4o,
@@ -251,7 +252,7 @@ mod tests {
 
     #[test]
     fn test_get_any_matching_model() {
-        let cfg = ModelConfig::new_from_csv("gpt-3.5-turbo,llama3.1:latest");
+        let cfg = DriaWorkflowsConfig::new_from_csv("gpt-3.5-turbo,llama3.1:latest");
         let result = cfg.get_any_matching_model(vec![
             "i-dont-exist".to_string(),
             "llama3.1:latest".to_string(),

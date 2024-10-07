@@ -1,6 +1,6 @@
 use crate::utils::{address_in_use, crypto::to_address};
 use dkn_p2p::libp2p::Multiaddr;
-use dkn_workflows::ModelConfig;
+use dkn_workflows::DriaWorkflowsConfig;
 use eyre::{eyre, Result};
 use libsecp256k1::{PublicKey, SecretKey};
 
@@ -18,8 +18,8 @@ pub struct DriaComputeNodeConfig {
     pub admin_public_key: PublicKey,
     /// P2P listen address, e.g. `/ip4/0.0.0.0/tcp/4001`.
     pub p2p_listen_addr: Multiaddr,
-    /// Available LLM models & providers for the node.
-    pub model_config: ModelConfig,
+    /// Workflow configurations, e.g. models and providers.
+    pub workflows: DriaWorkflowsConfig,
 }
 
 /// The default P2P network listen address.
@@ -79,7 +79,8 @@ impl DriaComputeNodeConfig {
         let address = to_address(&public_key);
         log::info!("Node Address:     0x{}", hex::encode(address));
 
-        let model_config = ModelConfig::new_from_csv(&env::var("DKN_MODELS").unwrap_or_default());
+        let model_config =
+            DriaWorkflowsConfig::new_from_csv(&env::var("DKN_MODELS").unwrap_or_default());
         #[cfg(not(test))]
         if model_config.models.is_empty() {
             log::error!("No models were provided, make sure to restart with at least one model provided within DKN_MODELS.");
@@ -98,7 +99,7 @@ impl DriaComputeNodeConfig {
             secret_key,
             public_key,
             address,
-            model_config,
+            workflows: model_config,
             p2p_listen_addr,
         }
     }

@@ -5,7 +5,7 @@ mod providers;
 use providers::{OllamaConfig, OpenAIConfig};
 
 mod config;
-pub use config::ModelConfig;
+pub use config::DriaWorkflowsConfig;
 
 pub use ollama_workflows;
 pub use ollama_workflows::{Model, ModelProvider};

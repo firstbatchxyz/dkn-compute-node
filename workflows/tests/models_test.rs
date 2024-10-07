@@ -1,8 +1,7 @@
-use std::env;
-
-use dkn_workflows::{ModelConfig, ModelProvider};
+use dkn_workflows::{DriaWorkflowsConfig, ModelProvider};
 use eyre::Result;
 use ollama_workflows::Model;
+use std::env;
 
 const LOG_LEVEL: &str = "none,dkn_workflows=debug";
 
@@ -13,7 +12,7 @@ async fn test_ollama_check() -> Result<()> {
     let _ = env_logger::try_init();
 
     let models = vec![Model::Phi3_5Mini];
-    let mut model_config = ModelConfig::new(models);
+    let mut model_config = DriaWorkflowsConfig::new(models);
     model_config.check_services().await?;
 
     assert_eq!(
@@ -32,7 +31,7 @@ async fn test_openai_check() -> Result<()> {
     let _ = env_logger::try_init();
 
     let models = vec![Model::GPT4Turbo];
-    let mut model_config = ModelConfig::new(models);
+    let mut model_config = DriaWorkflowsConfig::new(models);
     model_config.check_services().await?;
 
     assert_eq!(
@@ -44,7 +43,7 @@ async fn test_openai_check() -> Result<()> {
 
 #[tokio::test]
 async fn test_empty() -> Result<()> {
-    let mut model_config = ModelConfig::new(vec![]);
+    let mut model_config = DriaWorkflowsConfig::new(vec![]);
 
     let result = model_config.check_services().await;
     assert!(result.is_err());

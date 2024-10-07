@@ -54,7 +54,7 @@ async fn main() -> Result<()> {
             _ = service_check_token.cancelled() => {
                 log::info!("Service check cancelled.");
             }
-            result = config_clone.model_config.check_services() => {
+            result = config_clone.workflows.check_services() => {
                 if let Err(err) = result {
                     log::error!("Error checking services: {:?}", err);
                     panic!("Service check failed.")

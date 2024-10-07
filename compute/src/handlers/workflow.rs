@@ -66,9 +66,7 @@ impl ComputeHandler for WorkflowHandler {
         }
 
         // read model / provider from the task
-        let (model_provider, model) = config
-            .model_config
-            .get_any_matching_model(task.input.model)?;
+        let (model_provider, model) = config.workflows.get_any_matching_model(task.input.model)?;
         let model_name = model.to_string(); // get model name, we will pass it in payload
         log::info!("Using model {} for task {}", model_name, task.task_id);
 
@@ -76,8 +74,8 @@ impl ComputeHandler for WorkflowHandler {
         let executor = if model_provider == ModelProvider::Ollama {
             Executor::new_at(
                 model,
-                &config.model_config.ollama.host,
-                config.model_config.ollama.port,
+                &config.workflows.ollama.host,
+                config.workflows.ollama.port,
             )
         } else {
             Executor::new(model)

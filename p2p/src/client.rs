@@ -1,3 +1,4 @@
+use super::*;
 use eyre::Result;
 use libp2p::futures::StreamExt;
 use libp2p::gossipsub::{
@@ -12,10 +13,8 @@ use libp2p_identity::Keypair;
 use std::time::Duration;
 use std::time::Instant;
 
-use super::*;
-
 /// P2P client, exposes a simple interface to handle P2P communication.
-pub struct P2PClient {
+pub struct DriaP2P {
     /// `Swarm` instance, everything is accesses through this one.
     swarm: Swarm<DriaBehaviour>,
     /// Peer count for All and Mesh peers.
@@ -33,7 +32,7 @@ const IDLE_CONNECTION_TIMEOUT_SECS: u64 = 60;
 /// Number of seconds between refreshing the Kademlia DHT.
 const PEER_REFRESH_INTERVAL_SECS: u64 = 30;
 
-impl P2PClient {
+impl DriaP2P {
     /// Creates a new P2P client with the given keypair and listen address.
     pub fn new(
         keypair: Keypair,

@@ -28,10 +28,11 @@ struct OpenAIModelsResponse {
     object: String,
 }
 
+/// OpenAI-specific configurations.
 #[derive(Debug, Clone, Default)]
 pub struct OpenAIConfig {
     /// API key, if available.
-    pub(crate) api_key: Option<String>,
+    api_key: Option<String>,
 }
 
 impl OpenAIConfig {

@@ -54,7 +54,7 @@ impl ComputeHandler for PingpongHandler {
         // respond
         let response_body = PingpongResponse {
             uuid: pingpong.uuid.clone(),
-            models: node.config.model_config.models.clone(),
+            models: node.config.workflows.models.clone(),
             timestamp: get_current_time_nanos(),
         };
 

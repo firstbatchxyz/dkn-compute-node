@@ -1,4 +1,4 @@
-use dkn_p2p::{libp2p::gossipsub, P2PClient};
+use dkn_p2p::{libp2p::gossipsub, DriaP2P};
 use eyre::{eyre, Result};
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
@@ -27,7 +27,7 @@ const RPC_PEER_ID_REFRESH_INTERVAL_SECS: u64 = 30;
 /// ```
 pub struct DriaComputeNode {
     pub config: DriaComputeNodeConfig,
-    pub p2p: P2PClient,
+    pub p2p: DriaP2P,
     pub available_nodes: AvailableNodes,
     pub available_nodes_last_refreshed: tokio::time::Instant,
     pub cancellation: CancellationToken,
@@ -51,7 +51,7 @@ impl DriaComputeNode {
             )
             .sort_dedup();
 
-        let p2p = P2PClient::new(
+        let p2p = DriaP2P::new(
             keypair,
             config.p2p_listen_addr.clone(),
             &available_nodes.bootstrap_nodes,
