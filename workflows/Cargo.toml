@@ -15,8 +15,9 @@ serde.workspace = true
 serde_json.workspace = true
 async-trait.workspace = true
 reqwest.workspace = true
-
+rand.workspace = true
 log.workspace = true
 eyre.workspace = true
 
+# ollama-rs is re-exported from ollama-workflows
 ollama-workflows = { git = "https://github.com/andthattoo/ollama-workflows" }

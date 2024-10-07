@@ -29,16 +29,15 @@ struct OpenAIModelsResponse {
 
 #[derive(Debug, Clone, Default)]
 pub struct OpenAIConfig {
-    /// List of external models that are picked by the user.
-    pub(crate) models: Vec<Model>,
+    pub(crate) api_key: Option<String>,
 }
 
 impl OpenAIConfig {
     /// Looks at the environment variables for OpenAI API key.
     pub fn new() -> Self {
-        let api_key = std::env::var("OPENAI_API_KEY").ok();
-
-        Self { api_key }
+        Self {
+            api_key: std::env::var("OPENAI_API_KEY").ok(),
+        }
     }
 
     /// Check if requested models exist & are available in the OpenAI account.

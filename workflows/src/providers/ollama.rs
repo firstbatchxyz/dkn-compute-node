@@ -10,14 +10,20 @@ use ollama_workflows::{
     },
     Model,
 };
+use std::env;
 use std::time::Duration;
 
 const DEFAULT_OLLAMA_HOST: &str = "http://127.0.0.1";
 const DEFAULT_OLLAMA_PORT: u16 = 11434;
+/// Automatically pull missing models by default?
+const DEFAULT_AUTO_PULL: bool = true;
+/// Timeout duration for checking model performance during a generation.
+const DEFAULT_TIMEOUT: Duration = Duration::from_secs(80);
+/// Minimum tokens per second (TPS) for checking model performance during a generation.
+const DEFAULT_MIN_TPS: f64 = 15.0;
 
 /// Some models such as small embedding models, are hardcoded into the node.
 const HARDCODED_MODELS: [&str; 1] = ["hellord/mxbai-embed-large-v1:f16"];
-
 /// Prompt to be used to see Ollama performance.
 const TEST_PROMPT: &str = "Please write a poem about Kapadokya.";
 
@@ -25,16 +31,16 @@ const TEST_PROMPT: &str = "Please write a poem about Kapadokya.";
 #[derive(Debug, Clone)]
 pub struct OllamaConfig {
     /// Host, usually `http://127.0.0.1`.
-    pub(crate) host: String,
+    host: String,
     /// Port, usually `11434`.
-    pub(crate) port: u16,
-    /// List of hardcoded models that are internally used by Ollama workflows.
-    hardcoded_models: Vec<String>,
-    /// List of external models that are picked by the user.
-    pub(crate) models: Vec<Model>,
+    port: u16,
     /// Whether to automatically pull models from Ollama.
     /// This is useful for CI/CD workflows.
     auto_pull: bool,
+    /// Timeout duration for checking model performance during a generation.
+    timeout: Duration,
+    /// Minimum tokens per second (TPS) for checking model performance during a generation.
+    min_tps: f64,
 }
 
 impl Default for OllamaConfig {
@@ -42,11 +48,9 @@ impl Default for OllamaConfig {
         Self {
             host: DEFAULT_OLLAMA_HOST.to_string(),
             port: DEFAULT_OLLAMA_PORT,
-            hardcoded_models: HARDCODED_MODELS
-                .into_iter()
-                .map(|s| s.to_string())
-                .collect(),
-            auto_pull: false,
+            auto_pull: DEFAULT_AUTO_PULL,
+            timeout: DEFAULT_TIMEOUT,
+            min_tps: DEFAULT_MIN_TPS,
         }
     }
 }
@@ -55,40 +59,32 @@ impl OllamaConfig {
     ///
     /// If not found, defaults to `DEFAULT_OLLAMA_HOST` and `DEFAULT_OLLAMA_PORT`.
     pub fn new() -> Self {
-        let host = std::env::var("OLLAMA_HOST")
+        let host = env::var("OLLAMA_HOST")
             .map(|h| h.trim_matches('"').to_string())
             .unwrap_or(DEFAULT_OLLAMA_HOST.to_string());
-        let port = std::env::var("OLLAMA_PORT")
+        let port = env::var("OLLAMA_PORT")
             .and_then(|port_str| port_str.parse().map_err(|_| std::env::VarError::NotPresent))
             .unwrap_or(DEFAULT_OLLAMA_PORT);
 
-        // Ollama workflows may require specific models to be loaded regardless of the choices
-        let hardcoded_models = HARDCODED_MODELS.iter().map(|s| s.to_string()).collect();
-
         // auto-pull, its true by default
-        let auto_pull = std::env::var("OLLAMA_AUTO_PULL")
+        let auto_pull = env::var("OLLAMA_AUTO_PULL")
             .map(|s| s == "true")
             .unwrap_or(true);
 
         Self {
             host,
             port,
-            hardcoded_models,
             auto_pull,
+            ..Default::default()
         }
     }
 
     /// Check if requested models exist in Ollama, and then tests them using a workflow.
-    pub async fn check(
-        &self,
-        external_models: Vec<Model>,
-        timeout: Duration,
-        min_tps: f64,
-    ) -> Result<Vec<Model>> {
+    pub async fn check(&self, external_models: Vec<Model>) -> Result<Vec<Model>> {
         log::info!(
             "Checking Ollama requirements (auto-pull {}, workflow timeout: {}s)",
             if self.auto_pull { "on" } else { "off" },
-            timeout.as_secs()
+            self.timeout.as_secs()
         );
 
         let ollama = Ollama::new(&self.host, self.port);
@@ -107,11 +103,10 @@ impl OllamaConfig {
 
         // check hardcoded models & pull them if available
         // these are not used directly by the user, but are needed for the workflows
-        log::debug!("Checking hardcoded models: {:#?}", self.hardcoded_models);
-        // only check if model is contained in local_models
-        // we dont check workflows for hardcoded models
-        for model in &self.hardcoded_models {
-            if !local_models.contains(model) {
+        // we only check if model is contained in local_models, we dont check workflows for these
+        for model in HARDCODED_MODELS {
+            // `contains` doesnt work for &str so we equality check instead
+            if !&local_models.iter().any(|s| s == model) {
                 self.try_pull(&ollama, model.to_owned())
                     .await
                     .wrap_err("Could not pull model")?;
@@ -128,10 +123,7 @@ impl OllamaConfig {
                     .wrap_err("Could not pull model")?;
             }
 
-            if self
-                .test_performance(&ollama, &model, timeout, min_tps)
-                .await
-            {
+            if self.test_performance(&ollama, &model).await {
                 good_models.push(model);
             }
         }
@@ -167,13 +159,7 @@ impl OllamaConfig {
     ///
     /// This is to see if a given system can execute Ollama workflows for their chosen models,
     /// e.g. if they have enough RAM/CPU and such.
-    pub async fn test_performance(
-        &self,
-        ollama: &Ollama,
-        model: &Model,
-        timeout: Duration,
-        min_tps: f64,
-    ) -> bool {
+    pub async fn test_performance(&self, ollama: &Ollama, model: &Model) -> bool {
         log::info!("Testing model {}", model);
 
         // first generate a dummy embedding to load the model into memory (warm-up)
@@ -202,7 +188,7 @@ impl OllamaConfig {
 
         // then, run a sample generation with timeout and measure tps
         tokio::select! {
-            _ = tokio::time::sleep(timeout) => {
+            _ = tokio::time::sleep(self.timeout) => {
                 log::warn!("Ignoring model {}: Workflow timed out", model);
             },
             result = ollama.generate(generation_request) => {
@@ -212,7 +198,7 @@ impl OllamaConfig {
                         / (response.eval_duration.unwrap_or(1) as f64)
                         * 1_000_000_000f64;
 
-                        if tps >= min_tps {
+                        if tps >= self.min_tps {
                             log::info!("Model {} passed the test with tps: {}", model, tps);
                             return true;
                         }
@@ -221,7 +207,7 @@ impl OllamaConfig {
                             "Ignoring model {}: tps too low ({:.3} < {:.3})",
                             model,
                             tps,
-                            min_tps
+                            self.min_tps
                         );
                     }
                     Err(e) => {

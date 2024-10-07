@@ -1033,6 +1033,7 @@ dependencies = [
  "log",
  "ollama-workflows",
  "parking_lot",
+ "rand 0.8.5",
  "reqwest 0.12.8",
  "serde",
  "serde_json",

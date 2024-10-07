@@ -1,89 +1,21 @@
-use crate::{utils::split_comma_separated, OllamaConfig, OpenAIConfig};
+use crate::{split_comma_separated, OllamaConfig, OpenAIConfig};
 use eyre::{eyre, Result};
 use ollama_workflows::{Model, ModelProvider};
 use rand::seq::IteratorRandom; // provides Vec<_>.choose
 
 #[derive(Debug, Clone)]
 pub struct ModelConfig {
+    /// List of models with their providers.
     pub models: Vec<(ModelProvider, Model)>,
+    /// Even if Ollama is not used, we store the host & port here.
+    /// If Ollama is used, this config will be respected during its instantiations.
     pub ollama: OllamaConfig,
+    /// OpenAI API key & its service check implementation.
     pub openai: OpenAIConfig,
 }
 
-impl std::fmt::Display for ModelConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let models_str = self
-            .models
-            .iter()
-            .map(|(provider, model)| format!("{:?}:{}", provider, model))
-            .collect::<Vec<_>>()
-            .join(",");
-        write!(f, "{}", models_str)
-    }
-}
-
 impl ModelConfig {
-    /// Creates a new config with the given list of models.
-    pub fn new(models: Vec<Model>) -> Self {
-        // map models to (provider, model) pairs
-        let models_providers = models
-            .into_iter()
-            .map(|m| (m.clone().into(), m))
-            .collect::<Vec<_>>();
-
-        let mut providers = Vec::new();
-
-        // get ollama models & config
-        let ollama_models = models_providers
-            .iter()
-            .filter_map(|(p, m)| {
-                if *p == ModelProvider::Ollama {
-                    Some(m.clone())
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-        let ollama_config = if !ollama_models.is_empty() {
-            providers.push(ModelProvider::Ollama);
-            Some(OllamaConfig::new(ollama_models))
-        } else {
-            None
-        };
-
-        // get openai models & config
-        let openai_models = models_providers
-            .iter()
-            .filter_map(|(p, m)| {
-                if *p == ModelProvider::OpenAI {
-                    Some(m.clone())
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-        let openai_config = if !openai_models.is_empty() {
-            providers.push(ModelProvider::OpenAI);
-            Some(OpenAIConfig::new(openai_models))
-        } else {
-            None
-        };
-
-        Self {
-            models_providers,
-            providers,
-            ollama_config,
-            openai_config,
-        }
-    }
-
     /// Parses Ollama-Workflows compatible models from a comma-separated values string.
-    ///
-    /// ## Example
-    ///
-    /// ```
-    /// let config = ModelConfig::new_from_csv("gpt-4-turbo,gpt-4o-mini");
-    /// ```
     pub fn new_from_csv(input: Option<String>) -> Self {
         let models_str = split_comma_separated(input);
 
@@ -98,7 +30,11 @@ impl ModelConfig {
             })
             .collect::<Vec<_>>();
 
-        Self { models }
+        Self {
+            models,
+            openai: OpenAIConfig::new(),
+            ollama: OllamaConfig::new(),
+        }
     }
 
     /// Returns the models that belong to a given providers from the config.
@@ -117,12 +53,27 @@ impl ModelConfig {
 
     /// Given a raw model name or provider (as a string), returns the first matching model & provider.
     ///
-    /// If this is a model and is supported by this node, it is returned directly.
-    /// If this is a provider, the first matching model in the node config is returned.
+    /// - If input is `*` or `all`, a random model is returned.
+    /// - if input is `!` the first model is returned.
+    /// - If input is a model and is supported by this node, it is returned directly.
+    /// - If input is a provider, the first matching model in the node config is returned.
     ///
     /// If there are no matching models with this logic, an error is returned.
     pub fn get_matching_model(&self, model_or_provider: String) -> Result<(ModelProvider, Model)> {
-        if let Ok(provider) = ModelProvider::try_from(model_or_provider.clone()) {
+        if model_or_provider == "*" {
+            // return a random model
+            self.models
+                .iter()
+                .choose(&mut rand::thread_rng())
+                .ok_or_else(|| eyre!("No models to randomly pick for '*'."))
+                .cloned()
+        } else if model_or_provider == "!" {
+            // return the first model
+            self.models
+                .first()
+                .ok_or_else(|| eyre!("No models to choose first for '!'."))
+                .cloned()
+        } else if let Ok(provider) = ModelProvider::try_from(model_or_provider.clone()) {
             // this is a valid provider, return the first matching model in the config
             self.models
                 .iter()
@@ -185,6 +136,70 @@ impl ModelConfig {
                 }
                 unique
             })
+    }
+
+    /// Check if the required compute services are running.
+    /// This has several steps:
+    ///
+    /// - If Ollama models are used, hardcoded models are checked locally, and for
+    ///   external models, the workflow is tested with a simple task with timeout.
+    /// - If OpenAI models are used, the API key is checked and the models are tested
+    ///
+    /// If both type of models are used, both services are checked.
+    /// In the end, bad models are filtered out and we simply check if we are left if any valid models at all.
+    /// If not, an error is returned.
+    pub async fn check_services(&mut self) -> Result<()> {
+        log::info!("Checking configured services.");
+
+        // TODO: can refactor (provider, model) logic here
+        let unique_providers = self.get_providers();
+
+        let mut good_models = Vec::new();
+
+        // if Ollama is a provider, check that it is running & Ollama models are pulled (or pull them)
+        if unique_providers.contains(&ModelProvider::Ollama) {
+            let ollama_models = self.get_models_for_provider(ModelProvider::Ollama);
+
+            // ensure that the models are pulled / pull them if not
+            let good_ollama_models = self.ollama.check(ollama_models).await?;
+            good_models.extend(
+                good_ollama_models
+                    .into_iter()
+                    .map(|m| (ModelProvider::Ollama, m)),
+            );
+        }
+
+        // if OpenAI is a provider, check that the API key is set
+        if unique_providers.contains(&ModelProvider::OpenAI) {
+            let openai_models = self.get_models_for_provider(ModelProvider::OpenAI);
+
+            let good_openai_models = self.openai.check(openai_models).await?;
+            good_models.extend(
+                good_openai_models
+                    .into_iter()
+                    .map(|m| (ModelProvider::OpenAI, m)),
+            );
+        }
+
+        // update good models
+        if good_models.is_empty() {
+            Err(eyre!("No good models found, please check logs for errors."))
+        } else {
+            self.models = good_models;
+            Ok(())
+        }
+    }
+}
+
+impl std::fmt::Display for ModelConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let models_str = self
+            .models
+            .iter()
+            .map(|(provider, model)| format!("{:?}:{}", provider, model))
+            .collect::<Vec<_>>()
+            .join(",");
+        write!(f, "{}", models_str)
     }
 }
 
