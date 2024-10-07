@@ -984,6 +984,7 @@ version = "0.2.10"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
+ "dkn-p2p",
  "dotenvy",
  "ecies",
  "env_logger 0.11.5",
@@ -991,8 +992,6 @@ dependencies = [
  "fastbloom-rs",
  "hex",
  "hex-literal",
- "libp2p",
- "libp2p-identity",
  "libsecp256k1",
  "log",
  "ollama-workflows",
@@ -1012,6 +1011,33 @@ dependencies = [
  "url",
  "urlencoding",
  "uuid",
+]
+
+[[package]]
+name = "dkn-p2p"
+version = "0.1.0"
+dependencies = [
+ "env_logger 0.11.5",
+ "eyre",
+ "libp2p",
+ "libp2p-identity",
+ "log",
+]
+
+[[package]]
+name = "dkn-workflows"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "eyre",
+ "log",
+ "ollama-workflows",
+ "parking_lot",
+ "reqwest 0.12.8",
+ "serde",
+ "serde_json",
+ "tokio 1.40.0",
+ "tokio-util 0.7.12",
 ]
 
 [[package]]

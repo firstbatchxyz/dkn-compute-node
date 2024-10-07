@@ -6,7 +6,7 @@ use libp2p::identity::{Keypair, PublicKey};
 use libp2p::kad::store::MemoryStore;
 use libp2p::{autonat, dcutr, gossipsub, identify, kad, relay, swarm::NetworkBehaviour, PeerId};
 
-use crate::p2p::{P2P_KADEMLIA_PROTOCOL, P2P_PROTOCOL_STRING};
+use super::{P2P_KADEMLIA_PROTOCOL, P2P_PROTOCOL_STRING};
 
 #[derive(NetworkBehaviour)]
 pub struct DriaBehaviour {

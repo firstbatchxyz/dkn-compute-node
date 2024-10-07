@@ -1,7 +1,7 @@
 use crate::{utils::DKNMessage, DriaComputeNode};
 use async_trait::async_trait;
+use dkn_p2p::libp2p::gossipsub::MessageAcceptance;
 use eyre::Result;
-use libp2p::gossipsub::MessageAcceptance;
 
 mod pingpong;
 pub use pingpong::PingpongHandler;

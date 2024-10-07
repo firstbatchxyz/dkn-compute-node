@@ -1,10 +1,6 @@
-#![allow(unused)]
-
 use eyre::{eyre, Context, Result};
 use ollama_workflows::Model;
 use serde::Deserialize;
-
-const OPENAI_API_KEY: &str = "OPENAI_API_KEY";
 
 const OPENAI_MODELS_API: &str = "https://api.openai.com/v1/models";
 
@@ -14,16 +10,20 @@ struct OpenAIModel {
     /// The model identifier, which can be referenced in the API endpoints.
     id: String,
     /// The Unix timestamp (in seconds) when the model was created.
+    #[allow(unused)]
     created: u64,
     /// The object type, which is always "model".
+    #[allow(unused)]
     object: String,
     /// The organization that owns the model.
+    #[allow(unused)]
     owned_by: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 struct OpenAIModelsResponse {
     data: Vec<OpenAIModel>,
+    #[allow(unused)]
     object: String,
 }
 
@@ -35,7 +35,7 @@ pub struct OpenAIConfig {
 impl OpenAIConfig {
     /// Looks at the environment variables for OpenAI API key.
     pub fn new() -> Self {
-        let api_key = std::env::var(OPENAI_API_KEY).ok();
+        let api_key = std::env::var("OPENAI_API_KEY").ok();
 
         Self { api_key }
     }

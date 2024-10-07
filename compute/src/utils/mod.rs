@@ -7,7 +7,7 @@ pub use message::DKNMessage;
 mod available_nodes;
 pub use available_nodes::AvailableNodes;
 
-use libp2p::{multiaddr::Protocol, Multiaddr};
+use dkn_p2p::libp2p::{multiaddr::Protocol, Multiaddr};
 use port_check::is_port_reachable;
 use std::{
     net::{Ipv4Addr, SocketAddrV4},

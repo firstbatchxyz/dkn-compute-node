@@ -4,8 +4,8 @@ use crate::{
     DriaComputeNode,
 };
 use async_trait::async_trait;
+use dkn_p2p::libp2p::gossipsub::MessageAcceptance;
 use eyre::{Context, Result};
-use libp2p::gossipsub::MessageAcceptance;
 use ollama_workflows::{Model, ModelProvider};
 use serde::{Deserialize, Serialize};
 

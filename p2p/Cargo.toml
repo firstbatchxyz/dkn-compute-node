@@ -1,0 +1,31 @@
+[package]
+name = "dkn-p2p"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+readme = "README.md"
+authors = ["Erhan Tezcan <erhan@firstbatch.xyz>"]
+
+[dependencies]
+libp2p = { git = "https://github.com/anilaltuner/rust-libp2p.git", rev = "7ce9f9e", features = [
+    # libp2p = { version = "0.54.1", features = [
+    "dcutr",
+    "ping",
+    "relay",
+    "autonat",
+    "identify",
+    "tokio",
+    "gossipsub",
+    "mdns",
+    "noise",
+    "macros",
+    "tcp",
+    "yamux",
+    "quic",
+    "kad",
+] }
+libp2p-identity = { version = "0.2.9", features = ["secp256k1"] }
+
+env_logger.workspace = true
+log.workspace = true
+eyre.workspace = true

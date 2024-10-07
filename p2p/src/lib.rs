@@ -8,3 +8,8 @@ mod versioning;
 pub use versioning::*;
 
 mod data_transform;
+
+// re-exports
+
+pub use libp2p;
+pub use libp2p_identity;

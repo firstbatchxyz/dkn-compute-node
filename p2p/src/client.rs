@@ -13,7 +13,6 @@ use std::time::Duration;
 use std::time::Instant;
 
 use super::*;
-use crate::utils::AvailableNodes;
 
 /// P2P client, exposes a simple interface to handle P2P communication.
 pub struct P2PClient {
@@ -39,7 +38,8 @@ impl P2PClient {
     pub fn new(
         keypair: Keypair,
         listen_addr: Multiaddr,
-        available_nodes: &AvailableNodes,
+        bootstraps: &[Multiaddr],
+        relays: &[Multiaddr],
     ) -> Result<Self> {
         // this is our peerId
         let node_peerid = keypair.public().to_peer_id();
@@ -67,11 +67,8 @@ impl P2PClient {
             .set_mode(Some(libp2p::kad::Mode::Server));
 
         // initiate bootstrap
-        log::info!(
-            "Initiating bootstrap: {:#?}",
-            available_nodes.bootstrap_nodes
-        );
-        for addr in &available_nodes.bootstrap_nodes {
+        log::info!("Initiating bootstrap: {:#?}", bootstraps);
+        for addr in bootstraps {
             if let Some(peer_id) = addr.iter().find_map(|p| match p {
                 Protocol::P2p(peer_id) => Some(peer_id),
                 _ => None,
@@ -101,11 +98,8 @@ impl P2PClient {
         log::info!("Listening p2p network on: {}", listen_addr);
         swarm.listen_on(listen_addr)?;
 
-        log::info!(
-            "Listening to relay nodes: {:#?}",
-            available_nodes.relay_nodes
-        );
-        for addr in &available_nodes.relay_nodes {
+        log::info!("Listening to relay nodes: {:#?}", relays);
+        for addr in relays {
             swarm.listen_on(addr.clone().with(Protocol::P2pCircuit))?;
         }
 

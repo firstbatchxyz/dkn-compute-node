@@ -3,8 +3,8 @@ mod ollama;
 mod openai;
 
 use crate::utils::{address_in_use, crypto::to_address};
+use dkn_p2p::libp2p::Multiaddr;
 use eyre::{eyre, Result};
-use libp2p::Multiaddr;
 use libsecp256k1::{PublicKey, SecretKey};
 use models::ModelConfig;
 use ollama::OllamaConfig;

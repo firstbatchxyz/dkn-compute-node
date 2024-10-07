@@ -1,12 +1,11 @@
+use dkn_p2p::{libp2p::gossipsub, P2PClient};
 use eyre::{eyre, Result};
-use libp2p::gossipsub;
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
     config::*,
     handlers::*,
-    p2p::P2PClient,
     utils::{crypto::secret_to_keypair, AvailableNodes, DKNMessage},
 };
 
@@ -52,7 +51,12 @@ impl DriaComputeNode {
             )
             .sort_dedup();
 
-        let p2p = P2PClient::new(keypair, config.p2p_listen_addr.clone(), &available_nodes)?;
+        let p2p = P2PClient::new(
+            keypair,
+            config.p2p_listen_addr.clone(),
+            &available_nodes.bootstrap_nodes,
+            &available_nodes.relay_nodes,
+        )?;
 
         Ok(DriaComputeNode {
             p2p,
@@ -97,7 +101,12 @@ impl DriaComputeNode {
 
     /// Returns the list of connected peers.
     #[inline(always)]
-    pub fn peers(&self) -> Vec<(&libp2p_identity::PeerId, Vec<&gossipsub::TopicHash>)> {
+    pub fn peers(
+        &self,
+    ) -> Vec<(
+        &dkn_p2p::libp2p_identity::PeerId,
+        Vec<&gossipsub::TopicHash>,
+    )> {
         self.p2p.peers()
     }
 

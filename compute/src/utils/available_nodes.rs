@@ -1,5 +1,5 @@
+use dkn_p2p::libp2p::{Multiaddr, PeerId};
 use eyre::Result;
-use libp2p::{Multiaddr, PeerId};
 use std::{env, fmt::Debug, str::FromStr};
 
 use crate::utils::split_comma_separated;

@@ -1,6 +1,6 @@
 use async_trait::async_trait;
+use dkn_p2p::libp2p::gossipsub::MessageAcceptance;
 use eyre::{eyre, Context, Result};
-use libp2p::gossipsub::MessageAcceptance;
 use libsecp256k1::PublicKey;
 use ollama_workflows::{Entry, Executor, ModelProvider, ProgramMemory, Workflow};
 use serde::Deserialize;
