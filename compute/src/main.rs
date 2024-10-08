@@ -7,9 +7,13 @@ use tokio_util::sync::CancellationToken;
 #[tokio::main]
 async fn main() -> Result<()> {
     let dotenv_result = dotenvy::dotenv();
+    // TODO: remove me later when the launcher is fixed
+    amend_log_levels();
+
     env_logger::builder()
         .format_timestamp(Some(env_logger::TimestampPrecision::Millis))
         .init();
+    println!("LOG_LEVEL: {}", env::var("RUST_LOG").unwrap());
     if let Err(e) = dotenv_result {
         log::warn!("Could not load .env file: {}", e);
     }
@@ -141,4 +145,37 @@ async fn wait_for_termination(cancellation: CancellationToken) -> Result<()> {
     log::info!("Terminating the node...");
     cancellation.cancel();
     Ok(())
+}
+
+/// Very CRUDE fix due to launcher log level bug
+///
+/// TODO: remove me later when the launcher is fixed
+pub fn amend_log_levels() {
+    if let Ok(rust_log) = std::env::var("RUST_LOG") {
+        let log_level = if rust_log.contains("dkn_compute=info") {
+            "info"
+        } else if rust_log.contains("dkn_compute=debug") {
+            "debug"
+        } else if rust_log.contains("dkn_compute=trace") {
+            "trace"
+        } else {
+            return;
+        };
+
+        // check if it contains other log levels
+        let mut new_rust_log = rust_log.clone();
+        if !rust_log.contains("dkn_p2p") {
+            new_rust_log = format!("{},{}={}", new_rust_log, "dkn_p2p", log_level);
+        }
+        if !rust_log.contains("dkn_workflows") {
+            new_rust_log = format!("{},{}={}", new_rust_log, "dkn_workflows", log_level);
+        }
+        std::env::set_var("RUST_LOG", new_rust_log);
+    } else {
+        // TODO: use env_logger default function instead of this
+        std::env::set_var(
+            "RUST_LOG",
+            "none,dkn_compute=info,dkn_p2p=info,dkn_workflows=info",
+        );
+    }
 }
