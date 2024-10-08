@@ -1014,7 +1014,7 @@ dependencies = [
 
 [[package]]
 name = "dkn-p2p"
-version = "0.1.0"
+version = "0.2.11"
 dependencies = [
  "env_logger 0.11.5",
  "eyre",
@@ -1026,7 +1026,7 @@ dependencies = [
 
 [[package]]
 name = "dkn-workflows"
-version = "0.1.0"
+version = "0.2.11"
 dependencies = [
  "async-trait",
  "dotenvy",

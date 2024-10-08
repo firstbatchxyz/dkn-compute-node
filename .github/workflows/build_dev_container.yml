@@ -1,13 +1,21 @@
 name: Create Dev Image
 on:
   push:
-    branches: ["master", "erhant/subcrates"]
-    # paths:
-    #   - "src/**"
-    #   - "Cargo.lock"
-    #   - "Cargo.toml"
-    #   - "Dockerfile"
-    #   - "compose.yml"
+    branches: ["master"]
+    paths:
+      # Source files in each member
+      - "compute/src/**"
+      - "p2p/src/**"
+      - "workflows/src/**"
+      # Cargo in each member
+      - "compute/Cargo.toml"
+      - "p2p/Cargo.toml"
+      - "workflows/Cargo.toml"
+      # root-level changes
+      - "Cargo.lock"
+      - "Cross.toml"
+      - "Dockerfile"
+      - "compose.yml"
 
 jobs:
   build-and-push:
