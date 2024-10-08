@@ -1,0 +1,26 @@
+[package]
+name = "dkn-workflows"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+readme = "README.md"
+authors = ["Erhan Tezcan <erhan@firstbatch.xyz>"]
+
+
+[dependencies]
+# ollama-rs is re-exported from ollama-workflows as well
+ollama-workflows = { git = "https://github.com/andthattoo/ollama-workflows" }
+
+tokio-util.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+async-trait.workspace = true
+reqwest.workspace = true
+rand.workspace = true
+log.workspace = true
+eyre.workspace = true
+
+[dev-dependencies]
+env_logger.workspace = true
+dotenvy.workspace = true

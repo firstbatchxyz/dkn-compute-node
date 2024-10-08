@@ -7,15 +7,15 @@ endif
 ###############################################################################
 .PHONY: launch #       | Run with INFO logs in release mode
 launch:
-		RUST_LOG=none,dkn_compute=info cargo run --release
+		RUST_LOG=none,dkn_compute=info,dkn_workflows=info,dkn_p2p=info cargo run --release
 
 .PHONY: run #          | Run with INFO logs
 run:
-		RUST_LOG=none,dkn_compute=info cargo run
+		RUST_LOG=none,dkn_compute=info,dkn_workflows=info,dkn_p2p=info cargo run
 
 .PHONY: debug #        | Run with DEBUG logs with INFO log-level workflows
 debug:
-		RUST_LOG=warn,dkn_compute=debug,ollama_workflows=info cargo run
+		RUST_LOG=warn,dkn_compute=debug,dkn_workflows=debug,dkn_p2p=debug,ollama_workflows=info cargo run
 
 .PHONY: trace #        | Run with TRACE logs
 trace:
@@ -27,21 +27,21 @@ build:
 
 .PHONY: profile-cpu #  | Profile CPU usage with flamegraph
 profile-cpu:
-	  cargo flamegraph --root --profile=profiling --features=profiling
+	  DKN_EXIT_TIMEOUT=120 cargo flamegraph --root --profile=profiling
 
 .PHONY: profile-mem #  | Profile memory usage with instruments
 profile-mem:
-	  cargo instruments --profile=profiling --features=profiling -t Allocations
+	  DKN_EXIT_TIMEOUT=120 cargo instruments --profile=profiling -t Allocations
 
 ###############################################################################
 .PHONY: test #         | Run tests
 test:
-		cargo test
+		cargo test --workspace
 
 ###############################################################################
 .PHONY: lint #         | Run linter (clippy)
 lint:
-		cargo clippy
+		cargo clippy --workspace
 
 .PHONY: format #       | Run formatter (cargo fmt)
 format:

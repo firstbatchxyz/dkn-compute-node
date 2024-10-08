@@ -1,78 +1,44 @@
-[package]
-name = "dkn-compute"
-version = "0.2.10"
+[workspace]
+resolver = "2"
+members = ["compute", "p2p", "workflows"]
+# compute node is the default member, until Oracle comes in
+# then, a Launcher will be the default member
+default-members = ["compute"]
+
+[workspace.package]
 edition = "2021"
+version = "0.2.11"
 license = "Apache-2.0"
 readme = "README.md"
-authors = ["Erhan Tezcan <erhan@firstbatch.xyz>"]
 
 # profiling build for flamegraphs
 [profile.profiling]
 inherits = "release"
 debug = true
 
-[features]
-# used by flamegraphs & instruments
-profiling = []
 
-[dependencies]
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[workspace.dependencies]
+# async stuff
 tokio-util = { version = "0.7.10", features = ["rt"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
-parking_lot = "0.12.2"
+async-trait = "0.1.81"
+
+# serialize & deserialize
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-async-trait = "0.1.81"
+
+# http client
 reqwest = "0.12.5"
 
-# utilities
+# env reading
 dotenvy = "0.15.7"
-base64 = "0.22.0"
-hex = "0.4.3"
-hex-literal = "0.4.1"
-url = "2.5.0"
-urlencoding = "2.1.3"
-uuid = { version = "1.8.0", features = ["v4"] }
+
+# randomization
 rand = "0.8.5"
 
 # logging & errors
 env_logger = "0.11.3"
 log = "0.4.21"
 eyre = "0.6.12"
-
-# encryption (ecies) & signatures (ecdsa) & hashing & bloom-filters
-ecies = { version = "0.2", default-features = false, features = ["pure"] }
-libsecp256k1 = "0.7.1"
-sha2 = "0.10.8"
-sha3 = "0.10.8"
-fastbloom-rs = "0.5.9"
-
-# workflows
-ollama-workflows = { git = "https://github.com/andthattoo/ollama-workflows" }
-
-# peer-to-peer
-libp2p = { git = "https://github.com/anilaltuner/rust-libp2p.git", rev = "7ce9f9e", features = [
-    # libp2p = { version = "0.54.1", features = [
-    "dcutr",
-    "ping",
-    "relay",
-    "autonat",
-    "identify",
-    "tokio",
-    "gossipsub",
-    "mdns",
-    "noise",
-    "macros",
-    "tcp",
-    "yamux",
-    "quic",
-    "kad",
-] }
-libp2p-identity = { version = "0.2.9", features = ["secp256k1"] }
-tracing = { version = "0.1.40" }
-tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
-port_check = "0.2.1"
-
-# Vendor OpenSSL so that its easier to build cross-platform packages
-[dependencies.openssl]
-version = "*"
-features = ["vendored"]

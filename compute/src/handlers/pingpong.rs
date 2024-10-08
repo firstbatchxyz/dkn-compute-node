@@ -4,9 +4,9 @@ use crate::{
     DriaComputeNode,
 };
 use async_trait::async_trait;
+use dkn_p2p::libp2p::gossipsub::MessageAcceptance;
+use dkn_workflows::{Model, ModelProvider};
 use eyre::{Context, Result};
-use libp2p::gossipsub::MessageAcceptance;
-use ollama_workflows::{Model, ModelProvider};
 use serde::{Deserialize, Serialize};
 
 pub struct PingpongHandler;
@@ -54,7 +54,7 @@ impl ComputeHandler for PingpongHandler {
         // respond
         let response_body = PingpongResponse {
             uuid: pingpong.uuid.clone(),
-            models: node.config.model_config.models.clone(),
+            models: node.config.workflows.models.clone(),
             timestamp: get_current_time_nanos(),
         };
 

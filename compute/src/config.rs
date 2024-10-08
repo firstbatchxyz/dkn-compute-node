@@ -1,23 +1,10 @@
-mod models;
-mod ollama;
-mod openai;
-
 use crate::utils::{address_in_use, crypto::to_address};
+use dkn_p2p::libp2p::Multiaddr;
+use dkn_workflows::DriaWorkflowsConfig;
 use eyre::{eyre, Result};
-use libp2p::Multiaddr;
 use libsecp256k1::{PublicKey, SecretKey};
-use models::ModelConfig;
-use ollama::OllamaConfig;
-use ollama_workflows::ModelProvider;
-use openai::OpenAIConfig;
 
-use std::{env, str::FromStr, time::Duration};
-
-/// Timeout duration for checking model performance during a generation.
-const CHECK_TIMEOUT_DURATION: Duration = Duration::from_secs(80);
-
-/// Minimum tokens per second (TPS) for checking model performance during a generation.
-const CHECK_TPS: f64 = 15.0;
+use std::{env, str::FromStr};
 
 #[derive(Debug, Clone)]
 pub struct DriaComputeNodeConfig {
@@ -31,13 +18,8 @@ pub struct DriaComputeNodeConfig {
     pub admin_public_key: PublicKey,
     /// P2P listen address, e.g. `/ip4/0.0.0.0/tcp/4001`.
     pub p2p_listen_addr: Multiaddr,
-    /// Available LLM models & providers for the node.
-    pub model_config: ModelConfig,
-    /// Even if Ollama is not used, we store the host & port here.
-    /// If Ollama is used, this config will be respected during its instantiations.
-    pub ollama_config: OllamaConfig,
-    /// OpenAI API key & its service check implementation.
-    pub openai_config: OpenAIConfig,
+    /// Workflow configurations, e.g. models and providers.
+    pub workflows: DriaWorkflowsConfig,
 }
 
 /// The default P2P network listen address.
@@ -97,13 +79,14 @@ impl DriaComputeNodeConfig {
         let address = to_address(&public_key);
         log::info!("Node Address:     0x{}", hex::encode(address));
 
-        let model_config = ModelConfig::new_from_csv(env::var("DKN_MODELS").ok());
+        let workflows =
+            DriaWorkflowsConfig::new_from_csv(&env::var("DKN_MODELS").unwrap_or_default());
         #[cfg(not(test))]
-        if model_config.models.is_empty() {
+        if workflows.models.is_empty() {
             log::error!("No models were provided, make sure to restart with at least one model provided within DKN_MODELS.");
             panic!("No models provided.");
         }
-        log::info!("Models: {:?}", model_config.models);
+        log::info!("Models: {:?}", workflows.models);
 
         let p2p_listen_addr_str = env::var("DKN_P2P_LISTEN_ADDR")
             .map(|addr| addr.trim_matches('"').to_string())
@@ -116,74 +99,14 @@ impl DriaComputeNodeConfig {
             secret_key,
             public_key,
             address,
-            model_config,
+            workflows,
             p2p_listen_addr,
-            ollama_config: OllamaConfig::new(),
-            openai_config: OpenAIConfig::new(),
         }
     }
 
-    /// Check if the required compute services are running.
-    /// This has several steps:
-    ///
-    /// - If Ollama models are used, hardcoded models are checked locally, and for
-    ///   external models, the workflow is tested with a simple task with timeout.
-    /// - If OpenAI models are used, the API key is checked and the models are tested
-    ///
-    /// If both type of models are used, both services are checked.
-    /// In the end, bad models are filtered out and we simply check if we are left if any valid models at all.
-    /// If not, an error is returned.
-    pub async fn check_services(&mut self) -> Result<()> {
-        log::info!("Checking configured services.");
-
-        // TODO: can refactor (provider, model) logic here
-        let unique_providers = self.model_config.get_providers();
-
-        let mut good_models = Vec::new();
-
-        // if Ollama is a provider, check that it is running & Ollama models are pulled (or pull them)
-        if unique_providers.contains(&ModelProvider::Ollama) {
-            let ollama_models = self
-                .model_config
-                .get_models_for_provider(ModelProvider::Ollama);
-
-            // ensure that the models are pulled / pull them if not
-            let good_ollama_models = self
-                .ollama_config
-                .check(ollama_models, CHECK_TIMEOUT_DURATION, CHECK_TPS)
-                .await?;
-            good_models.extend(
-                good_ollama_models
-                    .into_iter()
-                    .map(|m| (ModelProvider::Ollama, m)),
-            );
-        }
-
-        // if OpenAI is a provider, check that the API key is set
-        if unique_providers.contains(&ModelProvider::OpenAI) {
-            let openai_models = self
-                .model_config
-                .get_models_for_provider(ModelProvider::OpenAI);
-
-            let good_openai_models = self.openai_config.check(openai_models).await?;
-            good_models.extend(
-                good_openai_models
-                    .into_iter()
-                    .map(|m| (ModelProvider::OpenAI, m)),
-            );
-        }
-
-        // update good models
-        if good_models.is_empty() {
-            Err(eyre!("No good models found, please check logs for errors."))
-        } else {
-            self.model_config.models = good_models;
-            Ok(())
-        }
-    }
-
-    // ensure that listen address is free
-    pub fn check_address_in_use(&self) -> Result<()> {
+    /// Asserts that the configured listen address is free.
+    /// Throws an error if the address is already in use.
+    pub fn assert_address_not_in_use(&self) -> Result<()> {
         if address_in_use(&self.p2p_listen_addr) {
             return Err(eyre!(
                 "Listen address {} is already in use.",

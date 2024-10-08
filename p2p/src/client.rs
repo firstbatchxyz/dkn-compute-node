@@ -1,3 +1,4 @@
+use super::*;
 use eyre::Result;
 use libp2p::futures::StreamExt;
 use libp2p::gossipsub::{
@@ -7,16 +8,12 @@ use libp2p::kad::{GetClosestPeersError, GetClosestPeersOk, QueryResult};
 use libp2p::{
     autonat, gossipsub, identify, kad, multiaddr::Protocol, noise, swarm::SwarmEvent, tcp, yamux,
 };
-use libp2p::{Multiaddr, PeerId, Swarm, SwarmBuilder};
+use libp2p::{Multiaddr, PeerId, StreamProtocol, Swarm, SwarmBuilder};
 use libp2p_identity::Keypair;
-use std::time::Duration;
-use std::time::Instant;
-
-use super::*;
-use crate::utils::AvailableNodes;
+use std::time::{Duration, Instant};
 
 /// P2P client, exposes a simple interface to handle P2P communication.
-pub struct P2PClient {
+pub struct DriaP2PClient {
     /// `Swarm` instance, everything is accesses through this one.
     swarm: Swarm<DriaBehaviour>,
     /// Peer count for All and Mesh peers.
@@ -26,21 +23,42 @@ pub struct P2PClient {
     peer_count: (usize, usize),
     /// Last time the peer count was refreshed.
     peer_last_refreshed: Instant,
+    /// Identity protocol string to be used for the Identity behaviour.
+    ///
+    /// This is usually `dria/{version}`.
+    identity_protocol: String,
+    /// Kademlia protocol, must match with other peers in the network.
+    ///
+    /// This is usually `/dria/kad/{version}`, notice the `/` at the start
+    /// which is mandatory for a `StreamProtocol`.
+    kademlia_protocol: StreamProtocol,
 }
 
 /// Number of seconds before an idle connection is closed.
+/// TODO: default is 0, is 60 a good value?
 const IDLE_CONNECTION_TIMEOUT_SECS: u64 = 60;
 
 /// Number of seconds between refreshing the Kademlia DHT.
 const PEER_REFRESH_INTERVAL_SECS: u64 = 30;
 
-impl P2PClient {
+impl DriaP2PClient {
     /// Creates a new P2P client with the given keypair and listen address.
+    ///
+    /// Can provide a list of bootstrap and relay nodes to connect to as well at the start.
+    ///
+    /// The `version` is used to create the protocol strings for the client, and its very important that
+    /// they match with the clients existing within the network.
     pub fn new(
         keypair: Keypair,
         listen_addr: Multiaddr,
-        available_nodes: &AvailableNodes,
+        bootstraps: &[Multiaddr],
+        relays: &[Multiaddr],
+        version: &str,
     ) -> Result<Self> {
+        let identity_protocol = format!("{}{}", P2P_IDENTITY_PREFIX, version);
+        let kademlia_protocol =
+            StreamProtocol::try_from_owned(format!("{}{}", P2P_KADEMLIA_PREFIX, version))?;
+
         // this is our peerId
         let node_peerid = keypair.public().to_peer_id();
         log::info!("Compute node peer address: {}", node_peerid);
@@ -54,7 +72,14 @@ impl P2PClient {
             )?
             .with_quic()
             .with_relay_client(noise::Config::new, yamux::Config::default)?
-            .with_behaviour(|key, relay_behavior| Ok(DriaBehaviour::new(key, relay_behavior)))?
+            .with_behaviour(|key, relay_behavior| {
+                Ok(DriaBehaviour::new(
+                    key,
+                    relay_behavior,
+                    identity_protocol.clone(),
+                    kademlia_protocol.clone(),
+                ))
+            })?
             .with_swarm_config(|c| {
                 c.with_idle_connection_timeout(Duration::from_secs(IDLE_CONNECTION_TIMEOUT_SECS))
             })
@@ -67,11 +92,8 @@ impl P2PClient {
             .set_mode(Some(libp2p::kad::Mode::Server));
 
         // initiate bootstrap
-        log::info!(
-            "Initiating bootstrap: {:#?}",
-            available_nodes.bootstrap_nodes
-        );
-        for addr in &available_nodes.bootstrap_nodes {
+        log::info!("Initiating bootstrap: {:#?}", bootstraps);
+        for addr in bootstraps {
             if let Some(peer_id) = addr.iter().find_map(|p| match p {
                 Protocol::P2p(peer_id) => Some(peer_id),
                 _ => None,
@@ -101,11 +123,8 @@ impl P2PClient {
         log::info!("Listening p2p network on: {}", listen_addr);
         swarm.listen_on(listen_addr)?;
 
-        log::info!(
-            "Listening to relay nodes: {:#?}",
-            available_nodes.relay_nodes
-        );
-        for addr in &available_nodes.relay_nodes {
+        log::info!("Listening to relay nodes: {:#?}", relays);
+        for addr in relays {
             swarm.listen_on(addr.clone().with(Protocol::P2pCircuit))?;
         }
 
@@ -113,6 +132,8 @@ impl P2PClient {
             swarm,
             peer_count: (0, 0),
             peer_last_refreshed: Instant::now(),
+            identity_protocol,
+            kademlia_protocol,
         })
     }
 
@@ -237,12 +258,12 @@ impl P2PClient {
     /// - For Kademlia, we check the kademlia protocol and then add the address to the Kademlia routing table.
     fn handle_identify_event(&mut self, peer_id: PeerId, info: identify::Info) {
         // check identify protocol string
-        if info.protocol_version != P2P_PROTOCOL_STRING {
+        if info.protocol_version != self.identity_protocol {
             log::warn!(
                 "Identify: Peer {} has different Identify protocol: (them {}, you {})",
                 peer_id,
                 info.protocol_version,
-                P2P_PROTOCOL_STRING
+                self.identity_protocol
             );
             return;
         }
@@ -254,7 +275,7 @@ impl P2PClient {
             .find(|p| p.to_string().starts_with(P2P_KADEMLIA_PREFIX))
         {
             // if it matches our protocol, add it to the Kademlia routing table
-            if *kad_protocol == P2P_KADEMLIA_PROTOCOL {
+            if *kad_protocol == self.kademlia_protocol {
                 // filter listen addresses
                 let addrs = info.listen_addrs.into_iter().filter(|listen_addr| {
                     if let Some(Protocol::Ip4(ipv4_addr)) = listen_addr.iter().next() {
@@ -285,7 +306,7 @@ impl P2PClient {
                     "Identify: Peer {} has different Kademlia version: (them {}, you {})",
                     peer_id,
                     kad_protocol,
-                    P2P_KADEMLIA_PROTOCOL
+                    self.kademlia_protocol
                 );
             }
         }

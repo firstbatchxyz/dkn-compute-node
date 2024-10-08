@@ -1,8 +1,8 @@
 use async_trait::async_trait;
+use dkn_p2p::libp2p::gossipsub::MessageAcceptance;
+use dkn_workflows::ollama_workflows::{Entry, Executor, ModelProvider, ProgramMemory, Workflow};
 use eyre::{eyre, Context, Result};
-use libp2p::gossipsub::MessageAcceptance;
 use libsecp256k1::PublicKey;
-use ollama_workflows::{Entry, Executor, ModelProvider, ProgramMemory, Workflow};
 use serde::Deserialize;
 
 use crate::payloads::{TaskErrorPayload, TaskRequestPayload, TaskResponsePayload};
@@ -66,15 +66,17 @@ impl ComputeHandler for WorkflowHandler {
         }
 
         // read model / provider from the task
-        let (model_provider, model) = config
-            .model_config
-            .get_any_matching_model(task.input.model)?;
+        let (model_provider, model) = config.workflows.get_any_matching_model(task.input.model)?;
         let model_name = model.to_string(); // get model name, we will pass it in payload
         log::info!("Using model {} for task {}", model_name, task.task_id);
 
         // prepare workflow executor
         let executor = if model_provider == ModelProvider::Ollama {
-            Executor::new_at(model, &config.ollama_config.host, config.ollama_config.port)
+            Executor::new_at(
+                model,
+                &config.workflows.ollama.host,
+                config.workflows.ollama.port,
+            )
         } else {
             Executor::new(model)
         };

@@ -3,9 +3,17 @@ on:
   push:
     branches: ["master"]
     paths:
-      - "src/**"
+      # Source files in each member
+      - "compute/src/**"
+      - "p2p/src/**"
+      - "workflows/src/**"
+      # Cargo in each member
+      - "compute/Cargo.toml"
+      - "p2p/Cargo.toml"
+      - "workflows/Cargo.toml"
+      # root-level changes
       - "Cargo.lock"
-      - "Cargo.toml"
+      - "Cross.toml"
       - "Dockerfile"
       - "compose.yml"
 
@@ -44,7 +52,7 @@ jobs:
 
       - name: Set Image Tag
         id: itag
-        run: echo "itag=${{ steps.branch.outputs.branch }}-${{ steps.sha.outputs.sha }}-${{ steps.timestamp.outputs.timestamp }}" >> $GITHUB_OUTPUT
+        run: echo "itag=${{ steps.sha.outputs.branch }}-${{ steps.sha.outputs.sha }}-${{ steps.timestamp.outputs.timestamp }}" >> $GITHUB_OUTPUT
 
       - name: Build and push
         uses: docker/build-push-action@v6

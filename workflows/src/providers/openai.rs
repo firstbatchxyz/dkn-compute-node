@@ -1,10 +1,7 @@
-#![allow(unused)]
-
 use eyre::{eyre, Context, Result};
 use ollama_workflows::Model;
+use reqwest::Client;
 use serde::Deserialize;
-
-const OPENAI_API_KEY: &str = "OPENAI_API_KEY";
 
 const OPENAI_MODELS_API: &str = "https://api.openai.com/v1/models";
 
@@ -14,30 +11,36 @@ struct OpenAIModel {
     /// The model identifier, which can be referenced in the API endpoints.
     id: String,
     /// The Unix timestamp (in seconds) when the model was created.
+    #[allow(unused)]
     created: u64,
     /// The object type, which is always "model".
+    #[allow(unused)]
     object: String,
     /// The organization that owns the model.
+    #[allow(unused)]
     owned_by: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 struct OpenAIModelsResponse {
     data: Vec<OpenAIModel>,
+    #[allow(unused)]
     object: String,
 }
 
+/// OpenAI-specific configurations.
 #[derive(Debug, Clone, Default)]
 pub struct OpenAIConfig {
-    pub(crate) api_key: Option<String>,
+    /// API key, if available.
+    api_key: Option<String>,
 }
 
 impl OpenAIConfig {
     /// Looks at the environment variables for OpenAI API key.
     pub fn new() -> Self {
-        let api_key = std::env::var(OPENAI_API_KEY).ok();
-
-        Self { api_key }
+        Self {
+            api_key: std::env::var("OPENAI_API_KEY").ok(),
+        }
     }
 
     /// Check if requested models exist & are available in the OpenAI account.
@@ -50,17 +53,17 @@ impl OpenAIConfig {
         };
 
         // fetch models
-        let client = reqwest::Client::new();
+        let client = Client::new();
         let request = client
             .get(OPENAI_MODELS_API)
             .header("Authorization", format!("Bearer {}", api_key))
             .build()
-            .wrap_err("Failed to build request")?;
+            .wrap_err("failed to build request")?;
 
         let response = client
             .execute(request)
             .await
-            .wrap_err("Failed to send request")?;
+            .wrap_err("failed to send request")?;
 
         // parse response
         if response.status().is_client_error() {

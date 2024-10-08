@@ -1,12 +1,11 @@
+use dkn_p2p::{libp2p::gossipsub, DriaP2PClient};
 use eyre::{eyre, Result};
-use libp2p::gossipsub;
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
     config::*,
     handlers::*,
-    p2p::P2PClient,
     utils::{crypto::secret_to_keypair, AvailableNodes, DKNMessage},
 };
 
@@ -28,7 +27,7 @@ const RPC_PEER_ID_REFRESH_INTERVAL_SECS: u64 = 30;
 /// ```
 pub struct DriaComputeNode {
     pub config: DriaComputeNodeConfig,
-    pub p2p: P2PClient,
+    pub p2p: DriaP2PClient,
     pub available_nodes: AvailableNodes,
     pub available_nodes_last_refreshed: tokio::time::Instant,
     pub cancellation: CancellationToken,
@@ -52,7 +51,22 @@ impl DriaComputeNode {
             )
             .sort_dedup();
 
-        let p2p = P2PClient::new(keypair, config.p2p_listen_addr.clone(), &available_nodes)?;
+        // we are using the major.minor version as the P2P version
+        // so that patch versions do not interfere with the protocol
+        const P2P_VERSION: &str = concat!(
+            env!("CARGO_PKG_VERSION_MAJOR"),
+            ".",
+            env!("CARGO_PKG_VERSION_MINOR")
+        );
+
+        // create p2p client
+        let p2p = DriaP2PClient::new(
+            keypair,
+            config.p2p_listen_addr.clone(),
+            &available_nodes.bootstrap_nodes,
+            &available_nodes.relay_nodes,
+            P2P_VERSION,
+        )?;
 
         Ok(DriaComputeNode {
             p2p,
@@ -97,7 +111,12 @@ impl DriaComputeNode {
 
     /// Returns the list of connected peers.
     #[inline(always)]
-    pub fn peers(&self) -> Vec<(&libp2p_identity::PeerId, Vec<&gossipsub::TopicHash>)> {
+    pub fn peers(
+        &self,
+    ) -> Vec<(
+        &dkn_p2p::libp2p_identity::PeerId,
+        Vec<&gossipsub::TopicHash>,
+    )> {
         self.p2p.peers()
     }
 

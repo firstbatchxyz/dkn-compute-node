@@ -980,10 +980,12 @@ dependencies = [
 
 [[package]]
 name = "dkn-compute"
-version = "0.2.10"
+version = "0.2.11"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
+ "dkn-p2p",
+ "dkn-workflows",
  "dotenvy",
  "ecies",
  "env_logger 0.11.5",
@@ -991,13 +993,9 @@ dependencies = [
  "fastbloom-rs",
  "hex",
  "hex-literal",
- "libp2p",
- "libp2p-identity",
  "libsecp256k1",
  "log",
- "ollama-workflows",
  "openssl",
- "parking_lot",
  "port_check",
  "rand 0.8.5",
  "reqwest 0.12.8",
@@ -1012,6 +1010,36 @@ dependencies = [
  "url",
  "urlencoding",
  "uuid",
+]
+
+[[package]]
+name = "dkn-p2p"
+version = "0.2.11"
+dependencies = [
+ "env_logger 0.11.5",
+ "eyre",
+ "libp2p",
+ "libp2p-identity",
+ "log",
+ "tokio 1.40.0",
+]
+
+[[package]]
+name = "dkn-workflows"
+version = "0.2.11"
+dependencies = [
+ "async-trait",
+ "dotenvy",
+ "env_logger 0.11.5",
+ "eyre",
+ "log",
+ "ollama-workflows",
+ "rand 0.8.5",
+ "reqwest 0.12.8",
+ "serde",
+ "serde_json",
+ "tokio 1.40.0",
+ "tokio-util 0.7.12",
 ]
 
 [[package]]
