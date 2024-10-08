@@ -4,6 +4,17 @@ on:
   push:
     branches:
       - master
+    paths:
+      # Source files in each member
+      - "compute/src/**"
+      - "p2p/src/**"
+      - "workflows/src/**"
+      # Cargo in each member
+      - "compute/Cargo.toml"
+      - "p2p/Cargo.toml"
+      - "workflows/Cargo.toml"
+      # root-level Cargo
+      - "Cargo.lock"
   workflow_dispatch:
 
 jobs:
