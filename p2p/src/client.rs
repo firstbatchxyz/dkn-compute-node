@@ -24,12 +24,18 @@ pub struct DriaP2PClient {
     /// Last time the peer count was refreshed.
     peer_last_refreshed: Instant,
     /// Identity protocol string to be used for the Identity behaviour.
+    ///
+    /// This is usually `dria/{version}`.
     identity_protocol: String,
     /// Kademlia protocol, must match with other peers in the network.
+    ///
+    /// This is usually `/dria/kad/{version}`, notice the `/` at the start
+    /// which is mandatory for a `StreamProtocol`.
     kademlia_protocol: StreamProtocol,
 }
 
 /// Number of seconds before an idle connection is closed.
+/// TODO: default is 0, is 60 a good value?
 const IDLE_CONNECTION_TIMEOUT_SECS: u64 = 60;
 
 /// Number of seconds between refreshing the Kademlia DHT.

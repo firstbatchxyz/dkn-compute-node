@@ -5,11 +5,9 @@ use std::time::Duration;
 use libp2p::identity::{Keypair, PeerId, PublicKey};
 use libp2p::kad::store::MemoryStore;
 use libp2p::StreamProtocol;
-use libp2p::{autonat, dcutr, gossipsub, identify, kad, relay, swarm::NetworkBehaviour};
+use libp2p::{autonat, dcutr, gossipsub, identify, kad, relay};
 
-// use crate::versioning::{P2P_KADEMLIA_PROTOCOL, P2P_PROTOCOL_STRING};
-
-#[derive(NetworkBehaviour)]
+#[derive(libp2p::swarm::NetworkBehaviour)]
 pub struct DriaBehaviour {
     pub(crate) relay: relay::client::Behaviour,
     pub(crate) gossipsub: gossipsub::Behaviour,
