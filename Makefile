@@ -36,13 +36,12 @@ profile-mem:
 ###############################################################################
 .PHONY: test #         | Run tests
 test:
-		cargo test
+		cargo test --workspace
 
 ###############################################################################
 .PHONY: lint #         | Run linter (clippy)
 lint:
-		cargo clippy
-		cargo clippy
+		cargo clippy --workspace
 
 .PHONY: format #       | Run formatter (cargo fmt)
 format:
