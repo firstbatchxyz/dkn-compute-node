@@ -16,6 +16,8 @@ on:
       - "Cross.toml"
       - "Dockerfile"
       - "compose.yml"
+      # workflow itself
+      - ".github/workflows/build_dev_container.yml"
 
 jobs:
   build-and-push:
