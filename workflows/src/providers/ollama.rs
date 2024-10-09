@@ -79,6 +79,24 @@ impl OllamaConfig {
         }
     }
 
+    /// Sets the timeout duration for checking model performance during a generation.
+    pub fn with_timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = timeout;
+        self
+    }
+
+    /// Sets the minimum tokens per second (TPS) for checking model performance during a generation.
+    pub fn with_min_tps(mut self, min_tps: f64) -> Self {
+        self.min_tps = min_tps;
+        self
+    }
+
+    /// Sets the auto-pull flag for Ollama models.
+    pub fn with_auto_pull(mut self, auto_pull: bool) -> Self {
+        self.auto_pull = auto_pull;
+        self
+    }
+
     /// Check if requested models exist in Ollama, and then tests them using a workflow.
     pub async fn check(&self, external_models: Vec<Model>) -> Result<Vec<Model>> {
         log::info!(

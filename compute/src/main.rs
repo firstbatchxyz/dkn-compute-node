@@ -34,8 +34,8 @@ async fn main() -> Result<()> {
     let cancellation_token = token.clone();
     tokio::spawn(async move {
         if let Some(timeout_str) = env::var("DKN_EXIT_TIMEOUT").ok() {
-            // add cancellation check
             let duration_secs = timeout_str.parse().unwrap_or(120);
+            log::warn!("Waiting for {} seconds before exiting.", duration_secs);
             tokio::time::sleep(tokio::time::Duration::from_secs(duration_secs)).await;
             cancellation_token.cancel();
         } else {

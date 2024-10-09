@@ -16,6 +16,7 @@ pub struct DriaWorkflowsConfig {
 }
 
 impl DriaWorkflowsConfig {
+    /// Creates a new config with the given models.
     pub fn new(models: Vec<Model>) -> Self {
         let models_and_providers = models
             .into_iter()
@@ -28,6 +29,19 @@ impl DriaWorkflowsConfig {
             ollama: OllamaConfig::new(),
         }
     }
+
+    /// Sets the Ollama configuration for the Workflows config.
+    pub fn with_ollama_config(mut self, ollama: OllamaConfig) -> Self {
+        self.ollama = ollama;
+        self
+    }
+
+    /// Sets the OpenAI configuration for the Workflows config.
+    pub fn with_openai_config(mut self, openai: OpenAIConfig) -> Self {
+        self.openai = openai;
+        self
+    }
+
     /// Parses Ollama-Workflows compatible models from a comma-separated values string.
     pub fn new_from_csv(input: &str) -> Self {
         let models_str = split_csv_line(input);
@@ -40,7 +54,7 @@ impl DriaWorkflowsConfig {
         Self::new(models)
     }
 
-    /// Returns the models that belong to a given providers from the config.
+    /// Returns the models from the config that belongs to a given provider.
     pub fn get_models_for_provider(&self, provider: ModelProvider) -> Vec<Model> {
         self.models
             .iter()

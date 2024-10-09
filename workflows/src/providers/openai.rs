@@ -43,6 +43,12 @@ impl OpenAIConfig {
         }
     }
 
+    /// Sets the API key for OpenAI.
+    pub fn with_api_key(mut self, api_key: String) -> Self {
+        self.api_key = Some(api_key);
+        self
+    }
+
     /// Check if requested models exist & are available in the OpenAI account.
     pub async fn check(&self, models: Vec<Model>) -> Result<Vec<Model>> {
         log::info!("Checking OpenAI requirements");

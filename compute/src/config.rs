@@ -86,7 +86,7 @@ impl DriaComputeNodeConfig {
             log::error!("No models were provided, make sure to restart with at least one model provided within DKN_MODELS.");
             panic!("No models provided.");
         }
-        log::info!("Models: {:?}", workflows.models);
+        log::info!("Configured models: {:?}", workflows.models);
 
         let p2p_listen_addr_str = env::var("DKN_P2P_LISTEN_ADDR")
             .map(|addr| addr.trim_matches('"').to_string())

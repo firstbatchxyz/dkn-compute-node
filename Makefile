@@ -23,7 +23,7 @@ trace:
 
 .PHONY: build #        | Build
 build:
-		cargo build
+		cargo build --workspace
 
 .PHONY: profile-cpu #  | Profile CPU usage with flamegraph
 profile-cpu:
