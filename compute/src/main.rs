@@ -33,18 +33,16 @@ async fn main() -> Result<()> {
     let token = CancellationToken::new();
     let cancellation_token = token.clone();
     tokio::spawn(async move {
-        if let Some(timeout_str) = env::var("DKN_EXIT_TIMEOUT").ok() {
+        if let Ok(timeout_str) = env::var("DKN_EXIT_TIMEOUT") {
             let duration_secs = timeout_str.parse().unwrap_or(120);
             log::warn!("Waiting for {} seconds before exiting.", duration_secs);
             tokio::time::sleep(tokio::time::Duration::from_secs(duration_secs)).await;
             cancellation_token.cancel();
-        } else {
-            if let Err(err) = wait_for_termination(cancellation_token.clone()).await {
-                log::error!("Error waiting for termination: {:?}", err);
-                log::error!("Cancelling due to unexpected error.");
-                cancellation_token.cancel();
-            };
-        }
+        } else if let Err(err) = wait_for_termination(cancellation_token.clone()).await {
+            log::error!("Error waiting for termination: {:?}", err);
+            log::error!("Cancelling due to unexpected error.");
+            cancellation_token.cancel();
+        };
     });
 
     // create configurations & check required services & address in use
