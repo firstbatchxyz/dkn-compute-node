@@ -1,6 +1,5 @@
-use crate::{split_csv_line, OllamaConfig, OpenAIConfig};
+use crate::{split_csv_line, Model, ModelProvider, OllamaConfig, OpenAIConfig};
 use eyre::{eyre, Result};
-use ollama_workflows::{Model, ModelProvider};
 use rand::seq::IteratorRandom; // provides Vec<_>.choose
 
 #[derive(Debug, Clone)]

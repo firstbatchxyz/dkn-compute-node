@@ -14,7 +14,7 @@ Add the package via `git` within your Cargo dependencies:
 dkn-workflows = { git = "https://github.com/firstbatchxyz/dkn-compute-node" }
 ```
 
-Note that the underlying Ollama Workflows crate is re-exported by this crate.
+Note that the underlying [Ollama Workflows](https://github.com/andthattoo/ollama-workflows) crate is re-exported by this crate.
 
 ## Usage
 
