@@ -13,7 +13,6 @@ async fn main() -> Result<()> {
     env_logger::builder()
         .format_timestamp(Some(env_logger::TimestampPrecision::Millis))
         .init();
-    println!("LOG_LEVEL: {}", env::var("RUST_LOG").unwrap());
     if let Err(e) = dotenv_result {
         log::warn!("Could not load .env file: {}", e);
     }
