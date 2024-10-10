@@ -60,6 +60,7 @@ async fn main() -> Result<()> {
                     log::error!("Error checking services: {:?}", err);
                     panic!("Service check failed.")
                 }
+                log::warn!("Using models: {:#?}", config.workflows.models);
                 config
             }
         }
@@ -68,9 +69,8 @@ async fn main() -> Result<()> {
         .await
         .wrap_err("error during service checks")?;
 
-    log::warn!("Using models: {:#?}", config.workflows.models);
     if !token.is_cancelled() {
-        // launch the node
+        // launch the node in a separate thread
         let node_token = token.clone();
         let node_handle = tokio::spawn(async move {
             match DriaComputeNode::new(config, node_token).await {
@@ -92,6 +92,8 @@ async fn main() -> Result<()> {
             log::error!("Node handle error: {}", err);
             panic!("Could not exit Node thread handle.");
         };
+    } else {
+        log::warn!("Not launching node due to early exit.");
     }
 
     Ok(())
