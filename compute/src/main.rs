@@ -1,7 +1,6 @@
-use std::env;
-
 use dkn_compute::*;
 use eyre::{Context, Result};
+use std::env;
 use tokio_util::sync::CancellationToken;
 
 #[tokio::main]
@@ -32,7 +31,7 @@ async fn main() -> Result<()> {
     let token = CancellationToken::new();
     let cancellation_token = token.clone();
     tokio::spawn(async move {
-        if let Ok(timeout_str) = env::var("DKN_EXIT_TIMEOUT") {
+        if let Ok(timeout_str) = env::var("DKN_EXIT_TIMEOUT").map(|s| s.trim().to_string()) {
             let duration_secs = timeout_str.parse().unwrap_or(120);
             log::warn!("Waiting for {} seconds before exiting.", duration_secs);
             tokio::time::sleep(tokio::time::Duration::from_secs(duration_secs)).await;
@@ -48,7 +47,7 @@ async fn main() -> Result<()> {
     let mut config = DriaComputeNodeConfig::new();
     config.assert_address_not_in_use()?;
     let service_check_token = token.clone();
-    let service_check_handle = tokio::spawn(async move {
+    let config = tokio::spawn(async move {
         tokio::select! {
             _ = service_check_token.cancelled() => {
                 log::info!("Service check cancelled.");
@@ -63,10 +62,9 @@ async fn main() -> Result<()> {
                 config
             }
         }
-    });
-    let config = service_check_handle
-        .await
-        .wrap_err("error during service checks")?;
+    })
+    .await
+    .wrap_err("error during service checks")?;
 
     if !token.is_cancelled() {
         // launch the node in a separate thread
@@ -95,6 +93,7 @@ async fn main() -> Result<()> {
         log::warn!("Not launching node due to early exit.");
     }
 
+    log::info!("Bye!");
     Ok(())
 }
 
@@ -116,6 +115,8 @@ async fn wait_for_termination(cancellation: CancellationToken) -> Result<()> {
                 return Ok(());
             }
         };
+
+        cancellation.cancel();
     }
 
     #[cfg(windows)]
@@ -139,10 +140,18 @@ async fn wait_for_termination(cancellation: CancellationToken) -> Result<()> {
                 return Ok(());
             }
         };
+
+        cancellation.cancel();
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    {
+        log::error!("No signal handling for this platform: {}", env::consts::OS);
+        cancellation.cancel();
     }
 
     log::info!("Terminating the node...");
-    cancellation.cancel();
+
     Ok(())
 }
 
