@@ -3,10 +3,6 @@ on:
   release:
     types: [published]
   workflow_dispatch:
-    inputs:
-      image_tag:
-        description: "Image tag"
-        required: true
 
 jobs:
   check-release:
@@ -21,7 +17,12 @@ jobs:
 
       - name: Set Image Tag
         id: itag
-        run: echo "itag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
+        run: |
+          CARGO_VERSION=$(awk '/\[workspace.package\]/ {flag=1} flag && /version =/ {print $3; flag=0}' Cargo.toml | sed 's/"//g')
+          IMAGE_TAG=v${{ steps.itag.outputs.itag }} # set the image tag with "v" prefix
+          echo "Cargo.toml version: $CARGO_VERSION"
+          echo "Image tag: $IMAGE_TAG"
+          echo "itag=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
       - name: Check Release Tag
         run: |
@@ -30,18 +31,6 @@ jobs:
             exit 1
           fi
           echo "Release tag format is valid."
-
-      - name: Check Cargo.toml Version
-        run: |
-          CARGO_VERSION=$(awk '/\[package\]/ {flag=1} flag && /version =/ {print $3; flag=0}' Cargo.toml | sed 's/"//g')
-          TAG_VERSION=${{ steps.itag.outputs.itag }}
-          TAG_VERSION=${TAG_VERSION#"v"} # Remove the leading 'v' from the tag
-
-          if [[ "$CARGO_VERSION" != "$TAG_VERSION" ]]; then
-            echo "Version in Cargo.toml ($CARGO_VERSION) does not match the release tag version ($TAG_VERSION)."
-            exit 1
-          fi
-          echo "Cargo.toml version matches the release tag."
 
   build-and-push:
     name: Build and Push
