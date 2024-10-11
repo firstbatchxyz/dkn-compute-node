@@ -1,9 +1,11 @@
 name: Create Prod Image
-on: 
+on:
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       image_tag:
-        description: 'Image tag'     
+        description: "Image tag"
         required: true
 
 jobs:
