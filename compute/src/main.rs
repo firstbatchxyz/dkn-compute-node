@@ -31,10 +31,13 @@ async fn main() -> Result<()> {
     let token = CancellationToken::new();
     let cancellation_token = token.clone();
     tokio::spawn(async move {
-        if let Ok(timeout_str) = env::var("DKN_EXIT_TIMEOUT").map(|s| s.trim().to_string()) {
-            let duration_secs = timeout_str.parse().unwrap_or(120);
+        if let Ok(Ok(duration_secs)) =
+            env::var("DKN_EXIT_TIMEOUT").map(|s| s.to_string().parse::<u64>())
+        {
             log::warn!("Waiting for {} seconds before exiting.", duration_secs);
             tokio::time::sleep(tokio::time::Duration::from_secs(duration_secs)).await;
+
+            log::warn!("Exiting due to DKN_EXIT_TIMEOUT.");
             cancellation_token.cancel();
         } else if let Err(err) = wait_for_termination(cancellation_token.clone()).await {
             log::error!("Error waiting for termination: {:?}", err);
