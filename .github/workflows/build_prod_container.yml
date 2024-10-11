@@ -20,7 +20,6 @@ jobs:
         run: |
           CARGO_VERSION=$(awk '/\[workspace.package\]/ {flag=1} flag && /version =/ {print $3; flag=0}' Cargo.toml | sed 's/"//g')
           IMAGE_TAG=v${{ steps.itag.outputs.itag }}
-          TAG_VERSION=${TAG_VERSION#"v"} # Remove the leading 'v' from the tag
           echo "Cargo.toml version: $CARGO_VERSION"
           echo "Image tag: $IMAGE_TAG"
           echo "itag=$IMAGE_TAG" >> $GITHUB_OUTPUT
