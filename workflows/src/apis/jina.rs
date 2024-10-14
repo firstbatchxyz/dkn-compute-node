@@ -33,7 +33,8 @@ impl JinaConfig {
     /// Equivalent cURL is as follows:
     ///
     /// ```sh
-    /// curl 'https://r.jina.ai/https://example.com' -H "Authorization: Bearer jina_key"
+    /// curl 'https://r.jina.ai/https://example.com' \
+    /// -H "Authorization: Bearer jina_key"
     /// ```
     pub async fn check_optional(&self) -> Result<()> {
         // check API key

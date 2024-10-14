@@ -2,7 +2,7 @@ use eyre::{eyre, Context, Result};
 use reqwest::Client;
 use std::env;
 
-/// Makes a request for `example.com`.
+/// Makes a search request.
 const SERPER_EXAMPLE_ENDPOINT: &str = "https://google.serper.dev/search";
 const ENV_VAR_NAME: &str = "SERPER_API_KEY";
 
@@ -27,7 +27,8 @@ impl SerperConfig {
         self
     }
 
-    /// Check if requested models exist & are available in the OpenAI account.
+    /// Check if Serper API KEY exists and if it does, tries a dummy request.
+    /// Fails if the provided API KEY is not authorized enough for the dummy request.
     ///
     /// Equivalent cURL is as follows:
     ///
