@@ -2,6 +2,8 @@ use eyre::{eyre, Context, Result};
 use reqwest::Client;
 use std::env;
 
+use crate::utils::safe_read_env;
+
 /// Makes a search request.
 const SERPER_EXAMPLE_ENDPOINT: &str = "https://google.serper.dev/search";
 const ENV_VAR_NAME: &str = "SERPER_API_KEY";
@@ -17,7 +19,7 @@ impl SerperConfig {
     /// Looks at the environment variables for Serper API key.
     pub fn new() -> Self {
         Self {
-            api_key: env::var(ENV_VAR_NAME).ok(),
+            api_key: safe_read_env(env::var(ENV_VAR_NAME)),
         }
     }
 
@@ -46,6 +48,7 @@ impl SerperConfig {
             log::debug!("Serper API key not found, skipping Serper check");
             return Ok(());
         };
+        println!("API KEY: {}", api_key);
         log::info!("Serper API key found, checking Serper service");
 
         // make a dummy request

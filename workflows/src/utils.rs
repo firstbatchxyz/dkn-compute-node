@@ -17,12 +17,20 @@ pub fn split_csv_line(input: &str) -> Vec<String> {
         .collect::<Vec<_>>()
 }
 
+/// Reads an environment variable and trims whitespace and `"` from both ends.
+/// If the trimmed value is empty, returns `None`.
+pub fn safe_read_env(var: Result<String, std::env::VarError>) -> Option<String> {
+    var.map(|s| s.trim_matches('"').trim().to_string())
+        .ok()
+        .filter(|s| !s.is_empty())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_example() {
+    fn test_abc_csv() {
         // should ignore whitespaces and `"` at both ends, and ignore empty items
         let input = "\"a,    b , c ,,  \"";
         let expected = vec!["a".to_string(), "b".to_string(), "c".to_string()];
@@ -30,7 +38,19 @@ mod tests {
     }
 
     #[test]
-    fn test_empty() {
+    fn test_empty_csv() {
         assert!(split_csv_line(Default::default()).is_empty());
+    }
+
+    #[test]
+    fn test_var_read() {
+        let var = Ok("\"  value  \"".to_string());
+        assert_eq!(safe_read_env(var), Some("value".to_string()));
+
+        let var = Ok("\"  \"".to_string());
+        assert!(safe_read_env(var).is_none());
+
+        let var = Err(std::env::VarError::NotPresent);
+        assert!(safe_read_env(var).is_none());
     }
 }

@@ -2,6 +2,8 @@ use eyre::{eyre, Context, Result};
 use reqwest::Client;
 use std::env;
 
+use crate::utils::safe_read_env;
+
 /// Makes a request for `example.com`.
 const JINA_EXAMPLE_ENDPOINT: &str = "https://r.jina.ai/https://example.com";
 const ENV_VAR_NAME: &str = "JINA_API_KEY";
@@ -17,7 +19,7 @@ impl JinaConfig {
     /// Looks at the environment variables for Jina API key.
     pub fn new() -> Self {
         Self {
-            api_key: env::var(ENV_VAR_NAME).ok(),
+            api_key: safe_read_env(env::var(ENV_VAR_NAME)),
         }
     }
 

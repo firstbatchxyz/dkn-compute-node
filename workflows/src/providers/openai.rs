@@ -3,7 +3,10 @@ use ollama_workflows::Model;
 use reqwest::Client;
 use serde::Deserialize;
 
+use crate::utils::safe_read_env;
+
 const OPENAI_MODELS_API: &str = "https://api.openai.com/v1/models";
+const ENV_VAR_NAME: &str = "OPENAI_API_KEY";
 
 /// [Model](https://platform.openai.com/docs/api-reference/models/object) API object.
 #[derive(Debug, Clone, Deserialize)]
@@ -39,7 +42,7 @@ impl OpenAIConfig {
     /// Looks at the environment variables for OpenAI API key.
     pub fn new() -> Self {
         Self {
-            api_key: std::env::var("OPENAI_API_KEY").ok(),
+            api_key: safe_read_env(std::env::var(ENV_VAR_NAME)),
         }
     }
 

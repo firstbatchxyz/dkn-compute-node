@@ -7,7 +7,7 @@ default-members = ["compute"]
 
 [workspace.package]
 edition = "2021"
-version = "0.2.15"
+version = "0.2.16"
 license = "Apache-2.0"
 readme = "README.md"
 
