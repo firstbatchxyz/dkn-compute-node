@@ -14,7 +14,6 @@ ollama-workflows = { git = "https://github.com/andthattoo/ollama-workflows" }
 # async stuff
 tokio-util.workspace = true
 tokio.workspace = true
-async-trait.workspace = true
 
 # serialize & deserialize
 serde.workspace = true

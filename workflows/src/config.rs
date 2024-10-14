@@ -1,4 +1,8 @@
-use crate::{split_csv_line, Model, ModelProvider, OllamaConfig, OpenAIConfig};
+use crate::{
+    apis::{JinaConfig, SerperConfig},
+    providers::{OllamaConfig, OpenAIConfig},
+    split_csv_line, Model, ModelProvider,
+};
 use eyre::{eyre, Result};
 use rand::seq::IteratorRandom; // provides Vec<_>.choose
 
@@ -12,6 +16,12 @@ pub struct DriaWorkflowsConfig {
     /// OpenAI configurations, e.g. API key, in case OpenAI is used.
     /// Otherwise, can be ignored.
     pub openai: OpenAIConfig,
+    /// Serper configurations, e.g. API key, in case Serper is given in environment.
+    /// Otherwise, can be ignored.
+    pub serper: SerperConfig,
+    /// Jina configurations, e.g. API key, in case Jina is used.
+    /// Otherwise, can be ignored.
+    pub jina: JinaConfig,
 }
 
 impl DriaWorkflowsConfig {
@@ -26,6 +36,8 @@ impl DriaWorkflowsConfig {
             models: models_and_providers,
             openai: OpenAIConfig::new(),
             ollama: OllamaConfig::new(),
+            serper: SerperConfig::new(),
+            jina: JinaConfig::new(),
         }
     }
 
@@ -166,6 +178,12 @@ impl DriaWorkflowsConfig {
     /// If not, an error is returned.
     pub async fn check_services(&mut self) -> Result<()> {
         log::info!("Checking configured services.");
+
+        // check Serper
+        self.serper.check_optional().await?;
+
+        // check Jina
+        self.jina.check_optional().await?;
 
         // TODO: can refactor (provider, model) logic here
         let unique_providers = self.get_providers();
