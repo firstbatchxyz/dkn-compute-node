@@ -72,14 +72,17 @@ impl DriaP2PClient {
             )?
             .with_quic()
             .with_relay_client(noise::Config::new, yamux::Config::default)?
-            .with_behaviour(|key, relay_behavior: libp2p::relay::client::Behaviour| {
+            .with_behaviour(|key, relay_behavior| {
                 DriaBehaviour::new(
                     key,
                     relay_behavior,
                     identity_protocol.clone(),
                     kademlia_protocol.clone(),
                 )
-                .unwrap()
+                .unwrap_or_else(|e| {
+                    log::error!("Error creating Dria Behaviour: {:?}", e);
+                    panic!("Failed to create Dria Behaviour: {:?}", e);
+                })
             })?
             .with_swarm_config(|c| {
                 c.with_idle_connection_timeout(Duration::from_secs(IDLE_CONNECTION_TIMEOUT_SECS))
@@ -137,6 +140,7 @@ impl DriaP2PClient {
             kademlia_protocol,
         })
     }
+
     /// Subscribe to a topic.        
     pub fn subscribe(&mut self, topic_name: &str) -> Result<bool, SubscriptionError> {
         log::debug!("Subscribing to {}", topic_name);

@@ -2,7 +2,7 @@ use std::collections::hash_map;
 use std::hash::{Hash, Hasher};
 use std::time::Duration;
 
-use eyre::{eyre, Result};
+use eyre::{eyre, Context, Result};
 use libp2p::identity::{Keypair, PeerId, PublicKey};
 use libp2p::kad::store::MemoryStore;
 use libp2p::StreamProtocol;
@@ -139,28 +139,22 @@ fn create_gossipsub_behavior(author: PeerId) -> Result<gossipsub::Behaviour> {
     };
 
     // TODO: add data transform here later
-    let config = match ConfigBuilder::default()
-        .heartbeat_interval(Duration::from_secs(HEARTBEAT_INTERVAL_SECS))
-        .max_transmit_size(MAX_TRANSMIT_SIZE)
-        .message_id_fn(message_id_fn)
-        .message_capacity(MESSAGE_CAPACITY)
-        .message_ttl(Duration::from_secs(MESSAGE_TTL_SECS))
-        .gossip_ttl(Duration::from_secs(GOSSIP_TTL_SECS))
-        .duplicate_cache_time(Duration::from_secs(DUPLICATE_CACHE_TIME_SECS))
-        .max_ihave_length(MAX_IHAVE_LENGTH)
-        .send_queue_size(MAX_SEND_QUEUE_SIZE)
-        .validation_mode(VALIDATION_MODE)
-        .validate_messages()
-        .build()
-    {
-        Ok(config) => config,
-        Err(e) => {
-            return Err(eyre!("Failed to create gossipsub config: {}", e));
-        }
-    };
-
-    match Behaviour::new(MessageAuthenticity::Author(author), config) {
-        Ok(behaviour) => Ok(behaviour),
-        Err(e) => Err(eyre!("Failed to create gossipsub behaviour: {}", e)),
-    }
+    Behaviour::new(
+        MessageAuthenticity::Author(author),
+        ConfigBuilder::default()
+            .heartbeat_interval(Duration::from_secs(HEARTBEAT_INTERVAL_SECS))
+            .max_transmit_size(MAX_TRANSMIT_SIZE)
+            .message_id_fn(message_id_fn)
+            .message_capacity(MESSAGE_CAPACITY)
+            .message_ttl(Duration::from_secs(MESSAGE_TTL_SECS))
+            .gossip_ttl(Duration::from_secs(GOSSIP_TTL_SECS))
+            .duplicate_cache_time(Duration::from_secs(DUPLICATE_CACHE_TIME_SECS))
+            .max_ihave_length(MAX_IHAVE_LENGTH)
+            .send_queue_size(MAX_SEND_QUEUE_SIZE)
+            .validation_mode(VALIDATION_MODE)
+            .validate_messages()
+            .build()
+            .wrap_err(eyre!("Failed to create config"))?,
+    )
+    .map_err(|e| eyre!(e))
 }
