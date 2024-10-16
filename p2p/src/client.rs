@@ -141,7 +141,7 @@ impl DriaP2PClient {
         })
     }
 
-    /// Subscribe to a topic.        
+    /// Subscribe to a topic.
     pub fn subscribe(&mut self, topic_name: &str) -> Result<bool, SubscriptionError> {
         log::debug!("Subscribing to {}", topic_name);
 
