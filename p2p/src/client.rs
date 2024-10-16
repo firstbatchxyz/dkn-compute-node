@@ -1,5 +1,5 @@
 use super::*;
-use eyre::Result;
+use eyre::{eyre, Result};
 use libp2p::futures::StreamExt;
 use libp2p::gossipsub::{
     Message, MessageAcceptance, MessageId, PublishError, SubscriptionError, TopicHash,
@@ -72,13 +72,13 @@ impl DriaP2PClient {
             )?
             .with_quic()
             .with_relay_client(noise::Config::new, yamux::Config::default)?
-            .with_behaviour(|key, relay_behavior| {
-                Ok(DriaBehaviour::new(
+            .with_behaviour(|key, relay_behavior: libp2p::relay::client::Behaviour| {
+                DriaBehaviour::new(
                     key,
                     relay_behavior,
                     identity_protocol.clone(),
                     kademlia_protocol.clone(),
-                ))
+                ).unwrap()
             })?
             .with_swarm_config(|c| {
                 c.with_idle_connection_timeout(Duration::from_secs(IDLE_CONNECTION_TIMEOUT_SECS))
@@ -135,9 +135,7 @@ impl DriaP2PClient {
             identity_protocol,
             kademlia_protocol,
         })
-    }
-
-    /// Subscribe to a topic.
+    }    /// Subscribe to a topic.        
     pub fn subscribe(&mut self, topic_name: &str) -> Result<bool, SubscriptionError> {
         log::debug!("Subscribing to {}", topic_name);
 
