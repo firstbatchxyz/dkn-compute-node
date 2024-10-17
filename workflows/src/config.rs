@@ -1,6 +1,6 @@
 use crate::{
     apis::{JinaConfig, SerperConfig},
-    providers::{OllamaConfig, OpenAIConfig},
+    providers::{GeminiConfig, OllamaConfig, OpenAIConfig},
     split_csv_line, Model, ModelProvider,
 };
 use eyre::{eyre, Result};
@@ -16,6 +16,9 @@ pub struct DriaWorkflowsConfig {
     /// OpenAI configurations, e.g. API key, in case OpenAI is used.
     /// Otherwise, can be ignored.
     pub openai: OpenAIConfig,
+    /// Gemini configurations, e.g. API key, in case Gemini is used.
+    /// Otherwise, can be ignored.
+    pub gemini: GeminiConfig,
     /// Serper configurations, e.g. API key, in case Serper is given in environment.
     /// Otherwise, can be ignored.
     pub serper: SerperConfig,
@@ -34,8 +37,9 @@ impl DriaWorkflowsConfig {
 
         Self {
             models: models_and_providers,
-            openai: OpenAIConfig::new(),
             ollama: OllamaConfig::new(),
+            openai: OpenAIConfig::new(),
+            gemini: GeminiConfig::new(),
             serper: SerperConfig::new(),
             jina: JinaConfig::new(),
         }
@@ -192,24 +196,35 @@ impl DriaWorkflowsConfig {
 
         // if Ollama is a provider, check that it is running & Ollama models are pulled (or pull them)
         if unique_providers.contains(&ModelProvider::Ollama) {
-            let ollama_models = self.get_models_for_provider(ModelProvider::Ollama);
-
-            // ensure that the models are pulled / pull them if not
-            let good_ollama_models = self.ollama.check(ollama_models).await?;
+            let provider_models = self.get_models_for_provider(ModelProvider::Ollama);
             good_models.extend(
-                good_ollama_models
+                self.ollama
+                    .check(provider_models)
+                    .await?
                     .into_iter()
                     .map(|m| (ModelProvider::Ollama, m)),
             );
         }
 
-        // if OpenAI is a provider, check that the API key is set
+        // if OpenAI is a provider, check that the API key is set & models are available
         if unique_providers.contains(&ModelProvider::OpenAI) {
-            let openai_models = self.get_models_for_provider(ModelProvider::OpenAI);
-
-            let good_openai_models = self.openai.check(openai_models).await?;
+            let provider_models = self.get_models_for_provider(ModelProvider::OpenAI);
             good_models.extend(
-                good_openai_models
+                self.openai
+                    .check(provider_models)
+                    .await?
+                    .into_iter()
+                    .map(|m| (ModelProvider::OpenAI, m)),
+            );
+        }
+
+        // if Gemini is a provider, check that the API key is set & models are available
+        if unique_providers.contains(&ModelProvider::OpenAI /* TODO: GEMINI */) {
+            let provider_models = self.get_models_for_provider(ModelProvider::OpenAI);
+            good_models.extend(
+                self.gemini
+                    .check(provider_models)
+                    .await?
                     .into_iter()
                     .map(|m| (ModelProvider::OpenAI, m)),
             );
