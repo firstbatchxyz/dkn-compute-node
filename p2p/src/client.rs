@@ -35,7 +35,6 @@ pub struct DriaP2PClient {
 }
 
 /// Number of seconds before an idle connection is closed.
-/// TODO: default is 0, is 60 a good value?
 const IDLE_CONNECTION_TIMEOUT_SECS: u64 = 60;
 
 /// Number of seconds between refreshing the Kademlia DHT.
@@ -72,17 +71,14 @@ impl DriaP2PClient {
             )?
             .with_quic()
             .with_relay_client(noise::Config::new, yamux::Config::default)?
-            .with_behaviour(|key, relay_behavior| {
+            .with_behaviour(|key, relay_behaviour| {
                 DriaBehaviour::new(
                     key,
-                    relay_behavior,
+                    relay_behaviour,
                     identity_protocol.clone(),
                     kademlia_protocol.clone(),
                 )
-                .unwrap_or_else(|e| {
-                    log::error!("Error creating Dria Behaviour: {:?}", e);
-                    panic!("Failed to create Dria Behaviour: {:?}", e);
-                })
+                .map_err(Into::into)
             })?
             .with_swarm_config(|c| {
                 c.with_idle_connection_timeout(Duration::from_secs(IDLE_CONNECTION_TIMEOUT_SECS))
