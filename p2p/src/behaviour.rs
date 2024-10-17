@@ -2,6 +2,7 @@ use std::collections::hash_map;
 use std::hash::{Hash, Hasher};
 use std::time::Duration;
 
+use eyre::{eyre, Context, Result};
 use libp2p::identity::{Keypair, PeerId, PublicKey};
 use libp2p::kad::store::MemoryStore;
 use libp2p::StreamProtocol;
@@ -20,26 +21,28 @@ pub struct DriaBehaviour {
 impl DriaBehaviour {
     pub fn new(
         key: &Keypair,
-        relay_behavior: relay::client::Behaviour,
+        relay_behaviour: relay::client::Behaviour,
         identity_protocol: String,
         kademlia_protocol: StreamProtocol,
-    ) -> Self {
+    ) -> Result<Self> {
         let public_key = key.public();
         let peer_id = public_key.to_peer_id();
-        Self {
-            relay: relay_behavior,
-            gossipsub: create_gossipsub_behavior(peer_id),
-            kademlia: create_kademlia_behavior(peer_id, kademlia_protocol),
-            autonat: create_autonat_behavior(peer_id),
-            dcutr: create_dcutr_behavior(peer_id),
-            identify: create_identify_behavior(public_key, identity_protocol),
-        }
+
+        Ok(Self {
+            relay: relay_behaviour,
+            gossipsub: create_gossipsub_behaviour(peer_id)
+                .wrap_err("could not create Gossipsub behaviour")?,
+            kademlia: create_kademlia_behaviour(peer_id, kademlia_protocol),
+            autonat: create_autonat_behaviour(peer_id),
+            dcutr: create_dcutr_behaviour(peer_id),
+            identify: create_identify_behaviour(public_key, identity_protocol),
+        })
     }
 }
 
 /// Configures the Kademlia DHT behavior for the node.
 #[inline]
-fn create_kademlia_behavior(
+fn create_kademlia_behaviour(
     local_peer_id: PeerId,
     protocol_name: StreamProtocol,
 ) -> kad::Behaviour<MemoryStore> {
@@ -57,7 +60,7 @@ fn create_kademlia_behavior(
 
 /// Configures the Identify behavior to allow nodes to exchange information like supported protocols.
 #[inline]
-fn create_identify_behavior(
+fn create_identify_behaviour(
     local_public_key: PublicKey,
     protocol_version: String,
 ) -> identify::Behaviour {
@@ -72,7 +75,7 @@ fn create_identify_behavior(
 /// It uses a Relay for the hole-punching process, and if it succeeds the peers are
 /// connected directly without the need for the relay; otherwise, they keep using the relay.
 #[inline]
-fn create_dcutr_behavior(local_peer_id: PeerId) -> dcutr::Behaviour {
+fn create_dcutr_behaviour(local_peer_id: PeerId) -> dcutr::Behaviour {
     use dcutr::Behaviour;
 
     Behaviour::new(local_peer_id)
@@ -80,7 +83,7 @@ fn create_dcutr_behavior(local_peer_id: PeerId) -> dcutr::Behaviour {
 
 /// Configures the Autonat behavior to assist in network address translation detection.
 #[inline]
-fn create_autonat_behavior(local_peer_id: PeerId) -> autonat::Behaviour {
+fn create_autonat_behaviour(local_peer_id: PeerId) -> autonat::Behaviour {
     use autonat::{Behaviour, Config};
 
     Behaviour::new(
@@ -94,7 +97,7 @@ fn create_autonat_behavior(local_peer_id: PeerId) -> autonat::Behaviour {
 
 /// Configures the Gossipsub behavior for pub/sub messaging across peers.
 #[inline]
-fn create_gossipsub_behavior(author: PeerId) -> gossipsub::Behaviour {
+fn create_gossipsub_behaviour(author: PeerId) -> Result<gossipsub::Behaviour> {
     use gossipsub::{
         Behaviour, ConfigBuilder, Message, MessageAuthenticity, MessageId, ValidationMode,
     };
@@ -138,7 +141,6 @@ fn create_gossipsub_behavior(author: PeerId) -> gossipsub::Behaviour {
     };
 
     // TODO: add data transform here later
-
     Behaviour::new(
         MessageAuthenticity::Author(author),
         ConfigBuilder::default()
@@ -154,7 +156,7 @@ fn create_gossipsub_behavior(author: PeerId) -> gossipsub::Behaviour {
             .validation_mode(VALIDATION_MODE)
             .validate_messages()
             .build()
-            .expect("Valid config"), // TODO: better error handling
+            .wrap_err(eyre!("could not create Gossipsub config"))?,
     )
-    .expect("Valid behaviour") // TODO: better error handling
+    .map_err(|e| eyre!(e))
 }
