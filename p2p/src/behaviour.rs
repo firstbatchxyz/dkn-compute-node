@@ -30,7 +30,8 @@ impl DriaBehaviour {
 
         Ok(Self {
             relay: relay_behaviour,
-            gossipsub: create_gossipsub_behaviour(peer_id)?,
+            gossipsub: create_gossipsub_behaviour(peer_id)
+                .wrap_err("could not create Gossipsub behaviour")?,
             kademlia: create_kademlia_behaviour(peer_id, kademlia_protocol),
             autonat: create_autonat_behaviour(peer_id),
             dcutr: create_dcutr_behaviour(peer_id),
@@ -155,7 +156,7 @@ fn create_gossipsub_behaviour(author: PeerId) -> Result<gossipsub::Behaviour> {
             .validation_mode(VALIDATION_MODE)
             .validate_messages()
             .build()
-            .wrap_err(eyre!("Failed to create config"))?,
+            .wrap_err(eyre!("could not create Gossipsub config"))?,
     )
     .map_err(|e| eyre!(e))
 }
