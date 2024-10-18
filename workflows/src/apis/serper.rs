@@ -86,7 +86,8 @@ mod tests {
     #[ignore = "requires Serper API key"]
     async fn test_serper_check() {
         let _ = dotenvy::dotenv();
-        assert!(env::var(ENV_VAR_NAME).is_ok());
+        assert!(env::var(ENV_VAR_NAME).is_ok(), "should have api key");
+
         let res = SerperConfig::new().check_optional().await;
         assert!(res.is_ok(), "should pass with api key");
 

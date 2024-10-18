@@ -2,10 +2,11 @@ use eyre::{eyre, Context, Result};
 use ollama_workflows::Model;
 use reqwest::Client;
 use serde::Deserialize;
+use std::env;
 
 use crate::utils::safe_read_env;
 
-// curl https://generativelanguage.googleapis.com/v1beta/models?key=$GOOGLE_API_KEY
+/// [`models.list`](https://ai.google.dev/api/models#method:-models.list) endpoint
 const GEMINI_MODELS_API: &str = "https://generativelanguage.googleapis.com/v1beta/models";
 const ENV_VAR_NAME: &str = "GEMINI_API_KEY";
 
@@ -15,17 +16,8 @@ const ENV_VAR_NAME: &str = "GEMINI_API_KEY";
 #[allow(unused)]
 struct GeminiModel {
     name: String,
-    baseModelId: String,
     version: String,
-    displayName: String,
-    description: String,
-    inputTokenLimit: u64,
-    outputTokenLimit: u64,
-    supportedGenerationMethods: Vec<String>,
-    temperature: f64,
-    maxTemperature: f64,
-    topP: f64,
-    topK: u64,
+    // other fields are ignored here
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -33,8 +25,6 @@ struct GeminiModel {
 #[allow(unused)]
 struct GeminiModelsResponse {
     models: Vec<GeminiModel>,
-    #[allow(unused)]
-    nextPageToken: String,
 }
 
 /// OpenAI-specific configurations.
@@ -48,7 +38,7 @@ impl GeminiConfig {
     /// Looks at the environment variables for Gemini API key.
     pub fn new() -> Self {
         Self {
-            api_key: safe_read_env(std::env::var(ENV_VAR_NAME)),
+            api_key: safe_read_env(env::var(ENV_VAR_NAME)),
         }
     }
 
@@ -60,7 +50,7 @@ impl GeminiConfig {
 
     /// Check if requested models exist & are available in the OpenAI account.
     pub async fn check(&self, models: Vec<Model>) -> Result<Vec<Model>> {
-        log::info!("Checking OpenAI requirements");
+        log::info!("Checking Gemini requirements");
 
         // check API key
         let Some(api_key) = &self.api_key else {
@@ -92,11 +82,13 @@ impl GeminiConfig {
         // check if models exist and select those that are available
         let mut available_models = Vec::new();
         for requested_model in models {
-            if !gemini_models
-                .models
-                .iter()
-                .any(|m| m.baseModelId == requested_model.to_string())
-            {
+            if !gemini_models.models.iter().any(|gemini_model| {
+                gemini_model
+                    .name
+                    .trim_start_matches("models/")
+                    .trim_end_matches(format!("-{}", gemini_model.version).as_str())
+                    == requested_model.to_string()
+            }) {
                 log::warn!(
                     "Model {} not found in your Gemini account, ignoring it.",
                     requested_model
@@ -122,8 +114,19 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires Gemini API key"]
     async fn test_gemini_check() {
-        let config = GeminiConfig::new();
-        let res = config.check(vec![]).await;
-        println!("Result: {}", res.unwrap_err());
+        let _ = dotenvy::dotenv(); // read api key
+        assert!(env::var(ENV_VAR_NAME).is_ok(), "should have api key");
+
+        let models = vec![Model::Gemini15Flash, Model::Gemini15ProExp0827];
+        let res = GeminiConfig::new().check(models.clone()).await;
+        assert_eq!(res.unwrap(), models);
+
+        env::set_var(ENV_VAR_NAME, "i-dont-work");
+        let res = GeminiConfig::new().check(vec![]).await;
+        assert!(res.is_err());
+
+        env::remove_var(ENV_VAR_NAME);
+        let res = GeminiConfig::new().check(vec![]).await;
+        assert!(res.is_err());
     }
 }

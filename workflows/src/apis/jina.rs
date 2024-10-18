@@ -79,7 +79,8 @@ mod tests {
     #[ignore = "requires Jina API key"]
     async fn test_jina_check() {
         let _ = dotenvy::dotenv();
-        assert!(env::var(ENV_VAR_NAME).is_ok());
+        assert!(env::var(ENV_VAR_NAME).is_ok(), "should have api key");
+
         let res = JinaConfig::new().check_optional().await;
         assert!(res.is_ok(), "should pass with api key");
 

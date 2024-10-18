@@ -3,8 +3,10 @@
 We make use of Ollama Workflows in DKN; however, we also want to make sure that the chosen models are valid and is performant enough (i.e. have enough TPS).
 This crate handles the configurations of models to be used, and implements various service checks.
 
-- **OpenAI**: We check that the chosen models are enabled for the user's profile by fetching their models with their API key. We filter out the disabled models.
-- **Ollama**: We provide a sample workflow to measure TPS and then pick models that are above some TPS threshold. While calculating TPS, there is also a timeout so that beyond that timeout the TPS is not even considered and the model becomes invalid.
+There are two types of services:
+
+- [`providers`](./src/providers/): these provide models that are directly used as `Model` enums in Workflows; they are only checked if a model that belongs to them is used.
+- [`apis`](./src/apis/): these provide additional services used by workflows; they are only checked if their API key exists.
 
 ## Installation
 
@@ -20,10 +22,11 @@ Note that the underlying [Ollama Workflows](https://github.com/andthattoo/ollama
 
 DKN Workflows make use of several environment variables, respecting the providers.
 
-- `OPENAI_API_KEY` is used for OpenAI requests
 - `OLLAMA_HOST` is used to connect to Ollama server
 - `OLLAMA_PORT` is used to connect to Ollama server
 - `OLLAMA_AUTO_PULL` indicates whether we should pull missing models automatically or not
+- `OPENAI_API_KEY` is used for OpenAI requests
+- `GEMINI_API_KEY` is used for Gemini requests
 - `SERPER_API_KEY` is optional API key to use **Serper**, for better Workflow executions
 - `JINA_API_KEY` is optional API key to use **Jina**, for better Workflow executions
 

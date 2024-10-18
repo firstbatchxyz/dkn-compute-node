@@ -2,6 +2,7 @@ use eyre::{eyre, Context, Result};
 use ollama_workflows::Model;
 use reqwest::Client;
 use serde::Deserialize;
+use std::env;
 
 use crate::utils::safe_read_env;
 
@@ -42,7 +43,7 @@ impl OpenAIConfig {
     /// Looks at the environment variables for OpenAI API key.
     pub fn new() -> Self {
         Self {
-            api_key: safe_read_env(std::env::var(ENV_VAR_NAME)),
+            api_key: safe_read_env(env::var(ENV_VAR_NAME)),
         }
     }
 
@@ -115,8 +116,22 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires OpenAI API key"]
     async fn test_openai_check() {
+        let _ = dotenvy::dotenv(); // read api key
+        assert!(env::var(ENV_VAR_NAME).is_ok(), "should have api key");
+
+        let models = vec![Model::GPT4Turbo];
+        let config = OpenAIConfig::new();
+        let res = config.check(models.clone()).await;
+        assert_eq!(res.unwrap(), models);
+
+        env::set_var(ENV_VAR_NAME, "i-dont-work");
         let config = OpenAIConfig::new();
         let res = config.check(vec![]).await;
-        println!("Result: {}", res.unwrap_err());
+        assert!(res.is_err());
+
+        env::remove_var(ENV_VAR_NAME);
+        let config = OpenAIConfig::new();
+        let res = config.check(vec![]).await;
+        assert!(res.is_err());
     }
 }

@@ -219,14 +219,14 @@ impl DriaWorkflowsConfig {
         }
 
         // if Gemini is a provider, check that the API key is set & models are available
-        if unique_providers.contains(&ModelProvider::OpenAI /* TODO: GEMINI */) {
-            let provider_models = self.get_models_for_provider(ModelProvider::OpenAI);
+        if unique_providers.contains(&ModelProvider::Gemini) {
+            let provider_models = self.get_models_for_provider(ModelProvider::Gemini);
             good_models.extend(
                 self.gemini
                     .check(provider_models)
                     .await?
                     .into_iter()
-                    .map(|m| (ModelProvider::OpenAI, m)),
+                    .map(|m| (ModelProvider::Gemini, m)),
             );
         }
 
