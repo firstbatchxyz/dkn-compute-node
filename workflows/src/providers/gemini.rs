@@ -10,14 +10,14 @@ use crate::utils::safe_read_env;
 const GEMINI_MODELS_API: &str = "https://generativelanguage.googleapis.com/v1beta/models";
 const ENV_VAR_NAME: &str = "GEMINI_API_KEY";
 
-/// [Model](https://ai.google.dev/api/models#Model) API object.
+/// [Model](https://ai.google.dev/api/models#Model) API object, fields omitted.
 #[derive(Debug, Clone, Deserialize)]
 #[allow(non_snake_case)]
 #[allow(unused)]
 struct GeminiModel {
     name: String,
     version: String,
-    // other fields are ignored here
+    // other fields are ignored from API response
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -83,11 +83,13 @@ impl GeminiConfig {
         let mut available_models = Vec::new();
         for requested_model in models {
             if !gemini_models.models.iter().any(|gemini_model| {
+                // a gemini model name in API response is given as `models/{baseModelId}-{version}`
+                // the model name in Workflows can include the version as well, so best bet is to check prefix
+                // ignoring the `models/` part
                 gemini_model
                     .name
                     .trim_start_matches("models/")
-                    .trim_end_matches(format!("-{}", gemini_model.version).as_str())
-                    == requested_model.to_string()
+                    .starts_with(&requested_model.to_string())
             }) {
                 log::warn!(
                     "Model {} not found in your Gemini account, ignoring it.",
@@ -117,7 +119,12 @@ mod tests {
         let _ = dotenvy::dotenv(); // read api key
         assert!(env::var(ENV_VAR_NAME).is_ok(), "should have api key");
 
-        let models = vec![Model::Gemini15Flash, Model::Gemini15ProExp0827];
+        let models = vec![
+            Model::Gemini10Pro,
+            Model::Gemini15ProExp0827,
+            Model::Gemini15Flash,
+            Model::Gemini15Pro,
+        ];
         let res = GeminiConfig::new().check(models.clone()).await;
         assert_eq!(res.unwrap(), models);
 

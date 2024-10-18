@@ -9,27 +9,16 @@ use crate::utils::safe_read_env;
 const OPENAI_MODELS_API: &str = "https://api.openai.com/v1/models";
 const ENV_VAR_NAME: &str = "OPENAI_API_KEY";
 
-/// [Model](https://platform.openai.com/docs/api-reference/models/object) API object.
+/// [Model](https://platform.openai.com/docs/api-reference/models/object) API object, fields omitted.
 #[derive(Debug, Clone, Deserialize)]
 struct OpenAIModel {
     /// The model identifier, which can be referenced in the API endpoints.
     id: String,
-    /// The Unix timestamp (in seconds) when the model was created.
-    #[allow(unused)]
-    created: u64,
-    /// The object type, which is always "model".
-    #[allow(unused)]
-    object: String,
-    /// The organization that owns the model.
-    #[allow(unused)]
-    owned_by: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 struct OpenAIModelsResponse {
     data: Vec<OpenAIModel>,
-    #[allow(unused)]
-    object: String,
 }
 
 /// OpenAI-specific configurations.
@@ -119,7 +108,7 @@ mod tests {
         let _ = dotenvy::dotenv(); // read api key
         assert!(env::var(ENV_VAR_NAME).is_ok(), "should have api key");
 
-        let models = vec![Model::GPT4Turbo];
+        let models = vec![Model::GPT4Turbo, Model::GPT4o, Model::GPT4oMini];
         let config = OpenAIConfig::new();
         let res = config.check(models.clone()).await;
         assert_eq!(res.unwrap(), models);
