@@ -1,0 +1,34 @@
+[package]
+name = "dkn-launcher"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+readme = "README.md"
+authors = ["Erhan Tezcan <erhan@firstbatch.xyz>"]
+
+[dependencies]
+clap = { version = "4.5.20", features = ["derive"] }
+# ratatui = "0.29.0"
+# crossterm = "0.28.1"
+
+# async stuff
+tokio-util.workspace = true
+tokio.workspace = true
+async-trait.workspace = true
+
+# serialize & deserialize
+serde.workspace = true
+serde_json.workspace = true
+
+# utilities
+dotenvy.workspace = true
+hex = "0.4.3"
+hex-literal = "0.4.1"
+
+env_logger.workspace = true
+log.workspace = true
+eyre.workspace = true
+
+# dria subcrates
+dkn-compute = { path = "../compute" }
+which = "6.0.3"
