@@ -12,11 +12,13 @@ pub async fn run_ollama() -> Result<Child> {
 
     // ollama requires the OLLAMA_HOST environment variable to be set before launch
     env::set_var("OLLAMA_HOST", "http://127.0.0.1:11434");
-    Command::new(exe_path)
+    let command = Command::new(exe_path)
         .arg("serve")
         .stdout(Stdio::null()) // Ignore the output for simplicity
         .spawn()
-        .wrap_err("could not spawn Ollama")
+        .wrap_err("could not spawn Ollama")?;
+
+    Ok(command)
 }
 
 #[cfg(test)]

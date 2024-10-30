@@ -1,4 +1,8 @@
 mod ollama;
+
+mod compute;
+use compute::*;
+
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
@@ -41,9 +45,9 @@ async fn main() -> eyre::Result<()> {
             // TODO: use the key-value pairs to set the environment variables
         }
         Commands::Compute { path } => {
-            unimplemented!()
+            launch_compute_node(path).await?;
         }
-    }
+    };
 
     Ok(())
 }
