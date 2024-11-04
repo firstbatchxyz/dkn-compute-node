@@ -48,7 +48,6 @@ impl SerperConfig {
             log::debug!("Serper API key not found, skipping Serper check");
             return Ok(());
         };
-        println!("API KEY: {}", api_key);
         log::info!("Serper API key found, checking Serper service");
 
         // make a dummy request

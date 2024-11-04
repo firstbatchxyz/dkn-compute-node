@@ -39,7 +39,7 @@ impl OpenAIConfig {
         };
 
         // check if models exist within the account and select those that are available
-        let openai_model_names = self.fetch_models(&api_key).await?;
+        let openai_model_names = self.fetch_models(api_key).await?;
         let mut available_models = Vec::new();
         for requested_model in models {
             // check if model exists
@@ -52,7 +52,7 @@ impl OpenAIConfig {
             }
 
             // make a dummy request
-            if let Err(err) = self.dummy_request(&api_key, &requested_model).await {
+            if let Err(err) = self.dummy_request(api_key, &requested_model).await {
                 log::warn!(
                     "Model {} failed dummy request, ignoring it: {}",
                     requested_model,
@@ -105,13 +105,13 @@ impl OpenAIConfig {
 
         // parse response
         if !response.status().is_success() {
-            return Err(eyre!(
+            Err(eyre!(
                 "Failed to fetch OpenAI models:\n{}",
                 response
                     .text()
                     .await
                     .unwrap_or("Could not get error text as well".to_string())
-            ));
+            ))
         } else {
             let openai_models = response.json::<OpenAIModelsResponse>().await?;
             Ok(openai_models.data.into_iter().map(|m| m.id).collect())
