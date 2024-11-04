@@ -25,13 +25,14 @@ const STATIC_RPC_PEER_IDS: [&str; 0] = [];
 /// API URL for refreshing the Admin RPC PeerIDs from Dria server.
 const RPC_PEER_ID_REFRESH_API_URL: &str = "https://dkn.dria.co/available-nodes";
 
-#[derive(serde::Deserialize, Debug)]
-pub struct AvailableNodesApiResponse {
-    pub bootstraps: Vec<String>,
-    pub relays: Vec<String>,
-    pub rpcs: Vec<String>,
-}
-
+/// Available nodes within the hybrid P2P network.
+///
+/// - Bootstrap: used for Kademlia DHT bootstrap.
+/// - Relay: used for DCutR relay protocol.
+/// - RPC: used for RPC nodes for task & ping messages.
+///
+/// Note that while bootstrap & relay nodes are `Multiaddr`, RPC nodes are `PeerId` because we communicate
+/// with them via GossipSub only.
 #[derive(Debug, Default, Clone)]
 pub struct AvailableNodes {
     pub bootstrap_nodes: Vec<Multiaddr>,
@@ -103,6 +104,13 @@ impl AvailableNodes {
 
     /// Refreshes the available nodes for Bootstrap, Relay and RPC nodes.
     pub async fn get_available_nodes() -> Result<Self> {
+        #[derive(serde::Deserialize, Debug)]
+        struct AvailableNodesApiResponse {
+            pub bootstraps: Vec<String>,
+            pub relays: Vec<String>,
+            pub rpcs: Vec<String>,
+        }
+
         let response = reqwest::get(RPC_PEER_ID_REFRESH_API_URL).await?;
         let response_body = response.json::<AvailableNodesApiResponse>().await?;
 

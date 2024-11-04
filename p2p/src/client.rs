@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 /// P2P client, exposes a simple interface to handle P2P communication.
 pub struct DriaP2PClient {
     /// `Swarm` instance, everything is accesses through this one.
-    swarm: Swarm<DriaBehaviour>,
+    pub swarm: Swarm<DriaBehaviour>,
     /// Peer count for All and Mesh peers.
     ///
     /// Mesh usually contains much fewer peers than All, as they are the ones
