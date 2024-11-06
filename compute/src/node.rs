@@ -181,7 +181,7 @@ impl DriaComputeNode {
                         );
 
                         // ensure that message is from the static RPCs
-                        if !self.available_nodes.rpc_nodes.contains(&source_peer_id.into()) {
+                        if !self.available_nodes.rpc_nodes.contains(&source_peer_id) {
                             log::warn!("Received message from unauthorized source: {}", source_peer_id);
                             log::debug!("Allowed sources: {:#?}", self.available_nodes.rpc_nodes);
                             self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore)?;
