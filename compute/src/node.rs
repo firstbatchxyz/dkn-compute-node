@@ -60,13 +60,23 @@ impl DriaComputeNode {
         );
 
         // create p2p client
-        let p2p = DriaP2PClient::new(
+        let mut p2p = DriaP2PClient::new(
             keypair,
             config.p2p_listen_addr.clone(),
             &available_nodes.bootstrap_nodes,
             &available_nodes.relay_nodes,
             P2P_VERSION,
         )?;
+
+        // dial rpc nodes
+        if available_nodes.rpc_addrs.is_empty() {
+            log::warn!("No RPC nodes found to be dialled!");
+        } else {
+            for rpc_addr in &available_nodes.rpc_addrs {
+                log::info!("Dialing RPC node: {}", rpc_addr);
+                p2p.dial(rpc_addr.clone())?;
+            }
+        }
 
         Ok(DriaComputeNode {
             p2p,
@@ -136,6 +146,7 @@ impl DriaComputeNode {
                 event = self.p2p.process_events() => {
                     // refresh admin rpc peer ids
                     if self.available_nodes_last_refreshed.elapsed() > Duration::from_secs(RPC_PEER_ID_REFRESH_INTERVAL_SECS) {
+                        log::info!("Refreshing available nodes.");
                         self.available_nodes = AvailableNodes::get_available_nodes().await.unwrap_or_default().join(self.available_nodes.clone()).sort_dedup();
                         self.available_nodes_last_refreshed = tokio::time::Instant::now();
                     }
@@ -156,12 +167,17 @@ impl DriaComputeNode {
                             }
                         };
 
+                        // log::info!(
+                        //     "Received {} message ({})\nFrom:   {}\nSource: {}",
+                        //     topic_str,
+                        //     message_id,
+                        //     peer_id,
+                        // );
                         log::info!(
-                            "Received {} message ({})\nFrom:   {}\nSource: {}",
+                            "Received {} message ({}) from {}",
                             topic_str,
                             message_id,
                             peer_id,
-                            source_peer_id
                         );
 
                         // ensure that message is from the static RPCs

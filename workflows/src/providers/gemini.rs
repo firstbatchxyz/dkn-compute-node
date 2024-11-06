@@ -55,7 +55,7 @@ impl GeminiConfig {
             }
 
             // make a dummy request
-            if let Err(err) = self.dummy_request(&api_key, &requested_model).await {
+            if let Err(err) = self.dummy_request(api_key, &requested_model).await {
                 log::warn!(
                     "Model {} failed dummy request, ignoring it: {}",
                     requested_model,
@@ -139,7 +139,7 @@ impl GeminiConfig {
         let request = client
             .post(format!(
                 "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent",
-                model.to_string()
+                model
             ))
             .query(&[("key", api_key)])
             .header("Content-Type", "application/json")

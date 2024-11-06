@@ -308,7 +308,7 @@ mod tests {
         let exe = Executor::new(Model::default());
         let mut memory = ProgramMemory::new();
 
-        let result = exe.execute(None, workflow, &mut memory).await;
+        let result = exe.execute(None, &workflow, &mut memory).await;
         println!("Result: {}", result.unwrap());
     }
 }

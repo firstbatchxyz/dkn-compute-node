@@ -1,13 +1,12 @@
 use super::*;
-use eyre::Result;
+use eyre::{Context, Result};
 use libp2p::futures::StreamExt;
 use libp2p::gossipsub::{
     Message, MessageAcceptance, MessageId, PublishError, SubscriptionError, TopicHash,
 };
 use libp2p::kad::{GetClosestPeersError, GetClosestPeersOk, QueryResult};
-use libp2p::{
-    autonat, gossipsub, identify, kad, multiaddr::Protocol, noise, swarm::SwarmEvent, tcp, yamux,
-};
+use libp2p::swarm::{dial_opts::DialOpts, NetworkInfo, SwarmEvent};
+use libp2p::{autonat, gossipsub, identify, kad, multiaddr::Protocol, noise, tcp, yamux};
 use libp2p::{Multiaddr, PeerId, StreamProtocol, Swarm, SwarmBuilder};
 use libp2p_identity::Keypair;
 use std::time::{Duration, Instant};
@@ -137,6 +136,12 @@ impl DriaP2PClient {
         })
     }
 
+    /// Returns the network information, such as the number of
+    /// incoming and outgoing connections.
+    pub fn network_info(&self) -> NetworkInfo {
+        self.swarm.network_info()
+    }
+
     /// Subscribe to a topic.
     pub fn subscribe(&mut self, topic_name: &str) -> Result<bool, SubscriptionError> {
         log::debug!("Subscribing to {}", topic_name);
@@ -204,6 +209,11 @@ impl DriaP2PClient {
     /// Returns the list of connected peers within Gossipsub, with a list of subscribed topic hashes by each peer.
     pub fn peers(&self) -> Vec<(&PeerId, Vec<&TopicHash>)> {
         self.swarm.behaviour().gossipsub.all_peers().collect()
+    }
+
+    /// Dials a given peer.
+    pub fn dial(&mut self, peer_id: impl Into<DialOpts>) -> Result<()> {
+        self.swarm.dial(peer_id).wrap_err("could not dial")
     }
 
     /// Listens to the Swarm for incoming messages.

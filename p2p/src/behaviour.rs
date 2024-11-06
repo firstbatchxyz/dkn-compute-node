@@ -10,12 +10,12 @@ use libp2p::{autonat, dcutr, gossipsub, identify, kad, relay};
 
 #[derive(libp2p::swarm::NetworkBehaviour)]
 pub struct DriaBehaviour {
-    pub(crate) relay: relay::client::Behaviour,
-    pub(crate) gossipsub: gossipsub::Behaviour,
-    pub(crate) kademlia: kad::Behaviour<MemoryStore>,
-    pub(crate) identify: identify::Behaviour,
-    pub(crate) autonat: autonat::Behaviour,
-    pub(crate) dcutr: dcutr::Behaviour,
+    pub relay: relay::client::Behaviour,
+    pub gossipsub: gossipsub::Behaviour,
+    pub kademlia: kad::Behaviour<MemoryStore>,
+    pub identify: identify::Behaviour,
+    pub autonat: autonat::Behaviour,
+    pub dcutr: dcutr::Behaviour,
 }
 
 impl DriaBehaviour {
