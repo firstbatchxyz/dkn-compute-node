@@ -1,4 +1,7 @@
-use crate::utils::{address_in_use, crypto::to_address};
+use crate::utils::{
+    address_in_use,
+    crypto::{secret_to_keypair, to_address},
+};
 use dkn_p2p::libp2p::Multiaddr;
 use dkn_workflows::DriaWorkflowsConfig;
 use eyre::{eyre, Result};
@@ -71,13 +74,20 @@ impl DriaComputeNodeConfig {
                 panic!("Please provide an admin public key.");
             }
         };
+
+        let address = to_address(&public_key);
+        log::info!("Node Address:     0x{}", hex::encode(address));
+
+        // to this here to log the peer id at start
+        log::info!(
+            "Node PeerID:      {}",
+            secret_to_keypair(&secret_key).public().to_peer_id()
+        );
+
         log::info!(
             "Admin Public Key: 0x{}",
             hex::encode(admin_public_key.serialize_compressed())
         );
-
-        let address = to_address(&public_key);
-        log::info!("Node Address:     0x{}", hex::encode(address));
 
         let workflows =
             DriaWorkflowsConfig::new_from_csv(&env::var("DKN_MODELS").unwrap_or_default());

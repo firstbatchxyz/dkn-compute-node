@@ -60,13 +60,23 @@ impl DriaComputeNode {
         );
 
         // create p2p client
-        let p2p = DriaP2PClient::new(
+        let mut p2p = DriaP2PClient::new(
             keypair,
             config.p2p_listen_addr.clone(),
             &available_nodes.bootstrap_nodes,
             &available_nodes.relay_nodes,
             P2P_VERSION,
         )?;
+
+        // dial rpc nodes
+        if available_nodes.rpc_addrs.is_empty() {
+            log::warn!("No RPC nodes found to be dialled!");
+        } else {
+            for rpc_addr in &available_nodes.rpc_addrs {
+                log::info!("Dialing RPC node: {}", rpc_addr);
+                p2p.dial(rpc_addr.clone())?;
+            }
+        }
 
         Ok(DriaComputeNode {
             p2p,
@@ -139,12 +149,6 @@ impl DriaComputeNode {
                         log::info!("Refreshing available nodes.");
                         self.available_nodes = AvailableNodes::get_available_nodes().await.unwrap_or_default().join(self.available_nodes.clone()).sort_dedup();
                         self.available_nodes_last_refreshed = tokio::time::Instant::now();
-
-                        // add rpcs to explicit peer
-                        // for peer_id in self.available_nodes.rpc_nodes.iter() {
-                        //     self.p2p.swarm.behaviour_mut().gossipsub.add_explicit_peer(peer_id);
-                        //     log::warn!("{} score: {:?}",peer_id, self.p2p.swarm.behaviour_mut().gossipsub.peer_score(peer_id));
-                        // }
                     }
 
                     let (peer_id, message_id, message) = event;
@@ -163,16 +167,21 @@ impl DriaComputeNode {
                             }
                         };
 
+                        // log::info!(
+                        //     "Received {} message ({})\nFrom:   {}\nSource: {}",
+                        //     topic_str,
+                        //     message_id,
+                        //     peer_id,
+                        // );
                         log::info!(
-                            "Received {} message ({})\nFrom:   {}\nSource: {}",
+                            "Received {} message ({}) from {}",
                             topic_str,
                             message_id,
                             peer_id,
-                            source_peer_id
                         );
 
                         // ensure that message is from the static RPCs
-                        if !self.available_nodes.rpc_nodes.contains(&source_peer_id) {
+                        if !self.available_nodes.rpc_nodes.contains(&source_peer_id.into()) {
                             log::warn!("Received message from unauthorized source: {}", source_peer_id);
                             log::debug!("Allowed sources: {:#?}", self.available_nodes.rpc_nodes);
                             self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore)?;

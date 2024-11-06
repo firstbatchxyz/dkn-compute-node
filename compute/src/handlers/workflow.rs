@@ -35,7 +35,6 @@ impl ComputeHandler for WorkflowHandler {
         node: &mut DriaComputeNode,
         message: DKNMessage,
     ) -> Result<MessageAcceptance> {
-        let config = &node.config;
         let task = message
             .parse_payload::<TaskRequestPayload<WorkflowPayload>>(true)
             .wrap_err("Could not parse workflow task")?;
@@ -55,7 +54,7 @@ impl ComputeHandler for WorkflowHandler {
         }
 
         // check task inclusion via the bloom filter
-        if !task.filter.contains(&config.address)? {
+        if !task.filter.contains(&node.config.address)? {
             log::info!(
                 "Task {} does not include this node within the filter.",
                 task.task_id
@@ -66,7 +65,10 @@ impl ComputeHandler for WorkflowHandler {
         }
 
         // read model / provider from the task
-        let (model_provider, model) = config.workflows.get_any_matching_model(task.input.model)?;
+        let (model_provider, model) = node
+            .config
+            .workflows
+            .get_any_matching_model(task.input.model)?;
         let model_name = model.to_string(); // get model name, we will pass it in payload
         log::info!("Using model {} for task {}", model_name, task.task_id);
 
@@ -74,8 +76,8 @@ impl ComputeHandler for WorkflowHandler {
         let executor = if model_provider == ModelProvider::Ollama {
             Executor::new_at(
                 model,
-                &config.workflows.ollama.host,
-                config.workflows.ollama.port,
+                &node.config.workflows.ollama.host,
+                node.config.workflows.ollama.port,
             )
         } else {
             Executor::new(model)
@@ -100,6 +102,7 @@ impl ComputeHandler for WorkflowHandler {
 
         let (publish_result, acceptance) = match exec_result {
             Ok(result) => {
+                log::warn!("Task {} result:", result);
                 // obtain public key from the payload
                 let task_public_key_bytes =
                     hex::decode(&task.public_key).wrap_err("Could not decode public key")?;
@@ -110,7 +113,7 @@ impl ComputeHandler for WorkflowHandler {
                     result,
                     &task.task_id,
                     &task_public_key,
-                    &config.secret_key,
+                    &node.config.secret_key,
                     model_name,
                 )?;
                 let payload_str = serde_json::to_string(&payload)
@@ -134,7 +137,11 @@ impl ComputeHandler for WorkflowHandler {
 
                 // publish the error result for diagnostics
                 // ignore just in case, workflow may be bugged
-                let message = DKNMessage::new(error_payload_str, Self::RESPONSE_TOPIC);
+                let message = DKNMessage::new_signed(
+                    error_payload_str,
+                    Self::RESPONSE_TOPIC,
+                    &node.config.secret_key,
+                );
                 (node.publish(message), MessageAcceptance::Ignore)
             }
         };
@@ -147,7 +154,11 @@ impl ComputeHandler for WorkflowHandler {
                 "taskId": task.task_id,
                 "error": err_msg
             });
-            let message = DKNMessage::new(payload.to_string(), Self::RESPONSE_TOPIC);
+            let message = DKNMessage::new_signed(
+                payload.to_string(),
+                Self::RESPONSE_TOPIC,
+                &node.config.secret_key,
+            );
             node.publish(message)?;
         }
 

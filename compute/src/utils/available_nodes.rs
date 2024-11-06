@@ -38,6 +38,7 @@ pub struct AvailableNodes {
     pub bootstrap_nodes: Vec<Multiaddr>,
     pub relay_nodes: Vec<Multiaddr>,
     pub rpc_nodes: Vec<PeerId>,
+    pub rpc_addrs: Vec<Multiaddr>,
 }
 
 impl AvailableNodes {
@@ -67,6 +68,7 @@ impl AvailableNodes {
             bootstrap_nodes: parse_vec(bootstrap_nodes),
             relay_nodes: parse_vec(relay_nodes),
             rpc_nodes: vec![],
+            rpc_addrs: vec![],
         }
     }
 
@@ -76,6 +78,7 @@ impl AvailableNodes {
             bootstrap_nodes: parse_vec(STATIC_BOOTSTRAP_NODES.to_vec()),
             relay_nodes: parse_vec(STATIC_RELAY_NODES.to_vec()),
             rpc_nodes: parse_vec(STATIC_RPC_PEER_IDS.to_vec()),
+            rpc_addrs: vec![],
         }
     }
 
@@ -84,7 +87,7 @@ impl AvailableNodes {
         self.bootstrap_nodes.extend(other.bootstrap_nodes);
         self.relay_nodes.extend(other.relay_nodes);
         self.rpc_nodes.extend(other.rpc_nodes);
-
+        self.rpc_addrs.extend(other.rpc_addrs);
         self
     }
 
@@ -99,6 +102,9 @@ impl AvailableNodes {
         self.rpc_nodes.sort_unstable();
         self.rpc_nodes.dedup();
 
+        self.rpc_addrs.sort_unstable();
+        self.rpc_addrs.dedup();
+
         self
     }
 
@@ -109,6 +115,8 @@ impl AvailableNodes {
             pub bootstraps: Vec<String>,
             pub relays: Vec<String>,
             pub rpcs: Vec<String>,
+            #[serde(rename = "rpcAddrs")]
+            pub rpc_addrs: Vec<String>,
         }
 
         let response = reqwest::get(RPC_PEER_ID_REFRESH_API_URL).await?;
@@ -118,6 +126,7 @@ impl AvailableNodes {
             bootstrap_nodes: parse_vec(response_body.bootstraps),
             relay_nodes: parse_vec(response_body.relays),
             rpc_nodes: parse_vec(response_body.rpcs),
+            rpc_addrs: parse_vec(response_body.rpc_addrs),
         })
     }
 }
@@ -145,9 +154,6 @@ mod tests {
     #[tokio::test]
     #[ignore = "run this manually"]
     async fn test_get_available_nodes() {
-        std::env::set_var("RUST_LOG", "info");
-        let _ = env_logger::try_init();
-
         let available_nodes = AvailableNodes::get_available_nodes().await.unwrap();
         println!("{:#?}", available_nodes);
     }
