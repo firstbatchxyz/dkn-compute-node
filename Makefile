@@ -33,9 +33,10 @@ profile-cpu:
 profile-mem:
 	  DKN_EXIT_TIMEOUT=120 cargo instruments --profile=profiling -t Allocations
 
-.PHONY: ollama-wf-version
-ollama-wf-version:
+.PHONY: ollama-versions
+ollama-versions:
 	  @cat Cargo.lock | grep "https://github.com/andthattoo/ollama-workflows"
+		@cat Cargo.lock | grep "https://github.com/andthattoo/ollama-rs"
 
 .PHONY: test #         | Run tests
 test:
