@@ -147,9 +147,15 @@ impl DriaComputeNode {
                     // refresh admin rpc peer ids
                     if self.available_nodes_last_refreshed.elapsed() > Duration::from_secs(RPC_PEER_ID_REFRESH_INTERVAL_SECS) {
                         log::info!("Refreshing available nodes.");
+
                         self.available_nodes = AvailableNodes::get_available_nodes().await.unwrap_or_default().join(self.available_nodes.clone()).sort_dedup();
                         self.available_nodes_last_refreshed = tokio::time::Instant::now();
+
+                        // also print network info
+                        log::debug!("{:?}", self.p2p.network_info().connection_counters());
                     }
+
+
 
                     let (peer_id, message_id, message) = event;
                     let topic = message.topic.clone();
