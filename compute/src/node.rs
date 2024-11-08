@@ -10,7 +10,7 @@ use crate::{
 };
 
 /// Number of seconds between refreshing the Admin RPC PeerIDs from Dria server.
-const RPC_PEER_ID_REFRESH_INTERVAL_SECS: u64 = 5;
+const RPC_PEER_ID_REFRESH_INTERVAL_SECS: u64 = 30;
 
 /// **Dria Compute Node**
 ///
@@ -147,9 +147,12 @@ impl DriaComputeNode {
                     // refresh admin rpc peer ids
                     if self.available_nodes_last_refreshed.elapsed() > Duration::from_secs(RPC_PEER_ID_REFRESH_INTERVAL_SECS) {
                         log::info!("Refreshing available nodes.");
-                        log::warn!("NETWORK INFO: {:?}", self.p2p.network_info());
+
                         self.available_nodes = AvailableNodes::get_available_nodes().await.unwrap_or_default().join(self.available_nodes.clone()).sort_dedup();
                         self.available_nodes_last_refreshed = tokio::time::Instant::now();
+
+                        // also print network info
+                        log::debug!("{:?}", self.p2p.network_info().connection_counters());
                     }
 
 
