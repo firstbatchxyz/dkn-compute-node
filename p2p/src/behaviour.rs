@@ -6,7 +6,7 @@ use eyre::{eyre, Context, Result};
 use libp2p::identity::{Keypair, PeerId, PublicKey};
 use libp2p::kad::store::MemoryStore;
 use libp2p::StreamProtocol;
-use libp2p::{autonat, dcutr, gossipsub, identify, kad, relay};
+use libp2p::{autonat, connection_limits, dcutr, gossipsub, identify, kad, relay};
 
 #[derive(libp2p::swarm::NetworkBehaviour)]
 pub struct DriaBehaviour {
@@ -16,6 +16,7 @@ pub struct DriaBehaviour {
     pub identify: identify::Behaviour,
     pub autonat: autonat::Behaviour,
     pub dcutr: dcutr::Behaviour,
+    pub connection_limits: connection_limits::Behaviour,
 }
 
 impl DriaBehaviour {
@@ -36,8 +37,24 @@ impl DriaBehaviour {
             autonat: create_autonat_behaviour(peer_id),
             dcutr: create_dcutr_behaviour(peer_id),
             identify: create_identify_behaviour(public_key, identity_protocol),
+            connection_limits: create_connection_limits_behaviour(),
         })
     }
+}
+
+/// Configures the connection limits.
+#[inline]
+fn create_connection_limits_behaviour() -> connection_limits::Behaviour {
+    use connection_limits::{Behaviour, ConnectionLimits};
+
+    /// Number of established outgoing connections limit, this is directly correlated to peer count
+    /// so limiting this will cause a limitation on peers as well.
+    const EST_OUTGOING_LIMIT: u32 = 450;
+
+    let limits =
+        ConnectionLimits::default().with_max_established_outgoing(Some(EST_OUTGOING_LIMIT));
+
+    Behaviour::new(limits)
 }
 
 /// Configures the Kademlia DHT behavior for the node.
