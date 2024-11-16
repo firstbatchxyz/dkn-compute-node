@@ -232,7 +232,7 @@ impl DriaComputeNode {
                     } else if std::matches!(topic_str, PingpongHandler::RESPONSE_TOPIC | WorkflowHandler::RESPONSE_TOPIC) {
                         // since we are responding to these topics, we might receive messages from other compute nodes
                         // we can gracefully ignore them and propagate it to to others
-                        log::debug!("Ignoring message for topic: {}", topic_str);
+                        log::trace!("Ignoring message for topic: {}", topic_str);
                         self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Accept)?;
                     } else {
                         // reject this message as its from a foreign topic

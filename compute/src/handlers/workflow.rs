@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use async_trait::async_trait;
 use dkn_p2p::libp2p::gossipsub::MessageAcceptance;
 use dkn_workflows::{Entry, Executor, ModelProvider, ProgramMemory, Workflow};
@@ -5,7 +7,7 @@ use eyre::{eyre, Context, Result};
 use libsecp256k1::PublicKey;
 use serde::Deserialize;
 
-use crate::payloads::{TaskErrorPayload, TaskRequestPayload, TaskResponsePayload};
+use crate::payloads::{TaskErrorPayload, TaskRequestPayload, TaskResponsePayload, TaskStats};
 use crate::utils::{get_current_time_nanos, DKNMessage};
 use crate::DriaComputeNode;
 
@@ -38,6 +40,7 @@ impl ComputeHandler for WorkflowHandler {
         let task = message
             .parse_payload::<TaskRequestPayload<WorkflowPayload>>(true)
             .wrap_err("Could not parse workflow task")?;
+        let mut task_stats = TaskStats::default().record_received_at();
 
         // check if deadline is past or not
         let current_time = get_current_time_nanos();
@@ -90,6 +93,7 @@ impl ComputeHandler for WorkflowHandler {
 
         // execute workflow with cancellation
         let exec_result: Result<String>;
+        let exec_started_at = Instant::now();
         tokio::select! {
             _ = node.cancellation.cancelled() => {
                 log::info!("Received cancellation, quitting all tasks.");
@@ -99,10 +103,10 @@ impl ComputeHandler for WorkflowHandler {
                 exec_result = exec_result_inner.map_err(|e| eyre!("Execution error: {}", e.to_string()));
             }
         }
+        task_stats = task_stats.record_execution_time(exec_started_at);
 
-        let (publish_result, acceptance) = match exec_result {
+        let (message, acceptance) = match exec_result {
             Ok(result) => {
-                log::warn!("Task {} result:", result);
                 // obtain public key from the payload
                 let task_public_key_bytes =
                     hex::decode(&task.public_key).wrap_err("Could not decode public key")?;
@@ -115,14 +119,20 @@ impl ComputeHandler for WorkflowHandler {
                     &task_public_key,
                     &node.config.secret_key,
                     model_name,
+                    task_stats.record_published_at(),
                 )?;
                 let payload_str = serde_json::to_string(&payload)
                     .wrap_err("Could not serialize response payload")?;
 
-                // publish the result
-                // accept so that if there are others included in filter they can do the task
+                // prepare signed message
+                log::debug!(
+                    "Publishing result for task {}\n{}",
+                    task.task_id,
+                    payload_str
+                );
                 let message = DKNMessage::new(payload_str, Self::RESPONSE_TOPIC);
-                (node.publish(message), MessageAcceptance::Accept)
+                // accept so that if there are others included in filter they can do the task
+                (message, MessageAcceptance::Accept)
             }
             Err(err) => {
                 // use pretty display string for error logging with causes
@@ -130,29 +140,35 @@ impl ComputeHandler for WorkflowHandler {
                 log::error!("Task {} failed: {}", task.task_id, err_string);
 
                 // prepare error payload
-                let error_payload =
-                    TaskErrorPayload::new(task.task_id.clone(), err_string, model_name);
+                let error_payload = TaskErrorPayload {
+                    task_id: task.task_id.clone(),
+                    error: err_string,
+                    model: model_name,
+                    stats: task_stats.record_published_at(),
+                };
                 let error_payload_str = serde_json::to_string(&error_payload)
                     .wrap_err("Could not serialize error payload")?;
 
-                // publish the error result for diagnostics
-                // ignore just in case, workflow may be bugged
+                // prepare signed message
                 let message = DKNMessage::new_signed(
                     error_payload_str,
                     Self::RESPONSE_TOPIC,
                     &node.config.secret_key,
                 );
-                (node.publish(message), MessageAcceptance::Ignore)
+                // ignore just in case, workflow may be bugged
+                (message, MessageAcceptance::Ignore)
             }
         };
 
-        // if for some reason we couldnt publish the result, publish the error itself so that RPC doesnt hang
-        if let Err(publish_err) = publish_result {
+        // try publishing the result
+
+        if let Err(publish_err) = node.publish(message) {
             let err_msg = format!("Could not publish result: {:?}", publish_err);
             log::error!("{}", err_msg);
+
             let payload = serde_json::json!({
                 "taskId": task.task_id,
-                "error": err_msg
+                "error": err_msg,
             });
             let message = DKNMessage::new_signed(
                 payload.to_string(),

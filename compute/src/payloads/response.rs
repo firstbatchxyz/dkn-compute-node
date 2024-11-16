@@ -3,6 +3,8 @@ use eyre::Result;
 use libsecp256k1::{PublicKey, SecretKey};
 use serde::{Deserialize, Serialize};
 
+use super::TaskStats;
+
 /// A computation task is the task of computing a result from a given input. The result is encrypted with the public key of the requester.
 /// Plain result is signed by the compute node's private key, and a commitment is computed from the signature and plain result.
 ///
@@ -19,6 +21,8 @@ pub struct TaskResponsePayload {
     pub ciphertext: String,
     /// Name of the model used for this task.
     pub model: String,
+    /// Stats about the task execution.
+    pub stats: TaskStats,
 }
 
 impl TaskResponsePayload {
@@ -32,6 +36,7 @@ impl TaskResponsePayload {
         encrypting_public_key: &PublicKey,
         signing_secret_key: &SecretKey,
         model: String,
+        stats: TaskStats,
     ) -> Result<Self> {
         // create the message `task_id || payload`
         let mut preimage = Vec::new();
@@ -47,6 +52,7 @@ impl TaskResponsePayload {
             signature,
             ciphertext,
             model,
+            stats,
         })
     }
 }
@@ -74,9 +80,15 @@ mod tests {
         let task_id = uuid::Uuid::new_v4().to_string();
 
         // creates a signed and encrypted payload
-        let payload =
-            TaskResponsePayload::new(RESULT, &task_id, &task_pk, &signer_sk, MODEL.to_string())
-                .expect("Should create payload");
+        let payload = TaskResponsePayload::new(
+            RESULT,
+            &task_id,
+            &task_pk,
+            &signer_sk,
+            MODEL.to_string(),
+            Default::default(),
+        )
+        .expect("Should create payload");
 
         // decrypt result and compare it to plaintext
         let ciphertext_bytes = hex::decode(payload.ciphertext).unwrap();
