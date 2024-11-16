@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use super::TaskStats;
+
 /// A task error response.
 /// Returning this as the payload helps to debug the errors received at client side.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -11,14 +13,6 @@ pub struct TaskErrorPayload {
     pub error: String,
     /// Name of the model that caused the error.
     pub model: String,
-}
-
-impl TaskErrorPayload {
-    pub fn new(task_id: String, error: String, model: String) -> Self {
-        Self {
-            task_id,
-            error,
-            model,
-        }
-    }
+    /// Task statistics.
+    pub stats: TaskStats,
 }

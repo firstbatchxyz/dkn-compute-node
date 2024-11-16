@@ -913,7 +913,7 @@ dependencies = [
 
 [[package]]
 name = "dkn-compute"
-version = "0.2.20"
+version = "0.2.21"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -945,7 +945,7 @@ dependencies = [
 
 [[package]]
 name = "dkn-p2p"
-version = "0.2.20"
+version = "0.2.21"
 dependencies = [
  "env_logger 0.11.5",
  "eyre",
@@ -957,7 +957,7 @@ dependencies = [
 
 [[package]]
 name = "dkn-workflows"
-version = "0.2.20"
+version = "0.2.21"
 dependencies = [
  "dotenvy",
  "env_logger 0.11.5",

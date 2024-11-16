@@ -2,19 +2,19 @@ use dkn_p2p::libp2p::{multiaddr::Protocol, Multiaddr};
 use port_check::is_port_reachable;
 use std::{
     net::{Ipv4Addr, SocketAddrV4},
-    time::{Duration, SystemTime},
+    time::SystemTime,
 };
 
 /// Returns the current time in nanoseconds since the Unix epoch.
 ///
 /// If a `SystemTimeError` occurs, will return 0 just to keep things running.
-#[inline]
+#[inline(always)]
 pub fn get_current_time_nanos() -> u128 {
     SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap_or_else(|e| {
             log::error!("Error getting current time: {}", e);
-            Duration::new(0, 0)
+            Default::default()
         })
         .as_nanos()
 }
