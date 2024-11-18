@@ -1,19 +1,19 @@
-use std::vec;
-
-use dkn_workflows::{DriaWorkflowsConfig, OllamaConfig};
-use ollama_workflows::ollama_rs::{
-    generation::{completion::request::GenerationRequest, options::GenerationOptions},
-    Ollama,
-};
-use ollama_workflows::Model;
-
 #[cfg(feature = "profiling")]
-use sysinfo::{CpuRefreshKind, RefreshKind, System, MINIMUM_CPU_UPDATE_INTERVAL};
+mod profile {
+    pub use dkn_workflows::{DriaWorkflowsConfig, OllamaConfig};
+    pub use ollama_workflows::ollama_rs::{
+        generation::{completion::request::GenerationRequest, options::GenerationOptions},
+        Ollama,
+    };
+    pub use ollama_workflows::Model;
+    pub use sysinfo::{CpuRefreshKind, RefreshKind, System, MINIMUM_CPU_UPDATE_INTERVAL};
+}
 
 #[tokio::main]
 async fn main() {
     #[cfg(feature = "profiling")]
     {
+        use crate::profile::*;
         // initialize logger
         env_logger::init();
 
