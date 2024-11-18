@@ -1,0 +1,116 @@
+name: Build and Publish Compute Side Releases
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  check_release:
+    if: "contains(github.event.release.tag_name, '-side')" # continue if the tag ends with -side
+    runs-on: ubuntu-latest
+    steps:
+      - name: Echo tag
+        run: |
+          echo "tag name: ${{ github.event.release.tag_name }}"
+          echo "release name: ${{ github.event.release.name }}"
+
+  build:
+    needs: check_release
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - {
+              runner: macos-latest,
+              osname: macOS,
+              arch: amd64,
+              target: x86_64-apple-darwin,
+              command: build,
+            }
+          - {
+              runner: macos-latest,
+              osname: macOS,
+              arch: arm64,
+              target: aarch64-apple-darwin,
+              command: build,
+            }
+          - {
+              runner: ubuntu-latest,
+              osname: linux,
+              arch: amd64,
+              target: x86_64-unknown-linux-gnu,
+              command: build,
+            }
+          - {
+              runner: ubuntu-latest,
+              osname: linux,
+              arch: arm64,
+              target: aarch64-unknown-linux-gnu,
+              command: build,
+              build_args: --no-default-features,
+            }
+          - {
+              runner: windows-latest,
+              osname: windows,
+              arch: amd64,
+              target: x86_64-pc-windows-msvc,
+              command: build,
+              extension: ".exe",
+            }
+          # - { runner: windows-latest, osname: windows, arch: arm64, target: aarch64-pc-windows-msvc, command: build, extension: ".exe", toolchain: nightly }
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Get the release version from the tag
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Build binary
+        uses: houseabsolute/actions-rust-cross@v0
+        with:
+          command: ${{ matrix.command }}
+          target: ${{ matrix.target }}
+          args: "--locked --release ${{ matrix.build_args }}"
+          strip: true
+
+      - name: Prepare Release File
+        run: |
+          # move the binary
+          mv target/${{ matrix.target }}/release/dkn-compute${{ matrix.extension }} ./dkn-compute-binary-${{ matrix.osname }}-${{ matrix.arch }}${{ matrix.extension }}
+
+      - name: Upload Launch Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dkn-compute-binary-${{ matrix.osname }}-${{ matrix.arch }}
+          path: dkn-compute-binary-${{ matrix.osname }}-${{ matrix.arch }}${{ matrix.extension }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Fetch all tags and history
+
+      - name: Download Launch Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: ./artifacts
+
+      - name: Create release with artifacts
+        uses: ncipollo/release-action@v1
+        with:
+          name: ${{ github.event.release.name }}
+          tag: ${{ github.event.release.tag_name }}
+          artifacts: "artifacts/*"
+          artifactContentType: application/octet-stream
+          allowUpdates: true
+          # draft: true

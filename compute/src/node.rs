@@ -10,7 +10,7 @@ use crate::{
 };
 
 /// Number of seconds between refreshing the Admin RPC PeerIDs from Dria server.
-const RPC_PEER_ID_REFRESH_INTERVAL_SECS: u64 = 30;
+const RPC_PEER_ID_REFRESH_INTERVAL_SECS: u64 = 5;
 
 /// **Dria Compute Node**
 ///

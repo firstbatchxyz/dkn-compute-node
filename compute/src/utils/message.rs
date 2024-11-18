@@ -5,6 +5,7 @@ use crate::utils::{
 use crate::DRIA_COMPUTE_NODE_VERSION;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use core::fmt;
+use dkn_p2p::P2P_IDENTITY_PREFIX;
 use ecies::PublicKey;
 use eyre::{Context, Result};
 use libsecp256k1::{verify, Message, SecretKey, Signature};
@@ -19,7 +20,10 @@ pub struct DKNMessage {
     ///
     /// NOTE: This can be obtained via TopicHash in GossipSub
     pub(crate) topic: String,
-    /// The version of the Dria Compute Node
+    /// Identity protocol string of the Dria Compute Node
+    #[serde(default)]
+    pub(crate) identity: String,
+    /// The full crate version of the Dria Compute Node
     ///
     /// NOTE: This can be obtained via Identify protocol version
     pub(crate) version: String,
@@ -46,6 +50,7 @@ impl DKNMessage {
             payload: BASE64_STANDARD.encode(data),
             topic: topic.to_string(),
             version: DRIA_COMPUTE_NODE_VERSION.to_string(),
+            identity: P2P_IDENTITY_PREFIX.trim_end_matches('/').to_string(),
             timestamp: get_current_time_nanos(),
         }
     }

@@ -3356,7 +3356,7 @@ dependencies = [
 [[package]]
 name = "ollama-workflows"
 version = "0.1.0"
-source = "git+https://github.com/andthattoo/ollama-workflows#75ead48d237d1f408a82f20eef2cd350f217e592"
+source = "git+https://github.com/andthattoo/ollama-workflows#12f622c1532ff167a4e11d8504f35f2f209b9312"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -4482,9 +4482,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.132"
+version = "1.0.133"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d726bfaff4b320266d395898905d0eba0345aae23b54aee3a737e260fd46db03"
+checksum = "c7fceb2473b9166b2294ef05efcb65a3db80803f0b03ef86a5fc88a2b85ee377"
 dependencies = [
  "itoa 1.0.11",
  "memchr",
