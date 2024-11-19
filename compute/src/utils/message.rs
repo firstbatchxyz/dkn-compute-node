@@ -23,6 +23,9 @@ pub struct DKNMessage {
     ///
     /// NOTE: This can be obtained via Identify protocol version
     pub(crate) version: String,
+    /// Identity protocol string of the Dria Compute Node
+    #[serde(default)]
+    pub(crate) identity: String,
     /// The timestamp of the message, in nanoseconds
     ///
     /// NOTE: This can be obtained via DataTransform in GossipSub
@@ -46,6 +49,9 @@ impl DKNMessage {
             payload: BASE64_STANDARD.encode(data),
             topic: topic.to_string(),
             version: DRIA_COMPUTE_NODE_VERSION.to_string(),
+            identity: dkn_p2p::P2P_IDENTITY_PREFIX
+                .trim_end_matches('/')
+                .to_string(),
             timestamp: get_current_time_nanos(),
         }
     }
