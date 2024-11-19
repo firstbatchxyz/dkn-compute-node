@@ -254,6 +254,7 @@ impl DriaP2PClient {
                     log::warn!("Local node is listening on {}", address);
                 }
                 SwarmEvent::ExternalAddrConfirmed { address } => {
+                    // this is usually the external address via relay
                     log::info!("External address confirmed: {}", address);
                 }
                 event => log::trace!("Unhandled Swarm Event: {:?}", event),
@@ -275,6 +276,13 @@ impl DriaP2PClient {
                 info.protocol_version,
                 self.identity_protocol
             );
+
+            // blacklist peers with different protocol
+            self.swarm
+                .behaviour_mut()
+                .gossipsub
+                .blacklist_peer(&peer_id);
+
             return;
         }
 
