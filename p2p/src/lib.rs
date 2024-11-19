@@ -7,10 +7,10 @@ mod client;
 pub use client::DriaP2PClient;
 
 /// Prefix for Kademlia protocol, must start with `/`!
-pub(crate) const P2P_KADEMLIA_PREFIX: &str = "/dria/kad/";
+pub const P2P_KADEMLIA_PREFIX: &str = "/dria/kad/";
 
 /// Prefix for Identity protocol string.
-pub(crate) const P2P_IDENTITY_PREFIX: &str = "dria/";
+pub const P2P_IDENTITY_PREFIX: &str = "dria/";
 
 // re-exports
 pub use libp2p;
