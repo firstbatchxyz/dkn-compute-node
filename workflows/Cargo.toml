@@ -10,6 +10,7 @@ authors = ["Erhan Tezcan <erhan@firstbatch.xyz>"]
 [dependencies]
 # ollama-rs is re-exported from ollama-workflows as well
 ollama-workflows = { git = "https://github.com/andthattoo/ollama-workflows" }
+env_logger.workspace = true
 
 # async stuff
 tokio-util.workspace = true
@@ -29,7 +30,16 @@ rand.workspace = true
 log.workspace = true
 eyre.workspace = true
 
+sysinfo = { version = "0.32.0", optional = true }
+prettytable = { version = "0.10.0", optional = true }
+
+[features]
+profiling = ["sysinfo", "prettytable"]
+
 [dev-dependencies]
 # only used for tests
-env_logger.workspace = true
 dotenvy.workspace = true
+
+[[bin]]
+name = "tps"
+path = "src/bin/tps.rs"

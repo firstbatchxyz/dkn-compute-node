@@ -1,4 +1,5 @@
 mod providers;
+pub use providers::OllamaConfig;
 
 mod apis;
 
