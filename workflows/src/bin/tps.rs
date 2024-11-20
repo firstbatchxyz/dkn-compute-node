@@ -1,6 +1,7 @@
 #[cfg(feature = "profiling")]
 mod profile {
     pub use dkn_workflows::{DriaWorkflowsConfig, OllamaConfig};
+    pub use log::{debug, warn};
     pub use ollama_workflows::ollama_rs::{
         generation::{completion::request::GenerationRequest, options::GenerationOptions},
         Ollama,
@@ -61,26 +62,27 @@ async fn main() {
         let cfg = DriaWorkflowsConfig::new(models);
         let config = OllamaConfig::default();
         let ollama = Ollama::new(config.host, config.port);
-        log::info!("Starting...");
+        debug!("Starting...");
         // ensure that all lists of CPUs and processes are filled
         let mut system = System::new_all();
         // update all information of the system
         system.refresh_all();
 
-        log::debug!("Getting system information...");
+        debug!("Getting system information...");
         let brand = system.cpus()[0].brand().to_string();
         let os_name = System::name().unwrap_or_else(|| "Unknown".to_string());
         let os_version = System::long_os_version().unwrap_or_else(|| "Unknown".to_string());
         let cpu_usage = system.global_cpu_usage();
         let total_memory = system.total_memory();
         let used_memory = system.used_memory();
+        let mut tps = 0 as f64;
 
         for (_, model) in cfg.models {
-            log::info!("Pulling model: {}", model);
+            debug!("Pulling model: {}", model);
 
             // pull model
             match ollama.pull_model(model.to_string(), false).await {
-                Ok(status) => log::info!("Status: {}", status.message),
+                Ok(status) => debug!("Status: {}", status.message),
                 Err(err) => {
                     log::error!("Failed to pull model {}: {:?}", model, err);
                 }
@@ -104,13 +106,19 @@ async fn main() {
             // generate response
             match ollama.generate(generation_request).await {
                 Ok(response) => {
-                    log::debug!("Got response for model {}", model);
+                    debug!("Got response for model {}", model);
                     // compute TPS
-                    let tps = (response.eval_count.unwrap_or_default() as f64)
+                    tps = (response.eval_count.unwrap_or_default() as f64)
                         / (response.eval_duration.unwrap_or(1) as f64)
                         * 1_000_000_000f64;
                     // report machine info
-                    log::info!(
+                }
+                Err(e) => {
+                    warn!("Ignoring model {}: Workflow failed with error {}", model, e);
+                }
+            }
+            // print system info
+            println!(
                     "\n Model: {} \n TPS: {} \n OS: {} {} \n Version: {} \n CPU Usage: % {} \n Total Memory: {} KB \n Used Memory: {} KB ",
                     model,
                     tps,
@@ -121,11 +129,6 @@ async fn main() {
                     total_memory,
                     used_memory,
                 );
-                }
-                Err(e) => {
-                    log::warn!("Ignoring model {}: Workflow failed with error {}", model, e);
-                }
-            }
             // refresh CPU usage (https://docs.rs/sysinfo/latest/sysinfo/struct.Cpu.html#method.cpu_usage)
             system = System::new_with_specifics(
                 RefreshKind::new().with_cpu(CpuRefreshKind::everything()),
@@ -135,6 +138,6 @@ async fn main() {
             // refresh CPUs again to get actual value
             system.refresh_cpu_usage();
         }
+        debug!("Finished");
     }
-    log::info!("Finished");
 }
