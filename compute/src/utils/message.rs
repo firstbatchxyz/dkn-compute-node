@@ -49,9 +49,7 @@ impl DKNMessage {
             payload: BASE64_STANDARD.encode(data),
             topic: topic.to_string(),
             version: DRIA_COMPUTE_NODE_VERSION.to_string(),
-            identity: dkn_p2p::P2P_IDENTITY_PREFIX
-                .trim_end_matches('/')
-                .to_string(),
+            identity: String::default(),
             timestamp: get_current_time_nanos(),
         }
     }
@@ -68,6 +66,12 @@ impl DKNMessage {
 
         // create the actual message with this signed data
         Self::new(signed_data, topic)
+    }
+
+    /// Sets the identity of the message.
+    pub fn with_identity(mut self, identity: String) -> Self {
+        self.identity = identity;
+        self
     }
 
     /// Decodes the base64 payload into bytes.
@@ -102,11 +106,11 @@ impl DKNMessage {
         let (signature_hex_bytes, body) =
             (&data[..SIGNATURE_SIZE_HEX - 2], &data[SIGNATURE_SIZE_HEX..]);
         let signature_bytes =
-            hex::decode(signature_hex_bytes).wrap_err("Could not decode signature hex")?;
+            hex::decode(signature_hex_bytes).wrap_err("could not decode signature hex")?;
 
         // now obtain the signature itself
         let signature = Signature::parse_standard_slice(&signature_bytes)
-            .wrap_err("Could not parse signature bytes")?;
+            .wrap_err("could not parse signature bytes")?;
 
         // verify signature w.r.t the body and the given public key
         let digest = Message::parse(&sha256hash(body));

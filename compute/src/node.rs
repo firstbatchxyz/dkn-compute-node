@@ -1,6 +1,5 @@
-use dkn_p2p::{libp2p::gossipsub, DriaP2PClient};
+use dkn_p2p::{libp2p::gossipsub, DriaP2PClient, DriaP2PProtocol};
 use eyre::{eyre, Result};
-use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -8,9 +7,6 @@ use crate::{
     handlers::*,
     utils::{crypto::secret_to_keypair, AvailableNodes, DKNMessage},
 };
-
-/// Number of seconds between refreshing the Admin RPC PeerIDs from Dria server.
-const RPC_PEER_ID_REFRESH_INTERVAL_SECS: u64 = 30;
 
 /// **Dria Compute Node**
 ///
@@ -29,7 +25,6 @@ pub struct DriaComputeNode {
     pub config: DriaComputeNodeConfig,
     pub p2p: DriaP2PClient,
     pub available_nodes: AvailableNodes,
-    pub available_nodes_last_refreshed: tokio::time::Instant,
     pub cancellation: CancellationToken,
 }
 
@@ -41,23 +36,13 @@ impl DriaComputeNode {
         let keypair = secret_to_keypair(&config.secret_key);
 
         // get available nodes (bootstrap, relay, rpc) for p2p
-        let available_nodes = AvailableNodes::default()
-            .join(AvailableNodes::new_from_statics())
-            .join(AvailableNodes::new_from_env())
-            .join(
-                AvailableNodes::get_available_nodes()
-                    .await
-                    .unwrap_or_default(),
-            )
-            .sort_dedup();
+        let mut available_nodes =
+            AvailableNodes::new_from_statics().join(AvailableNodes::new_from_env());
+        available_nodes.refresh().await;
 
         // we are using the major.minor version as the P2P version
         // so that patch versions do not interfere with the protocol
-        const P2P_VERSION: &str = concat!(
-            env!("CARGO_PKG_VERSION_MAJOR"),
-            ".",
-            env!("CARGO_PKG_VERSION_MINOR")
-        );
+        let protocol = DriaP2PProtocol::new_major_minor("dria");
 
         // create p2p client
         let mut p2p = DriaP2PClient::new(
@@ -65,7 +50,7 @@ impl DriaComputeNode {
             config.p2p_listen_addr.clone(),
             &available_nodes.bootstrap_nodes,
             &available_nodes.relay_nodes,
-            P2P_VERSION,
+            protocol,
         )?;
 
         // dial rpc nodes
@@ -83,7 +68,6 @@ impl DriaComputeNode {
             config,
             cancellation,
             available_nodes,
-            available_nodes_last_refreshed: tokio::time::Instant::now(),
         })
     }
 
@@ -111,8 +95,10 @@ impl DriaComputeNode {
 
     /// Publishes a given message to the network w.r.t the topic of it.
     ///
-    /// Internally, the message is JSON serialized to bytes and then published to the network as is.
-    pub fn publish(&mut self, message: DKNMessage) -> Result<()> {
+    /// Internally, identity is attached to the the message which is then JSON serialized to bytes
+    /// and then published to the network as is.
+    pub fn publish(&mut self, mut message: DKNMessage) -> Result<()> {
+        message = message.with_identity(self.p2p.protocol().identity());
         let message_bytes = serde_json::to_vec(&message)?;
         let message_id = self.p2p.publish(&message.topic, message_bytes)?;
         log::info!("Published message ({}) to {}", message_id, message.topic);
@@ -145,11 +131,19 @@ impl DriaComputeNode {
             tokio::select! {
                 event = self.p2p.process_events() => {
                     // refresh admin rpc peer ids
-                    if self.available_nodes_last_refreshed.elapsed() > Duration::from_secs(RPC_PEER_ID_REFRESH_INTERVAL_SECS) {
+                    if self.available_nodes.can_refresh() {
                         log::info!("Refreshing available nodes.");
 
-                        self.available_nodes = AvailableNodes::get_available_nodes().await.unwrap_or_default().join(self.available_nodes.clone()).sort_dedup();
-                        self.available_nodes_last_refreshed = tokio::time::Instant::now();
+                        self.available_nodes.refresh().await;
+
+                        // dial all rpc nodes for better connectivity
+                        for rpc_addr in self.available_nodes.rpc_addrs.iter() {
+                            log::debug!("Dialling RPC node: {}", rpc_addr);
+                            // TODO: does this cause resource issues?
+                            if let Err(e) = self.p2p.dial(rpc_addr.clone()) {
+                                log::warn!("Error dialling RPC node: {:?}", e);
+                            };
+                        }
 
                         // also print network info
                         log::debug!("{:?}", self.p2p.network_info().connection_counters());
@@ -173,12 +167,7 @@ impl DriaComputeNode {
                             }
                         };
 
-                        // log::info!(
-                        //     "Received {} message ({})\nFrom:   {}\nSource: {}",
-                        //     topic_str,
-                        //     message_id,
-                        //     peer_id,
-                        // );
+                        // log the received message
                         log::info!(
                             "Received {} message ({}) from {}",
                             topic_str,

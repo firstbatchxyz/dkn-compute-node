@@ -4,8 +4,6 @@ use std::env;
 
 use crate::utils::safe_read_env;
 
-/// Makes a request for `example.com`.
-const JINA_EXAMPLE_ENDPOINT: &str = "https://r.jina.ai/https://example.com";
 const ENV_VAR_NAME: &str = "JINA_API_KEY";
 
 /// Jina-specific configurations.
@@ -46,10 +44,10 @@ impl JinaConfig {
         };
         log::info!("Jina API key found, checking Jina service");
 
-        // make a dummy request models
+        // make a dummy request to "example.com"
         let client = Client::new();
         let request = client
-            .get(JINA_EXAMPLE_ENDPOINT)
+            .get("https://r.jina.ai/https://example.com")
             .header("Authorization", format!("Bearer {}", api_key))
             .build()
             .wrap_err("failed to build request")?;

@@ -25,6 +25,9 @@ const STATIC_RPC_PEER_IDS: [&str; 0] = [];
 /// API URL for refreshing the Admin RPC PeerIDs from Dria server.
 const RPC_PEER_ID_REFRESH_API_URL: &str = "https://dkn.dria.co/available-nodes";
 
+/// Number of seconds between refreshing the Admin RPC PeerIDs from Dria server.
+const RPC_PEER_ID_REFRESH_INTERVAL_SECS: u64 = 30;
+
 /// Available nodes within the hybrid P2P network.
 ///
 /// - Bootstrap: used for Kademlia DHT bootstrap.
@@ -33,12 +36,14 @@ const RPC_PEER_ID_REFRESH_API_URL: &str = "https://dkn.dria.co/available-nodes";
 ///
 /// Note that while bootstrap & relay nodes are `Multiaddr`, RPC nodes are `PeerId` because we communicate
 /// with them via GossipSub only.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct AvailableNodes {
     pub bootstrap_nodes: Vec<Multiaddr>,
     pub relay_nodes: Vec<Multiaddr>,
     pub rpc_nodes: Vec<PeerId>,
     pub rpc_addrs: Vec<Multiaddr>,
+    // refreshing
+    pub last_refreshed: tokio::time::Instant,
 }
 
 impl AvailableNodes {
@@ -69,6 +74,7 @@ impl AvailableNodes {
             relay_nodes: parse_vec(relay_nodes),
             rpc_nodes: vec![],
             rpc_addrs: vec![],
+            last_refreshed: tokio::time::Instant::now(),
         }
     }
 
@@ -79,6 +85,7 @@ impl AvailableNodes {
             relay_nodes: parse_vec(STATIC_RELAY_NODES.to_vec()),
             rpc_nodes: parse_vec(STATIC_RPC_PEER_IDS.to_vec()),
             rpc_addrs: vec![],
+            last_refreshed: tokio::time::Instant::now(),
         }
     }
 
@@ -108,6 +115,10 @@ impl AvailableNodes {
         self
     }
 
+    pub fn can_refresh(&self) -> bool {
+        self.last_refreshed.elapsed().as_secs() > RPC_PEER_ID_REFRESH_INTERVAL_SECS
+    }
+
     /// Refreshes the available nodes for Bootstrap, Relay and RPC nodes.
     pub async fn get_available_nodes() -> Result<Self> {
         #[derive(serde::Deserialize, Debug)]
@@ -127,7 +138,13 @@ impl AvailableNodes {
             relay_nodes: parse_vec(response_body.relays),
             rpc_nodes: parse_vec(response_body.rpcs),
             rpc_addrs: parse_vec(response_body.rpc_addrs),
+            last_refreshed: tokio::time::Instant::now(),
         })
+    }
+
+    /// Refresh available nodes using the API.
+    pub async fn refresh(&mut self) {
+        todo!("TODO: refresh the available nodes")
     }
 }
 

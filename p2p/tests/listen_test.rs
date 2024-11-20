@@ -1,4 +1,4 @@
-use dkn_p2p::DriaP2PClient;
+use dkn_p2p::{DriaP2PClient, DriaP2PProtocol};
 use eyre::Result;
 use libp2p::Multiaddr;
 use libp2p_identity::Keypair;
@@ -24,7 +24,8 @@ async fn test_listen_topic_once() -> Result<()> {
     let relays = vec![Multiaddr::from_str(
         "/ip4/34.201.33.141/tcp/4001/p2p/16Uiu2HAkuXiV2CQkC9eJgU6cMnJ9SMARa85FZ6miTkvn5fuHNufa",
     )?];
-    let mut client = DriaP2PClient::new(keypair, addr, &bootstraps, &relays, "0.2")?;
+    let protocol = DriaP2PProtocol::new_major_minor("dria");
+    let mut client = DriaP2PClient::new(keypair, addr, &bootstraps, &relays, protocol)?;
 
     // subscribe to the given topic
     client.subscribe(TOPIC)?;
