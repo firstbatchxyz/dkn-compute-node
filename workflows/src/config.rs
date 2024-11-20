@@ -1,6 +1,6 @@
 use crate::{
     apis::{JinaConfig, SerperConfig},
-    providers::{GeminiConfig, OllamaConfig, OpenAIConfig},
+    providers::{GeminiConfig, OllamaConfig, OpenAIConfig, OpenRouterConfig},
     split_csv_line, Model, ModelProvider,
 };
 use eyre::{eyre, Result};
@@ -19,6 +19,9 @@ pub struct DriaWorkflowsConfig {
     /// Gemini configurations, e.g. API key, in case Gemini is used.
     /// Otherwise, can be ignored.
     pub gemini: GeminiConfig,
+    /// OpenRouter configurations, e.g. API key, in case OpenRouter is used.
+    /// Otherwise, can be ignored.
+    pub openrouter: OpenRouterConfig,
     /// Serper configurations, e.g. API key, in case Serper is given in environment.
     /// Otherwise, can be ignored.
     pub serper: SerperConfig,
@@ -39,6 +42,7 @@ impl DriaWorkflowsConfig {
             models: models_and_providers,
             ollama: OllamaConfig::new(),
             openai: OpenAIConfig::new(),
+            openrouter: OpenRouterConfig::new(),
             gemini: GeminiConfig::new(),
             serper: SerperConfig::new(),
             jina: JinaConfig::new(),
@@ -227,6 +231,18 @@ impl DriaWorkflowsConfig {
                     .await?
                     .into_iter()
                     .map(|m| (ModelProvider::Gemini, m)),
+            );
+        }
+
+        // if OpenRouter is a provider, check that the API key is set
+        if unique_providers.contains(&ModelProvider::OpenRouter) {
+            let provider_models = self.get_models_for_provider(ModelProvider::OpenRouter);
+            good_models.extend(
+                self.openrouter
+                    .check(provider_models)
+                    .await?
+                    .into_iter()
+                    .map(|m| (ModelProvider::OpenRouter, m)),
             );
         }
 
