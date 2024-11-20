@@ -7,6 +7,7 @@ mod profile {
         Ollama,
     };
     pub use ollama_workflows::Model;
+    pub use prettytable::{Cell, Row, Table};
     pub use sysinfo::{CpuRefreshKind, RefreshKind, System, MINIMUM_CPU_UPDATE_INTERVAL};
 }
 
@@ -76,6 +77,18 @@ async fn main() {
         let total_memory = system.total_memory();
         let used_memory = system.used_memory();
         let mut tps = 0 as f64;
+        let mut table = Table::new();
+
+        // Add a row with the headers
+        table.add_row(Row::new(vec![
+            Cell::new("Model"),
+            Cell::new("TPS"),
+            Cell::new("OS"),
+            Cell::new("Version"),
+            Cell::new("CPU Usage (%)"),
+            Cell::new("Total Memory (KB)"),
+            Cell::new("Used Memory (KB)"),
+        ]));
 
         for (_, model) in cfg.models {
             debug!("Pulling model: {}", model);
@@ -107,28 +120,29 @@ async fn main() {
             match ollama.generate(generation_request).await {
                 Ok(response) => {
                     debug!("Got response for model {}", model);
+
                     // compute TPS
                     tps = (response.eval_count.unwrap_or_default() as f64)
                         / (response.eval_duration.unwrap_or(1) as f64)
                         * 1_000_000_000f64;
-                    // report machine info
+
+                    // add row to table
+                    table.add_row(Row::new(vec![
+                        Cell::new(&model.to_string()),
+                        Cell::new(&tps.to_string()),
+                        Cell::new(&format!("{} {}", brand, os_name)),
+                        Cell::new(&os_version),
+                        Cell::new(&cpu_usage.to_string()),
+                        Cell::new(&total_memory.to_string()),
+                        Cell::new(&used_memory.to_string()),
+                    ]));
                 }
                 Err(e) => {
                     warn!("Ignoring model {}: Workflow failed with error {}", model, e);
                 }
             }
+            table.printstd();
             // print system info
-            println!(
-                    "\n Model: {} \n TPS: {} \n OS: {} {} \n Version: {} \n CPU Usage: % {} \n Total Memory: {} KB \n Used Memory: {} KB ",
-                    model,
-                    tps,
-                    brand,
-                    os_name,
-                    os_version,
-                    cpu_usage,
-                    total_memory,
-                    used_memory,
-                );
             // refresh CPU usage (https://docs.rs/sysinfo/latest/sysinfo/struct.Cpu.html#method.cpu_usage)
             system = System::new_with_specifics(
                 RefreshKind::new().with_cpu(CpuRefreshKind::everything()),
@@ -138,6 +152,8 @@ async fn main() {
             // refresh CPUs again to get actual value
             system.refresh_cpu_usage();
         }
+        // print system info
+        table.printstd();
         debug!("Finished");
     }
 }

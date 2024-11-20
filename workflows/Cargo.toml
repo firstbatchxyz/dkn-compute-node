@@ -31,9 +31,10 @@ log.workspace = true
 eyre.workspace = true
 
 sysinfo = { version = "0.32.0", optional = true }
+prettytable = { version = "0.10.0", optional = true }
 
 [features]
-profiling = ["sysinfo"]
+profiling = ["sysinfo", "prettytable"]
 
 [dev-dependencies]
 # only used for tests
