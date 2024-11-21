@@ -25,7 +25,13 @@ async fn test_listen_topic_once() -> Result<()> {
         "/ip4/34.201.33.141/tcp/4001/p2p/16Uiu2HAkuXiV2CQkC9eJgU6cMnJ9SMARa85FZ6miTkvn5fuHNufa",
     )?];
     let protocol = DriaP2PProtocol::new_major_minor("dria");
-    let mut client = DriaP2PClient::new(keypair, addr, &bootstraps, &relays, protocol)?;
+    let mut client = DriaP2PClient::new(
+        keypair,
+        addr,
+        bootstraps.into_iter(),
+        relays.into_iter(),
+        protocol,
+    )?;
 
     // subscribe to the given topic
     client.subscribe(TOPIC)?;

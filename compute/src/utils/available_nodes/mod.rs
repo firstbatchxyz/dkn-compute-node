@@ -1,7 +1,7 @@
 use dkn_p2p::libp2p::{Multiaddr, PeerId};
 use dkn_workflows::split_csv_line;
 use eyre::Result;
-use std::{env, fmt::Debug, str::FromStr};
+use std::{collections::HashSet, env, fmt::Debug, str::FromStr};
 use tokio::time::Instant;
 
 mod statics;
@@ -9,7 +9,7 @@ mod statics;
 use crate::DriaNetworkType;
 
 /// Number of seconds between refreshing the available nodes.
-const DEFAULT_REFRESH_INTERVAL_SECS: u64 = 30;
+const DEFAULT_REFRESH_INTERVAL_SECS: u64 = 5;
 
 /// Available nodes within the hybrid P2P network.
 ///
@@ -21,10 +21,10 @@ const DEFAULT_REFRESH_INTERVAL_SECS: u64 = 30;
 /// with them via GossipSub only.
 #[derive(Debug, Clone)]
 pub struct AvailableNodes {
-    pub bootstrap_nodes: Vec<Multiaddr>,
-    pub relay_nodes: Vec<Multiaddr>,
-    pub rpc_nodes: Vec<PeerId>,
-    pub rpc_addrs: Vec<Multiaddr>,
+    pub bootstrap_nodes: HashSet<Multiaddr>,
+    pub relay_nodes: HashSet<Multiaddr>,
+    pub rpc_nodes: HashSet<PeerId>,
+    pub rpc_addrs: HashSet<Multiaddr>,
     pub last_refreshed: Instant,
     pub network_type: DriaNetworkType,
     pub refresh_interval_secs: u64,
@@ -34,10 +34,10 @@ impl AvailableNodes {
     /// Creates a new `AvailableNodes` struct for the given network type.
     pub fn new(network: DriaNetworkType) -> Self {
         Self {
-            bootstrap_nodes: vec![],
-            relay_nodes: vec![],
-            rpc_nodes: vec![],
-            rpc_addrs: vec![],
+            bootstrap_nodes: HashSet::new(),
+            relay_nodes: HashSet::new(),
+            rpc_nodes: HashSet::new(),
+            rpc_addrs: HashSet::new(),
             last_refreshed: Instant::now(),
             network_type: network,
             refresh_interval_secs: DEFAULT_REFRESH_INTERVAL_SECS,
@@ -63,6 +63,8 @@ impl AvailableNodes {
         } else {
             log::debug!("Using additional bootstrap nodes: {:#?}", bootstrap_nodes);
         }
+        self.bootstrap_nodes
+            .extend(parse_vec(bootstrap_nodes).into_iter());
 
         // parse relay nodes
         let relay_nodes = split_csv_line(&env::var("DKN_RELAY_NODES").unwrap_or_default());
@@ -71,47 +73,17 @@ impl AvailableNodes {
         } else {
             log::debug!("Using additional relay nodes: {:#?}", relay_nodes);
         }
-
-        self.bootstrap_nodes = parse_vec(bootstrap_nodes);
-        self.relay_nodes = parse_vec(relay_nodes);
+        self.relay_nodes.extend(parse_vec(relay_nodes).into_iter());
     }
 
     /// Adds the static nodes to the struct, with respect to network type.
     pub fn populate_with_statics(&mut self) {
-        self.bootstrap_nodes = self.network_type.get_static_bootstrap_nodes();
-        self.relay_nodes = self.network_type.get_static_relay_nodes();
-        self.rpc_nodes = self.network_type.get_static_rpc_peer_ids();
-    }
-
-    /// Joins the struct with another `AvailableNodes` struct.
-    pub fn join(mut self, other: Self) -> Self {
-        self.bootstrap_nodes.extend(other.bootstrap_nodes);
-        self.relay_nodes.extend(other.relay_nodes);
-        self.rpc_nodes.extend(other.rpc_nodes);
-        self.rpc_addrs.extend(other.rpc_addrs);
-        self
-    }
-
-    /// Removes duplicates within all fields.
-    pub fn sort_dedup(mut self) -> Self {
-        self.bootstrap_nodes.sort_unstable();
-        self.bootstrap_nodes.dedup();
-
-        self.relay_nodes.sort_unstable();
-        self.relay_nodes.dedup();
-
-        self.rpc_nodes.sort_unstable();
-        self.rpc_nodes.dedup();
-
-        self.rpc_addrs.sort_unstable();
-        self.rpc_addrs.dedup();
-
-        self
-    }
-
-    /// Returns whether enough time has passed since the last refresh.
-    pub fn can_refresh(&self) -> bool {
-        self.last_refreshed.elapsed().as_secs() > self.refresh_interval_secs
+        self.bootstrap_nodes
+            .extend(self.network_type.get_static_bootstrap_nodes().into_iter());
+        self.relay_nodes
+            .extend(self.network_type.get_static_relay_nodes().into_iter());
+        self.rpc_nodes
+            .extend(self.network_type.get_static_rpc_peer_ids().into_iter());
     }
 
     /// Refresh available nodes using the API.
@@ -132,14 +104,22 @@ impl AvailableNodes {
         };
         let response = reqwest::get(url).await?;
         let response_body = response.json::<AvailableNodesApiResponse>().await?;
-
-        self.bootstrap_nodes = parse_vec(response_body.bootstraps);
-        self.relay_nodes = parse_vec(response_body.relays);
-        self.rpc_nodes = parse_vec(response_body.rpcs);
-        self.rpc_addrs = parse_vec(response_body.rpc_addrs);
+        self.bootstrap_nodes
+            .extend(parse_vec(response_body.bootstraps).into_iter());
+        self.relay_nodes
+            .extend(parse_vec(response_body.relays).into_iter());
+        self.rpc_addrs
+            .extend(parse_vec(response_body.rpc_addrs).into_iter());
+        self.rpc_nodes
+            .extend(parse_vec::<PeerId>(response_body.rpcs).into_iter());
         self.last_refreshed = Instant::now();
 
         Ok(())
+    }
+
+    /// Returns whether enough time has passed since the last refresh.
+    pub fn can_refresh(&self) -> bool {
+        self.last_refreshed.elapsed().as_secs() > self.refresh_interval_secs
     }
 }
 

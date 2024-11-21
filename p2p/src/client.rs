@@ -42,8 +42,8 @@ impl DriaP2PClient {
     pub fn new(
         keypair: Keypair,
         listen_addr: Multiaddr,
-        bootstraps: &[Multiaddr],
-        relays: &[Multiaddr],
+        bootstraps: impl Iterator<Item = Multiaddr>,
+        relays: impl Iterator<Item = Multiaddr>,
         protocol: DriaP2PProtocol,
     ) -> Result<Self> {
         // this is our peerId
@@ -80,8 +80,8 @@ impl DriaP2PClient {
             .set_mode(Some(libp2p::kad::Mode::Server));
 
         // initiate bootstrap
-        log::info!("Initiating bootstrap: {:#?}", bootstraps);
         for addr in bootstraps {
+            log::info!("Dialling bootstrap: {:#?}", addr);
             if let Some(peer_id) = addr.iter().find_map(|p| match p {
                 Protocol::P2p(peer_id) => Some(peer_id),
                 _ => None,
@@ -89,10 +89,7 @@ impl DriaP2PClient {
                 log::info!("Dialling peer: {}", addr);
                 swarm.dial(addr.clone())?;
                 log::info!("Adding {} to Kademlia routing table", addr);
-                swarm
-                    .behaviour_mut()
-                    .kademlia
-                    .add_address(&peer_id, addr.clone());
+                swarm.behaviour_mut().kademlia.add_address(&peer_id, addr);
             } else {
                 log::warn!("Missing peerID in address: {}", addr);
             }
@@ -111,8 +108,8 @@ impl DriaP2PClient {
         log::info!("Listening p2p network on: {}", listen_addr);
         swarm.listen_on(listen_addr)?;
 
-        log::info!("Listening to relay nodes: {:#?}", relays);
         for addr in relays {
+            log::info!("Listening to relay: {}", addr);
             swarm.listen_on(addr.clone().with(Protocol::P2pCircuit))?;
         }
 

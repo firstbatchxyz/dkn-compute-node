@@ -53,8 +53,8 @@ impl DriaComputeNode {
         let mut p2p = DriaP2PClient::new(
             keypair,
             config.p2p_listen_addr.clone(),
-            &available_nodes.bootstrap_nodes,
-            &available_nodes.relay_nodes,
+            available_nodes.bootstrap_nodes.clone().into_iter(),
+            available_nodes.relay_nodes.clone().into_iter(),
             protocol,
         )?;
 
@@ -144,13 +144,13 @@ impl DriaComputeNode {
                         };
 
                         // dial all rpc nodes for better connectivity
-                        for rpc_addr in self.available_nodes.rpc_addrs.iter() {
-                            log::debug!("Dialling RPC node: {}", rpc_addr);
-                            // TODO: does this cause resource issues?
-                            if let Err(e) = self.p2p.dial(rpc_addr.clone()) {
-                                log::warn!("Error dialling RPC node: {:?}", e);
-                            };
-                        }
+                        // for rpc_addr in self.available_nodes.rpc_addrs.iter() {
+                        //     log::debug!("Dialling RPC node: {}", rpc_addr);
+                        //     // TODO: does this cause resource issues?
+                        //     if let Err(e) = self.p2p.dial(rpc_addr.clone()) {
+                        //         log::warn!("Error dialling RPC node: {:?}", e);
+                        //     };
+                        // }
 
                         // also print network info
                         log::debug!("{:?}", self.p2p.network_info().connection_counters());
