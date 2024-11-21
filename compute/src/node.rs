@@ -33,16 +33,21 @@ impl DriaComputeNode {
         config: DriaComputeNodeConfig,
         cancellation: CancellationToken,
     ) -> Result<Self> {
+        // create the keypair from secret key
         let keypair = secret_to_keypair(&config.secret_key);
 
         // get available nodes (bootstrap, relay, rpc) for p2p
-        let mut available_nodes =
-            AvailableNodes::new_from_statics().join(AvailableNodes::new_from_env());
-        available_nodes.refresh().await;
+        let mut available_nodes = AvailableNodes::new(config.network_type);
+        available_nodes.populate_with_statics();
+        available_nodes.populate_with_env();
+        if let Err(e) = available_nodes.populate_with_api().await {
+            log::error!("Error populating available nodes: {:?}", e);
+        };
 
         // we are using the major.minor version as the P2P version
         // so that patch versions do not interfere with the protocol
-        let protocol = DriaP2PProtocol::new_major_minor("dria");
+        let protocol = DriaP2PProtocol::new_major_minor(config.network_type.protocol_name());
+        log::info!("Using identity: {}", protocol);
 
         // create p2p client
         let mut p2p = DriaP2PClient::new(
@@ -134,7 +139,9 @@ impl DriaComputeNode {
                     if self.available_nodes.can_refresh() {
                         log::info!("Refreshing available nodes.");
 
-                        self.available_nodes.refresh().await;
+                        if let Err(e) = self.available_nodes.populate_with_api().await {
+                            log::error!("Error refreshing available nodes: {:?}", e);
+                        };
 
                         // dial all rpc nodes for better connectivity
                         for rpc_addr in self.available_nodes.rpc_addrs.iter() {

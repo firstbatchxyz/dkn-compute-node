@@ -272,55 +272,61 @@ impl DriaP2PClient {
                 self.protocol.identity
             );
 
-            // blacklist peers with different protocol
+            // blacklist & disconnect peers with different protocol
             self.swarm
                 .behaviour_mut()
                 .gossipsub
                 .blacklist_peer(&peer_id);
+            let _ = self.swarm.disconnect_peer_id(peer_id);
+        } else {
+            // check kademlia protocol
+            if let Some(kad_protocol) = info
+                .protocols
+                .iter()
+                .find(|p| self.protocol.is_common_kademlia(p))
+            {
+                // if it matches our protocol, add it to the Kademlia routing table
+                if *kad_protocol == self.protocol.kademlia {
+                    // filter listen addresses
+                    let addrs = info.listen_addrs.into_iter().filter(|listen_addr| {
+                        if let Some(Protocol::Ip4(ipv4_addr)) = listen_addr.iter().next() {
+                            // ignore private & localhost addresses
+                            !(ipv4_addr.is_private() || ipv4_addr.is_loopback())
+                        } else {
+                            // ignore non ipv4 addresses
+                            false
+                        }
+                    });
 
-            return;
-        }
+                    // add them to kademlia
+                    for addr in addrs {
+                        log::info!(
+                            "Identify: {} peer {} identified at {}",
+                            self.protocol.kademlia,
+                            peer_id,
+                            addr
+                        );
 
-        // check kademlia protocol
-        if let Some(kad_protocol) = info
-            .protocols
-            .iter()
-            .find(|p| self.protocol.is_common_kademlia(p))
-        {
-            // if it matches our protocol, add it to the Kademlia routing table
-            if *kad_protocol == self.protocol.kademlia {
-                // filter listen addresses
-                let addrs = info.listen_addrs.into_iter().filter(|listen_addr| {
-                    if let Some(Protocol::Ip4(ipv4_addr)) = listen_addr.iter().next() {
-                        // ignore private & localhost addresses
-                        !(ipv4_addr.is_private() || ipv4_addr.is_loopback())
-                    } else {
-                        // ignore non ipv4 addresses
-                        false
+                        self.swarm
+                            .behaviour_mut()
+                            .kademlia
+                            .add_address(&peer_id, addr);
                     }
-                });
-
-                // add them to kademlia
-                for addr in addrs {
-                    log::info!(
-                        "Identify: {} peer {} identified at {}",
-                        self.protocol.kademlia,
+                } else {
+                    log::warn!(
+                        "Identify: Peer {} has different Kademlia version: (them {}, you {})",
                         peer_id,
-                        addr
+                        kad_protocol,
+                        self.protocol.kademlia
                     );
 
+                    // blacklist & disconnect peers with different kademlia protocol
                     self.swarm
                         .behaviour_mut()
-                        .kademlia
-                        .add_address(&peer_id, addr);
+                        .gossipsub
+                        .blacklist_peer(&peer_id);
+                    let _ = self.swarm.disconnect_peer_id(peer_id);
                 }
-            } else {
-                log::warn!(
-                    "Identify: Peer {} has different Kademlia version: (them {}, you {})",
-                    peer_id,
-                    kad_protocol,
-                    self.protocol.kademlia
-                );
             }
         }
     }

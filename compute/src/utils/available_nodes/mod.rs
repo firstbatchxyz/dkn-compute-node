@@ -2,31 +2,14 @@ use dkn_p2p::libp2p::{Multiaddr, PeerId};
 use dkn_workflows::split_csv_line;
 use eyre::Result;
 use std::{env, fmt::Debug, str::FromStr};
+use tokio::time::Instant;
 
-/// Static bootstrap nodes for the Kademlia DHT bootstrap step.
-const STATIC_BOOTSTRAP_NODES: [&str; 4] = [
-    "/ip4/44.206.245.139/tcp/4001/p2p/16Uiu2HAm4q3LZU2T9kgjKK4ysy6KZYKLq8KiXQyae4RHdF7uqSt4",
-    "/ip4/18.234.39.91/tcp/4001/p2p/16Uiu2HAmJqegPzwuGKWzmb5m3RdSUJ7NhEGWB5jNCd3ca9zdQ9dU",
-    "/ip4/54.242.44.217/tcp/4001/p2p/16Uiu2HAmR2sAoh9F8jT9AZup9y79Mi6NEFVUbwRvahqtWamfabkz",
-    "/ip4/52.201.242.227/tcp/4001/p2p/16Uiu2HAmFEUCy1s1gjyHfc8jey4Wd9i5bSDnyFDbWTnbrF2J3KFb",
-];
+mod statics;
 
-/// Static relay nodes for the `P2pCircuit`.
-const STATIC_RELAY_NODES: [&str; 4] = [
-    "/ip4/34.201.33.141/tcp/4001/p2p/16Uiu2HAkuXiV2CQkC9eJgU6cMnJ9SMARa85FZ6miTkvn5fuHNufa",
-    "/ip4/18.232.93.227/tcp/4001/p2p/16Uiu2HAmHeGKhWkXTweHJTA97qwP81ww1W2ntGaebeZ25ikDhd4z",
-    "/ip4/54.157.219.194/tcp/4001/p2p/16Uiu2HAm7A5QVSy5FwrXAJdNNsdfNAcaYahEavyjnFouaEi22dcq",
-    "/ip4/54.88.171.104/tcp/4001/p2p/16Uiu2HAm5WP1J6bZC3aHxd7XCUumMt9txAystmbZSaMS2omHepXa",
-];
+use crate::DriaNetworkType;
 
-/// Static RPC Peer IDs for the Admin RPC.
-const STATIC_RPC_PEER_IDS: [&str; 0] = [];
-
-/// API URL for refreshing the Admin RPC PeerIDs from Dria server.
-const RPC_PEER_ID_REFRESH_API_URL: &str = "https://dkn.dria.co/available-nodes";
-
-/// Number of seconds between refreshing the Admin RPC PeerIDs from Dria server.
-const RPC_PEER_ID_REFRESH_INTERVAL_SECS: u64 = 30;
+/// Number of seconds between refreshing the available nodes.
+const DEFAULT_REFRESH_INTERVAL_SECS: u64 = 30;
 
 /// Available nodes within the hybrid P2P network.
 ///
@@ -42,17 +25,37 @@ pub struct AvailableNodes {
     pub relay_nodes: Vec<Multiaddr>,
     pub rpc_nodes: Vec<PeerId>,
     pub rpc_addrs: Vec<Multiaddr>,
-    // refreshing
-    pub last_refreshed: tokio::time::Instant,
+    pub last_refreshed: Instant,
+    pub network_type: DriaNetworkType,
+    pub refresh_interval_secs: u64,
 }
 
 impl AvailableNodes {
+    /// Creates a new `AvailableNodes` struct for the given network type.
+    pub fn new(network: DriaNetworkType) -> Self {
+        Self {
+            bootstrap_nodes: vec![],
+            relay_nodes: vec![],
+            rpc_nodes: vec![],
+            rpc_addrs: vec![],
+            last_refreshed: Instant::now(),
+            network_type: network,
+            refresh_interval_secs: DEFAULT_REFRESH_INTERVAL_SECS,
+        }
+    }
+
+    /// Sets the refresh interval in seconds.
+    pub fn with_refresh_interval(mut self, interval_secs: u64) -> Self {
+        self.refresh_interval_secs = interval_secs;
+        self
+    }
+
     /// Parses static bootstrap & relay nodes from environment variables.
     ///
     /// The environment variables are:
     /// - `DRIA_BOOTSTRAP_NODES`: comma-separated list of bootstrap nodes
     /// - `DRIA_RELAY_NODES`: comma-separated list of relay nodes
-    pub fn new_from_env() -> Self {
+    pub fn populate_with_env(&mut self) {
         // parse bootstrap nodes
         let bootstrap_nodes = split_csv_line(&env::var("DKN_BOOTSTRAP_NODES").unwrap_or_default());
         if bootstrap_nodes.is_empty() {
@@ -69,24 +72,15 @@ impl AvailableNodes {
             log::debug!("Using additional relay nodes: {:#?}", relay_nodes);
         }
 
-        Self {
-            bootstrap_nodes: parse_vec(bootstrap_nodes),
-            relay_nodes: parse_vec(relay_nodes),
-            rpc_nodes: vec![],
-            rpc_addrs: vec![],
-            last_refreshed: tokio::time::Instant::now(),
-        }
+        self.bootstrap_nodes = parse_vec(bootstrap_nodes);
+        self.relay_nodes = parse_vec(relay_nodes);
     }
 
-    /// Creates a new `AvailableNodes` struct from the static nodes, hardcoded within the code.
-    pub fn new_from_statics() -> Self {
-        Self {
-            bootstrap_nodes: parse_vec(STATIC_BOOTSTRAP_NODES.to_vec()),
-            relay_nodes: parse_vec(STATIC_RELAY_NODES.to_vec()),
-            rpc_nodes: parse_vec(STATIC_RPC_PEER_IDS.to_vec()),
-            rpc_addrs: vec![],
-            last_refreshed: tokio::time::Instant::now(),
-        }
+    /// Adds the static nodes to the struct, with respect to network type.
+    pub fn populate_with_statics(&mut self) {
+        self.bootstrap_nodes = self.network_type.get_static_bootstrap_nodes();
+        self.relay_nodes = self.network_type.get_static_relay_nodes();
+        self.rpc_nodes = self.network_type.get_static_rpc_peer_ids();
     }
 
     /// Joins the struct with another `AvailableNodes` struct.
@@ -115,13 +109,14 @@ impl AvailableNodes {
         self
     }
 
+    /// Returns whether enough time has passed since the last refresh.
     pub fn can_refresh(&self) -> bool {
-        self.last_refreshed.elapsed().as_secs() > RPC_PEER_ID_REFRESH_INTERVAL_SECS
+        self.last_refreshed.elapsed().as_secs() > self.refresh_interval_secs
     }
 
-    /// Refreshes the available nodes for Bootstrap, Relay and RPC nodes.
-    pub async fn get_available_nodes() -> Result<Self> {
-        #[derive(serde::Deserialize, Debug)]
+    /// Refresh available nodes using the API.
+    pub async fn populate_with_api(&mut self) -> Result<()> {
+        #[derive(serde::Deserialize, Default, Debug)]
         struct AvailableNodesApiResponse {
             pub bootstraps: Vec<String>,
             pub relays: Vec<String>,
@@ -130,21 +125,21 @@ impl AvailableNodes {
             pub rpc_addrs: Vec<String>,
         }
 
-        let response = reqwest::get(RPC_PEER_ID_REFRESH_API_URL).await?;
+        // make the request w.r.t network type
+        let url = match self.network_type {
+            DriaNetworkType::Community => "https://dkn.dria.co/available-nodes",
+            DriaNetworkType::Pro => "https://dkn.dria.co/sdk/available-nodes",
+        };
+        let response = reqwest::get(url).await?;
         let response_body = response.json::<AvailableNodesApiResponse>().await?;
 
-        Ok(Self {
-            bootstrap_nodes: parse_vec(response_body.bootstraps),
-            relay_nodes: parse_vec(response_body.relays),
-            rpc_nodes: parse_vec(response_body.rpcs),
-            rpc_addrs: parse_vec(response_body.rpc_addrs),
-            last_refreshed: tokio::time::Instant::now(),
-        })
-    }
+        self.bootstrap_nodes = parse_vec(response_body.bootstraps);
+        self.relay_nodes = parse_vec(response_body.relays);
+        self.rpc_nodes = parse_vec(response_body.rpcs);
+        self.rpc_addrs = parse_vec(response_body.rpc_addrs);
+        self.last_refreshed = Instant::now();
 
-    /// Refresh available nodes using the API.
-    pub async fn refresh(&mut self) {
-        todo!("TODO: refresh the available nodes")
+        Ok(())
     }
 }
 
@@ -171,7 +166,12 @@ mod tests {
     #[tokio::test]
     #[ignore = "run this manually"]
     async fn test_get_available_nodes() {
-        let available_nodes = AvailableNodes::get_available_nodes().await.unwrap();
-        println!("{:#?}", available_nodes);
+        let mut available_nodes = AvailableNodes::new(DriaNetworkType::Community);
+        available_nodes.populate_with_api().await.unwrap();
+        println!("Community: {:#?}", available_nodes);
+
+        let mut available_nodes = AvailableNodes::new(DriaNetworkType::Pro);
+        available_nodes.populate_with_api().await.unwrap();
+        println!("Pro: {:#?}", available_nodes);
     }
 }

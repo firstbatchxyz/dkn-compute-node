@@ -20,6 +20,12 @@ pub struct DriaP2PProtocol {
     pub kademlia: StreamProtocol,
 }
 
+impl std::fmt::Display for DriaP2PProtocol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.identity)
+    }
+}
+
 impl Default for DriaP2PProtocol {
     /// Creates a new instance of the protocol with the default name `dria`.
     fn default() -> Self {
