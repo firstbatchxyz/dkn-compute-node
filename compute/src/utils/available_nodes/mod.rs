@@ -9,7 +9,7 @@ mod statics;
 use crate::DriaNetworkType;
 
 /// Number of seconds between refreshing the available nodes.
-const DEFAULT_REFRESH_INTERVAL_SECS: u64 = 5;
+const DEFAULT_REFRESH_INTERVAL_SECS: u64 = 25;
 
 /// Available nodes within the hybrid P2P network.
 ///

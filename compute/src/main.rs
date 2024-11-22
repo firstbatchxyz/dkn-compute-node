@@ -158,6 +158,7 @@ async fn wait_for_termination(cancellation: CancellationToken) -> Result<()> {
     Ok(())
 }
 
+// #[deprecated]
 /// Very CRUDE fix due to launcher log level bug
 ///
 /// TODO: remove me later when the launcher is fixed
