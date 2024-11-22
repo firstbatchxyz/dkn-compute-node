@@ -1,5 +1,12 @@
-use dkn_p2p::{libp2p::gossipsub, DriaP2PClient, DriaP2PProtocol};
+use dkn_p2p::{
+    libp2p::{
+        gossipsub::{self, Message, MessageId},
+        PeerId,
+    },
+    DriaP2PClient, DriaP2PProtocol,
+};
 use eyre::{eyre, Result};
+use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -26,6 +33,8 @@ pub struct DriaComputeNode {
     pub p2p: DriaP2PClient,
     pub available_nodes: AvailableNodes,
     pub cancellation: CancellationToken,
+    /// Message receiver.
+    msg_rx: mpsc::Receiver<(PeerId, MessageId, Message)>,
 }
 
 impl DriaComputeNode {
@@ -49,6 +58,9 @@ impl DriaComputeNode {
         let protocol = DriaP2PProtocol::new_major_minor(config.network_type.protocol_name());
         log::info!("Using identity: {}", protocol);
 
+        // create channel between node & p2p client
+        let (msg_tx, msg_rx) = mpsc::channel::<(PeerId, MessageId, Message)>(32);
+
         // create p2p client
         let mut p2p = DriaP2PClient::new(
             keypair,
@@ -56,6 +68,7 @@ impl DriaComputeNode {
             available_nodes.bootstrap_nodes.clone().into_iter(),
             available_nodes.relay_nodes.clone().into_iter(),
             protocol,
+            msg_tx,
         )?;
 
         // dial rpc nodes
@@ -73,6 +86,7 @@ impl DriaComputeNode {
             config,
             cancellation,
             available_nodes,
+            msg_rx,
         })
     }
 
@@ -134,7 +148,7 @@ impl DriaComputeNode {
         // the underlying p2p client is expected to handle the rest within its own loop
         loop {
             tokio::select! {
-                event = self.p2p.process_events() => {
+                event = self.msg_rx.recv() => {
                     // refresh admin rpc peer ids
                     if self.available_nodes.can_refresh() {
                         log::info!("Refreshing available nodes.");
@@ -156,7 +170,9 @@ impl DriaComputeNode {
                         log::debug!("{:?}", self.p2p.network_info().connection_counters());
                     }
 
-                    let (peer_id, message_id, message) = event;
+                    let Some((peer_id, message_id, message)) = event else {
+                        continue;
+                    };
                     let topic = message.topic.clone();
                     let topic_str = topic.as_str();
 

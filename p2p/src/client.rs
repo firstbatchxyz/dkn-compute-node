@@ -10,6 +10,7 @@ use libp2p::{autonat, gossipsub, identify, kad, multiaddr::Protocol, noise, tcp,
 use libp2p::{Multiaddr, PeerId, Swarm, SwarmBuilder};
 use libp2p_identity::Keypair;
 use std::time::{Duration, Instant};
+use tokio::sync::mpsc;
 
 /// P2P client, exposes a simple interface to handle P2P communication.
 pub struct DriaP2PClient {
@@ -24,6 +25,8 @@ pub struct DriaP2PClient {
     peer_last_refreshed: Instant,
     /// Dria protocol, used for identifying the client.
     protocol: DriaP2PProtocol,
+    /// Message sender.
+    msg_tx: mpsc::Sender<(PeerId, MessageId, Message)>,
 }
 
 /// Number of seconds before an idle connection is closed.
@@ -45,6 +48,7 @@ impl DriaP2PClient {
         bootstraps: impl Iterator<Item = Multiaddr>,
         relays: impl Iterator<Item = Multiaddr>,
         protocol: DriaP2PProtocol,
+        msg_tx: mpsc::Sender<(PeerId, MessageId, Message)>,
     ) -> Result<Self> {
         // this is our peerId
         let node_peerid = keypair.public().to_peer_id();
@@ -118,6 +122,7 @@ impl DriaP2PClient {
             peer_count: (0, 0),
             peer_last_refreshed: Instant::now(),
             protocol,
+            msg_tx,
         })
     }
 
@@ -210,7 +215,7 @@ impl DriaP2PClient {
     ///
     /// This method should be called in a loop to keep the client running.
     /// When a GossipSub message is received, it will be returned.
-    pub async fn process_events(&mut self) -> (PeerId, MessageId, Message) {
+    pub async fn process_events(&mut self) {
         loop {
             // refresh peers
             self.refresh_peer_counts().await;
@@ -235,7 +240,9 @@ impl DriaP2PClient {
                         message,
                     },
                 )) => {
-                    return (peer_id, message_id, message);
+                    if let Err(e) = self.msg_tx.send((peer_id, message_id, message)).await {
+                        log::error!("Error sending message: {:?}", e);
+                    }
                 }
                 SwarmEvent::Behaviour(DriaBehaviourEvent::Autonat(
                     autonat::Event::StatusChanged { old, new },

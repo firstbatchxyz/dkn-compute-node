@@ -3,6 +3,7 @@ use eyre::Result;
 use libp2p::Multiaddr;
 use libp2p_identity::Keypair;
 use std::{env, str::FromStr};
+use tokio_util::sync::CancellationToken;
 
 const LOG_LEVEL: &str = "none,dkn_p2p=debug";
 
@@ -13,7 +14,7 @@ async fn test_listen_topic_once() -> Result<()> {
     const TOPIC: &str = "pong";
 
     env::set_var("RUST_LOG", LOG_LEVEL);
-    let _ = env_logger::try_init();
+    let _ = env_logger::builder().is_test(true).try_init();
 
     // setup client
     let keypair = Keypair::generate_secp256k1();
@@ -25,23 +26,53 @@ async fn test_listen_topic_once() -> Result<()> {
         "/ip4/34.201.33.141/tcp/4001/p2p/16Uiu2HAkuXiV2CQkC9eJgU6cMnJ9SMARa85FZ6miTkvn5fuHNufa",
     )?];
     let protocol = DriaP2PProtocol::new_major_minor("dria");
-    let mut client = DriaP2PClient::new(
-        keypair,
-        addr,
-        bootstraps.into_iter(),
-        relays.into_iter(),
-        protocol,
-    )?;
 
-    // subscribe to the given topic
-    client.subscribe(TOPIC)?;
+    // Create channel for P2P events
+    let (tx, mut rx) = tokio::sync::mpsc::channel(32);
+
+    // Spawn P2P event processing task
+    let cancellation = CancellationToken::new();
+    let p2p_cancellation = cancellation.clone();
+    let p2p_task = tokio::spawn(async move {
+        let mut client: DriaP2PClient = DriaP2PClient::new(
+            keypair,
+            addr,
+            bootstraps.into_iter(),
+            relays.into_iter(),
+            protocol,
+            tx,
+        )
+        .expect("could not create p2p client");
+
+        // subscribe to the given topic
+        client.subscribe(TOPIC).expect("could not subscribe");
+
+        tokio::select! {
+            _ = client.process_events() => {
+            },
+            _ = p2p_cancellation.cancelled() => {
+                client.unsubscribe(TOPIC).expect("could not unsubscribe");
+            },
+        };
+    });
 
     // wait for a single gossipsub message on this topic
-    let message = client.process_events().await;
-    log::info!("Received {} message: {:?}", TOPIC, message);
+    log::info!("Waiting for messages...");
+    let message = rx.recv().await;
+    match message {
+        Some((peer, message_id, _)) => {
+            log::info!("Received {} message {} from {}", TOPIC, message_id, peer);
+        }
+        None => {
+            log::warn!("No message received for topic: {}", TOPIC);
+        }
+    }
 
-    // unsubscribe gracefully
-    client.unsubscribe(TOPIC)?;
+    cancellation.cancel();
+    rx.close();
+
+    log::info!("Waiting for p2p task to finish...");
+    p2p_task.await?;
 
     Ok(())
 }
