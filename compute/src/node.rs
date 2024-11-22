@@ -156,8 +156,6 @@ impl DriaComputeNode {
                         log::debug!("{:?}", self.p2p.network_info().connection_counters());
                     }
 
-
-
                     let (peer_id, message_id, message) = event;
                     let topic = message.topic.clone();
                     let topic_str = topic.as_str();

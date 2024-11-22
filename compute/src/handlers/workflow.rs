@@ -161,7 +161,6 @@ impl ComputeHandler for WorkflowHandler {
         };
 
         // try publishing the result
-
         if let Err(publish_err) = node.publish(message) {
             let err_msg = format!("Could not publish result: {:?}", publish_err);
             log::error!("{}", err_msg);

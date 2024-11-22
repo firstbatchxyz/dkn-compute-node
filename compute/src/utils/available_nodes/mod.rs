@@ -11,6 +11,15 @@ use crate::DriaNetworkType;
 /// Number of seconds between refreshing the available nodes.
 const DEFAULT_REFRESH_INTERVAL_SECS: u64 = 25;
 
+impl DriaNetworkType {
+    /// Returns the URL for fetching available nodes w.r.t network type.
+    pub fn get_available_nodes_url(&self) -> &str {
+        match self {
+            DriaNetworkType::Community => "https://dkn.dria.co/available-nodes",
+            DriaNetworkType::Pro => "https://dkn.dria.co/sdk/available-nodes",
+        }
+    }
+}
 /// Available nodes within the hybrid P2P network.
 ///
 /// - Bootstrap: used for Kademlia DHT bootstrap.
@@ -98,11 +107,7 @@ impl AvailableNodes {
         }
 
         // make the request w.r.t network type
-        let url = match self.network_type {
-            DriaNetworkType::Community => "https://dkn.dria.co/available-nodes",
-            DriaNetworkType::Pro => "https://dkn.dria.co/sdk/available-nodes",
-        };
-        let response = reqwest::get(url).await?;
+        let response = reqwest::get(self.network_type.get_available_nodes_url()).await?;
         let response_body = response.json::<AvailableNodesApiResponse>().await?;
         self.bootstrap_nodes
             .extend(parse_vec(response_body.bootstraps).into_iter());
