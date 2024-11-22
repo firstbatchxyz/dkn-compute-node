@@ -5,14 +5,12 @@ use libp2p_identity::Keypair;
 use std::{env, str::FromStr};
 use tokio_util::sync::CancellationToken;
 
-const LOG_LEVEL: &str = "none,dkn_p2p=debug";
+const TOPIC: &str = "pong";
+const LOG_LEVEL: &str = "none,listen_test=debug,dkn_p2p=debug";
 
 #[tokio::test]
 #[ignore = "run manually with logs"]
 async fn test_listen_topic_once() -> Result<()> {
-    // topic to be listened to
-    const TOPIC: &str = "pong";
-
     env::set_var("RUST_LOG", LOG_LEVEL);
     let _ = env_logger::builder().is_test(true).try_init();
 
@@ -49,6 +47,7 @@ async fn test_listen_topic_once() -> Result<()> {
 
         tokio::select! {
             _ = client.process_events() => {
+                log::error!("P2P client task finished unexpectedly");
             },
             _ = p2p_cancellation.cancelled() => {
                 client.unsubscribe(TOPIC).expect("could not unsubscribe");
@@ -74,5 +73,6 @@ async fn test_listen_topic_once() -> Result<()> {
     log::info!("Waiting for p2p task to finish...");
     p2p_task.await?;
 
+    log::info!("Done!");
     Ok(())
 }

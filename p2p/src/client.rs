@@ -215,7 +215,9 @@ impl DriaP2PClient {
     ///
     /// This method should be called in a loop to keep the client running.
     /// When a GossipSub message is received, it will be returned.
-    pub async fn process_events(&mut self) {
+    ///
+    /// This function is not expected to return!
+    pub async fn process_events(&mut self) -> ! {
         loop {
             // refresh peers
             self.refresh_peer_counts().await;
