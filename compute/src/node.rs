@@ -107,7 +107,7 @@ impl DriaComputeNode {
     /// Internally, identity is attached to the the message which is then JSON serialized to bytes
     /// and then published to the network as is.
     pub async fn publish(&mut self, mut message: DKNMessage) -> Result<()> {
-        message = message.with_identity(self.p2p.protocol().identity());
+        message = message.with_identity(self.p2p.protocol().name.clone());
         let message_bytes = serde_json::to_vec(&message)?;
         let message_id = self.p2p.publish(&message.topic, message_bytes).await?;
         log::info!("Published message ({}) to {}", message_id, message.topic);

@@ -40,9 +40,9 @@ const IDLE_CONNECTION_TIMEOUT_SECS: u64 = 60;
 /// Number of seconds between refreshing the Kademlia DHT.
 const PEER_REFRESH_INTERVAL_SECS: u64 = 30;
 /// Buffer size for command channel.
-const COMMAND_CHANNEL_BUFSIZE: usize = 32;
+const COMMAND_CHANNEL_BUFSIZE: usize = 256;
 /// Buffer size for events channel.
-const MSG_CHANNEL_BUFSIZE: usize = 32;
+const MSG_CHANNEL_BUFSIZE: usize = 256;
 
 impl DriaP2PClient {
     /// Creates a new P2P client with the given keypair and listen address.
@@ -246,6 +246,11 @@ impl DriaP2PClient {
                 message_id,
                 message,
             })) => {
+                log::debug!(
+                    "Sending message {} from {} to channel.",
+                    message_id,
+                    peer_id
+                );
                 if let Err(e) = self.msg_tx.send((peer_id, message_id, message)).await {
                     log::error!("Error sending message: {:?}", e);
                 }
