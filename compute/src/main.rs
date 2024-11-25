@@ -1,5 +1,5 @@
 use dkn_compute::*;
-use eyre::{Context, Result};
+use eyre::Result;
 use std::env;
 use tokio_util::sync::CancellationToken;
 
@@ -52,10 +52,6 @@ async fn main() -> Result<()> {
     let service_check_token = token.clone();
     let config = tokio::spawn(async move {
         tokio::select! {
-            _ = service_check_token.cancelled() => {
-                log::info!("Service check cancelled.");
-                config
-            }
             result = config.workflows.check_services() => {
                 if let Err(err) = result {
                     log::error!("Error checking services: {:?}", err);
@@ -64,37 +60,43 @@ async fn main() -> Result<()> {
                 log::warn!("Using models: {:#?}", config.workflows.models);
                 config
             }
+            _ = service_check_token.cancelled() => {
+                log::info!("Service check cancelled.");
+                config
+            }
         }
     })
-    .await
-    .wrap_err("error during service checks")?;
+    .await?;
 
-    if !token.is_cancelled() {
-        // launch the node in a separate thread
-        let node_token = token.clone();
-        let node_handle = tokio::spawn(async move {
-            match DriaComputeNode::new(config, node_token).await {
-                Ok(mut node) => {
-                    if let Err(err) = node.launch().await {
-                        log::error!("Node launch error: {}", err);
-                        panic!("Node failed.")
-                    };
-                }
-                Err(err) => {
-                    log::error!("Node setup error: {}", err);
-                    panic!("Could not setup node.")
-                }
-            }
-        });
-
-        // wait for tasks to complete
-        if let Err(err) = node_handle.await {
-            log::error!("Node handle error: {}", err);
-            panic!("Could not exit Node thread handle.");
-        };
-    } else {
-        log::warn!("Not launching node due to early exit.");
+    // check early exit due to failed service check
+    if token.is_cancelled() {
+        log::warn!("Not launching node due to early exit, bye!");
+        return Ok(());
     }
+
+    let node_token = token.clone();
+    let (mut node, p2p) = DriaComputeNode::new(config, node_token).await?;
+
+    // launch the p2p in a separate thread
+    log::info!("Spawning peer-to-peer client thread.");
+    let p2p_handle = tokio::spawn(async move { p2p.run().await });
+
+    // launch the node in a separate thread
+    log::info!("Spawning compute node thread.");
+    let node_handle = tokio::spawn(async move {
+        if let Err(err) = node.launch().await {
+            log::error!("Node launch error: {}", err);
+            panic!("Node failed.")
+        };
+    });
+
+    // wait for tasks to complete
+    if let Err(err) = node_handle.await {
+        log::error!("Node handle error: {}", err);
+    };
+    if let Err(err) = p2p_handle.await {
+        log::error!("P2P handle error: {}", err);
+    };
 
     log::info!("Bye!");
     Ok(())

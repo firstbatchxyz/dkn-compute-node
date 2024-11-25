@@ -47,7 +47,7 @@ const MSG_CHANNEL_BUFSIZE: usize = 32;
 impl DriaP2PClient {
     /// Creates a new P2P client with the given keypair and listen address.
     ///
-    /// Can provide a list of bootstrap and relay nodes to connect to as well at the start.
+    /// Can provide a list of bootstrap and relay nodes to connect to as well at the start, and RPC addresses to dial preemptively.
     ///
     /// The `version` is used to create the protocol strings for the client, and its very important that
     /// they match with the clients existing within the network.
@@ -56,6 +56,7 @@ impl DriaP2PClient {
         listen_addr: Multiaddr,
         bootstraps: impl Iterator<Item = Multiaddr>,
         relays: impl Iterator<Item = Multiaddr>,
+        rpcs: impl Iterator<Item = Multiaddr>,
         protocol: DriaP2PProtocol,
     ) -> Result<(
         DriaP2PClient,
@@ -128,9 +129,15 @@ impl DriaP2PClient {
             swarm.listen_on(addr.clone().with(Protocol::P2pCircuit))?;
         }
 
+        // dial rpc nodes
+        for rpc_addr in rpcs {
+            log::info!("Dialing RPC node: {}", rpc_addr);
+            swarm.dial(rpc_addr)?;
+        }
+
         // create commander
         let (cmd_tx, cmd_rx) = mpsc::channel(COMMAND_CHANNEL_BUFSIZE);
-        let commander = DriaP2PCommander::new(cmd_tx);
+        let commander = DriaP2PCommander::new(cmd_tx, protocol.clone());
 
         // create p2p client itself
         let (msg_tx, msg_rx) = mpsc::channel(MSG_CHANNEL_BUFSIZE);
@@ -154,10 +161,7 @@ impl DriaP2PClient {
 
     /// Waits for swarm events and Node commands at the same time.
     ///
-    /// This method should be called in a loop to keep the client running.
-    /// When a GossipSub message is received, it will be returned.
-    ///
-    /// This function is not expected to return!
+    /// To terminate, the command channel must be closed.
     pub async fn run(mut self) {
         // FIXME: use refresh peers somewhere
         loop {
@@ -165,8 +169,11 @@ impl DriaP2PClient {
                 event = self.swarm.select_next_some() => self.handle_event(event).await,
                 command = self.cmd_rx.recv() => match command {
                     Some(c) => self.handle_command(c).await,
-                    // Command channel closed, thus shutting down the network event loop.
-                    None=>  return,
+                    // channel closed, thus shutting down the network event loop
+                    None=>  {
+                        log::warn!("Closing P2P client.");
+                        return
+                    },
                 },
             }
         }
@@ -175,6 +182,11 @@ impl DriaP2PClient {
     /// Handles a single command, which originates from `DriaP2PCommander`.
     pub async fn handle_command(&mut self, command: DriaP2PCommand) {
         match command {
+            DriaP2PCommand::Shutdown { sender } => {
+                self.cmd_rx.close();
+                let _ = sender.send(());
+                return;
+            }
             DriaP2PCommand::Dial { peer_id, sender } => {
                 let _ = sender.send(self.swarm.dial(peer_id));
             }

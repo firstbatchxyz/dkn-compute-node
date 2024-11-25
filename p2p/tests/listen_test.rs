@@ -33,6 +33,7 @@ async fn test_listen_topic_once() -> Result<()> {
         addr,
         bootstraps.into_iter(),
         relays.into_iter(),
+        vec![].into_iter(),
         protocol,
     )
     .expect("could not create p2p client");

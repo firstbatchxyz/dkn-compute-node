@@ -1,16 +1,20 @@
 use eyre::{Context, Result};
-use libp2p::{gossipsub, swarm, PeerId};
+use libp2p::{gossipsub, swarm, Multiaddr, PeerId};
 use tokio::sync::{mpsc, oneshot};
+
+use crate::DriaP2PProtocol;
 
 #[derive(Debug)]
 pub enum DriaP2PCommand {
+    /// Shutsdown the client.
+    Shutdown { sender: oneshot::Sender<()> },
     /// Returns the network information, such as the number of incoming and outgoing connections.
     NetworkInfo {
         sender: oneshot::Sender<swarm::NetworkInfo>,
     },
     /// Dial a peer.
     Dial {
-        peer_id: PeerId,
+        peer_id: Multiaddr,
         sender: oneshot::Sender<Result<(), swarm::DialError>>,
     },
     /// Subscribe to a topic.
@@ -47,11 +51,17 @@ pub enum DriaP2PCommand {
 
 pub struct DriaP2PCommander {
     sender: mpsc::Sender<DriaP2PCommand>,
+    protocol: DriaP2PProtocol,
 }
 
 impl DriaP2PCommander {
-    pub fn new(sender: mpsc::Sender<DriaP2PCommand>) -> Self {
-        Self { sender }
+    pub fn new(sender: mpsc::Sender<DriaP2PCommand>, protocol: DriaP2PProtocol) -> Self {
+        Self { sender, protocol }
+    }
+
+    /// Returns a reference to the protocol.
+    pub fn protocol(&self) -> &DriaP2PProtocol {
+        &self.protocol
     }
 
     /// Returns the network information, such as the number of
@@ -132,7 +142,7 @@ impl DriaP2PCommander {
     }
 
     /// Dials a given peer.
-    pub async fn dial(&mut self, peer_id: PeerId) -> Result<()> {
+    pub async fn dial(&mut self, peer_id: Multiaddr) -> Result<()> {
         let (sender, receiver) = oneshot::channel();
 
         self.sender
@@ -183,5 +193,17 @@ impl DriaP2PCommander {
         }
 
         Ok(())
+    }
+
+    /// Sends a shutdown signal to the client.
+    pub async fn shutdown(&mut self) -> Result<()> {
+        let (sender, receiver) = oneshot::channel();
+
+        self.sender
+            .send(DriaP2PCommand::Shutdown { sender })
+            .await
+            .wrap_err("could not send")?;
+
+        receiver.await.wrap_err("could not receive")
     }
 }
