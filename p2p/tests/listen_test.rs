@@ -25,39 +25,37 @@ async fn test_listen_topic_once() -> Result<()> {
     )?];
     let protocol = DriaP2PProtocol::new_major_minor("dria");
 
-    // Create channel for P2P events
-    let (tx, mut rx) = tokio::sync::mpsc::channel(32);
-
-    // Spawn P2P event processing task
+    // spawn P2P client in another task
     let cancellation = CancellationToken::new();
     let p2p_cancellation = cancellation.clone();
+    let (client, commander, mut msg_rx) = DriaP2PClient::new(
+        keypair,
+        addr,
+        bootstraps.into_iter(),
+        relays.into_iter(),
+        protocol,
+    )
+    .expect("could not create p2p client");
+    // subscribe to the given topic
+    commander
+        .subscribe(TOPIC)
+        .await
+        .expect("could not subscribe");
+
     let p2p_task = tokio::spawn(async move {
-        let mut client: DriaP2PClient = DriaP2PClient::new(
-            keypair,
-            addr,
-            bootstraps.into_iter(),
-            relays.into_iter(),
-            protocol,
-            tx,
-        )
-        .expect("could not create p2p client");
-
-        // subscribe to the given topic
-        client.subscribe(TOPIC).expect("could not subscribe");
-
         tokio::select! {
-            _ = client.process_events() => {
-                log::error!("P2P client task finished unexpectedly");
+            _ = client.run() => {
+                log::error!("P2P client finished unexpectedly");
             },
             _ = p2p_cancellation.cancelled() => {
-                client.unsubscribe(TOPIC).expect("could not unsubscribe");
+                commander.unsubscribe(TOPIC).await.expect("could not unsubscribe");
             },
         };
     });
 
     // wait for a single gossipsub message on this topic
     log::info!("Waiting for messages...");
-    let message = rx.recv().await;
+    let message = msg_rx.recv().await;
     match message {
         Some((peer, message_id, _)) => {
             log::info!("Received {} message {} from {}", TOPIC, message_id, peer);
@@ -68,7 +66,7 @@ async fn test_listen_topic_once() -> Result<()> {
     }
 
     cancellation.cancel();
-    rx.close();
+    msg_rx.close();
 
     log::info!("Waiting for p2p task to finish...");
     p2p_task.await?;
