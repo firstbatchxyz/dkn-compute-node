@@ -188,7 +188,7 @@ impl DriaP2PCommander {
         self.sender
             .send(DriaP2PCommand::ValidateMessage {
                 msg_id: msg_id.clone(),
-                propagation_source: propagation_source.clone(),
+                propagation_source: *propagation_source,
                 acceptance,
                 sender,
             })

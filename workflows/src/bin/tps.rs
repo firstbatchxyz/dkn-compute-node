@@ -1,13 +1,17 @@
-#![cfg(feature = "profiling")]
+#[cfg(not(feature = "profiling"))]
+fn main() {
+    unimplemented!("This binary requires the 'profiling' feature to be enabled");
+}
 
-use dkn_workflows::{DriaWorkflowsConfig, OllamaConfig};
-use ollama_workflows::ollama_rs::{generation::completion::request::GenerationRequest, Ollama};
-use ollama_workflows::Model;
-use prettytable::{Cell, Row, Table};
-use sysinfo::{CpuRefreshKind, RefreshKind, System, MINIMUM_CPU_UPDATE_INTERVAL};
-
+#[cfg(feature = "profiling")]
 #[tokio::main]
 async fn main() {
+    use dkn_workflows::{DriaWorkflowsConfig, OllamaConfig};
+    use ollama_workflows::ollama_rs::{generation::completion::request::GenerationRequest, Ollama};
+    use ollama_workflows::Model;
+    use prettytable::{Cell, Row, Table};
+    use sysinfo::{CpuRefreshKind, RefreshKind, System, MINIMUM_CPU_UPDATE_INTERVAL};
+
     // initialize logger
     env_logger::init();
 

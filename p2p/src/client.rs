@@ -42,6 +42,7 @@ impl DriaP2PClient {
     ///
     /// The `version` is used to create the protocol strings for the client, and its very important that
     /// they match with the clients existing within the network.
+    #[allow(clippy::type_complexity)]
     pub fn new(
         keypair: Keypair,
         listen_addr: Multiaddr,

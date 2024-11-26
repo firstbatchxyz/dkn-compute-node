@@ -72,8 +72,7 @@ impl AvailableNodes {
         } else {
             log::debug!("Using additional bootstrap nodes: {:#?}", bootstrap_nodes);
         }
-        self.bootstrap_nodes
-            .extend(parse_vec(bootstrap_nodes).into_iter());
+        self.bootstrap_nodes.extend(parse_vec(bootstrap_nodes));
 
         // parse relay nodes
         let relay_nodes = split_csv_line(&env::var("DKN_RELAY_NODES").unwrap_or_default());
@@ -82,17 +81,17 @@ impl AvailableNodes {
         } else {
             log::debug!("Using additional relay nodes: {:#?}", relay_nodes);
         }
-        self.relay_nodes.extend(parse_vec(relay_nodes).into_iter());
+        self.relay_nodes.extend(parse_vec(relay_nodes));
     }
 
     /// Adds the static nodes to the struct, with respect to network type.
     pub fn populate_with_statics(&mut self) {
         self.bootstrap_nodes
-            .extend(self.network_type.get_static_bootstrap_nodes().into_iter());
+            .extend(self.network_type.get_static_bootstrap_nodes());
         self.relay_nodes
-            .extend(self.network_type.get_static_relay_nodes().into_iter());
+            .extend(self.network_type.get_static_relay_nodes());
         self.rpc_nodes
-            .extend(self.network_type.get_static_rpc_peer_ids().into_iter());
+            .extend(self.network_type.get_static_rpc_peer_ids());
     }
 
     /// Refresh available nodes using the API.
@@ -110,13 +109,11 @@ impl AvailableNodes {
         let response = reqwest::get(self.network_type.get_available_nodes_url()).await?;
         let response_body = response.json::<AvailableNodesApiResponse>().await?;
         self.bootstrap_nodes
-            .extend(parse_vec(response_body.bootstraps).into_iter());
-        self.relay_nodes
-            .extend(parse_vec(response_body.relays).into_iter());
-        self.rpc_addrs
-            .extend(parse_vec(response_body.rpc_addrs).into_iter());
+            .extend(parse_vec(response_body.bootstraps));
+        self.relay_nodes.extend(parse_vec(response_body.relays));
+        self.rpc_addrs.extend(parse_vec(response_body.rpc_addrs));
         self.rpc_nodes
-            .extend(parse_vec::<PeerId>(response_body.rpcs).into_iter());
+            .extend(parse_vec::<PeerId>(response_body.rpcs));
         self.last_refreshed = Instant::now();
 
         Ok(())
