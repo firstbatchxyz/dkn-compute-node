@@ -9,6 +9,33 @@ use libsecp256k1::{PublicKey, SecretKey};
 
 use std::{env, str::FromStr};
 
+/// Network type.
+#[derive(Default, Debug, Clone, Copy)]
+pub enum DriaNetworkType {
+    #[default]
+    Community,
+    Pro,
+}
+
+impl From<&str> for DriaNetworkType {
+    fn from(s: &str) -> Self {
+        match s {
+            "community" => DriaNetworkType::Community,
+            "pro" => DriaNetworkType::Pro,
+            _ => Default::default(),
+        }
+    }
+}
+
+impl DriaNetworkType {
+    pub fn protocol_name(&self) -> &str {
+        match self {
+            DriaNetworkType::Community => "dria",
+            DriaNetworkType::Pro => "dria-sdk",
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct DriaComputeNodeConfig {
     /// Wallet secret/private key.
@@ -23,6 +50,8 @@ pub struct DriaComputeNodeConfig {
     pub p2p_listen_addr: Multiaddr,
     /// Workflow configurations, e.g. models and providers.
     pub workflows: DriaWorkflowsConfig,
+    /// Network type of the node.
+    pub network_type: DriaNetworkType,
 }
 
 /// The default P2P network listen address.
@@ -104,6 +133,11 @@ impl DriaComputeNodeConfig {
         let p2p_listen_addr = Multiaddr::from_str(&p2p_listen_addr_str)
             .expect("Could not parse the given P2P listen address.");
 
+        // parse network type
+        let network_type = env::var("DKN_NETWORK")
+            .map(|s| DriaNetworkType::from(s.as_str()))
+            .unwrap_or_default();
+
         Self {
             admin_public_key,
             secret_key,
@@ -111,6 +145,7 @@ impl DriaComputeNodeConfig {
             address,
             workflows,
             p2p_listen_addr,
+            network_type,
         }
     }
 

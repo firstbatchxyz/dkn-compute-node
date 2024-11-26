@@ -64,7 +64,7 @@ impl ComputeHandler for PingpongHandler {
             Self::RESPONSE_TOPIC,
             &node.config.secret_key,
         );
-        node.publish(message)?;
+        node.publish(message).await?;
 
         Ok(MessageAcceptance::Accept)
     }

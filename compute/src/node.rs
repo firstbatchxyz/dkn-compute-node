@@ -1,6 +1,15 @@
-use dkn_p2p::{libp2p::gossipsub, DriaP2PClient};
+use dkn_p2p::{
+    libp2p::{
+        gossipsub::{self, Message, MessageId},
+        PeerId,
+    },
+    DriaP2PClient, DriaP2PCommander, DriaP2PProtocol,
+};
 use eyre::{eyre, Result};
-use std::time::Duration;
+use tokio::{
+    sync::mpsc,
+    time::{Duration, Instant},
+};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -9,87 +18,68 @@ use crate::{
     utils::{crypto::secret_to_keypair, AvailableNodes, DKNMessage},
 };
 
-/// Number of seconds between refreshing the Admin RPC PeerIDs from Dria server.
-const RPC_PEER_ID_REFRESH_INTERVAL_SECS: u64 = 30;
+/// Number of seconds between refreshing the Kademlia DHT.
+const PEER_REFRESH_INTERVAL_SECS: u64 = 30;
 
-/// **Dria Compute Node**
-///
-/// Internally, the node will create a new P2P client with the given secret key.
-/// This P2P client, although created synchronously, requires a tokio runtime.
-///
-/// ### Example
-///
-/// ```rs
-/// let config = DriaComputeNodeConfig::new();
-/// let mut node = DriaComputeNode::new(config, CancellationToken::new())?;
-/// node.check_services().await?;
-/// node.launch().await?;
-/// ```
 pub struct DriaComputeNode {
     pub config: DriaComputeNodeConfig,
-    pub p2p: DriaP2PClient,
+    pub p2p: DriaP2PCommander,
     pub available_nodes: AvailableNodes,
-    pub available_nodes_last_refreshed: tokio::time::Instant,
     pub cancellation: CancellationToken,
+    peer_last_refreshed: Instant,
+    msg_rx: mpsc::Receiver<(PeerId, MessageId, Message)>,
 }
 
 impl DriaComputeNode {
+    /// Creates a new `DriaComputeNode` with the given configuration and cancellation token.
+    ///
+    /// Returns the node instance and p2p client together. P2p MUST be run in a separate task before this node is used at all.
     pub async fn new(
         config: DriaComputeNodeConfig,
         cancellation: CancellationToken,
-    ) -> Result<Self> {
+    ) -> Result<(DriaComputeNode, DriaP2PClient)> {
+        // create the keypair from secret key
         let keypair = secret_to_keypair(&config.secret_key);
 
         // get available nodes (bootstrap, relay, rpc) for p2p
-        let available_nodes = AvailableNodes::default()
-            .join(AvailableNodes::new_from_statics())
-            .join(AvailableNodes::new_from_env())
-            .join(
-                AvailableNodes::get_available_nodes()
-                    .await
-                    .unwrap_or_default(),
-            )
-            .sort_dedup();
+        let mut available_nodes = AvailableNodes::new(config.network_type);
+        available_nodes.populate_with_statics();
+        available_nodes.populate_with_env();
+        if let Err(e) = available_nodes.populate_with_api().await {
+            log::error!("Error populating available nodes: {:?}", e);
+        };
 
         // we are using the major.minor version as the P2P version
         // so that patch versions do not interfere with the protocol
-        const P2P_VERSION: &str = concat!(
-            env!("CARGO_PKG_VERSION_MAJOR"),
-            ".",
-            env!("CARGO_PKG_VERSION_MINOR")
-        );
+        let protocol = DriaP2PProtocol::new_major_minor(config.network_type.protocol_name());
+        log::info!("Using identity: {}", protocol);
 
         // create p2p client
-        let mut p2p = DriaP2PClient::new(
+        let (p2p_client, p2p_commander, msg_rx) = DriaP2PClient::new(
             keypair,
             config.p2p_listen_addr.clone(),
-            &available_nodes.bootstrap_nodes,
-            &available_nodes.relay_nodes,
-            P2P_VERSION,
+            available_nodes.bootstrap_nodes.clone().into_iter(),
+            available_nodes.relay_nodes.clone().into_iter(),
+            available_nodes.rpc_addrs.clone().into_iter(),
+            protocol,
         )?;
 
-        // dial rpc nodes
-        if available_nodes.rpc_addrs.is_empty() {
-            log::warn!("No RPC nodes found to be dialled!");
-        } else {
-            for rpc_addr in &available_nodes.rpc_addrs {
-                log::info!("Dialing RPC node: {}", rpc_addr);
-                p2p.dial(rpc_addr.clone())?;
-            }
-        }
-
-        Ok(DriaComputeNode {
-            p2p,
-            config,
-            cancellation,
-            available_nodes,
-            available_nodes_last_refreshed: tokio::time::Instant::now(),
-        })
+        Ok((
+            DriaComputeNode {
+                config,
+                p2p: p2p_commander,
+                cancellation,
+                available_nodes,
+                msg_rx,
+                peer_last_refreshed: Instant::now(),
+            },
+            p2p_client,
+        ))
     }
 
     /// Subscribe to a certain task with its topic.
-    pub fn subscribe(&mut self, topic: &str) -> Result<()> {
-        let ok = self.p2p.subscribe(topic)?;
+    pub async fn subscribe(&mut self, topic: &str) -> Result<()> {
+        let ok = self.p2p.subscribe(topic).await?;
         if ok {
             log::info!("Subscribed to {}", topic);
         } else {
@@ -98,9 +88,25 @@ impl DriaComputeNode {
         Ok(())
     }
 
+    /// Validates a message, but only logs the error.
+    pub async fn validate_safe(
+        &mut self,
+        msg_id: &gossipsub::MessageId,
+        propagation_source: &PeerId,
+        acceptance: gossipsub::MessageAcceptance,
+    ) {
+        if let Err(e) = self
+            .p2p
+            .validate_message(msg_id, propagation_source, acceptance)
+            .await
+        {
+            log::error!("Error validating message: {:?}", e);
+        }
+    }
+
     /// Unsubscribe from a certain task with its topic.
-    pub fn unsubscribe(&mut self, topic: &str) -> Result<()> {
-        let ok = self.p2p.unsubscribe(topic)?;
+    pub async fn unsubscribe(&mut self, topic: &str) -> Result<()> {
+        let ok = self.p2p.unsubscribe(topic).await?;
         if ok {
             log::info!("Unsubscribed from {}", topic);
         } else {
@@ -111,53 +117,73 @@ impl DriaComputeNode {
 
     /// Publishes a given message to the network w.r.t the topic of it.
     ///
-    /// Internally, the message is JSON serialized to bytes and then published to the network as is.
-    pub fn publish(&mut self, message: DKNMessage) -> Result<()> {
+    /// Internally, identity is attached to the the message which is then JSON serialized to bytes
+    /// and then published to the network as is.
+    pub async fn publish(&mut self, mut message: DKNMessage) -> Result<()> {
+        // attach protocol name to the message
+        message = message.with_identity(self.p2p.protocol().name.clone());
+
         let message_bytes = serde_json::to_vec(&message)?;
-        let message_id = self.p2p.publish(&message.topic, message_bytes)?;
+        let message_id = self.p2p.publish(&message.topic, message_bytes).await?;
         log::info!("Published message ({}) to {}", message_id, message.topic);
         Ok(())
     }
 
-    /// Returns the list of connected peers.
-    #[inline(always)]
-    pub fn peers(
-        &self,
-    ) -> Vec<(
-        &dkn_p2p::libp2p_identity::PeerId,
-        Vec<&gossipsub::TopicHash>,
-    )> {
-        self.p2p.peers()
+    /// Returns the list of connected peers, `mesh` and `all`.
+    #[inline]
+    pub async fn peers(&self) -> Result<(Vec<PeerId>, Vec<PeerId>)> {
+        self.p2p.peers().await
     }
 
     /// Launches the main loop of the compute node.
     /// This method is not expected to return until cancellation occurs.
     pub async fn launch(&mut self) -> Result<()> {
         // subscribe to topics
-        self.subscribe(PingpongHandler::LISTEN_TOPIC)?;
-        self.subscribe(PingpongHandler::RESPONSE_TOPIC)?;
-        self.subscribe(WorkflowHandler::LISTEN_TOPIC)?;
-        self.subscribe(WorkflowHandler::RESPONSE_TOPIC)?;
+        self.subscribe(PingpongHandler::LISTEN_TOPIC).await?;
+        self.subscribe(PingpongHandler::RESPONSE_TOPIC).await?;
+        self.subscribe(WorkflowHandler::LISTEN_TOPIC).await?;
+        self.subscribe(WorkflowHandler::RESPONSE_TOPIC).await?;
 
         // main loop, listens for message events in particular
         // the underlying p2p client is expected to handle the rest within its own loop
         loop {
             tokio::select! {
-                event = self.p2p.process_events() => {
+                event = self.msg_rx.recv() => {
                     // refresh admin rpc peer ids
-                    if self.available_nodes_last_refreshed.elapsed() > Duration::from_secs(RPC_PEER_ID_REFRESH_INTERVAL_SECS) {
+                    if self.available_nodes.can_refresh() {
                         log::info!("Refreshing available nodes.");
 
-                        self.available_nodes = AvailableNodes::get_available_nodes().await.unwrap_or_default().join(self.available_nodes.clone()).sort_dedup();
-                        self.available_nodes_last_refreshed = tokio::time::Instant::now();
+                        if let Err(e) = self.available_nodes.populate_with_api().await {
+                            log::error!("Error refreshing available nodes: {:?}", e);
+                        };
 
-                        // also print network info
-                        log::debug!("{:?}", self.p2p.network_info().connection_counters());
+                        // dial all rpc nodes for better connectivity
+                        for rpc_addr in self.available_nodes.rpc_addrs.iter() {
+                            log::debug!("Dialling RPC node: {}", rpc_addr);
+                            if let Err(e) = self.p2p.dial(rpc_addr.clone()).await {
+                                log::warn!("Error dialling RPC node: {:?}", e);
+                            };
+                        }
+
+                        // print network info
+                        log::debug!("{:?}", self.p2p.network_info().await);
                     }
 
+                    // check peer count
+                    if self.peer_last_refreshed.elapsed() > Duration::from_secs(PEER_REFRESH_INTERVAL_SECS) {
+                        let (mesh_cnt, all_cnt) = self.p2p.peer_counts().await.unwrap_or((0, 0));
+                        log::info!("Peer Count (mesh/all): {} / {}", mesh_cnt, all_cnt);
 
+                        self.peer_last_refreshed = Instant::now();
 
-                    let (peer_id, message_id, message) = event;
+                        // TODO: add peer list as well
+                    }
+
+                    // check if there was any event at all
+                    let Some((peer_id, message_id, message)) = event else {
+                        continue;
+                    };
+
                     let topic = message.topic.clone();
                     let topic_str = topic.as_str();
 
@@ -168,17 +194,12 @@ impl DriaComputeNode {
                             Some(peer) => peer,
                             None => {
                                 log::warn!("Received {} message from {} without source.", topic_str, peer_id);
-                                self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore)?;
+                                self.validate_safe(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore).await;
                                 continue;
                             }
                         };
 
-                        // log::info!(
-                        //     "Received {} message ({})\nFrom:   {}\nSource: {}",
-                        //     topic_str,
-                        //     message_id,
-                        //     peer_id,
-                        // );
+                        // log the received message
                         log::info!(
                             "Received {} message ({}) from {}",
                             topic_str,
@@ -190,7 +211,7 @@ impl DriaComputeNode {
                         if !self.available_nodes.rpc_nodes.contains(&source_peer_id) {
                             log::warn!("Received message from unauthorized source: {}", source_peer_id);
                             log::debug!("Allowed sources: {:#?}", self.available_nodes.rpc_nodes);
-                            self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore)?;
+                            self.validate_safe(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore).await;
                             continue;
                         }
 
@@ -201,7 +222,7 @@ impl DriaComputeNode {
                             Err(e) => {
                                 log::error!("Error parsing message: {:?}", e);
                                 log::debug!("Message: {}", String::from_utf8_lossy(&message.data));
-                                self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore)?;
+                                self.validate_safe(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore).await;
                                 continue;
                             }
                         };
@@ -214,30 +235,29 @@ impl DriaComputeNode {
                             PingpongHandler::LISTEN_TOPIC => {
                                 PingpongHandler::handle_compute(self, message).await
                             }
-                            // TODO: can we do this in a nicer way?
-                            // TODO: yes, cast to enum above and let type-casting do the work
+                            // TODO: can we do this in a nicer way? yes, cast to enum above and let type-casting do the work
                             _ => unreachable!() // unreachable because of the if condition
                         };
 
                         // validate the message based on the result
                         match handler_result {
                             Ok(acceptance) => {
-                                self.p2p.validate_message(&message_id, &peer_id, acceptance)?;
+                                self.validate_safe(&message_id, &peer_id, acceptance).await;
                             },
                             Err(err) => {
                                 log::error!("Error handling {} message: {:?}", topic_str, err);
-                                self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore)?;
+                                self.validate_safe(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore).await;
                             }
                         }
                     } else if std::matches!(topic_str, PingpongHandler::RESPONSE_TOPIC | WorkflowHandler::RESPONSE_TOPIC) {
                         // since we are responding to these topics, we might receive messages from other compute nodes
                         // we can gracefully ignore them and propagate it to to others
                         log::trace!("Ignoring message for topic: {}", topic_str);
-                        self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Accept)?;
+                        self.validate_safe(&message_id, &peer_id, gossipsub::MessageAcceptance::Accept).await;
                     } else {
                         // reject this message as its from a foreign topic
                         log::warn!("Received message from unexpected topic: {}", topic_str);
-                        self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Reject)?;
+                        self.validate_safe(&message_id, &peer_id, gossipsub::MessageAcceptance::Reject).await;
                     }
                 },
                 _ = self.cancellation.cancelled() => break,
@@ -245,14 +265,29 @@ impl DriaComputeNode {
         }
 
         // unsubscribe from topics
-        self.unsubscribe(PingpongHandler::LISTEN_TOPIC)?;
-        self.unsubscribe(PingpongHandler::RESPONSE_TOPIC)?;
-        self.unsubscribe(WorkflowHandler::LISTEN_TOPIC)?;
-        self.unsubscribe(WorkflowHandler::RESPONSE_TOPIC)?;
+        self.unsubscribe(PingpongHandler::LISTEN_TOPIC).await?;
+        self.unsubscribe(PingpongHandler::RESPONSE_TOPIC).await?;
+        self.unsubscribe(WorkflowHandler::LISTEN_TOPIC).await?;
+        self.unsubscribe(WorkflowHandler::RESPONSE_TOPIC).await?;
+
+        // shutdown channels
+        self.shutdown().await?;
 
         Ok(())
     }
 
+    /// Shutdown channels between p2p and yourself.
+    pub async fn shutdown(&mut self) -> Result<()> {
+        // send shutdown signal
+        log::debug!("Sending shutdown command to p2p client.");
+        self.p2p.shutdown().await?;
+
+        // close message channel
+        log::debug!("Closing message channel.");
+        self.msg_rx.close();
+
+        Ok(())
+    }
     /// Parses a given raw Gossipsub message to a prepared P2PMessage object.
     /// This prepared message includes the topic, payload, version and timestamp.
     ///
@@ -285,15 +320,19 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "run this manually"]
-    async fn test_publish_message() {
-        env::set_var("RUST_LOG", "info");
-        let _ = env_logger::try_init();
+    async fn test_publish_message() -> eyre::Result<()> {
+        env::set_var("RUST_LOG", "none,dkn_compute=debug,dkn_p2p=debug");
+        let _ = env_logger::builder().is_test(true).try_init();
 
         // create node
         let cancellation = CancellationToken::new();
-        let mut node = DriaComputeNode::new(DriaComputeNodeConfig::default(), cancellation.clone())
-            .await
-            .expect("should create node");
+        let (mut node, p2p) =
+            DriaComputeNode::new(DriaComputeNodeConfig::default(), cancellation.clone())
+                .await
+                .expect("should create node");
+
+        // spawn p2p task
+        let p2p_task = tokio::spawn(async move { p2p.run().await });
 
         // launch & wait for a while for connections
         log::info!("Waiting a bit for peer setup.");
@@ -301,13 +340,22 @@ mod tests {
             _ = node.launch() => (),
             _ = tokio::time::sleep(tokio::time::Duration::from_secs(20)) => cancellation.cancel(),
         }
-        log::info!("Connected Peers:\n{:#?}", node.peers());
+        log::info!("Connected Peers:\n{:#?}", node.peers().await?);
 
         // publish a dummy message
         let topic = "foo";
         let message = DKNMessage::new("hello from the other side", topic);
-        node.subscribe(topic).expect("should subscribe");
-        node.publish(message).expect("should publish");
-        node.unsubscribe(topic).expect("should unsubscribe");
+        node.subscribe(topic).await.expect("should subscribe");
+        node.publish(message).await.expect("should publish");
+        node.unsubscribe(topic).await.expect("should unsubscribe");
+
+        // close everything
+        log::info!("Shutting down node.");
+        node.p2p.shutdown().await?;
+
+        // wait for task handle
+        p2p_task.await?;
+
+        Ok(())
     }
 }

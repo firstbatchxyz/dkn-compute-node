@@ -8,7 +8,7 @@ const LOG_LEVEL: &str = "none,dkn_workflows=debug";
 #[ignore = "requires Ollama"]
 async fn test_ollama_check() -> Result<()> {
     env::set_var("RUST_LOG", LOG_LEVEL);
-    let _ = env_logger::try_init();
+    let _ = env_logger::builder().is_test(true).try_init();
 
     let models = vec![Model::Phi3_5Mini];
     let mut model_config = DriaWorkflowsConfig::new(models);
@@ -27,7 +27,7 @@ async fn test_ollama_check() -> Result<()> {
 async fn test_openai_check() -> Result<()> {
     let _ = dotenvy::dotenv(); // read api key
     env::set_var("RUST_LOG", LOG_LEVEL);
-    let _ = env_logger::try_init();
+    let _ = env_logger::builder().is_test(true).try_init();
 
     let models = vec![Model::GPT4Turbo];
     let mut model_config = DriaWorkflowsConfig::new(models);

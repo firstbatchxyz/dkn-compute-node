@@ -974,7 +974,7 @@ dependencies = [
 
 [[package]]
 name = "dkn-compute"
-version = "0.2.22"
+version = "0.2.23"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -1006,7 +1006,7 @@ dependencies = [
 
 [[package]]
 name = "dkn-p2p"
-version = "0.2.22"
+version = "0.2.23"
 dependencies = [
  "env_logger 0.11.5",
  "eyre",
@@ -1014,11 +1014,12 @@ dependencies = [
  "libp2p-identity",
  "log",
  "tokio 1.41.1",
+ "tokio-util 0.7.12",
 ]
 
 [[package]]
 name = "dkn-workflows"
-version = "0.2.22"
+version = "0.2.23"
 dependencies = [
  "dotenvy",
  "env_logger 0.11.5",
@@ -2252,7 +2253,7 @@ dependencies = [
  "rtnetlink",
  "system-configuration",
  "tokio 1.41.1",
- "windows 0.51.1",
+ "windows 0.53.0",
 ]
 
 [[package]]
