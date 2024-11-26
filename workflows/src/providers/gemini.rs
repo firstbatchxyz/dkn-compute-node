@@ -185,7 +185,7 @@ mod tests {
         let _ = dotenvy::dotenv(); // read api key
         assert!(env::var(ENV_VAR_NAME).is_ok(), "should have api key");
         env::set_var("RUST_LOG", "none,dkn_workflows=debug");
-        let _ = env_logger::try_init();
+        let _ = env_logger::builder().is_test(true).try_init();
 
         let models = vec![
             Model::Gemini10Pro,

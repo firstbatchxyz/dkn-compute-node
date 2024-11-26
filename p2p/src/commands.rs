@@ -233,7 +233,7 @@ impl DriaP2PCommander {
     }
 
     /// Get peers counts (mesh & all) of the GossipSub pool.
-    /// Returns a tuple of the mesh peer count and all peer count.
+    /// Returns a tuple of the mesh peers count and all peers count.
     pub async fn peer_counts(&self) -> Result<(usize, usize)> {
         let (sender, receiver) = oneshot::channel();
 

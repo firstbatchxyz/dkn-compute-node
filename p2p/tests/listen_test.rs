@@ -4,46 +4,39 @@ use libp2p::Multiaddr;
 use libp2p_identity::Keypair;
 use std::{env, str::FromStr};
 
-const TOPIC: &str = "pong";
-const LOG_LEVEL: &str = "none,listen_test=debug,dkn_p2p=debug";
-
 // FIXME: not working!!!
 #[tokio::test]
-#[ignore = "run manually with logs"]
+#[ignore = "run this manually"]
 async fn test_listen_topic_once() -> Result<()> {
-    env::set_var("RUST_LOG", LOG_LEVEL);
-    let _ = env_logger::builder().is_test(true).try_init();
+    const TOPIC: &str = "pong";
 
-    // setup client
-    let keypair = Keypair::generate_secp256k1();
-    let addr = Multiaddr::from_str("/ip4/0.0.0.0/tcp/4001")?;
-    let bootstraps = vec![Multiaddr::from_str(
-        "/ip4/44.206.245.139/tcp/4001/p2p/16Uiu2HAm4q3LZU2T9kgjKK4ysy6KZYKLq8KiXQyae4RHdF7uqSt4",
-    )?];
-    let relays = vec![Multiaddr::from_str(
-        "/ip4/34.201.33.141/tcp/4001/p2p/16Uiu2HAkuXiV2CQkC9eJgU6cMnJ9SMARa85FZ6miTkvn5fuHNufa",
-    )?];
-    let protocol = DriaP2PProtocol::new_major_minor("dria");
+    env::set_var("RUST_LOG", "none,listen_test=debug,dkn_p2p=debug");
+    let _ = env_logger::builder().is_test(true).try_init();
 
     // spawn P2P client in another task
     let (client, mut commander, mut msg_rx) = DriaP2PClient::new(
-        keypair,
-        addr,
-        bootstraps.into_iter(),
-        relays.into_iter(),
+        Keypair::generate_secp256k1(),
+        Multiaddr::from_str("/ip4/0.0.0.0/tcp/4001")?,
+        vec![Multiaddr::from_str(
+            "/ip4/44.206.245.139/tcp/4001/p2p/16Uiu2HAm4q3LZU2T9kgjKK4ysy6KZYKLq8KiXQyae4RHdF7uqSt4",
+        )?].into_iter(),
+        vec![Multiaddr::from_str(
+            "/ip4/34.201.33.141/tcp/4001/p2p/16Uiu2HAkuXiV2CQkC9eJgU6cMnJ9SMARa85FZ6miTkvn5fuHNufa",
+        )?]
+        .into_iter(),
         vec![].into_iter(),
-        protocol,
+        DriaP2PProtocol::new_major_minor("dria"),
     )
     .expect("could not create p2p client");
+
+    // spawn task
+    let p2p_task = tokio::spawn(async move { client.run().await });
 
     // subscribe to the given topic
     commander
         .subscribe(TOPIC)
         .await
         .expect("could not subscribe");
-
-    // spawn task
-    let p2p_task = tokio::spawn(async move { client.run().await });
 
     // wait for a single gossipsub message on this topic
     log::info!("Waiting for messages...");

@@ -21,19 +21,6 @@ use crate::{
 /// Number of seconds between refreshing the Kademlia DHT.
 const PEER_REFRESH_INTERVAL_SECS: u64 = 30;
 
-/// **Dria Compute Node**
-///
-/// Internally, the node will create a new P2P client with the given secret key.
-/// This P2P client, although created synchronously, requires a tokio runtime.
-///
-/// ### Example
-///
-/// ```rs
-/// let config = DriaComputeNodeConfig::new();
-/// let mut node = DriaComputeNode::new(config, CancellationToken::new())?;
-/// node.check_services().await?;
-/// node.launch().await?;
-/// ```
 pub struct DriaComputeNode {
     pub config: DriaComputeNodeConfig,
     pub p2p: DriaP2PCommander,
@@ -44,10 +31,13 @@ pub struct DriaComputeNode {
 }
 
 impl DriaComputeNode {
+    /// Creates a new `DriaComputeNode` with the given configuration and cancellation token.
+    ///
+    /// Returns the node instance and p2p client together. P2p MUST be run in a separate task before this node is used at all.
     pub async fn new(
         config: DriaComputeNodeConfig,
         cancellation: CancellationToken,
-    ) -> Result<(Self, DriaP2PClient)> {
+    ) -> Result<(DriaComputeNode, DriaP2PClient)> {
         // create the keypair from secret key
         let keypair = secret_to_keypair(&config.secret_key);
 
@@ -139,16 +129,11 @@ impl DriaComputeNode {
         Ok(())
     }
 
-    /// Returns the list of connected peers.
-    // #[inline(always)]
-    // pub fn peers(
-    //     &self,
-    // ) -> Vec<(
-    //     &dkn_p2p::libp2p_identity::PeerId,
-    //     Vec<&gossipsub::TopicHash>,
-    // )> {
-    //     self.p2p.peers()
-    // }
+    /// Returns the list of connected peers, `mesh` and `all`.
+    #[inline]
+    pub async fn peers(&self) -> Result<(Vec<PeerId>, Vec<PeerId>)> {
+        self.p2p.peers().await
+    }
 
     /// Launches the main loop of the compute node.
     /// This method is not expected to return until cancellation occurs.
@@ -285,16 +270,24 @@ impl DriaComputeNode {
         self.unsubscribe(WorkflowHandler::LISTEN_TOPIC).await?;
         self.unsubscribe(WorkflowHandler::RESPONSE_TOPIC).await?;
 
+        // shutdown channels
+        self.shutdown().await?;
+
+        Ok(())
+    }
+
+    /// Shutdown channels between p2p and yourself.
+    pub async fn shutdown(&mut self) -> Result<()> {
         // send shutdown signal
+        log::debug!("Sending shutdown command to p2p client.");
         self.p2p.shutdown().await?;
 
-        // close msg channel
+        // close message channel
         log::debug!("Closing message channel.");
         self.msg_rx.close();
 
         Ok(())
     }
-
     /// Parses a given raw Gossipsub message to a prepared P2PMessage object.
     /// This prepared message includes the topic, payload, version and timestamp.
     ///
@@ -322,34 +315,47 @@ impl DriaComputeNode {
 
 #[cfg(test)]
 mod tests {
-    // use super::*;
-    // use std::env;
+    use super::*;
+    use std::env;
 
-    // #[tokio::test]
-    // #[ignore = "run this manually"]
-    // async fn test_publish_message() {
-    //     env::set_var("RUST_LOG", "info");
-    //     let _ = env_logger::try_init();
+    #[tokio::test]
+    #[ignore = "run this manually"]
+    async fn test_publish_message() -> eyre::Result<()> {
+        env::set_var("RUST_LOG", "none,dkn_compute=debug,dkn_p2p=debug");
+        let _ = env_logger::builder().is_test(true).try_init();
 
-    //     // create node
-    //     let cancellation = CancellationToken::new();
-    //     let mut node = DriaComputeNode::new(DriaComputeNodeConfig::default(), cancellation.clone())
-    //         .await
-    //         .expect("should create node");
+        // create node
+        let cancellation = CancellationToken::new();
+        let (mut node, p2p) =
+            DriaComputeNode::new(DriaComputeNodeConfig::default(), cancellation.clone())
+                .await
+                .expect("should create node");
 
-    //     // launch & wait for a while for connections
-    //     log::info!("Waiting a bit for peer setup.");
-    //     tokio::select! {
-    //         _ = node.launch() => (),
-    //         _ = tokio::time::sleep(tokio::time::Duration::from_secs(20)) => cancellation.cancel(),
-    //     }
-    //     log::info!("Connected Peers:\n{:#?}", node.peers());
+        // spawn p2p task
+        let p2p_task = tokio::spawn(async move { p2p.run().await });
 
-    //     // publish a dummy message
-    //     let topic = "foo";
-    //     let message = DKNMessage::new("hello from the other side", topic);
-    //     node.subscribe(topic).expect("should subscribe");
-    //     node.publish(message).expect("should publish");
-    //     node.unsubscribe(topic).expect("should unsubscribe");
-    // }
+        // launch & wait for a while for connections
+        log::info!("Waiting a bit for peer setup.");
+        tokio::select! {
+            _ = node.launch() => (),
+            _ = tokio::time::sleep(tokio::time::Duration::from_secs(20)) => cancellation.cancel(),
+        }
+        log::info!("Connected Peers:\n{:#?}", node.peers().await?);
+
+        // publish a dummy message
+        let topic = "foo";
+        let message = DKNMessage::new("hello from the other side", topic);
+        node.subscribe(topic).await.expect("should subscribe");
+        node.publish(message).await.expect("should publish");
+        node.unsubscribe(topic).await.expect("should unsubscribe");
+
+        // close everything
+        log::info!("Shutting down node.");
+        node.p2p.shutdown().await?;
+
+        // wait for task handle
+        p2p_task.await?;
+
+        Ok(())
+    }
 }
