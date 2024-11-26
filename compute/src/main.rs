@@ -25,7 +25,7 @@ async fn main() -> Result<()> {
 ██║  ██║██╔══██╗██║██╔══██║   https://dria.co
 ██████╔╝██║  ██║██║██║  ██║
 ╚═════╝ ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝
-"#,
+"#
     );
 
     let token = CancellationToken::new();

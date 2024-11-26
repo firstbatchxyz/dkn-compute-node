@@ -1,5 +1,5 @@
 use eyre::{Context, Result};
-use libp2p::{gossipsub, swarm, Multiaddr, PeerId};
+use libp2p::{gossipsub, kad, swarm, Multiaddr, PeerId};
 use tokio::sync::{mpsc, oneshot};
 
 use crate::DriaP2PProtocol;
@@ -11,6 +11,18 @@ pub enum DriaP2PCommand {
     /// Returns the network information, such as the number of incoming and outgoing connections.
     NetworkInfo {
         sender: oneshot::Sender<swarm::NetworkInfo>,
+    },
+    /// Make a Kademlia closest-peers query.
+    Refresh {
+        sender: oneshot::Sender<kad::QueryId>,
+    },
+    /// Get peers (mesh & all) of the GossipSub pool.
+    Peers {
+        sender: oneshot::Sender<(Vec<PeerId>, Vec<PeerId>)>,
+    },
+    /// Get peers counts (mesh & all) of the GossipSub pool.
+    PeerCounts {
+        sender: oneshot::Sender<(usize, usize)>,
     },
     /// Dial a peer.
     Dial {
@@ -201,6 +213,44 @@ impl DriaP2PCommander {
 
         self.sender
             .send(DriaP2PCommand::Shutdown { sender })
+            .await
+            .wrap_err("could not send")?;
+
+        receiver.await.wrap_err("could not receive")
+    }
+
+    /// Refreshes the Kademlia DHT using a closest peer query over a random peer.
+    pub async fn refresh(&mut self) -> Result<kad::QueryId> {
+        let (sender, receiver) = oneshot::channel();
+
+        self.sender
+            .send(DriaP2PCommand::Refresh { sender })
+            .await
+            .wrap_err("could not send")?;
+
+        receiver.await.wrap_err("could not receive")
+    }
+
+    /// Get peers (mesh & all) of the GossipSub pool.
+    /// Returns a tuple of the mesh peers and all peers.
+    pub async fn peers(&self) -> Result<(Vec<PeerId>, Vec<PeerId>)> {
+        let (sender, receiver) = oneshot::channel();
+
+        self.sender
+            .send(DriaP2PCommand::Peers { sender })
+            .await
+            .wrap_err("could not send")?;
+
+        receiver.await.wrap_err("could not receive")
+    }
+
+    /// Get peers counts (mesh & all) of the GossipSub pool.
+    /// Returns a tuple of the mesh peer count and all peer count.
+    pub async fn peer_counts(&self) -> Result<(usize, usize)> {
+        let (sender, receiver) = oneshot::channel();
+
+        self.sender
+            .send(DriaP2PCommand::PeerCounts { sender })
             .await
             .wrap_err("could not send")?;
 

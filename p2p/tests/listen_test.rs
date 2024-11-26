@@ -3,7 +3,6 @@ use eyre::Result;
 use libp2p::Multiaddr;
 use libp2p_identity::Keypair;
 use std::{env, str::FromStr};
-use tokio_util::sync::CancellationToken;
 
 const TOPIC: &str = "pong";
 const LOG_LEVEL: &str = "none,listen_test=debug,dkn_p2p=debug";
@@ -26,9 +25,7 @@ async fn test_listen_topic_once() -> Result<()> {
     let protocol = DriaP2PProtocol::new_major_minor("dria");
 
     // spawn P2P client in another task
-    let cancellation = CancellationToken::new();
-    let p2p_cancellation = cancellation.clone();
-    let (client, commander, mut msg_rx) = DriaP2PClient::new(
+    let (client, mut commander, mut msg_rx) = DriaP2PClient::new(
         keypair,
         addr,
         bootstraps.into_iter(),
@@ -37,22 +34,15 @@ async fn test_listen_topic_once() -> Result<()> {
         protocol,
     )
     .expect("could not create p2p client");
+
     // subscribe to the given topic
     commander
         .subscribe(TOPIC)
         .await
         .expect("could not subscribe");
 
-    let p2p_task = tokio::spawn(async move {
-        tokio::select! {
-            _ = client.run() => {
-                log::error!("P2P client finished unexpectedly");
-            },
-            _ = p2p_cancellation.cancelled() => {
-                commander.unsubscribe(TOPIC).await.expect("could not unsubscribe");
-            },
-        };
-    });
+    // spawn task
+    let p2p_task = tokio::spawn(async move { client.run().await });
 
     // wait for a single gossipsub message on this topic
     log::info!("Waiting for messages...");
@@ -66,7 +56,15 @@ async fn test_listen_topic_once() -> Result<()> {
         }
     }
 
-    cancellation.cancel();
+    // unsubscribe to the given topic
+    commander
+        .unsubscribe(TOPIC)
+        .await
+        .expect("could not unsubscribe");
+
+    // close command channel
+    commander.shutdown().await.expect("could not shutdown");
+    // close message channel
     msg_rx.close();
 
     log::info!("Waiting for p2p task to finish...");

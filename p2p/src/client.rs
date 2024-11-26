@@ -1,6 +1,6 @@
 use eyre::Result;
 use libp2p::futures::StreamExt;
-use libp2p::gossipsub::{Message, MessageId, TopicHash};
+use libp2p::gossipsub::{Message, MessageId};
 use libp2p::kad::{GetClosestPeersError, GetClosestPeersOk, QueryResult};
 use libp2p::swarm::SwarmEvent;
 use libp2p::{autonat, gossipsub, identify, kad, multiaddr::Protocol, noise, tcp, yamux};
@@ -153,12 +153,6 @@ impl DriaP2PClient {
         Ok((client, commander, msg_rx))
     }
 
-    /// Returns the list of connected peers within Gossipsub, with a list of subscribed topic hashes by each peer.
-    pub fn peers(&self) -> Vec<(&PeerId, Vec<&TopicHash>)> {
-        // FIXME: ???
-        self.swarm.behaviour().gossipsub.all_peers().collect()
-    }
-
     /// Waits for swarm events and Node commands at the same time.
     ///
     /// To terminate, the command channel must be closed.
@@ -184,8 +178,8 @@ impl DriaP2PClient {
         match command {
             DriaP2PCommand::Shutdown { sender } => {
                 self.cmd_rx.close();
+
                 let _ = sender.send(());
-                return;
             }
             DriaP2PCommand::Dial { peer_id, sender } => {
                 let _ = sender.send(self.swarm.dial(peer_id));
@@ -233,6 +227,37 @@ impl DriaP2PClient {
                         .gossipsub
                         .report_message_validation_result(&msg_id, &propagation_source, acceptance),
                 );
+            }
+            DriaP2PCommand::Refresh { sender } => {
+                let _ = sender.send(
+                    self.swarm
+                        .behaviour_mut()
+                        .kademlia
+                        .get_closest_peers(PeerId::random()),
+                );
+            }
+            DriaP2PCommand::Peers { sender } => {
+                let mesh = self
+                    .swarm
+                    .behaviour()
+                    .gossipsub
+                    .all_mesh_peers()
+                    .cloned()
+                    .collect();
+                let all = self
+                    .swarm
+                    .behaviour()
+                    .gossipsub
+                    .all_peers()
+                    .map(|(p, _)| p)
+                    .cloned()
+                    .collect();
+                let _ = sender.send((mesh, all));
+            }
+            DriaP2PCommand::PeerCounts { sender } => {
+                let mesh = self.swarm.behaviour().gossipsub.all_mesh_peers().count();
+                let all = self.swarm.behaviour().gossipsub.all_peers().count();
+                let _ = sender.send((mesh, all));
             }
         }
     }
@@ -390,13 +415,6 @@ impl DriaP2PClient {
     /// FIXME: use this somewhere
     pub async fn refresh_peer_counts(&mut self) {
         if self.peer_last_refreshed.elapsed() > Duration::from_secs(PEER_REFRESH_INTERVAL_SECS) {
-            let random_peer = PeerId::random();
-            self.swarm
-                .behaviour_mut()
-                .kademlia
-                .get_closest_peers(random_peer);
-            self.peer_last_refreshed = Instant::now();
-
             // get peer count
             let gossipsub = &self.swarm.behaviour().gossipsub;
             let num_peers = gossipsub.all_peers().count();
