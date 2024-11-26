@@ -6,8 +6,6 @@ use crate::DriaP2PProtocol;
 
 #[derive(Debug)]
 pub enum DriaP2PCommand {
-    /// Shutsdown the client.
-    Shutdown { sender: oneshot::Sender<()> },
     /// Returns the network information, such as the number of incoming and outgoing connections.
     NetworkInfo {
         sender: oneshot::Sender<swarm::NetworkInfo>,
@@ -59,6 +57,8 @@ pub enum DriaP2PCommand {
         acceptance: gossipsub::MessageAcceptance,
         sender: oneshot::Sender<Result<bool, gossipsub::PublishError>>,
     },
+    /// Shutsdown the client, closes the command channel.
+    Shutdown { sender: oneshot::Sender<()> },
 }
 
 pub struct DriaP2PCommander {
@@ -207,18 +207,6 @@ impl DriaP2PCommander {
         Ok(())
     }
 
-    /// Sends a shutdown signal to the client.
-    pub async fn shutdown(&mut self) -> Result<()> {
-        let (sender, receiver) = oneshot::channel();
-
-        self.sender
-            .send(DriaP2PCommand::Shutdown { sender })
-            .await
-            .wrap_err("could not send")?;
-
-        receiver.await.wrap_err("could not receive")
-    }
-
     /// Refreshes the Kademlia DHT using a closest peer query over a random peer.
     pub async fn refresh(&mut self) -> Result<kad::QueryId> {
         let (sender, receiver) = oneshot::channel();
@@ -251,6 +239,18 @@ impl DriaP2PCommander {
 
         self.sender
             .send(DriaP2PCommand::PeerCounts { sender })
+            .await
+            .wrap_err("could not send")?;
+
+        receiver.await.wrap_err("could not receive")
+    }
+
+    /// Sends a shutdown signal to the client.
+    pub async fn shutdown(&mut self) -> Result<()> {
+        let (sender, receiver) = oneshot::channel();
+
+        self.sender
+            .send(DriaP2PCommand::Shutdown { sender })
             .await
             .wrap_err("could not send")?;
 

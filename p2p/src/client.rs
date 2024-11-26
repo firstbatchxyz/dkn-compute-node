@@ -165,11 +165,6 @@ impl DriaP2PClient {
     /// Handles a single command, which originates from `DriaP2PCommander`.
     pub async fn handle_command(&mut self, command: DriaP2PCommand) {
         match command {
-            DriaP2PCommand::Shutdown { sender } => {
-                self.cmd_rx.close();
-
-                let _ = sender.send(());
-            }
             DriaP2PCommand::Dial { peer_id, sender } => {
                 let _ = sender.send(self.swarm.dial(peer_id));
             }
@@ -248,6 +243,10 @@ impl DriaP2PClient {
                 let all = self.swarm.behaviour().gossipsub.all_peers().count();
                 let _ = sender.send((mesh, all));
             }
+            DriaP2PCommand::Shutdown { sender } => {
+                self.cmd_rx.close();
+                let _ = sender.send(());
+            }
         }
     }
 
@@ -260,11 +259,6 @@ impl DriaP2PClient {
                 message_id,
                 message,
             })) => {
-                log::debug!(
-                    "Sending message {} from {} to channel.",
-                    message_id,
-                    peer_id
-                );
                 if let Err(e) = self.msg_tx.send((peer_id, message_id, message)).await {
                     log::error!("Error sending message: {:?}", e);
                 }
