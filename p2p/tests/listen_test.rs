@@ -7,6 +7,7 @@ use std::{env, str::FromStr};
 const TOPIC: &str = "pong";
 const LOG_LEVEL: &str = "none,listen_test=debug,dkn_p2p=debug";
 
+// FIXME: not working!!!
 #[tokio::test]
 #[ignore = "run manually with logs"]
 async fn test_listen_topic_once() -> Result<()> {

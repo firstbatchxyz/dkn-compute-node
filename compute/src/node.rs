@@ -6,7 +6,10 @@ use dkn_p2p::{
     DriaP2PClient, DriaP2PCommander, DriaP2PProtocol,
 };
 use eyre::{eyre, Result};
-use tokio::sync::mpsc;
+use tokio::{
+    sync::mpsc,
+    time::{Duration, Instant},
+};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -14,6 +17,9 @@ use crate::{
     handlers::*,
     utils::{crypto::secret_to_keypair, AvailableNodes, DKNMessage},
 };
+
+/// Number of seconds between refreshing the Kademlia DHT.
+const PEER_REFRESH_INTERVAL_SECS: u64 = 30;
 
 /// **Dria Compute Node**
 ///
@@ -33,7 +39,7 @@ pub struct DriaComputeNode {
     pub p2p: DriaP2PCommander,
     pub available_nodes: AvailableNodes,
     pub cancellation: CancellationToken,
-    /// Message receiver.
+    peer_last_refreshed: Instant,
     msg_rx: mpsc::Receiver<(PeerId, MessageId, Message)>,
 }
 
@@ -75,6 +81,7 @@ impl DriaComputeNode {
                 cancellation,
                 available_nodes,
                 msg_rx,
+                peer_last_refreshed: Instant::now(),
             },
             p2p_client,
         ))
@@ -89,6 +96,22 @@ impl DriaComputeNode {
             log::info!("Already subscribed to {}", topic);
         }
         Ok(())
+    }
+
+    /// Validates a message, but only logs the error.
+    pub async fn validate_safe(
+        &mut self,
+        msg_id: &gossipsub::MessageId,
+        propagation_source: &PeerId,
+        acceptance: gossipsub::MessageAcceptance,
+    ) {
+        if let Err(e) = self
+            .p2p
+            .validate_message(msg_id, propagation_source, acceptance)
+            .await
+        {
+            log::error!("Error validating message: {:?}", e);
+        }
     }
 
     /// Unsubscribe from a certain task with its topic.
@@ -107,7 +130,9 @@ impl DriaComputeNode {
     /// Internally, identity is attached to the the message which is then JSON serialized to bytes
     /// and then published to the network as is.
     pub async fn publish(&mut self, mut message: DKNMessage) -> Result<()> {
+        // attach protocol name to the message
         message = message.with_identity(self.p2p.protocol().name.clone());
+
         let message_bytes = serde_json::to_vec(&message)?;
         let message_id = self.p2p.publish(&message.topic, message_bytes).await?;
         log::info!("Published message ({}) to {}", message_id, message.topic);
@@ -148,22 +173,32 @@ impl DriaComputeNode {
                         };
 
                         // dial all rpc nodes for better connectivity
-                        // for rpc_addr in self.available_nodes.rpc_addrs.iter() {
-                        //     log::debug!("Dialling RPC node: {}", rpc_addr);
-                        //     // TODO: does this cause resource issues?
-                        //     if let Err(e) = self.p2p.dial(rpc_addr.clone()).await {
-                        //         log::warn!("Error dialling RPC node: {:?}", e);
-                        //     };
-                        // }
+                        for rpc_addr in self.available_nodes.rpc_addrs.iter() {
+                            log::debug!("Dialling RPC node: {}", rpc_addr);
+                            if let Err(e) = self.p2p.dial(rpc_addr.clone()).await {
+                                log::warn!("Error dialling RPC node: {:?}", e);
+                            };
+                        }
 
-                        // also print network info
-                        // FIXME: !!!
-                        // log::debug!("{:?}", self.p2p.network_info().await.connection_counters());
+                        // print network info
+                        log::debug!("{:?}", self.p2p.network_info().await);
                     }
 
+                    // check peer count
+                    if self.peer_last_refreshed.elapsed() > Duration::from_secs(PEER_REFRESH_INTERVAL_SECS) {
+                        let (mesh_cnt, all_cnt) = self.p2p.peer_counts().await.unwrap_or((0, 0));
+                        log::info!("Peer Count (mesh/all): {} / {}", mesh_cnt, all_cnt);
+
+                        self.peer_last_refreshed = Instant::now();
+
+                        // TODO: add peer list as well
+                    }
+
+                    // check if there was any event at all
                     let Some((peer_id, message_id, message)) = event else {
                         continue;
                     };
+
                     let topic = message.topic.clone();
                     let topic_str = topic.as_str();
 
@@ -174,7 +209,7 @@ impl DriaComputeNode {
                             Some(peer) => peer,
                             None => {
                                 log::warn!("Received {} message from {} without source.", topic_str, peer_id);
-                                self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore).await?;
+                                self.validate_safe(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore).await;
                                 continue;
                             }
                         };
@@ -191,7 +226,7 @@ impl DriaComputeNode {
                         if !self.available_nodes.rpc_nodes.contains(&source_peer_id) {
                             log::warn!("Received message from unauthorized source: {}", source_peer_id);
                             log::debug!("Allowed sources: {:#?}", self.available_nodes.rpc_nodes);
-                            self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore).await?;
+                            self.validate_safe(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore).await;
                             continue;
                         }
 
@@ -202,7 +237,7 @@ impl DriaComputeNode {
                             Err(e) => {
                                 log::error!("Error parsing message: {:?}", e);
                                 log::debug!("Message: {}", String::from_utf8_lossy(&message.data));
-                                self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore).await?;
+                                self.validate_safe(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore).await;
                                 continue;
                             }
                         };
@@ -222,22 +257,22 @@ impl DriaComputeNode {
                         // validate the message based on the result
                         match handler_result {
                             Ok(acceptance) => {
-                                self.p2p.validate_message(&message_id, &peer_id, acceptance).await?;
+                                self.validate_safe(&message_id, &peer_id, acceptance).await;
                             },
                             Err(err) => {
                                 log::error!("Error handling {} message: {:?}", topic_str, err);
-                                self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore).await?;
+                                self.validate_safe(&message_id, &peer_id, gossipsub::MessageAcceptance::Ignore).await;
                             }
                         }
                     } else if std::matches!(topic_str, PingpongHandler::RESPONSE_TOPIC | WorkflowHandler::RESPONSE_TOPIC) {
                         // since we are responding to these topics, we might receive messages from other compute nodes
                         // we can gracefully ignore them and propagate it to to others
                         log::trace!("Ignoring message for topic: {}", topic_str);
-                        self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Accept).await?;
+                        self.validate_safe(&message_id, &peer_id, gossipsub::MessageAcceptance::Accept).await;
                     } else {
                         // reject this message as its from a foreign topic
                         log::warn!("Received message from unexpected topic: {}", topic_str);
-                        self.p2p.validate_message(&message_id, &peer_id, gossipsub::MessageAcceptance::Reject).await?;
+                        self.validate_safe(&message_id, &peer_id, gossipsub::MessageAcceptance::Reject).await;
                     }
                 },
                 _ = self.cancellation.cancelled() => break,

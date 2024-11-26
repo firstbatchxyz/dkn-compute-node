@@ -6,7 +6,7 @@ use libp2p::swarm::SwarmEvent;
 use libp2p::{autonat, gossipsub, identify, kad, multiaddr::Protocol, noise, tcp, yamux};
 use libp2p::{Multiaddr, PeerId, Swarm, SwarmBuilder};
 use libp2p_identity::Keypair;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::sync::mpsc;
 
 use crate::behaviour::{DriaBehaviour, DriaBehaviourEvent};
@@ -19,13 +19,6 @@ use super::DriaP2PCommander;
 pub struct DriaP2PClient {
     /// `Swarm` instance, everything is accesses through this one.
     swarm: Swarm<DriaBehaviour>,
-    /// Peer count for All and Mesh peers.
-    ///
-    /// Mesh usually contains much fewer peers than All, as they are the ones
-    /// used for actual gossipping.
-    peer_count: (usize, usize),
-    /// Last time the peer count was refreshed.
-    peer_last_refreshed: Instant,
     /// Dria protocol, used for identifying the client.
     protocol: DriaP2PProtocol,
     /// Message sender / transmitter.
@@ -37,8 +30,6 @@ pub struct DriaP2PClient {
 // TODO: make all these configurable
 /// Number of seconds before an idle connection is closed.
 const IDLE_CONNECTION_TIMEOUT_SECS: u64 = 60;
-/// Number of seconds between refreshing the Kademlia DHT.
-const PEER_REFRESH_INTERVAL_SECS: u64 = 30;
 /// Buffer size for command channel.
 const COMMAND_CHANNEL_BUFSIZE: usize = 256;
 /// Buffer size for events channel.
@@ -143,8 +134,6 @@ impl DriaP2PClient {
         let (msg_tx, msg_rx) = mpsc::channel(MSG_CHANNEL_BUFSIZE);
         let client = Self {
             swarm,
-            peer_count: (0, 0),
-            peer_last_refreshed: Instant::now(),
             protocol,
             msg_tx,
             cmd_rx,
@@ -401,49 +390,6 @@ impl DriaP2PClient {
                 log::info!(
                     "Kademlia: Query timed out with {} closest peers.",
                     peers.len()
-                );
-            }
-        }
-    }
-
-    /// Does a random-walk over DHT and updates peer counts as needed.
-    /// Keeps track of the last time the peer count was refreshed.
-    ///
-    /// Should be called in a loop.
-    ///
-    /// Returns: (All Peer Count, Mesh Peer Count)
-    /// FIXME: use this somewhere
-    pub async fn refresh_peer_counts(&mut self) {
-        if self.peer_last_refreshed.elapsed() > Duration::from_secs(PEER_REFRESH_INTERVAL_SECS) {
-            // get peer count
-            let gossipsub = &self.swarm.behaviour().gossipsub;
-            let num_peers = gossipsub.all_peers().count();
-            let num_mesh_peers = gossipsub.all_mesh_peers().count();
-
-            // print peer counts
-            log::info!("Peer Count (mesh/all): {} / {}", num_mesh_peers, num_peers);
-
-            // print peers themselves if the count has changed
-            if num_peers != self.peer_count.0 || num_mesh_peers != self.peer_count.1 {
-                self.peer_count = (num_peers, num_mesh_peers);
-
-                log::debug!(
-                    "All Peers:\n{}",
-                    gossipsub
-                        .all_peers()
-                        .enumerate()
-                        .map(|(i, (p, _))| format!("{:#3}: {}", i, p))
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                );
-                log::debug!(
-                    "Mesh Peers:\n{}",
-                    gossipsub
-                        .all_mesh_peers()
-                        .enumerate()
-                        .map(|(i, p)| format!("{:#3}: {}", i, p))
-                        .collect::<Vec<_>>()
-                        .join("\n")
                 );
             }
         }
