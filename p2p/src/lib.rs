@@ -1,10 +1,12 @@
 mod transform;
 
 mod behaviour;
-use behaviour::{DriaBehaviour, DriaBehaviourEvent};
 
 mod client;
 pub use client::DriaP2PClient;
+
+mod commands;
+pub use commands::{DriaP2PCommand, DriaP2PCommander};
 
 mod protocol;
 pub use protocol::DriaP2PProtocol;

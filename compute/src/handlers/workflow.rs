@@ -161,7 +161,7 @@ impl ComputeHandler for WorkflowHandler {
         };
 
         // try publishing the result
-        if let Err(publish_err) = node.publish(message) {
+        if let Err(publish_err) = node.publish(message).await {
             let err_msg = format!("Could not publish result: {:?}", publish_err);
             log::error!("{}", err_msg);
 
@@ -174,7 +174,7 @@ impl ComputeHandler for WorkflowHandler {
                 Self::RESPONSE_TOPIC,
                 &node.config.secret_key,
             );
-            node.publish(message)?;
+            node.publish(message).await?;
         }
 
         Ok(acceptance)

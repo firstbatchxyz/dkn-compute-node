@@ -1014,6 +1014,7 @@ dependencies = [
  "libp2p-identity",
  "log",
  "tokio 1.41.1",
+ "tokio-util 0.7.12",
 ]
 
 [[package]]

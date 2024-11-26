@@ -31,6 +31,8 @@ libp2p-identity = { version = "0.2.9", features = ["secp256k1"] }
 log.workspace = true
 eyre.workspace = true
 
+tokio-util.workspace = true
+tokio.workspace = true
+
 [dev-dependencies]
 env_logger.workspace = true
-tokio.workspace = true

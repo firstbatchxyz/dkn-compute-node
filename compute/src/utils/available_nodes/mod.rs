@@ -9,7 +9,7 @@ mod statics;
 use crate::DriaNetworkType;
 
 /// Number of seconds between refreshing the available nodes.
-const DEFAULT_REFRESH_INTERVAL_SECS: u64 = 25;
+const DEFAULT_REFRESH_INTERVAL_SECS: u64 = 30 * 60; // 30 minutes
 
 impl DriaNetworkType {
     /// Returns the URL for fetching available nodes w.r.t network type.
