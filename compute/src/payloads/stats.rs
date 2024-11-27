@@ -3,8 +3,8 @@ use std::time::Instant;
 
 use crate::utils::get_current_time_nanos;
 
-/// A task stat.
-/// Returning this as the payload helps to debug the errors received at client side.
+/// Task stats for diagnostics.
+/// Returning this as the payload helps to debug the errors received at client side, and latencies.
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskStats {
@@ -30,6 +30,7 @@ impl TaskStats {
         self
     }
 
+    /// Records the execution time of the task.
     pub fn record_execution_time(mut self, started_at: Instant) -> Self {
         self.execution_time = Instant::now().duration_since(started_at).as_nanos();
         self

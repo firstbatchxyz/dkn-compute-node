@@ -17,7 +17,7 @@ pub struct DKNMessage {
     pub(crate) payload: String,
     /// The topic of the message, derived from `TopicHash`
     ///
-    /// NOTE: This can be obtained via TopicHash in GossipSub
+    /// NOTE: This can be obtained via `TopicHash` in GossipSub
     pub(crate) topic: String,
     /// The version of the Dria Compute Node
     ///
@@ -28,7 +28,7 @@ pub struct DKNMessage {
     pub(crate) identity: String,
     /// The timestamp of the message, in nanoseconds
     ///
-    /// NOTE: This can be obtained via DataTransform in GossipSub
+    /// NOTE: This can be obtained via `DataTransform` in GossipSub
     pub(crate) timestamp: u128,
 }
 

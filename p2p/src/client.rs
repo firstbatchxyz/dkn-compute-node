@@ -291,6 +291,13 @@ impl DriaP2PClient {
                 // this is usually the external address via relay
                 log::info!("External address confirmed: {}", address);
             }
+            // SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
+            //     if let Some(peer_id) = peer_id {
+            //         log::warn!("Could not connect to peer {}: {:?}", peer_id, error);
+            //     } else {
+            //         log::warn!("Outgoing connection error: {:?}", error);
+            //     }
+            // }
             event => log::trace!("Unhandled Swarm Event: {:?}", event),
         }
     }

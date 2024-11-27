@@ -1,23 +1,19 @@
-use std::time::Instant;
-
-use async_trait::async_trait;
 use dkn_p2p::libp2p::gossipsub::MessageAcceptance;
 use dkn_workflows::{Entry, Executor, ModelProvider, ProgramMemory, Workflow};
 use eyre::{eyre, Context, Result};
 use libsecp256k1::PublicKey;
 use serde::Deserialize;
+use std::time::Instant;
 
 use crate::payloads::{TaskErrorPayload, TaskRequestPayload, TaskResponsePayload, TaskStats};
 use crate::utils::{get_current_time_nanos, DKNMessage};
 use crate::DriaComputeNode;
 
-use super::ComputeHandler;
-
 pub struct WorkflowHandler;
 
 #[derive(Debug, Deserialize)]
 struct WorkflowPayload {
-    /// [Workflow](https://github.com/andthattoo/ollama-workflows/) object to be parsed.
+    /// [Workflow](https://github.com/andthattoo/ollama-workflows/blob/main/src/program/workflow.rs) object to be parsed.
     pub(crate) workflow: Workflow,
     /// A lıst of model (that can be parsed into `Model`) or model provider names.
     /// If model provider is given, the first matching model in the node config is used for that.
@@ -28,12 +24,11 @@ struct WorkflowPayload {
     pub(crate) prompt: Option<String>,
 }
 
-#[async_trait]
-impl ComputeHandler for WorkflowHandler {
-    const LISTEN_TOPIC: &'static str = "task";
-    const RESPONSE_TOPIC: &'static str = "results";
+impl WorkflowHandler {
+    pub(crate) const LISTEN_TOPIC: &'static str = "task";
+    pub(crate) const RESPONSE_TOPIC: &'static str = "results";
 
-    async fn handle_compute(
+    pub(crate) async fn handle_compute(
         node: &mut DriaComputeNode,
         message: DKNMessage,
     ) -> Result<MessageAcceptance> {
@@ -85,26 +80,29 @@ impl ComputeHandler for WorkflowHandler {
         } else {
             Executor::new(model)
         };
-        let mut memory = ProgramMemory::new();
         let entry: Option<Entry> = task
             .input
             .prompt
             .map(|prompt| Entry::try_value_or_str(&prompt));
 
         // execute workflow with cancellation
-        let exec_result: Result<String>;
+        let mut memory = ProgramMemory::new();
+
         let exec_started_at = Instant::now();
-        tokio::select! {
-            _ = node.cancellation.cancelled() => {
-                log::info!("Received cancellation, quitting all tasks.");
-                return Ok(MessageAcceptance::Accept);
-            },
-            exec_result_inner = executor.execute(entry.as_ref(), &task.input.workflow, &mut memory) => {
-                exec_result = exec_result_inner.map_err(|e| eyre!("Execution error: {}", e.to_string()));
-            }
-        }
+        let exec_result = executor
+            .execute(entry.as_ref(), &task.input.workflow, &mut memory)
+            .await
+            .map_err(|e| eyre!("Execution error: {}", e.to_string()));
         task_stats = task_stats.record_execution_time(exec_started_at);
 
+        Ok(MessageAcceptance::Accept)
+    }
+
+    async fn handle_publish(
+        node: &mut DriaComputeNode,
+        result: String,
+        task_id: String,
+    ) -> Result<()> {
         let (message, acceptance) = match exec_result {
             Ok(result) => {
                 // obtain public key from the payload
@@ -115,7 +113,7 @@ impl ComputeHandler for WorkflowHandler {
                 // prepare signed and encrypted payload
                 let payload = TaskResponsePayload::new(
                     result,
-                    &task.task_id,
+                    &task_id,
                     &task_public_key,
                     &node.config.secret_key,
                     model_name,
@@ -125,11 +123,7 @@ impl ComputeHandler for WorkflowHandler {
                     .wrap_err("Could not serialize response payload")?;
 
                 // prepare signed message
-                log::debug!(
-                    "Publishing result for task {}\n{}",
-                    task.task_id,
-                    payload_str
-                );
+                log::debug!("Publishing result for task {}\n{}", task_id, payload_str);
                 let message = DKNMessage::new(payload_str, Self::RESPONSE_TOPIC);
                 // accept so that if there are others included in filter they can do the task
                 (message, MessageAcceptance::Accept)
@@ -137,11 +131,11 @@ impl ComputeHandler for WorkflowHandler {
             Err(err) => {
                 // use pretty display string for error logging with causes
                 let err_string = format!("{:#}", err);
-                log::error!("Task {} failed: {}", task.task_id, err_string);
+                log::error!("Task {} failed: {}", task_id, err_string);
 
                 // prepare error payload
                 let error_payload = TaskErrorPayload {
-                    task_id: task.task_id.clone(),
+                    task_id,
                     error: err_string,
                     model: model_name,
                     stats: task_stats.record_published_at(),
@@ -166,7 +160,7 @@ impl ComputeHandler for WorkflowHandler {
             log::error!("{}", err_msg);
 
             let payload = serde_json::json!({
-                "taskId": task.task_id,
+                "taskId": task_id,
                 "error": err_msg,
             });
             let message = DKNMessage::new_signed(
@@ -175,8 +169,8 @@ impl ComputeHandler for WorkflowHandler {
                 &node.config.secret_key,
             );
             node.publish(message).await?;
-        }
+        };
 
-        Ok(acceptance)
+        Ok(())
     }
 }

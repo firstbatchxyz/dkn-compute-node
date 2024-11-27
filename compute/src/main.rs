@@ -84,7 +84,7 @@ async fn main() -> Result<()> {
     // launch the node in a separate thread
     log::info!("Spawning compute node thread.");
     let node_handle = tokio::spawn(async move {
-        if let Err(err) = node.launch().await {
+        if let Err(err) = node.run().await {
             log::error!("Node launch error: {}", err);
             panic!("Node failed.")
         };
