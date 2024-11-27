@@ -33,7 +33,7 @@ impl WorkflowsWorker {
     /// Batch size that defines how many tasks can be executed in parallel at once.
     /// IMPORTANT NOTE: `run` function is designed to handle the batch size here specifically,
     /// if there are more tasks than the batch size, the function will panic.
-    const BATCH_SIZE: usize = 5;
+    const BATCH_SIZE: usize = 8;
 
     pub fn new(
         worklow_rx: mpsc::Receiver<WorkflowsWorkerInput>,
@@ -61,6 +61,7 @@ impl WorkflowsWorker {
             debug_assert_eq!(num_tasks, batch_vec.len());
 
             if num_tasks == 0 {
+                log::warn!("Closing workflows worker.");
                 self.worklow_rx.close();
                 return;
             }
@@ -69,7 +70,10 @@ impl WorkflowsWorker {
             let mut batch = batch_vec.into_iter();
             log::info!("Processing {} workflows in batch", num_tasks);
             let results = match num_tasks {
-                1 => vec![WorkflowsWorker::execute(batch.next().unwrap()).await],
+                1 => {
+                    let r0 = WorkflowsWorker::execute(batch.next().unwrap()).await;
+                    vec![r0]
+                }
                 2 => {
                     let (r0, r1) = tokio::join!(
                         WorkflowsWorker::execute(batch.next().unwrap()),
@@ -103,6 +107,42 @@ impl WorkflowsWorker {
                         WorkflowsWorker::execute(batch.next().unwrap())
                     );
                     vec![r0, r1, r2, r3, r4]
+                }
+                6 => {
+                    let (r0, r1, r2, r3, r4, r5) = tokio::join!(
+                        WorkflowsWorker::execute(batch.next().unwrap()),
+                        WorkflowsWorker::execute(batch.next().unwrap()),
+                        WorkflowsWorker::execute(batch.next().unwrap()),
+                        WorkflowsWorker::execute(batch.next().unwrap()),
+                        WorkflowsWorker::execute(batch.next().unwrap()),
+                        WorkflowsWorker::execute(batch.next().unwrap())
+                    );
+                    vec![r0, r1, r2, r3, r4, r5]
+                }
+                7 => {
+                    let (r0, r1, r2, r3, r4, r5, r6) = tokio::join!(
+                        WorkflowsWorker::execute(batch.next().unwrap()),
+                        WorkflowsWorker::execute(batch.next().unwrap()),
+                        WorkflowsWorker::execute(batch.next().unwrap()),
+                        WorkflowsWorker::execute(batch.next().unwrap()),
+                        WorkflowsWorker::execute(batch.next().unwrap()),
+                        WorkflowsWorker::execute(batch.next().unwrap()),
+                        WorkflowsWorker::execute(batch.next().unwrap())
+                    );
+                    vec![r0, r1, r2, r3, r4, r5, r6]
+                }
+                8 => {
+                    let (r0, r1, r2, r3, r4, r5, r6, r7) = tokio::join!(
+                        WorkflowsWorker::execute(batch.next().unwrap()),
+                        WorkflowsWorker::execute(batch.next().unwrap()),
+                        WorkflowsWorker::execute(batch.next().unwrap()),
+                        WorkflowsWorker::execute(batch.next().unwrap()),
+                        WorkflowsWorker::execute(batch.next().unwrap()),
+                        WorkflowsWorker::execute(batch.next().unwrap()),
+                        WorkflowsWorker::execute(batch.next().unwrap()),
+                        WorkflowsWorker::execute(batch.next().unwrap())
+                    );
+                    vec![r0, r1, r2, r3, r4, r5, r6, r7]
                 }
                 _ => {
                     unreachable!("drain cant be larger than batch size");
