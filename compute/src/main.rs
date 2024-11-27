@@ -75,11 +75,15 @@ async fn main() -> Result<()> {
     }
 
     let node_token = token.clone();
-    let (mut node, p2p) = DriaComputeNode::new(config, node_token).await?;
+    let (mut node, p2p, mut workflows) = DriaComputeNode::new(config, node_token).await?;
 
     // launch the p2p in a separate thread
     log::info!("Spawning peer-to-peer client thread.");
     let p2p_handle = tokio::spawn(async move { p2p.run().await });
+
+    // launch the workflows in a separate thread
+    log::info!("Spawning workflows worker thread.");
+    let workflows_handle = tokio::spawn(async move { workflows.run().await });
 
     // launch the node in a separate thread
     log::info!("Spawning compute node thread.");
@@ -93,6 +97,9 @@ async fn main() -> Result<()> {
     // wait for tasks to complete
     if let Err(err) = node_handle.await {
         log::error!("Node handle error: {}", err);
+    };
+    if let Err(err) = workflows_handle.await {
+        log::error!("Workflows handle error: {}", err);
     };
     if let Err(err) = p2p_handle.await {
         log::error!("P2P handle error: {}", err);

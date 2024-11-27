@@ -10,12 +10,13 @@ use tokio::{
     sync::mpsc,
     time::{Duration, Instant},
 };
-use tokio_util::sync::CancellationToken;
+use tokio_util::{either::Either, sync::CancellationToken};
 
 use crate::{
     config::*,
     handlers::*,
     utils::{crypto::secret_to_keypair, AvailableNodes, DKNMessage},
+    workers::workflow::{WorkflowsWorker, WorkflowsWorkerInput, WorkflowsWorkerOutput},
 };
 
 /// Number of seconds between refreshing the Kademlia DHT.
@@ -27,7 +28,10 @@ pub struct DriaComputeNode {
     pub available_nodes: AvailableNodes,
     pub cancellation: CancellationToken,
     peer_last_refreshed: Instant,
-    msg_rx: mpsc::Receiver<(PeerId, MessageId, Message)>,
+    // channels
+    message_rx: mpsc::Receiver<(PeerId, MessageId, Message)>,
+    worklow_tx: mpsc::Sender<WorkflowsWorkerInput>,
+    publish_rx: mpsc::Receiver<WorkflowsWorkerOutput>,
 }
 
 impl DriaComputeNode {
@@ -37,7 +41,7 @@ impl DriaComputeNode {
     pub async fn new(
         config: DriaComputeNodeConfig,
         cancellation: CancellationToken,
-    ) -> Result<(DriaComputeNode, DriaP2PClient)> {
+    ) -> Result<(DriaComputeNode, DriaP2PClient, WorkflowsWorker)> {
         // create the keypair from secret key
         let keypair = secret_to_keypair(&config.secret_key);
 
@@ -55,7 +59,7 @@ impl DriaComputeNode {
         log::info!("Using identity: {}", protocol);
 
         // create p2p client
-        let (p2p_client, p2p_commander, msg_rx) = DriaP2PClient::new(
+        let (p2p_client, p2p_commander, message_rx) = DriaP2PClient::new(
             keypair,
             config.p2p_listen_addr.clone(),
             available_nodes.bootstrap_nodes.clone().into_iter(),
@@ -64,16 +68,24 @@ impl DriaComputeNode {
             protocol,
         )?;
 
+        // create workflow worker
+        let (worklow_tx, workflow_rx) = mpsc::channel(256);
+        let (publish_tx, publish_rx) = mpsc::channel(256);
+        let workflows_worker = WorkflowsWorker::new(workflow_rx, publish_tx);
+
         Ok((
             DriaComputeNode {
                 config,
                 p2p: p2p_commander,
                 cancellation,
                 available_nodes,
-                msg_rx,
+                message_rx,
+                worklow_tx,
+                publish_rx,
                 peer_last_refreshed: Instant::now(),
             },
             p2p_client,
+            workflows_worker,
         ))
     }
 
@@ -207,7 +219,18 @@ impl DriaComputeNode {
             // then handle the prepared message
             let handler_result = match topic_str {
                 WorkflowHandler::LISTEN_TOPIC => {
-                    WorkflowHandler::handle_compute(self, message).await
+                    let compute_result = WorkflowHandler::handle_compute(self, message).await;
+                    match compute_result {
+                        Ok(Either::Left(acceptance)) => Ok(acceptance),
+                        Ok(Either::Right(workflow_message)) => {
+                            if let Err(e) = self.worklow_tx.send(workflow_message).await {
+                                log::error!("Error sending workflow message: {:?}", e);
+                            };
+
+                            Ok(MessageAcceptance::Accept)
+                        }
+                        Err(err) => Err(err),
+                    }
                 }
                 PingpongHandler::LISTEN_TOPIC => PingpongHandler::handle_ping(self, message).await,
                 _ => unreachable!(), // unreachable because of the if condition
@@ -251,7 +274,12 @@ impl DriaComputeNode {
         // the underlying p2p client is expected to handle the rest within its own loop
         loop {
             tokio::select! {
-                gossipsub_msg = self.msg_rx.recv() => {
+                publish_msg = self.publish_rx.recv() => {
+                    if let Some(result) = publish_msg {
+                        WorkflowHandler::handle_publish(self, result).await?;
+                    }
+                },
+                gossipsub_msg = self.message_rx.recv() => {
                     if let Some((peer_id, message_id, message)) = gossipsub_msg {
                         // handle the message, returning a message acceptance for the received one
                         let acceptance = self.handle_message((peer_id, &message_id, message)).await;
@@ -282,15 +310,16 @@ impl DriaComputeNode {
         Ok(())
     }
 
-    /// Shutdown channels between p2p and yourself.
+    /// Shutdown channels between p2p, worker and yourself.
     pub async fn shutdown(&mut self) -> Result<()> {
-        // send shutdown signal
         log::debug!("Sending shutdown command to p2p client.");
         self.p2p.shutdown().await?;
 
-        // close message channel
         log::debug!("Closing message channel.");
-        self.msg_rx.close();
+        self.message_rx.close();
+
+        log::debug!("Closing publish channel.");
+        self.publish_rx.close();
 
         Ok(())
     }
@@ -329,7 +358,7 @@ mod tests {
 
         // create node
         let cancellation = CancellationToken::new();
-        let (mut node, p2p) =
+        let (mut node, p2p, _) =
             DriaComputeNode::new(DriaComputeNodeConfig::default(), cancellation.clone())
                 .await
                 .expect("should create node");

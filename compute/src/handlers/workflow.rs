@@ -1,12 +1,13 @@
 use dkn_p2p::libp2p::gossipsub::MessageAcceptance;
-use dkn_workflows::{Entry, Executor, ModelProvider, ProgramMemory, Workflow};
-use eyre::{eyre, Context, Result};
+use dkn_workflows::{Entry, Executor, ModelProvider, Workflow};
+use eyre::{Context, Result};
 use libsecp256k1::PublicKey;
 use serde::Deserialize;
-use std::time::Instant;
+use tokio_util::either::Either;
 
 use crate::payloads::{TaskErrorPayload, TaskRequestPayload, TaskResponsePayload, TaskStats};
 use crate::utils::{get_current_time_nanos, DKNMessage};
+use crate::workers::workflow::*;
 use crate::DriaComputeNode;
 
 pub struct WorkflowHandler;
@@ -31,11 +32,13 @@ impl WorkflowHandler {
     pub(crate) async fn handle_compute(
         node: &mut DriaComputeNode,
         message: DKNMessage,
-    ) -> Result<MessageAcceptance> {
+    ) -> Result<Either<MessageAcceptance, WorkflowsWorkerInput>> {
         let task = message
             .parse_payload::<TaskRequestPayload<WorkflowPayload>>(true)
             .wrap_err("Could not parse workflow task")?;
-        let mut task_stats = TaskStats::default().record_received_at();
+
+        // TODO: !!!
+        let task_stats = TaskStats::default().record_received_at();
 
         // check if deadline is past or not
         let current_time = get_current_time_nanos();
@@ -48,7 +51,7 @@ impl WorkflowHandler {
             );
 
             // ignore the message
-            return Ok(MessageAcceptance::Ignore);
+            return Ok(Either::Left(MessageAcceptance::Ignore));
         }
 
         // check task inclusion via the bloom filter
@@ -59,8 +62,14 @@ impl WorkflowHandler {
             );
 
             // accept the message, someone else may be included in filter
-            return Ok(MessageAcceptance::Accept);
+            return Ok(Either::Left(MessageAcceptance::Accept));
         }
+
+        // obtain public key from the payload
+        // do this early to avoid unnecessary processing
+        let task_public_key_bytes =
+            hex::decode(&task.public_key).wrap_err("could not decode public key")?;
+        let task_public_key = PublicKey::parse_slice(&task_public_key_bytes, None)?;
 
         // read model / provider from the task
         let (model_provider, model) = node
@@ -80,50 +89,51 @@ impl WorkflowHandler {
         } else {
             Executor::new(model)
         };
+
+        // prepare entry from prompt
         let entry: Option<Entry> = task
             .input
             .prompt
             .map(|prompt| Entry::try_value_or_str(&prompt));
 
-        // execute workflow with cancellation
-        let mut memory = ProgramMemory::new();
+        // get workflow as well
+        let workflow = task.input.workflow;
 
-        let exec_started_at = Instant::now();
-        let exec_result = executor
-            .execute(entry.as_ref(), &task.input.workflow, &mut memory)
-            .await
-            .map_err(|e| eyre!("Execution error: {}", e.to_string()));
-        task_stats = task_stats.record_execution_time(exec_started_at);
-
-        Ok(MessageAcceptance::Accept)
+        Ok(Either::Right(WorkflowsWorkerInput {
+            entry,
+            executor,
+            workflow,
+            model_name,
+            task_id: task.task_id,
+            public_key: task_public_key,
+            stats: task_stats,
+        }))
     }
 
-    async fn handle_publish(
+    pub(crate) async fn handle_publish(
         node: &mut DriaComputeNode,
-        result: String,
-        task_id: String,
-    ) -> Result<()> {
-        let (message, acceptance) = match exec_result {
+        task: WorkflowsWorkerOutput,
+    ) -> Result<MessageAcceptance> {
+        let (message, acceptance) = match task.result {
             Ok(result) => {
-                // obtain public key from the payload
-                let task_public_key_bytes =
-                    hex::decode(&task.public_key).wrap_err("Could not decode public key")?;
-                let task_public_key = PublicKey::parse_slice(&task_public_key_bytes, None)?;
-
                 // prepare signed and encrypted payload
                 let payload = TaskResponsePayload::new(
                     result,
-                    &task_id,
-                    &task_public_key,
+                    &task.task_id,
+                    &task.public_key,
                     &node.config.secret_key,
-                    model_name,
-                    task_stats.record_published_at(),
+                    task.model_name,
+                    task.stats.record_published_at(),
                 )?;
                 let payload_str = serde_json::to_string(&payload)
                     .wrap_err("Could not serialize response payload")?;
 
                 // prepare signed message
-                log::debug!("Publishing result for task {}\n{}", task_id, payload_str);
+                log::debug!(
+                    "Publishing result for task {}\n{}",
+                    task.task_id,
+                    payload_str
+                );
                 let message = DKNMessage::new(payload_str, Self::RESPONSE_TOPIC);
                 // accept so that if there are others included in filter they can do the task
                 (message, MessageAcceptance::Accept)
@@ -131,14 +141,14 @@ impl WorkflowHandler {
             Err(err) => {
                 // use pretty display string for error logging with causes
                 let err_string = format!("{:#}", err);
-                log::error!("Task {} failed: {}", task_id, err_string);
+                log::error!("Task {} failed: {}", task.task_id, err_string);
 
                 // prepare error payload
                 let error_payload = TaskErrorPayload {
-                    task_id,
+                    task_id: task.task_id.clone(),
                     error: err_string,
-                    model: model_name,
-                    stats: task_stats.record_published_at(),
+                    model: task.model_name,
+                    stats: task.stats.record_published_at(),
                 };
                 let error_payload_str = serde_json::to_string(&error_payload)
                     .wrap_err("Could not serialize error payload")?;
@@ -160,7 +170,7 @@ impl WorkflowHandler {
             log::error!("{}", err_msg);
 
             let payload = serde_json::json!({
-                "taskId": task_id,
+                "taskId": task.task_id,
                 "error": err_msg,
             });
             let message = DKNMessage::new_signed(
@@ -171,6 +181,6 @@ impl WorkflowHandler {
             node.publish(message).await?;
         };
 
-        Ok(())
+        Ok(acceptance)
     }
 }
