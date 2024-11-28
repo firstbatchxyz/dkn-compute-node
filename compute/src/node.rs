@@ -6,10 +6,7 @@ use dkn_p2p::{
     DriaP2PClient, DriaP2PCommander, DriaP2PProtocol,
 };
 use eyre::{eyre, Result};
-use tokio::{
-    sync::mpsc,
-    time::{Duration, Instant},
-};
+use tokio::{sync::mpsc, time::Duration};
 use tokio_util::{either::Either, sync::CancellationToken};
 
 use crate::{
@@ -21,13 +18,14 @@ use crate::{
 
 /// Number of seconds between refreshing the Kademlia DHT.
 const PEER_REFRESH_INTERVAL_SECS: u64 = 30;
+/// Number of seconds between refreshing the available nodes.
+const AVAILABLE_NODES_REFRESH_INTERVAL_SECS: u64 = 30 * 60; // 30 minutes
 
 pub struct DriaComputeNode {
     pub config: DriaComputeNodeConfig,
     pub p2p: DriaP2PCommander,
     pub available_nodes: AvailableNodes,
     pub cancellation: CancellationToken,
-    peer_last_refreshed: Instant,
     // channels
     message_rx: mpsc::Receiver<(PeerId, MessageId, Message)>,
     worklow_tx: mpsc::Sender<WorkflowsWorkerInput>,
@@ -82,7 +80,6 @@ impl DriaComputeNode {
                 message_rx,
                 worklow_tx,
                 publish_rx,
-                peer_last_refreshed: Instant::now(),
             },
             p2p_client,
             workflows_worker,
@@ -136,128 +133,113 @@ impl DriaComputeNode {
         &mut self,
         (peer_id, message_id, message): (PeerId, &MessageId, Message),
     ) -> MessageAcceptance {
-        // refresh admin rpc peer ids
-        // TODO: move this to main loop with tokio select
-        if self.available_nodes.can_refresh() {
-            log::info!("Refreshing available nodes.");
-
-            if let Err(e) = self.available_nodes.populate_with_api().await {
-                log::error!("Error refreshing available nodes: {:?}", e);
-            };
-
-            // dial all rpc nodes for better connectivity
-            for rpc_addr in self.available_nodes.rpc_addrs.iter() {
-                log::debug!("Dialling RPC node: {}", rpc_addr);
-                if let Err(e) = self.p2p.dial(rpc_addr.clone()).await {
-                    log::warn!("Error dialling RPC node: {:?}", e);
-                };
-            }
-
-            // print network info
-            log::debug!("{:?}", self.p2p.network_info().await);
-        }
-
-        // check peer count
-        // TODO: move this to main loop with tokio select
-        if self.peer_last_refreshed.elapsed() > Duration::from_secs(PEER_REFRESH_INTERVAL_SECS) {
-            match self.p2p.peer_counts().await {
-                Ok((mesh, all)) => log::info!("Peer Count (mesh/all): {} / {}", mesh, all),
-                Err(e) => {
-                    log::error!("Error getting peer counts: {:?}", e);
-                }
-            }
-
-            self.peer_last_refreshed = Instant::now();
-
-            // TODO: add peer list as well
-        }
-
         // handle message with respect to its topic
-        let topic_str = message.topic.as_str();
-        if std::matches!(
-            topic_str,
-            PingpongHandler::LISTEN_TOPIC | WorkflowHandler::LISTEN_TOPIC
-        ) {
-            // ensure that the message is from a valid source (origin)
-            let Some(source_peer_id) = message.source else {
-                log::warn!(
-                    "Received {} message from {} without source.",
-                    topic_str,
-                    peer_id
+        match message.topic.as_str() {
+            PingpongHandler::LISTEN_TOPIC | WorkflowHandler::LISTEN_TOPIC => {
+                // ensure that the message is from a valid source (origin)
+                let Some(source_peer_id) = message.source else {
+                    log::warn!(
+                        "Received {} message from {} without source.",
+                        message.topic,
+                        peer_id
+                    );
+                    return MessageAcceptance::Ignore;
+                };
+
+                // log the received message
+                log::info!(
+                    "Received {} message ({}) from {}",
+                    message.topic,
+                    message_id,
+                    peer_id,
                 );
-                return MessageAcceptance::Ignore;
-            };
 
-            // log the received message
-            log::info!(
-                "Received {} message ({}) from {}",
-                topic_str,
-                message_id,
-                peer_id,
-            );
-
-            // ensure that message is from the known RPCs
-            if !self.available_nodes.rpc_nodes.contains(&source_peer_id) {
-                log::warn!(
-                    "Received message from unauthorized source: {}",
-                    source_peer_id
-                );
-                log::debug!("Allowed sources: {:#?}", self.available_nodes.rpc_nodes);
-                return MessageAcceptance::Ignore;
-            }
-
-            // first, parse the raw gossipsub message to a prepared message
-            let message = match self.parse_message_to_prepared_message(message.clone()) {
-                Ok(message) => message,
-                Err(e) => {
-                    log::error!("Error parsing message: {:?}", e);
-                    log::debug!("Message: {}", String::from_utf8_lossy(&message.data));
+                // ensure that message is from the known RPCs
+                if !self.available_nodes.rpc_nodes.contains(&source_peer_id) {
+                    log::warn!(
+                        "Received message from unauthorized source: {}",
+                        source_peer_id
+                    );
+                    log::debug!("Allowed sources: {:#?}", self.available_nodes.rpc_nodes);
                     return MessageAcceptance::Ignore;
                 }
-            };
 
-            // then handle the prepared message
-            let handler_result = match topic_str {
-                WorkflowHandler::LISTEN_TOPIC => {
-                    let compute_result = WorkflowHandler::handle_compute(self, message).await;
-                    match compute_result {
-                        Ok(Either::Left(acceptance)) => Ok(acceptance),
-                        Ok(Either::Right(workflow_message)) => {
-                            if let Err(e) = self.worklow_tx.send(workflow_message).await {
-                                log::error!("Error sending workflow message: {:?}", e);
-                            };
-
-                            Ok(MessageAcceptance::Accept)
-                        }
-                        Err(err) => Err(err),
+                // first, parse the raw gossipsub message to a prepared message
+                let message = match self.parse_message_to_prepared_message(&message) {
+                    Ok(message) => message,
+                    Err(e) => {
+                        log::error!("Error parsing message: {:?}", e);
+                        log::debug!("Message: {}", String::from_utf8_lossy(&message.data));
+                        return MessageAcceptance::Ignore;
                     }
-                }
-                PingpongHandler::LISTEN_TOPIC => PingpongHandler::handle_ping(self, message).await,
-                _ => unreachable!(), // unreachable because of the if condition
-            };
+                };
 
-            // validate the message based on the result
-            match handler_result {
-                Ok(acceptance) => {
-                    return acceptance;
-                }
-                Err(err) => {
-                    log::error!("Error handling {} message: {:?}", topic_str, err);
-                    return MessageAcceptance::Ignore;
-                }
+                // then handle the prepared message
+                let handler_result = match message.topic.as_str() {
+                    WorkflowHandler::LISTEN_TOPIC => {
+                        match WorkflowHandler::handle_compute(self, &message).await {
+                            Ok(Either::Left(acceptance)) => Ok(acceptance),
+                            Ok(Either::Right(workflow_message)) => {
+                                if let Err(e) = self.worklow_tx.send(workflow_message).await {
+                                    log::error!("Error sending workflow message: {:?}", e);
+                                };
+
+                                // accept the message in case others may be included in the filter as well
+                                Ok(MessageAcceptance::Accept)
+                            }
+                            Err(err) => Err(err),
+                        }
+                    }
+                    PingpongHandler::LISTEN_TOPIC => {
+                        PingpongHandler::handle_ping(self, &message).await
+                    }
+                    _ => unreachable!(), // unreachable because of the `match` above
+                };
+
+                // validate the message based on the result
+                handler_result.unwrap_or_else(|err| {
+                    log::error!("Error handling {} message: {:?}", message.topic, err);
+                    MessageAcceptance::Ignore
+                })
             }
-        } else if std::matches!(
-            topic_str,
-            PingpongHandler::RESPONSE_TOPIC | WorkflowHandler::RESPONSE_TOPIC
-        ) {
-            // since we are responding to these topics, we might receive messages from other compute nodes
-            // we can gracefully ignore them and propagate it to to others
-            log::trace!("Ignoring message for topic: {}", topic_str);
-            return MessageAcceptance::Accept;
-        } else {
-            // reject this message as its from a foreign topic
-            log::warn!("Received message from unexpected topic: {}", topic_str);
-            return MessageAcceptance::Reject;
+            PingpongHandler::RESPONSE_TOPIC | WorkflowHandler::RESPONSE_TOPIC => {
+                // since we are responding to these topics, we might receive messages from other compute nodes
+                // we can gracefully ignore them and propagate it to to others
+                log::trace!("Ignoring message for topic: {}", message.topic);
+                MessageAcceptance::Accept
+            }
+            other => {
+                // reject this message as its from a foreign topic
+                log::warn!("Received message from unexpected topic: {}", other);
+                MessageAcceptance::Reject
+            }
+        }
+    }
+
+    /// Peer refresh simply reports the peer count to the user.
+    async fn handle_peer_refresh(&self) {
+        match self.p2p.peer_counts().await {
+            Ok((mesh, all)) => log::info!("Peer Count (mesh/all): {} / {}", mesh, all),
+            Err(e) => log::error!("Error getting peer counts: {:?}", e),
+        }
+    }
+
+    /// Updates the local list of available nodes by refreshing it.
+    /// Dials the RPC nodes again for better connectivity.
+    async fn handle_available_nodes_refresh(&mut self) {
+        log::info!("Refreshing available nodes.");
+
+        // refresh available nodes
+        if let Err(e) = self.available_nodes.populate_with_api().await {
+            log::error!("Error refreshing available nodes: {:?}", e);
+        };
+
+        // dial all rpc nodes
+        for rpc_addr in self.available_nodes.rpc_addrs.iter() {
+            log::debug!("Dialling RPC node: {}", rpc_addr);
+            if let Err(e) = self.p2p.dial(rpc_addr.clone()).await {
+                log::warn!("Error dialling RPC node: {:?}", e);
+            };
         }
     }
 
@@ -270,15 +252,28 @@ impl DriaComputeNode {
         self.subscribe(WorkflowHandler::LISTEN_TOPIC).await?;
         self.subscribe(WorkflowHandler::RESPONSE_TOPIC).await?;
 
-        // main loop, listens for message events in particular
-        // the underlying p2p client is expected to handle the rest within its own loop
+        let peer_refresh_duration = Duration::from_secs(PEER_REFRESH_INTERVAL_SECS);
+        let available_node_refresh_duration =
+            Duration::from_secs(AVAILABLE_NODES_REFRESH_INTERVAL_SECS);
+
         loop {
             tokio::select! {
+                // check peer count every now and then
+                _ = tokio::time::sleep(peer_refresh_duration) => self.handle_peer_refresh().await,
+                // available nodes are refreshed every now and then
+                _ = tokio::time::sleep(available_node_refresh_duration) => self.handle_available_nodes_refresh().await,
+                // a Workflow message to be published is received from the channel
+                // this is expected to be sent by the workflow worker
                 publish_msg = self.publish_rx.recv() => {
                     if let Some(result) = publish_msg {
                         WorkflowHandler::handle_publish(self, result).await?;
-                    }
+                    } else {
+                        log::error!("Publish channel closed unexpectedly.");
+                        break;
+                    };
                 },
+                // a GossipSub message is received from the channel
+                // this is expected to be sent by the p2p client
                 gossipsub_msg = self.message_rx.recv() => {
                     if let Some((peer_id, message_id, message)) = gossipsub_msg {
                         // handle the message, returning a message acceptance for the received one
@@ -290,10 +285,12 @@ impl DriaComputeNode {
                             log::error!("Error validating message {}: {:?}", message_id, e);
                         }
                     } else {
-                        log::warn!("Message channel closed.");
+                        log::error!("Message channel closed unexpectedly.");
                         break;
                     };
                 },
+                // check if the cancellation token is cancelled
+                // this is expected to be cancelled by the main thread with signal handling
                 _ = self.cancellation.cancelled() => break,
             }
         }
@@ -323,12 +320,13 @@ impl DriaComputeNode {
 
         Ok(())
     }
+
     /// Parses a given raw Gossipsub message to a prepared P2PMessage object.
     /// This prepared message includes the topic, payload, version and timestamp.
     ///
     /// This also checks the signature of the message, expecting a valid signature from admin node.
     // TODO: move this somewhere?
-    pub fn parse_message_to_prepared_message(&self, message: Message) -> Result<DKNMessage> {
+    pub fn parse_message_to_prepared_message(&self, message: &Message) -> Result<DKNMessage> {
         // the received message is expected to use IdentHash for the topic, so we can see the name of the topic immediately.
         log::debug!("Parsing {} message.", message.topic.as_str());
         let message = DKNMessage::try_from(message)?;

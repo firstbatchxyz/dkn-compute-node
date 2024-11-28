@@ -31,14 +31,12 @@ impl WorkflowHandler {
 
     pub(crate) async fn handle_compute(
         node: &mut DriaComputeNode,
-        message: DKNMessage,
+        compute_message: &DKNMessage,
     ) -> Result<Either<MessageAcceptance, WorkflowsWorkerInput>> {
-        let task = message
+        let stats = TaskStats::new().record_received_at();
+        let task = compute_message
             .parse_payload::<TaskRequestPayload<WorkflowPayload>>(true)
-            .wrap_err("Could not parse workflow task")?;
-
-        // TODO: !!!
-        let task_stats = TaskStats::default().record_received_at();
+            .wrap_err("could not parse workflow task")?;
 
         // check if deadline is past or not
         let current_time = get_current_time_nanos();
@@ -106,15 +104,15 @@ impl WorkflowHandler {
             model_name,
             task_id: task.task_id,
             public_key: task_public_key,
-            stats: task_stats,
+            stats,
         }))
     }
 
     pub(crate) async fn handle_publish(
         node: &mut DriaComputeNode,
         task: WorkflowsWorkerOutput,
-    ) -> Result<MessageAcceptance> {
-        let (message, acceptance) = match task.result {
+    ) -> Result<()> {
+        let message = match task.result {
             Ok(result) => {
                 // prepare signed and encrypted payload
                 let payload = TaskResponsePayload::new(
@@ -126,7 +124,7 @@ impl WorkflowHandler {
                     task.stats.record_published_at(),
                 )?;
                 let payload_str = serde_json::to_string(&payload)
-                    .wrap_err("Could not serialize response payload")?;
+                    .wrap_err("could not serialize response payload")?;
 
                 // prepare signed message
                 log::debug!(
@@ -134,9 +132,8 @@ impl WorkflowHandler {
                     task.task_id,
                     payload_str
                 );
-                let message = DKNMessage::new(payload_str, Self::RESPONSE_TOPIC);
-                // accept so that if there are others included in filter they can do the task
-                (message, MessageAcceptance::Accept)
+
+                DKNMessage::new(payload_str, Self::RESPONSE_TOPIC)
             }
             Err(err) => {
                 // use pretty display string for error logging with causes
@@ -151,22 +148,20 @@ impl WorkflowHandler {
                     stats: task.stats.record_published_at(),
                 };
                 let error_payload_str = serde_json::to_string(&error_payload)
-                    .wrap_err("Could not serialize error payload")?;
+                    .wrap_err("could not serialize error payload")?;
 
                 // prepare signed message
-                let message = DKNMessage::new_signed(
+                DKNMessage::new_signed(
                     error_payload_str,
                     Self::RESPONSE_TOPIC,
                     &node.config.secret_key,
-                );
-                // ignore just in case, workflow may be bugged
-                (message, MessageAcceptance::Ignore)
+                )
             }
         };
 
         // try publishing the result
         if let Err(publish_err) = node.publish(message).await {
-            let err_msg = format!("Could not publish result: {:?}", publish_err);
+            let err_msg = format!("could not publish result: {:?}", publish_err);
             log::error!("{}", err_msg);
 
             let payload = serde_json::json!({
@@ -181,6 +176,6 @@ impl WorkflowHandler {
             node.publish(message).await?;
         };
 
-        Ok(acceptance)
+        Ok(())
     }
 }

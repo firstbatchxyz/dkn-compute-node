@@ -40,7 +40,7 @@ pub fn address_in_use(addr: &Multiaddr) -> bool {
         .map(|port| is_port_reachable(SocketAddrV4::new(Ipv4Addr::LOCALHOST, port)))
         .unwrap_or_else(|| {
             log::error!(
-                "Could not find any TCP port in the given address: {:?}",
+                "could not find any TCP port in the given address: {:?}",
                 addr
             );
             false

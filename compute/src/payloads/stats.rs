@@ -17,6 +17,10 @@ pub struct TaskStats {
 }
 
 impl TaskStats {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     /// Records the current timestamp within `received_at`.
     pub fn record_received_at(mut self) -> Self {
         // can unwrap safely here as UNIX_EPOCH is always smaller than now

@@ -106,24 +106,24 @@ mod tests {
     #[test]
     fn test_sign_verify() {
         let secret_key =
-            SecretKey::parse_slice(DUMMY_SECRET_KEY).expect("Should parse private key slice.");
+            SecretKey::parse_slice(DUMMY_SECRET_KEY).expect("to parse private key slice");
 
         // sign the message using the secret key
         let digest = sha256hash(MESSAGE);
-        let message = Message::parse_slice(&digest).expect("Should parse message.");
+        let message = Message::parse_slice(&digest).expect("to parse message");
         let (signature, recid) = sign(&message, &secret_key);
 
         // recover verifying key (public key) from signature
         let expected_public_key = PublicKey::from_secret_key(&secret_key);
         let recovered_public_key =
-            recover(&message, &signature, &recid).expect("Should recover public key.");
+            recover(&message, &signature, &recid).expect("to recover public key");
         assert_eq!(expected_public_key, recovered_public_key);
 
         // verify the signature
         let public_key = recovered_public_key;
         assert!(
             verify(&message, &signature, &public_key),
-            "Could not verify signature."
+            "could not verify signature"
         );
     }
 
@@ -131,12 +131,12 @@ mod tests {
     #[ignore = "run only with profiler if wanted"]
     fn test_memory_usage() {
         let secret_key =
-            SecretKey::parse_slice(DUMMY_SECRET_KEY).expect("Should parse private key slice.");
+            SecretKey::parse_slice(DUMMY_SECRET_KEY).expect("to parse private key slice");
         let public_key = PublicKey::from_secret_key(&secret_key);
 
         // sign the message using the secret key
         let digest = sha256hash(MESSAGE);
-        let message = Message::parse_slice(&digest).expect("Should parse message.");
+        let message = Message::parse_slice(&digest).expect("to parse message");
         let (signature, _) = sign(&message, &secret_key);
 
         // verify signature with context

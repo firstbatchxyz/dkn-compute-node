@@ -4,7 +4,6 @@ use libp2p::Multiaddr;
 use libp2p_identity::Keypair;
 use std::{env, str::FromStr};
 
-// FIXME: not working!!!
 #[tokio::test]
 #[ignore = "run this manually"]
 async fn test_listen_topic_once() -> Result<()> {

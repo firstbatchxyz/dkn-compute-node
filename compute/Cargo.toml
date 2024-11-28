@@ -34,8 +34,6 @@ rand.workspace = true
 env_logger.workspace = true
 log.workspace = true
 eyre.workspace = true
-# tracing = { version = "0.1.40" }
-# tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
 # encryption (ecies) & signatures (ecdsa) & hashing & bloom-filters
 ecies = { version = "0.2", default-features = false, features = ["pure"] }
@@ -48,7 +46,7 @@ fastbloom-rs = "0.5.9"
 dkn-p2p = { path = "../p2p" }
 dkn-workflows = { path = "../workflows" }
 
-# Vendor OpenSSL so that its easier to build cross-platform packages
+# vendor OpenSSL so that its easier to build cross-platform packages
 [dependencies.openssl]
 version = "*"
 features = ["vendored"]

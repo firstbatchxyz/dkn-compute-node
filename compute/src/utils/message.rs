@@ -133,10 +133,10 @@ impl fmt::Display for DKNMessage {
     }
 }
 
-impl TryFrom<dkn_p2p::libp2p::gossipsub::Message> for DKNMessage {
+impl TryFrom<&dkn_p2p::libp2p::gossipsub::Message> for DKNMessage {
     type Error = serde_json::Error;
 
-    fn try_from(value: dkn_p2p::libp2p::gossipsub::Message) -> Result<Self, Self::Error> {
+    fn try_from(value: &dkn_p2p::libp2p::gossipsub::Message) -> Result<Self, Self::Error> {
         serde_json::from_slice(&value.data)
     }
 }

@@ -110,7 +110,7 @@ impl OpenAIConfig {
                 response
                     .text()
                     .await
-                    .unwrap_or("Could not get error text as well".to_string())
+                    .unwrap_or("could not get error text as well".to_string())
             ))
         } else {
             let openai_models = response.json::<OpenAIModelsResponse>().await?;
@@ -153,7 +153,7 @@ impl OpenAIConfig {
                 response
                     .text()
                     .await
-                    .unwrap_or("Could not get error text as well".to_string())
+                    .unwrap_or("could not get error text as well".to_string())
             ));
         }
         log::debug!("Dummy request successful for model {}", model);

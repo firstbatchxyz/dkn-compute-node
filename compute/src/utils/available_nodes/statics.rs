@@ -3,6 +3,7 @@ use dkn_p2p::libp2p::{Multiaddr, PeerId};
 
 impl DriaNetworkType {
     /// Static bootstrap nodes for Kademlia.
+    #[inline(always)]
     pub fn get_static_bootstrap_nodes(&self) -> Vec<Multiaddr> {
         match self {
             DriaNetworkType::Community => [
@@ -18,6 +19,7 @@ impl DriaNetworkType {
     }
 
     /// Static relay nodes for the `P2pCircuit`.
+    #[inline(always)]
     pub fn get_static_relay_nodes(&self) -> Vec<Multiaddr> {
         match self {
             DriaNetworkType::Community => [
@@ -33,6 +35,7 @@ impl DriaNetworkType {
     }
 
     /// Static RPC Peer IDs for the Admin RPC.
+    #[inline(always)]
     pub fn get_static_rpc_peer_ids(&self) -> Vec<PeerId> {
         // match self {
         //     DriaNetworkType::Community => [].iter(),

@@ -131,7 +131,7 @@ impl DriaComputeNodeConfig {
             .map(|addr| addr.trim_matches('"').to_string())
             .unwrap_or(DEFAULT_P2P_LISTEN_ADDR.to_string());
         let p2p_listen_addr = Multiaddr::from_str(&p2p_listen_addr_str)
-            .expect("Could not parse the given P2P listen address.");
+            .expect("could not parse the given P2P listen address.");
 
         // parse network type
         let network_type = env::var("DKN_NETWORK")

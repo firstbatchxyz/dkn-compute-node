@@ -13,7 +13,7 @@ async fn main() -> Result<()> {
         .format_timestamp(Some(env_logger::TimestampPrecision::Millis))
         .init();
     if let Err(e) = dotenv_result {
-        log::warn!("Could not load .env file: {}", e);
+        log::warn!("could not load .env file: {}", e);
     }
 
     log::info!(

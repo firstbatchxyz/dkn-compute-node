@@ -39,10 +39,10 @@ impl JinaConfig {
     pub async fn check_optional(&self) -> Result<()> {
         // check API key
         let Some(api_key) = &self.api_key else {
-            log::debug!("Jina API key not found, skipping Jina check");
+            log::info!("Jina API key not found, skipping");
             return Ok(());
         };
-        log::info!("Jina API key found, checking Jina service");
+        log::info!("Jina API key found {api_key}, checking service");
 
         // make a dummy request to "example.com"
         let client = Client::new();

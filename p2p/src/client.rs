@@ -147,7 +147,6 @@ impl DriaP2PClient {
     ///
     /// To terminate, the command channel must be closed.
     pub async fn run(mut self) {
-        // FIXME: use refresh peers somewhere
         loop {
             tokio::select! {
                 event = self.swarm.select_next_some() => self.handle_event(event).await,

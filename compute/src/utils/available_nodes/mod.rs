@@ -8,9 +8,6 @@ mod statics;
 
 use crate::DriaNetworkType;
 
-/// Number of seconds between refreshing the available nodes.
-const DEFAULT_REFRESH_INTERVAL_SECS: u64 = 30 * 60; // 30 minutes
-
 impl DriaNetworkType {
     /// Returns the URL for fetching available nodes w.r.t network type.
     pub fn get_available_nodes_url(&self) -> &str {
@@ -36,7 +33,6 @@ pub struct AvailableNodes {
     pub rpc_addrs: HashSet<Multiaddr>,
     pub last_refreshed: Instant,
     pub network_type: DriaNetworkType,
-    pub refresh_interval_secs: u64,
 }
 
 impl AvailableNodes {
@@ -49,14 +45,7 @@ impl AvailableNodes {
             rpc_addrs: HashSet::new(),
             last_refreshed: Instant::now(),
             network_type: network,
-            refresh_interval_secs: DEFAULT_REFRESH_INTERVAL_SECS,
         }
-    }
-
-    /// Sets the refresh interval in seconds.
-    pub fn with_refresh_interval(mut self, interval_secs: u64) -> Self {
-        self.refresh_interval_secs = interval_secs;
-        self
     }
 
     /// Parses static bootstrap & relay nodes from environment variables.
@@ -117,11 +106,6 @@ impl AvailableNodes {
         self.last_refreshed = Instant::now();
 
         Ok(())
-    }
-
-    /// Returns whether enough time has passed since the last refresh.
-    pub fn can_refresh(&self) -> bool {
-        self.last_refreshed.elapsed().as_secs() > self.refresh_interval_secs
     }
 }
 

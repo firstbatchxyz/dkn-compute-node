@@ -11,7 +11,9 @@ pub struct PingpongHandler;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct PingpongPayload {
+    /// UUID of the ping request, prevents replay attacks.
     uuid: String,
+    /// Deadline for the ping request.
     deadline: u128,
 }
 
@@ -37,11 +39,11 @@ impl PingpongHandler {
     /// 7. Returns `MessageAcceptance::Accept` so that ping is propagated to others as well.
     pub(crate) async fn handle_ping(
         node: &mut DriaComputeNode,
-        message: DKNMessage,
+        ping_message: &DKNMessage,
     ) -> Result<MessageAcceptance> {
-        let pingpong = message
+        let pingpong = ping_message
             .parse_payload::<PingpongPayload>(true)
-            .wrap_err("Could not parse ping request")?;
+            .wrap_err("could not parse ping request")?;
 
         // check deadline
         let current_time = get_current_time_nanos();
