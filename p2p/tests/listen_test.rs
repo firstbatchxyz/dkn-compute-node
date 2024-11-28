@@ -29,7 +29,7 @@ async fn test_listen_topic_once() -> Result<()> {
     .expect("could not create p2p client");
 
     // spawn task
-    let p2p_task = tokio::spawn(async move { client.run().await });
+    let task_handle = tokio::spawn(async move { client.run().await });
 
     // subscribe to the given topic
     commander
@@ -61,7 +61,7 @@ async fn test_listen_topic_once() -> Result<()> {
     msg_rx.close();
 
     log::info!("Waiting for p2p task to finish...");
-    p2p_task.await?;
+    task_handle.await?;
 
     log::info!("Done!");
     Ok(())

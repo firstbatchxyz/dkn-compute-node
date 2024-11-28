@@ -22,6 +22,8 @@ struct PingpongResponse {
     pub(crate) uuid: String,
     pub(crate) models: Vec<(ModelProvider, Model)>,
     pub(crate) timestamp: u128,
+    /// Number of tasks in the channel currently, `single` and `batch`.
+    pub(crate) tasks: [usize; 2],
 }
 
 impl PingpongHandler {
@@ -64,6 +66,7 @@ impl PingpongHandler {
             uuid: pingpong.uuid.clone(),
             models: node.config.workflows.models.clone(),
             timestamp: get_current_time_nanos(),
+            tasks: node.task_count(),
         };
 
         // publish message

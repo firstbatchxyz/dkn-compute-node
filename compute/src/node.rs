@@ -122,6 +122,14 @@ impl DriaComputeNode {
         Ok(())
     }
 
+    /// Returns the task count within the channels, `single` and `batch`.
+    pub fn task_count(&self) -> [usize; 2] {
+        [
+            self.workflow_single_tx.max_capacity() - self.workflow_single_tx.capacity(),
+            self.workflow_batch_tx.max_capacity() - self.workflow_batch_tx.capacity(),
+        ]
+    }
+
     /// Publishes a given message to the network w.r.t the topic of it.
     ///
     /// Internally, identity is attached to the the message which is then JSON serialized to bytes

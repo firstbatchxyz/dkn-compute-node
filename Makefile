@@ -1,6 +1,6 @@
 # load .env
 ifneq (,$(wildcard ./.env))
-		include .env
+		include ./.env
 		export
 endif
 
