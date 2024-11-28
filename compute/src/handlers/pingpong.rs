@@ -19,11 +19,12 @@ struct PingpongPayload {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct PingpongResponse {
+    /// UUID as given in the ping payload.
     pub(crate) uuid: String,
+    /// Models available in the node.
     pub(crate) models: Vec<(ModelProvider, Model)>,
-    pub(crate) timestamp: u128,
     /// Number of tasks in the channel currently, `single` and `batch`.
-    pub(crate) tasks: [usize; 2],
+    pub(crate) active_task_count: [usize; 2],
 }
 
 impl PingpongHandler {
@@ -65,8 +66,7 @@ impl PingpongHandler {
         let response_body = PingpongResponse {
             uuid: pingpong.uuid.clone(),
             models: node.config.workflows.models.clone(),
-            timestamp: get_current_time_nanos(),
-            tasks: node.get_active_task_count(),
+            active_task_count: node.get_active_task_count(),
         };
 
         // publish message

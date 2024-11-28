@@ -29,8 +29,8 @@ pub struct WorkflowsWorker {
     publish_tx: mpsc::Sender<WorkflowsWorkerOutput>,
 }
 
+/// Buffer size for workflow tasks (per worker).
 const WORKFLOW_CHANNEL_BUFSIZE: usize = 1024;
-const PUBLISH_CHANNEL_BUFSIZE: usize = 1024;
 
 impl WorkflowsWorker {
     /// Batch size that defines how many tasks can be executed in parallel at once.
@@ -39,13 +39,10 @@ impl WorkflowsWorker {
     const BATCH_SIZE: usize = 8;
 
     /// Creates a worker and returns the sender and receiver for the worker.
-    pub fn new() -> (
-        WorkflowsWorker,
-        mpsc::Sender<WorkflowsWorkerInput>,
-        mpsc::Receiver<WorkflowsWorkerOutput>,
-    ) {
+    pub fn new(
+        publish_tx: mpsc::Sender<WorkflowsWorkerOutput>,
+    ) -> (WorkflowsWorker, mpsc::Sender<WorkflowsWorkerInput>) {
         let (workflow_tx, workflow_rx) = mpsc::channel(WORKFLOW_CHANNEL_BUFSIZE);
-        let (publish_tx, publish_rx) = mpsc::channel(PUBLISH_CHANNEL_BUFSIZE);
 
         (
             Self {
@@ -53,10 +50,10 @@ impl WorkflowsWorker {
                 publish_tx,
             },
             workflow_tx,
-            publish_rx,
         )
     }
 
+    /// Closes the workflow receiver channel.
     fn shutdown(&mut self) {
         log::warn!("Closing workflows worker.");
         self.workflow_rx.close();

@@ -75,9 +75,8 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    let node_token = token.clone();
-    let (mut node, p2p, mut worker_batch, mut worker_single) =
-        DriaComputeNode::new(config, node_token).await?;
+    // create the node
+    let (mut node, p2p, mut worker_batch, mut worker_single) = DriaComputeNode::new(config).await?;
 
     log::info!("Spawning peer-to-peer client thread.");
     let p2p_handle = tokio::spawn(async move { p2p.run().await });
@@ -90,8 +89,9 @@ async fn main() -> Result<()> {
 
     // launch the node in a separate thread
     log::info!("Spawning compute node thread.");
+    let node_token = token.clone();
     let node_handle = tokio::spawn(async move {
-        if let Err(err) = node.run().await {
+        if let Err(err) = node.run(node_token).await {
             log::error!("Node launch error: {}", err);
             panic!("Node failed.")
         };

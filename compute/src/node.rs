@@ -20,22 +20,21 @@ use crate::{
 const DIAGNOSTIC_REFRESH_INTERVAL_SECS: u64 = 30;
 /// Number of seconds between refreshing the available nodes.
 const AVAILABLE_NODES_REFRESH_INTERVAL_SECS: u64 = 30 * 60; // 30 minutes
+/// Buffer size for message publishes.
+const PUBLISH_CHANNEL_BUFSIZE: usize = 1024;
 
 pub struct DriaComputeNode {
     pub config: DriaComputeNodeConfig,
     pub p2p: DriaP2PCommander,
     pub available_nodes: AvailableNodes,
-    pub cancellation: CancellationToken,
     /// Gossipsub message receiver.
     message_rx: mpsc::Receiver<(PeerId, MessageId, Message)>,
+    /// Publish receiver to receive messages to be published.
+    publish_rx: mpsc::Receiver<WorkflowsWorkerOutput>,
     /// Workflow transmitter to send batchable tasks.
     workflow_batch_tx: mpsc::Sender<WorkflowsWorkerInput>,
-    /// Publish receiver to receive messages to be published.
-    publish_batch_rx: mpsc::Receiver<WorkflowsWorkerOutput>,
     /// Workflow transmitter to send single tasks.
     workflow_single_tx: mpsc::Sender<WorkflowsWorkerInput>,
-    /// Publish receiver to receive messages to be published.
-    publish_single_rx: mpsc::Receiver<WorkflowsWorkerOutput>,
 }
 
 impl DriaComputeNode {
@@ -44,7 +43,6 @@ impl DriaComputeNode {
     /// Returns the node instance and p2p client together. P2p MUST be run in a separate task before this node is used at all.
     pub async fn new(
         config: DriaComputeNodeConfig,
-        cancellation: CancellationToken,
     ) -> Result<(
         DriaComputeNode,
         DriaP2PClient,
@@ -77,22 +75,20 @@ impl DriaComputeNode {
             protocol,
         )?;
 
-        // create workflow workers
-        let (workflows_batch_worker, workflow_batch_tx, publish_batch_rx) = WorkflowsWorker::new();
-        let (workflows_single_worker, workflow_single_tx, publish_single_rx) =
-            WorkflowsWorker::new();
+        // create workflow workers, all workers use the same publish channel
+        let (publish_tx, publish_rx) = mpsc::channel(PUBLISH_CHANNEL_BUFSIZE);
+        let (workflows_batch_worker, workflow_batch_tx) = WorkflowsWorker::new(publish_tx.clone());
+        let (workflows_single_worker, workflow_single_tx) = WorkflowsWorker::new(publish_tx);
 
         Ok((
             DriaComputeNode {
                 config,
                 p2p: p2p_commander,
-                cancellation,
                 available_nodes,
                 message_rx,
+                publish_rx,
                 workflow_batch_tx,
-                publish_batch_rx,
                 workflow_single_tx,
-                publish_single_rx,
             },
             p2p_client,
             workflows_batch_worker,
@@ -248,8 +244,8 @@ impl DriaComputeNode {
     }
 
     /// Runs the main loop of the compute node.
-    /// This method is not expected to return until cancellation occurs.
-    pub async fn run(&mut self) -> Result<()> {
+    /// This method is not expected to return until cancellation occurs for the given token.
+    pub async fn run(&mut self, cancellation: CancellationToken) -> Result<()> {
         // prepare durations for sleeps
         let mut peer_refresh_interval =
             tokio::time::interval(Duration::from_secs(DIAGNOSTIC_REFRESH_INTERVAL_SECS));
@@ -270,16 +266,7 @@ impl DriaComputeNode {
                 _ = available_node_refresh_interval.tick() => self.handle_available_nodes_refresh().await,
                 // a Workflow message to be published is received from the channel
                 // this is expected to be sent by the workflow worker
-                publish_msg = self.publish_batch_rx.recv() => {
-                    if let Some(result) = publish_msg {
-                        WorkflowHandler::handle_publish(self, result).await?;
-                    } else {
-                        log::error!("Publish channel closed unexpectedly.");
-                        break;
-                    };
-                },
-                // TODO: make the both receivers handled together somehow
-                publish_msg = self.publish_single_rx.recv() => {
+                publish_msg = self.publish_rx.recv() => {
                     if let Some(result) = publish_msg {
                         WorkflowHandler::handle_publish(self, result).await?;
                     } else {
@@ -306,7 +293,7 @@ impl DriaComputeNode {
                 },
                 // check if the cancellation token is cancelled
                 // this is expected to be cancelled by the main thread with signal handling
-                _ = self.cancellation.cancelled() => break,
+                _ = cancellation.cancelled() => break,
             }
         }
 
@@ -331,7 +318,7 @@ impl DriaComputeNode {
         self.message_rx.close();
 
         log::debug!("Closing publish channel.");
-        self.publish_batch_rx.close();
+        self.publish_rx.close();
 
         Ok(())
     }
@@ -345,8 +332,8 @@ impl DriaComputeNode {
         }
 
         // print task counts
-        let [single, batch] = self.get_active_task_count();
-        log::info!("Active Task Count (single/batch): {} / {}", single, batch);
+        // let [single, batch] = self.get_active_task_count();
+        // log::info!("Active Task Count (single/batch): {} / {}", single, batch);
     }
 
     /// Updates the local list of available nodes by refreshing it.
@@ -382,18 +369,18 @@ mod tests {
 
         // create node
         let cancellation = CancellationToken::new();
-        let (mut node, p2p, _, _) =
-            DriaComputeNode::new(DriaComputeNodeConfig::default(), cancellation.clone())
-                .await
-                .expect("should create node");
+        let (mut node, p2p, _, _) = DriaComputeNode::new(DriaComputeNodeConfig::default())
+            .await
+            .expect("should create node");
 
         // spawn p2p task
         let p2p_task = tokio::spawn(async move { p2p.run().await });
 
         // launch & wait for a while for connections
         log::info!("Waiting a bit for peer setup.");
+        let run_cancellation = cancellation.clone();
         tokio::select! {
-            _ = node.run() => (),
+            _ = node.run(run_cancellation) => (),
             _ = tokio::time::sleep(tokio::time::Duration::from_secs(20)) => cancellation.cancel(),
         }
         log::info!("Connected Peers:\n{:#?}", node.peers().await?);

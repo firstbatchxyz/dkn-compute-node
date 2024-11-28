@@ -114,6 +114,7 @@ impl WorkflowHandler {
         )))
     }
 
+    /// Handles the result of a workflow task.
     pub(crate) async fn handle_publish(
         node: &mut DriaComputeNode,
         task: WorkflowsWorkerOutput,
@@ -131,8 +132,7 @@ impl WorkflowHandler {
                 )?;
 
                 // convert payload to message
-                let payload_str = serde_json::to_string(&payload)
-                    .wrap_err("could not serialize response payload")?;
+                let payload_str = serde_json::json!(payload).to_string();
                 log::debug!(
                     "Publishing result for task {}\n{}",
                     task.task_id,
@@ -152,8 +152,7 @@ impl WorkflowHandler {
                     model: task.model_name,
                     stats: task.stats.record_published_at(),
                 };
-                let error_payload_str = serde_json::to_string(&error_payload)
-                    .wrap_err("could not serialize error payload")?;
+                let error_payload_str = serde_json::json!(error_payload).to_string();
 
                 // prepare signed message
                 DKNMessage::new_signed(
@@ -178,6 +177,7 @@ impl WorkflowHandler {
                 Self::RESPONSE_TOPIC,
                 &node.config.secret_key,
             );
+
             node.publish(message).await?;
         };
 
