@@ -66,7 +66,7 @@ impl PingpongHandler {
             uuid: pingpong.uuid.clone(),
             models: node.config.workflows.models.clone(),
             timestamp: get_current_time_nanos(),
-            tasks: node.task_count(),
+            tasks: node.get_active_task_count(),
         };
 
         // publish message

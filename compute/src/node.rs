@@ -16,8 +16,8 @@ use crate::{
     workers::workflow::{WorkflowsWorker, WorkflowsWorkerInput, WorkflowsWorkerOutput},
 };
 
-/// Number of seconds between refreshing the Kademlia DHT.
-const PEER_REFRESH_INTERVAL_SECS: u64 = 30;
+/// Number of seconds between refreshing for diagnostic prints.
+const DIAGNOSTIC_REFRESH_INTERVAL_SECS: u64 = 30;
 /// Number of seconds between refreshing the available nodes.
 const AVAILABLE_NODES_REFRESH_INTERVAL_SECS: u64 = 30 * 60; // 30 minutes
 
@@ -123,7 +123,7 @@ impl DriaComputeNode {
     }
 
     /// Returns the task count within the channels, `single` and `batch`.
-    pub fn task_count(&self) -> [usize; 2] {
+    pub fn get_active_task_count(&self) -> [usize; 2] {
         [
             self.workflow_single_tx.max_capacity() - self.workflow_single_tx.capacity(),
             self.workflow_batch_tx.max_capacity() - self.workflow_batch_tx.capacity(),
@@ -251,9 +251,10 @@ impl DriaComputeNode {
     /// This method is not expected to return until cancellation occurs.
     pub async fn run(&mut self) -> Result<()> {
         // prepare durations for sleeps
-        let peer_refresh_duration = Duration::from_secs(PEER_REFRESH_INTERVAL_SECS);
-        let available_node_refresh_duration =
-            Duration::from_secs(AVAILABLE_NODES_REFRESH_INTERVAL_SECS);
+        let mut peer_refresh_interval =
+            tokio::time::interval(Duration::from_secs(DIAGNOSTIC_REFRESH_INTERVAL_SECS));
+        let mut available_node_refresh_interval =
+            tokio::time::interval(Duration::from_secs(AVAILABLE_NODES_REFRESH_INTERVAL_SECS));
 
         // subscribe to topics
         self.subscribe(PingpongHandler::LISTEN_TOPIC).await?;
@@ -264,9 +265,9 @@ impl DriaComputeNode {
         loop {
             tokio::select! {
                 // check peer count every now and then
-                _ = tokio::time::sleep(peer_refresh_duration) => self.handle_peer_refresh().await,
+                _ = peer_refresh_interval.tick() => self.handle_diagnostic_refresh().await,
                 // available nodes are refreshed every now and then
-                _ = tokio::time::sleep(available_node_refresh_duration) => self.handle_available_nodes_refresh().await,
+                _ = available_node_refresh_interval.tick() => self.handle_available_nodes_refresh().await,
                 // a Workflow message to be published is received from the channel
                 // this is expected to be sent by the workflow worker
                 publish_msg = self.publish_batch_rx.recv() => {
@@ -336,11 +337,16 @@ impl DriaComputeNode {
     }
 
     /// Peer refresh simply reports the peer count to the user.
-    async fn handle_peer_refresh(&self) {
+    async fn handle_diagnostic_refresh(&self) {
+        // print peer counts
         match self.p2p.peer_counts().await {
             Ok((mesh, all)) => log::info!("Peer Count (mesh/all): {} / {}", mesh, all),
             Err(e) => log::error!("Error getting peer counts: {:?}", e),
         }
+
+        // print task counts
+        let [single, batch] = self.get_active_task_count();
+        log::info!("Active Task Count (single/batch): {} / {}", single, batch);
     }
 
     /// Updates the local list of available nodes by refreshing it.
