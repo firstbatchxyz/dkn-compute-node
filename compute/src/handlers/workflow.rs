@@ -32,7 +32,7 @@ impl WorkflowHandler {
     pub(crate) async fn handle_compute(
         node: &mut DriaComputeNode,
         compute_message: &DKNMessage,
-    ) -> Result<Either<MessageAcceptance, WorkflowsWorkerInput>> {
+    ) -> Result<Either<MessageAcceptance, (WorkflowsWorkerInput, bool)>> {
         let stats = TaskStats::new().record_received_at();
         let task = compute_message
             .parse_payload::<TaskRequestPayload<WorkflowPayload>>(true)
@@ -78,14 +78,17 @@ impl WorkflowHandler {
         log::info!("Using model {} for task {}", model_name, task.task_id);
 
         // prepare workflow executor
-        let executor = if model_provider == ModelProvider::Ollama {
-            Executor::new_at(
-                model,
-                &node.config.workflows.ollama.host,
-                node.config.workflows.ollama.port,
+        let (executor, batchable) = if model_provider == ModelProvider::Ollama {
+            (
+                Executor::new_at(
+                    model,
+                    &node.config.workflows.ollama.host,
+                    node.config.workflows.ollama.port,
+                ),
+                false,
             )
         } else {
-            Executor::new(model)
+            (Executor::new(model), true)
         };
 
         // prepare entry from prompt
@@ -97,15 +100,18 @@ impl WorkflowHandler {
         // get workflow as well
         let workflow = task.input.workflow;
 
-        Ok(Either::Right(WorkflowsWorkerInput {
-            entry,
-            executor,
-            workflow,
-            model_name,
-            task_id: task.task_id,
-            public_key: task_public_key,
-            stats,
-        }))
+        Ok(Either::Right((
+            WorkflowsWorkerInput {
+                entry,
+                executor,
+                workflow,
+                model_name,
+                task_id: task.task_id,
+                public_key: task_public_key,
+                stats,
+            },
+            batchable,
+        )))
     }
 
     pub(crate) async fn handle_publish(
@@ -123,16 +129,15 @@ impl WorkflowHandler {
                     task.model_name,
                     task.stats.record_published_at(),
                 )?;
+
+                // convert payload to message
                 let payload_str = serde_json::to_string(&payload)
                     .wrap_err("could not serialize response payload")?;
-
-                // prepare signed message
                 log::debug!(
                     "Publishing result for task {}\n{}",
                     task.task_id,
                     payload_str
                 );
-
                 DKNMessage::new(payload_str, Self::RESPONSE_TOPIC)
             }
             Err(err) => {

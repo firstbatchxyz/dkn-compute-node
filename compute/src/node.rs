@@ -26,10 +26,16 @@ pub struct DriaComputeNode {
     pub p2p: DriaP2PCommander,
     pub available_nodes: AvailableNodes,
     pub cancellation: CancellationToken,
-    // channels
+    /// Gossipsub message receiver.
     message_rx: mpsc::Receiver<(PeerId, MessageId, Message)>,
-    worklow_tx: mpsc::Sender<WorkflowsWorkerInput>,
-    publish_rx: mpsc::Receiver<WorkflowsWorkerOutput>,
+    /// Workflow transmitter to send batchable tasks.
+    workflow_batch_tx: mpsc::Sender<WorkflowsWorkerInput>,
+    /// Publish receiver to receive messages to be published.
+    publish_batch_rx: mpsc::Receiver<WorkflowsWorkerOutput>,
+    /// Workflow transmitter to send single tasks.
+    workflow_single_tx: mpsc::Sender<WorkflowsWorkerInput>,
+    /// Publish receiver to receive messages to be published.
+    publish_single_rx: mpsc::Receiver<WorkflowsWorkerOutput>,
 }
 
 impl DriaComputeNode {
@@ -39,7 +45,12 @@ impl DriaComputeNode {
     pub async fn new(
         config: DriaComputeNodeConfig,
         cancellation: CancellationToken,
-    ) -> Result<(DriaComputeNode, DriaP2PClient, WorkflowsWorker)> {
+    ) -> Result<(
+        DriaComputeNode,
+        DriaP2PClient,
+        WorkflowsWorker,
+        WorkflowsWorker,
+    )> {
         // create the keypair from secret key
         let keypair = secret_to_keypair(&config.secret_key);
 
@@ -66,10 +77,10 @@ impl DriaComputeNode {
             protocol,
         )?;
 
-        // create workflow worker
-        let (worklow_tx, workflow_rx) = mpsc::channel(256);
-        let (publish_tx, publish_rx) = mpsc::channel(256);
-        let workflows_worker = WorkflowsWorker::new(workflow_rx, publish_tx);
+        // create workflow workers
+        let (workflows_batch_worker, workflow_batch_tx, publish_batch_rx) = WorkflowsWorker::new();
+        let (workflows_single_worker, workflow_single_tx, publish_single_rx) =
+            WorkflowsWorker::new();
 
         Ok((
             DriaComputeNode {
@@ -78,11 +89,14 @@ impl DriaComputeNode {
                 cancellation,
                 available_nodes,
                 message_rx,
-                worklow_tx,
-                publish_rx,
+                workflow_batch_tx,
+                publish_batch_rx,
+                workflow_single_tx,
+                publish_single_rx,
             },
             p2p_client,
-            workflows_worker,
+            workflows_batch_worker,
+            workflows_single_worker,
         ))
     }
 
@@ -164,7 +178,7 @@ impl DriaComputeNode {
                     return MessageAcceptance::Ignore;
                 }
 
-                // first, parse the raw gossipsub message to a prepared message
+                // parse the raw gossipsub message to a prepared DKN message
                 let message = match DKNMessage::try_from_gossipsub_message(
                     &message,
                     &self.config.admin_public_key,
@@ -177,19 +191,25 @@ impl DriaComputeNode {
                     }
                 };
 
-                // then handle the prepared message
+                // handle the DKN message with respect to the topic
                 let handler_result = match message.topic.as_str() {
                     WorkflowHandler::LISTEN_TOPIC => {
                         match WorkflowHandler::handle_compute(self, &message).await {
+                            // we got acceptance, so something was not right about the workflow and we can ignore it
                             Ok(Either::Left(acceptance)) => Ok(acceptance),
-                            Ok(Either::Right(workflow_message)) => {
-                                if let Err(e) = self.worklow_tx.send(workflow_message).await {
+                            // we got the parsed workflow itself, send to a worker thread w.r.t batchable
+                            Ok(Either::Right((workflow_message, batchable))) => {
+                                if let Err(e) = match batchable {
+                                    true => self.workflow_batch_tx.send(workflow_message).await,
+                                    false => self.workflow_single_tx.send(workflow_message).await,
+                                } {
                                     log::error!("Error sending workflow message: {:?}", e);
                                 };
 
                                 // accept the message in case others may be included in the filter as well
                                 Ok(MessageAcceptance::Accept)
                             }
+                            // something went wrong, handle this outside
                             Err(err) => Err(err),
                         }
                     }
@@ -241,7 +261,16 @@ impl DriaComputeNode {
                 _ = tokio::time::sleep(available_node_refresh_duration) => self.handle_available_nodes_refresh().await,
                 // a Workflow message to be published is received from the channel
                 // this is expected to be sent by the workflow worker
-                publish_msg = self.publish_rx.recv() => {
+                publish_msg = self.publish_batch_rx.recv() => {
+                    if let Some(result) = publish_msg {
+                        WorkflowHandler::handle_publish(self, result).await?;
+                    } else {
+                        log::error!("Publish channel closed unexpectedly.");
+                        break;
+                    };
+                },
+                // TODO: make the both receivers handled together somehow
+                publish_msg = self.publish_single_rx.recv() => {
                     if let Some(result) = publish_msg {
                         WorkflowHandler::handle_publish(self, result).await?;
                     } else {
@@ -293,7 +322,7 @@ impl DriaComputeNode {
         self.message_rx.close();
 
         log::debug!("Closing publish channel.");
-        self.publish_rx.close();
+        self.publish_batch_rx.close();
 
         Ok(())
     }
@@ -339,7 +368,7 @@ mod tests {
 
         // create node
         let cancellation = CancellationToken::new();
-        let (mut node, p2p, _) =
+        let (mut node, p2p, _, _) =
             DriaComputeNode::new(DriaComputeNodeConfig::default(), cancellation.clone())
                 .await
                 .expect("should create node");

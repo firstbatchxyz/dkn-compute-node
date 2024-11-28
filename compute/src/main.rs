@@ -31,6 +31,7 @@ async fn main() -> Result<()> {
     let token = CancellationToken::new();
     let cancellation_token = token.clone();
     tokio::spawn(async move {
+        // the timeout is done for profiling only, and should not be used in production
         if let Ok(Ok(duration_secs)) =
             env::var("DKN_EXIT_TIMEOUT").map(|s| s.to_string().parse::<u64>())
         {
@@ -75,15 +76,17 @@ async fn main() -> Result<()> {
     }
 
     let node_token = token.clone();
-    let (mut node, p2p, mut workflows) = DriaComputeNode::new(config, node_token).await?;
+    let (mut node, p2p, mut worker_batch, mut worker_single) =
+        DriaComputeNode::new(config, node_token).await?;
 
-    // launch the p2p in a separate thread
     log::info!("Spawning peer-to-peer client thread.");
     let p2p_handle = tokio::spawn(async move { p2p.run().await });
 
-    // launch the workflows in a separate thread
-    log::info!("Spawning workflows worker thread.");
-    let workflows_handle = tokio::spawn(async move { workflows.run().await });
+    log::info!("Spawning workflows batch worker thread.");
+    let worker_batch_handle = tokio::spawn(async move { worker_batch.run_batch().await });
+
+    log::info!("Spawning workflows single worker thread.");
+    let worker_single_handle = tokio::spawn(async move { worker_single.run().await });
 
     // launch the node in a separate thread
     log::info!("Spawning compute node thread.");
@@ -98,8 +101,11 @@ async fn main() -> Result<()> {
     if let Err(err) = node_handle.await {
         log::error!("Node handle error: {}", err);
     };
-    if let Err(err) = workflows_handle.await {
-        log::error!("Workflows handle error: {}", err);
+    if let Err(err) = worker_single_handle.await {
+        log::error!("Workflows single worker handle error: {}", err);
+    };
+    if let Err(err) = worker_batch_handle.await {
+        log::error!("Workflows batch worker handle error: {}", err);
     };
     if let Err(err) = p2p_handle.await {
         log::error!("P2P handle error: {}", err);

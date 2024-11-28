@@ -25,9 +25,12 @@ pub struct WorkflowsWorkerOutput {
 }
 
 pub struct WorkflowsWorker {
-    worklow_rx: mpsc::Receiver<WorkflowsWorkerInput>,
+    workflow_rx: mpsc::Receiver<WorkflowsWorkerInput>,
     publish_tx: mpsc::Sender<WorkflowsWorkerOutput>,
 }
+
+const WORKFLOW_CHANNEL_BUFSIZE: usize = 1024;
+const PUBLISH_CHANNEL_BUFSIZE: usize = 1024;
 
 impl WorkflowsWorker {
     /// Batch size that defines how many tasks can be executed in parallel at once.
@@ -35,40 +38,78 @@ impl WorkflowsWorker {
     /// if there are more tasks than the batch size, the function will panic.
     const BATCH_SIZE: usize = 8;
 
-    pub fn new(
-        worklow_rx: mpsc::Receiver<WorkflowsWorkerInput>,
-        publish_tx: mpsc::Sender<WorkflowsWorkerOutput>,
-    ) -> Self {
-        Self {
-            worklow_rx,
-            publish_tx,
+    /// Creates a worker and returns the sender and receiver for the worker.
+    pub fn new() -> (
+        WorkflowsWorker,
+        mpsc::Sender<WorkflowsWorkerInput>,
+        mpsc::Receiver<WorkflowsWorkerOutput>,
+    ) {
+        let (workflow_tx, workflow_rx) = mpsc::channel(WORKFLOW_CHANNEL_BUFSIZE);
+        let (publish_tx, publish_rx) = mpsc::channel(PUBLISH_CHANNEL_BUFSIZE);
+
+        (
+            Self {
+                workflow_rx,
+                publish_tx,
+            },
+            workflow_tx,
+            publish_rx,
+        )
+    }
+
+    fn shutdown(&mut self) {
+        log::warn!("Closing workflows worker.");
+        self.workflow_rx.close();
+    }
+
+    /// Launches the thread that can process tasks one by one.
+    /// This function will block until the channel is closed.
+    ///
+    /// It is suitable for task streams that consume local resources, unlike API calls.
+    pub async fn run(&mut self) {
+        loop {
+            let task = self.workflow_rx.recv().await;
+
+            let result = if let Some(task) = task {
+                log::info!("Processing single workflow for task {}", task.task_id);
+                WorkflowsWorker::execute(task).await
+            } else {
+                return self.shutdown();
+            };
+
+            if let Err(e) = self.publish_tx.send(result).await {
+                log::error!("Error sending workflow result: {}", e);
+            }
         }
     }
 
-    pub async fn run(&mut self) {
+    /// Launches the thread that can process tasks in batches.
+    /// This function will block until the channel is closed.
+    ///
+    /// It is suitable for task streams that make use of API calls, unlike Ollama-like
+    /// tasks that consumes local resources and would not make sense to run in parallel.
+    pub async fn run_batch(&mut self) {
         loop {
             // get tasks in batch from the channel
-            let mut batch_vec = Vec::new();
+            let mut task_buffer = Vec::new();
             let num_tasks = self
-                .worklow_rx
-                .recv_many(&mut batch_vec, Self::BATCH_SIZE)
+                .workflow_rx
+                .recv_many(&mut task_buffer, Self::BATCH_SIZE)
                 .await;
             debug_assert!(
                 num_tasks <= Self::BATCH_SIZE,
                 "drain cant be larger than batch size"
             );
             // TODO: just to be sure, can be removed later
-            debug_assert_eq!(num_tasks, batch_vec.len());
+            debug_assert_eq!(num_tasks, task_buffer.len());
 
             if num_tasks == 0 {
-                log::warn!("Closing workflows worker.");
-                self.worklow_rx.close();
-                return;
+                return self.shutdown();
             }
 
             // process the batch
-            let mut batch = batch_vec.into_iter();
             log::info!("Processing {} workflows in batch", num_tasks);
+            let mut batch = task_buffer.into_iter();
             let results = match num_tasks {
                 1 => {
                     let r0 = WorkflowsWorker::execute(batch.next().unwrap()).await;
@@ -145,7 +186,11 @@ impl WorkflowsWorker {
                     vec![r0, r1, r2, r3, r4, r5, r6, r7]
                 }
                 _ => {
-                    unreachable!("drain cant be larger than batch size");
+                    unreachable!(
+                        "drain cant be larger than batch size ({} > {})",
+                        num_tasks,
+                        Self::BATCH_SIZE
+                    );
                 }
             };
 

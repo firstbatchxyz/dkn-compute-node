@@ -31,9 +31,9 @@ pub struct DriaP2PClient {
 /// Number of seconds before an idle connection is closed.
 const IDLE_CONNECTION_TIMEOUT_SECS: u64 = 60;
 /// Buffer size for command channel.
-const COMMAND_CHANNEL_BUFSIZE: usize = 256;
+const COMMAND_CHANNEL_BUFSIZE: usize = 1024;
 /// Buffer size for events channel.
-const MSG_CHANNEL_BUFSIZE: usize = 256;
+const MSG_CHANNEL_BUFSIZE: usize = 1024;
 
 impl DriaP2PClient {
     /// Creates a new P2P client with the given keypair and listen address.

@@ -133,7 +133,7 @@ impl DKNMessage {
 
         // check dria signature
         // NOTE: when we have many public keys, we should check the signature against all of them
-        if !message.is_signed(&public_key)? {
+        if !message.is_signed(public_key)? {
             return Err(eyre!("Invalid signature."));
         }
 

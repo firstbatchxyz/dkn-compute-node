@@ -32,3 +32,6 @@ jobs:
 
       - name: Run tests
         run: cargo test --workspace
+
+      - name: Run linter
+        run: cargo clippy --workspace
