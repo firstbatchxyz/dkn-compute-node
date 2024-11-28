@@ -4,7 +4,6 @@ use ollama_workflows::{
         generation::{
             completion::request::GenerationRequest,
             embeddings::request::{EmbeddingsInput, GenerateEmbeddingsRequest},
-            options::GenerationOptions,
         },
         Ollama,
     },
@@ -171,7 +170,7 @@ impl OllamaConfig {
             // otherwise, give error
             log::error!("Please download missing model with: ollama pull {}", model);
             log::error!("Or, set OLLAMA_AUTO_PULL=true to pull automatically.");
-            Err(eyre!("Required model not pulled in Ollama."))
+            Err(eyre!("required model not pulled in Ollama"))
         }
     }
 

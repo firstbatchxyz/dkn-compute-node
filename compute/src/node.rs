@@ -5,7 +5,7 @@ use dkn_p2p::{
     },
     DriaP2PClient, DriaP2PCommander, DriaP2PProtocol,
 };
-use eyre::{eyre, Result};
+use eyre::Result;
 use tokio::{sync::mpsc, time::Duration};
 use tokio_util::{either::Either, sync::CancellationToken};
 
@@ -165,7 +165,10 @@ impl DriaComputeNode {
                 }
 
                 // first, parse the raw gossipsub message to a prepared message
-                let message = match self.parse_message_to_prepared_message(&message) {
+                let message = match DKNMessage::try_from_gossipsub_message(
+                    &message,
+                    &self.config.admin_public_key,
+                ) {
                     Ok(message) => message,
                     Err(e) => {
                         log::error!("Error parsing message: {:?}", e);
@@ -193,7 +196,7 @@ impl DriaComputeNode {
                     PingpongHandler::LISTEN_TOPIC => {
                         PingpongHandler::handle_ping(self, &message).await
                     }
-                    _ => unreachable!(), // unreachable because of the `match` above
+                    _ => unreachable!("unreachable due to match expression"),
                 };
 
                 // validate the message based on the result
@@ -216,45 +219,19 @@ impl DriaComputeNode {
         }
     }
 
-    /// Peer refresh simply reports the peer count to the user.
-    async fn handle_peer_refresh(&self) {
-        match self.p2p.peer_counts().await {
-            Ok((mesh, all)) => log::info!("Peer Count (mesh/all): {} / {}", mesh, all),
-            Err(e) => log::error!("Error getting peer counts: {:?}", e),
-        }
-    }
-
-    /// Updates the local list of available nodes by refreshing it.
-    /// Dials the RPC nodes again for better connectivity.
-    async fn handle_available_nodes_refresh(&mut self) {
-        log::info!("Refreshing available nodes.");
-
-        // refresh available nodes
-        if let Err(e) = self.available_nodes.populate_with_api().await {
-            log::error!("Error refreshing available nodes: {:?}", e);
-        };
-
-        // dial all rpc nodes
-        for rpc_addr in self.available_nodes.rpc_addrs.iter() {
-            log::debug!("Dialling RPC node: {}", rpc_addr);
-            if let Err(e) = self.p2p.dial(rpc_addr.clone()).await {
-                log::warn!("Error dialling RPC node: {:?}", e);
-            };
-        }
-    }
-
     /// Runs the main loop of the compute node.
     /// This method is not expected to return until cancellation occurs.
     pub async fn run(&mut self) -> Result<()> {
+        // prepare durations for sleeps
+        let peer_refresh_duration = Duration::from_secs(PEER_REFRESH_INTERVAL_SECS);
+        let available_node_refresh_duration =
+            Duration::from_secs(AVAILABLE_NODES_REFRESH_INTERVAL_SECS);
+
         // subscribe to topics
         self.subscribe(PingpongHandler::LISTEN_TOPIC).await?;
         self.subscribe(PingpongHandler::RESPONSE_TOPIC).await?;
         self.subscribe(WorkflowHandler::LISTEN_TOPIC).await?;
         self.subscribe(WorkflowHandler::RESPONSE_TOPIC).await?;
-
-        let peer_refresh_duration = Duration::from_secs(PEER_REFRESH_INTERVAL_SECS);
-        let available_node_refresh_duration =
-            Duration::from_secs(AVAILABLE_NODES_REFRESH_INTERVAL_SECS);
 
         loop {
             tokio::select! {
@@ -321,25 +298,31 @@ impl DriaComputeNode {
         Ok(())
     }
 
-    /// Parses a given raw Gossipsub message to a prepared P2PMessage object.
-    /// This prepared message includes the topic, payload, version and timestamp.
-    ///
-    /// This also checks the signature of the message, expecting a valid signature from admin node.
-    // TODO: move this somewhere?
-    pub fn parse_message_to_prepared_message(&self, message: &Message) -> Result<DKNMessage> {
-        // the received message is expected to use IdentHash for the topic, so we can see the name of the topic immediately.
-        log::debug!("Parsing {} message.", message.topic.as_str());
-        let message = DKNMessage::try_from(message)?;
-        log::debug!("Parsed: {}", message);
-
-        // check dria signature
-        // NOTE: when we have many public keys, we should check the signature against all of them
-        // TODO: public key here will be given dynamically
-        if !message.is_signed(&self.config.admin_public_key)? {
-            return Err(eyre!("Invalid signature."));
+    /// Peer refresh simply reports the peer count to the user.
+    async fn handle_peer_refresh(&self) {
+        match self.p2p.peer_counts().await {
+            Ok((mesh, all)) => log::info!("Peer Count (mesh/all): {} / {}", mesh, all),
+            Err(e) => log::error!("Error getting peer counts: {:?}", e),
         }
+    }
 
-        Ok(message)
+    /// Updates the local list of available nodes by refreshing it.
+    /// Dials the RPC nodes again for better connectivity.
+    async fn handle_available_nodes_refresh(&mut self) {
+        log::info!("Refreshing available nodes.");
+
+        // refresh available nodes
+        if let Err(e) = self.available_nodes.populate_with_api().await {
+            log::error!("Error refreshing available nodes: {:?}", e);
+        };
+
+        // dial all rpc nodes
+        for rpc_addr in self.available_nodes.rpc_addrs.iter() {
+            log::debug!("Dialling RPC node: {}", rpc_addr);
+            if let Err(e) = self.p2p.dial(rpc_addr.clone()).await {
+                log::warn!("Error dialling RPC node: {:?}", e);
+            };
+        }
     }
 }
 

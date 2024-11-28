@@ -6,7 +6,7 @@ use crate::DRIA_COMPUTE_NODE_VERSION;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use core::fmt;
 use ecies::PublicKey;
-use eyre::{Context, Result};
+use eyre::{eyre, Context, Result};
 use libsecp256k1::{verify, Message, SecretKey, Signature};
 use serde::{Deserialize, Serialize};
 
@@ -44,7 +44,7 @@ impl DKNMessage {
     ///
     /// - `data` is given as bytes, it is encoded into base64 to make up the `payload` within.
     /// - `topic` is the name of the [gossipsub topic](https://docs.libp2p.io/concepts/pubsub/overview/).
-    pub fn new(data: impl AsRef<[u8]>, topic: &str) -> Self {
+    pub(crate) fn new(data: impl AsRef<[u8]>, topic: &str) -> Self {
         Self {
             payload: BASE64_STANDARD.encode(data),
             topic: topic.to_string(),
@@ -55,7 +55,7 @@ impl DKNMessage {
     }
 
     /// Creates a new Message by signing the SHA256 of the payload, and prepending the signature.
-    pub fn new_signed(data: impl AsRef<[u8]>, topic: &str, signing_key: &SecretKey) -> Self {
+    pub(crate) fn new_signed(data: impl AsRef<[u8]>, topic: &str, signing_key: &SecretKey) -> Self {
         // sign the SHA256 hash of the data
         let signature_bytes = sign_bytes_recoverable(&sha256hash(data.as_ref()), signing_key);
 
@@ -69,19 +69,19 @@ impl DKNMessage {
     }
 
     /// Sets the identity of the message.
-    pub fn with_identity(mut self, identity: String) -> Self {
+    pub(crate) fn with_identity(mut self, identity: String) -> Self {
         self.identity = identity;
         self
     }
 
     /// Decodes the base64 payload into bytes.
     #[inline(always)]
-    pub fn decode_payload(&self) -> Result<Vec<u8>, base64::DecodeError> {
+    pub(crate) fn decode_payload(&self) -> Result<Vec<u8>, base64::DecodeError> {
         BASE64_STANDARD.decode(&self.payload)
     }
 
     /// Decodes and parses the base64 payload into JSON for the provided type `T`.
-    pub fn parse_payload<T: for<'a> Deserialize<'a>>(&self, signed: bool) -> Result<T> {
+    pub(crate) fn parse_payload<T: for<'a> Deserialize<'a>>(&self, signed: bool) -> Result<T> {
         let payload = self.decode_payload()?;
 
         let body = if signed {
@@ -96,7 +96,7 @@ impl DKNMessage {
     }
 
     /// Checks if the payload is signed by the given public key.
-    pub fn is_signed(&self, public_key: &PublicKey) -> Result<bool> {
+    pub(crate) fn is_signed(&self, public_key: &PublicKey) -> Result<bool> {
         // decode base64 payload
         let data = self.decode_payload()?;
 
@@ -115,6 +115,29 @@ impl DKNMessage {
         // verify signature w.r.t the body and the given public key
         let digest = Message::parse(&sha256hash(body));
         Ok(verify(&digest, &signature, public_key))
+    }
+
+    /// Tries to parse the given gossipsub message into a DKNMessage.
+    ///
+    /// This prepared message includes the topic, payload, version and timestamp.
+    /// It also checks the signature of the message, expecting a valid signature from admin node.
+    pub(crate) fn try_from_gossipsub_message(
+        gossipsub_message: &dkn_p2p::libp2p::gossipsub::Message,
+        public_key: &libsecp256k1::PublicKey,
+    ) -> Result<Self> {
+        // the received message is expected to use IdentHash for the topic, so we can see the name of the topic immediately.
+        log::debug!("Parsing {} message.", gossipsub_message.topic.as_str());
+        let message = serde_json::from_slice::<DKNMessage>(&gossipsub_message.data)
+            .wrap_err("could not parse message")?;
+        log::debug!("Parsed: {}", message);
+
+        // check dria signature
+        // NOTE: when we have many public keys, we should check the signature against all of them
+        if !message.is_signed(&public_key)? {
+            return Err(eyre!("Invalid signature."));
+        }
+
+        Ok(message)
     }
 }
 
