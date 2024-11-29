@@ -1,7 +1,6 @@
-# DKN Workflows
+# Dria Workflows
 
-We make use of Ollama Workflows in DKN; however, we also want to make sure that the chosen models are valid and is performant enough (i.e. have enough TPS).
-This crate handles the configurations of models to be used, and implements various service checks.
+We make use of [Ollama Workflows](https://github.com/andthattoo/ollama-workflows) in Dria Knowledge Network; however, we also want to make sure that the chosen models are valid and is performant enough (i.e. have enough TPS). This crate handles the configurations of models to be used, and implements various service checks.
 
 There are two types of services:
 

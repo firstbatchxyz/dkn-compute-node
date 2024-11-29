@@ -4,6 +4,8 @@ use tokio::sync::mpsc;
 
 use crate::payloads::TaskStats;
 
+// TODO: instead of piggybacking stuff here, maybe node can hold it in a hashmap w.r.t taskId
+
 pub struct WorkflowsWorkerInput {
     pub entry: Option<Entry>,
     pub executor: Executor,
@@ -59,7 +61,7 @@ impl WorkflowsWorker {
 
     /// Closes the workflow receiver channel.
     fn shutdown(&mut self) {
-        log::warn!("Closing workflows worker.");
+        log::info!("Closing workflows worker.");
         self.workflow_rx.close();
     }
 

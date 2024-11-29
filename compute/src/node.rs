@@ -26,18 +26,17 @@ const PUBLISH_CHANNEL_BUFSIZE: usize = 1024;
 
 pub struct DriaComputeNode {
     pub config: DriaComputeNodeConfig,
-    pub p2p: DriaP2PCommander,
     pub available_nodes: AvailableNodes,
-    /// Gossipsub message receiver.
+    /// Peer-to-peer client commander to interact with the network.
+    pub p2p: DriaP2PCommander,
+    /// Gossipsub message receiver, used by peer-to-peer client in a separate thread.
     message_rx: mpsc::Receiver<(PeerId, MessageId, Message)>,
-    /// Publish receiver to receive messages to be published.
+    /// Publish receiver to receive messages to be published,
     publish_rx: mpsc::Receiver<WorkflowsWorkerOutput>,
     /// Workflow transmitter to send batchable tasks.
     workflow_batch_tx: Option<mpsc::Sender<WorkflowsWorkerInput>>,
     /// Workflow transmitter to send single tasks.
     workflow_single_tx: Option<mpsc::Sender<WorkflowsWorkerInput>>,
-    // TODO: instead of piggybacking task metadata within channels, we can store them here
-    // in a hashmap alone, and then use the task_id to get the metadata when needed
     // Single tasks hash-map
     pending_tasks_single: HashSet<String>,
     // Batch tasks hash-map
@@ -402,7 +401,7 @@ impl DriaComputeNode {
 
         // print tasks count
         let [single, batch] = self.get_pending_task_count();
-        log::info!("Pending Tasks (single/batch):   {} / {}", single, batch);
+        log::info!("Pending Tasks (single/batch): {} / {}", single, batch);
 
         // completed tasks count
         log::debug!(

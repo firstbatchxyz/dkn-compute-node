@@ -65,12 +65,14 @@ fn create_kademlia_behaviour(
 ) -> kad::Behaviour<MemoryStore> {
     use kad::{Behaviour, Config};
 
-    const QUERY_TIMEOUT_SECS: u64 = 5 * 60;
-    const RECORD_TTL_SECS: u64 = 30;
+    const KADEMLIA_BOOTSTRAP_INTERVAL_SECS: u64 = 5 * 60; // default is 5 minutes
+    const QUERY_TIMEOUT_SECS: u64 = 3 * 60; // default is 1 minute
 
     let mut cfg = Config::new(protocol_name);
     cfg.set_query_timeout(Duration::from_secs(QUERY_TIMEOUT_SECS))
-        .set_record_ttl(Some(Duration::from_secs(RECORD_TTL_SECS)));
+        .set_periodic_bootstrap_interval(Some(Duration::from_secs(
+            KADEMLIA_BOOTSTRAP_INTERVAL_SECS,
+        )));
 
     Behaviour::with_config(local_peer_id, MemoryStore::new(local_peer_id), cfg)
 }
@@ -157,7 +159,6 @@ fn create_gossipsub_behaviour(author: PeerId) -> Result<gossipsub::Behaviour> {
         MessageId::from(digest.to_be_bytes())
     };
 
-    // TODO: add data transform here later
     Behaviour::new(
         MessageAuthenticity::Author(author),
         ConfigBuilder::default()

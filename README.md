@@ -34,7 +34,7 @@ Compute nodes can technically do any arbitrary task, from computing the square r
 
 - **Workflows**: Each task is given in the form of a [workflow](https://github.com/andthattoo/ollama-workflows). Every workflow defines an agentic behavior for the chosen LLM, all captured in a single JSON file, and can represent things ranging from simple LLM generations to iterative web searching & reasoning.
 
-## Node Running
+### Running a Node
 
 Refer to [node guide](./docs/NODE_GUIDE.md) to quickly get started and run your own node!
 

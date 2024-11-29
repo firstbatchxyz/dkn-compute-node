@@ -1,4 +1,4 @@
-# DKN Peer-to-Peer Client
+# Dria Peer-to-Peer Client
 
 Dria Knowledge Network is a peer-to-peer network, built over libp2p. This crate is a wrapper client to easily interact with DKN.
 
