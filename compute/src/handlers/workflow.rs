@@ -54,10 +54,7 @@ impl WorkflowHandler {
 
         // check task inclusion via the bloom filter
         if !task.filter.contains(&node.config.address)? {
-            log::info!(
-                "Task {} does not include this node within the filter.",
-                task.task_id
-            );
+            log::info!("Task {} ignored due to filter.", task.task_id);
 
             // accept the message, someone else may be included in filter
             return Ok(Either::Left(MessageAcceptance::Accept));

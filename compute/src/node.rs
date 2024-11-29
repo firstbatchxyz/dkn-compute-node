@@ -42,6 +42,10 @@ pub struct DriaComputeNode {
     pending_tasks_single: HashSet<String>,
     // Batch tasks hash-map
     pending_tasks_batch: HashSet<String>,
+    /// Completed single tasks count
+    completed_tasks_single: usize,
+    /// Completed batch tasks count
+    completed_tasks_batch: usize,
 }
 
 impl DriaComputeNode {
@@ -114,6 +118,8 @@ impl DriaComputeNode {
                 workflow_single_tx,
                 pending_tasks_single: HashSet::new(),
                 pending_tasks_batch: HashSet::new(),
+                completed_tasks_single: 0,
+                completed_tasks_batch: 0,
             },
             p2p_client,
             workflows_batch_worker,
@@ -317,8 +323,14 @@ impl DriaComputeNode {
                     if let Some(publish_msg) = publish_msg_opt {
                         // remove the task from pending tasks based on its batchability
                         match publish_msg.batchable {
-                            true => self.pending_tasks_batch.remove(&publish_msg.task_id),
-                            false => self.pending_tasks_single.remove(&publish_msg.task_id),
+                            true => {
+                                self.completed_tasks_batch += 1;
+                                self.pending_tasks_batch.remove(&publish_msg.task_id);
+                            },
+                            false => {
+                                self.completed_tasks_single += 1;
+                                self.pending_tasks_single.remove(&publish_msg.task_id);
+                            }
                         };
 
                         // publish the message
@@ -357,6 +369,9 @@ impl DriaComputeNode {
         self.unsubscribe(WorkflowHandler::LISTEN_TOPIC).await?;
         self.unsubscribe(WorkflowHandler::RESPONSE_TOPIC).await?;
 
+        // print one final diagnostic as a summary
+        self.handle_diagnostic_refresh().await;
+
         // shutdown channels
         self.shutdown().await?;
 
@@ -385,9 +400,16 @@ impl DriaComputeNode {
             Err(e) => log::error!("Error getting peer counts: {:?}", e),
         }
 
-        // print task counts
+        // print tasks count
         let [single, batch] = self.get_pending_task_count();
-        log::info!("Pending Task Count (single/batch): {} / {}", single, batch);
+        log::info!("Pending Tasks (single/batch):   {} / {}", single, batch);
+
+        // completed tasks count
+        log::debug!(
+            "Completed Tasks (single/batch): {} / {}",
+            self.completed_tasks_single,
+            self.completed_tasks_batch
+        );
     }
 
     /// Updates the local list of available nodes by refreshing it.

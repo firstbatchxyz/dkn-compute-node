@@ -20,13 +20,13 @@ Note that the underlying [Ollama Workflows](https://github.com/andthattoo/ollama
 
 ## Usage
 
-DKN Workflows make use of several environment variables, respecting the providers.
+DKN Workflows make use of several environment variables, with respect to several model providers.
 
-- `OLLAMA_HOST` is used to connect to Ollama server
-- `OLLAMA_PORT` is used to connect to Ollama server
+- `OLLAMA_HOST` is used to connect to **Ollama** server
+- `OLLAMA_PORT` is used to connect to **Ollama** server
 - `OLLAMA_AUTO_PULL` indicates whether we should pull missing models automatically or not
-- `OPENAI_API_KEY` is used for OpenAI requests
-- `GEMINI_API_KEY` is used for Gemini requests
+- `OPENAI_API_KEY` is used for **OpenAI** requests
+- `GEMINI_API_KEY` is used for **Gemini** requests
 - `SERPER_API_KEY` is optional API key to use **Serper**, for better Workflow executions
 - `JINA_API_KEY` is optional API key to use **Jina**, for better Workflow executions
 

@@ -7,9 +7,6 @@ use tokio_util::{sync::CancellationToken, task::TaskTracker};
 async fn main() -> Result<()> {
     let dotenv_result = dotenvy::dotenv();
 
-    // TODO: remove me later when the launcher is fixed
-    amend_log_levels();
-
     env_logger::builder()
         .format_timestamp(Some(env_logger::TimestampPrecision::Millis))
         .init();
@@ -75,21 +72,23 @@ async fn main() -> Result<()> {
     // create the node
     let (mut node, p2p, worker_batch, worker_single) = DriaComputeNode::new(config).await?;
 
-    // spawn threads
+    // spawn p2p client first
     log::info!("Spawning peer-to-peer client thread.");
     task_tracker.spawn(async move { p2p.run().await });
 
+    // spawn batch worker thread if we are using such models (e.g. OpenAI, Gemini, OpenRouter)
     if let Some(mut worker_batch) = worker_batch {
         log::info!("Spawning workflows batch worker thread.");
         task_tracker.spawn(async move { worker_batch.run_batch().await });
     }
 
+    // spawn single worker thread if we are using such models (e.g. Ollama)
     if let Some(mut worker_single) = worker_single {
         log::info!("Spawning workflows single worker thread.");
         task_tracker.spawn(async move { worker_single.run().await });
     }
 
-    // launch the node in a separate thread
+    // spawn compute node thread
     log::info!("Spawning compute node thread.");
     let node_token = cancellation.clone();
     task_tracker.spawn(async move {
@@ -164,38 +163,4 @@ async fn wait_for_termination(cancellation: CancellationToken) -> Result<()> {
     log::info!("Terminating the application...");
 
     Ok(())
-}
-
-// #[deprecated]
-/// Very CRUDE fix due to launcher log level bug
-///
-/// TODO: remove me later when the launcher is fixed
-pub fn amend_log_levels() {
-    if let Ok(rust_log) = std::env::var("RUST_LOG") {
-        let log_level = if rust_log.contains("dkn_compute=info") {
-            "info"
-        } else if rust_log.contains("dkn_compute=debug") {
-            "debug"
-        } else if rust_log.contains("dkn_compute=trace") {
-            "trace"
-        } else {
-            return;
-        };
-
-        // check if it contains other log levels
-        let mut new_rust_log = rust_log.clone();
-        if !rust_log.contains("dkn_p2p") {
-            new_rust_log = format!("{},{}={}", new_rust_log, "dkn_p2p", log_level);
-        }
-        if !rust_log.contains("dkn_workflows") {
-            new_rust_log = format!("{},{}={}", new_rust_log, "dkn_workflows", log_level);
-        }
-        std::env::set_var("RUST_LOG", new_rust_log);
-    } else {
-        // TODO: use env_logger default function instead of this
-        std::env::set_var(
-            "RUST_LOG",
-            "none,dkn_compute=info,dkn_p2p=info,dkn_workflows=info",
-        );
-    }
 }

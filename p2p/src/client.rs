@@ -244,7 +244,15 @@ impl DriaP2PClient {
                 let _ = sender.send((mesh, all));
             }
             DriaP2PCommand::Shutdown { sender } => {
+                // close the command channel
                 self.cmd_rx.close();
+
+                // remove own peerId from Kademlia DHT
+                let peer_id = self.swarm.local_peer_id().clone();
+                self.swarm.behaviour_mut().kademlia.remove_peer(&peer_id);
+
+                // remove own peerId from Autonat server list
+                self.swarm.behaviour_mut().autonat.remove_server(&peer_id);
                 let _ = sender.send(());
             }
         }

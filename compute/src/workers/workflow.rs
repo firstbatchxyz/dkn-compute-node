@@ -26,6 +26,9 @@ pub struct WorkflowsWorkerOutput {
     pub batchable: bool,
 }
 
+/// Workflows worker is a task executor that can process workflows in parallel / series.
+///
+/// It is expected to be spawned in another thread, with `run_batch` for batch processing and `run` for single processing.
 pub struct WorkflowsWorker {
     workflow_rx: mpsc::Receiver<WorkflowsWorkerInput>,
     publish_tx: mpsc::Sender<WorkflowsWorkerOutput>,
@@ -95,12 +98,6 @@ impl WorkflowsWorker {
                 .workflow_rx
                 .recv_many(&mut task_buffer, Self::BATCH_SIZE)
                 .await;
-            debug_assert!(
-                num_tasks <= Self::BATCH_SIZE,
-                "drain cant be larger than batch size"
-            );
-            // TODO: just to be sure, can be removed later
-            debug_assert_eq!(num_tasks, task_buffer.len());
 
             if num_tasks == 0 {
                 return self.shutdown();
@@ -186,7 +183,7 @@ impl WorkflowsWorker {
                 }
                 _ => {
                     unreachable!(
-                        "drain cant be larger than batch size ({} > {})",
+                        "number of tasks cant be larger than batch size ({} > {})",
                         num_tasks,
                         Self::BATCH_SIZE
                     );
@@ -194,7 +191,6 @@ impl WorkflowsWorker {
             };
 
             // publish all results
-            // TODO: make this a part of executor as well
             log::info!("Publishing {} workflow results", results.len());
             for result in results {
                 if let Err(e) = self.publish_tx.send(result).await {
