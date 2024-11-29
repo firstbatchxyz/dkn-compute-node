@@ -87,6 +87,16 @@ impl DriaWorkflowsConfig {
             .collect()
     }
 
+    /// Returns `true` if the configuration contains models that can be processed in parallel, e.g. API calls.
+    pub fn has_batchable_models(&self) -> bool {
+        self.models.iter().any(|(p, _)| *p != ModelProvider::Ollama)
+    }
+
+    /// Returns `true` if the configuration contains a model that cant be run in parallel, e.g. a Ollama model.
+    pub fn has_non_batchable_models(&self) -> bool {
+        self.models.iter().any(|(p, _)| *p == ModelProvider::Ollama)
+    }
+
     /// Given a raw model name or provider (as a string), returns the first matching model & provider.
     ///
     /// - If input is `*` or `all`, a random model is returned.

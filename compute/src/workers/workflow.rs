@@ -13,6 +13,7 @@ pub struct WorkflowsWorkerInput {
     pub task_id: String,
     pub model_name: String,
     pub stats: TaskStats,
+    pub batchable: bool,
 }
 
 pub struct WorkflowsWorkerOutput {
@@ -22,6 +23,7 @@ pub struct WorkflowsWorkerOutput {
     pub task_id: String,
     pub model_name: String,
     pub stats: TaskStats,
+    pub batchable: bool,
 }
 
 pub struct WorkflowsWorker {
@@ -217,6 +219,7 @@ impl WorkflowsWorker {
             public_key: input.public_key,
             task_id: input.task_id,
             model_name: input.model_name,
+            batchable: input.batchable,
             stats: input.stats.record_execution_time(started_at),
         }
     }

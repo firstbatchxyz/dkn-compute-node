@@ -1,11 +1,12 @@
 use dkn_compute::*;
 use eyre::Result;
 use std::env;
-use tokio_util::sync::CancellationToken;
+use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let dotenv_result = dotenvy::dotenv();
+
     // TODO: remove me later when the launcher is fixed
     amend_log_levels();
 
@@ -28,88 +29,80 @@ async fn main() -> Result<()> {
 "#
     );
 
-    let token = CancellationToken::new();
-    let cancellation_token = token.clone();
+    // task tracker for multiple threads
+    let task_tracker = TaskTracker::new();
+    let cancellation = CancellationToken::new();
+
+    // spawn the background task to wait for termination signals
+    let task_tracker_to_close = task_tracker.clone();
+    let cancellation_token = cancellation.clone();
     tokio::spawn(async move {
-        // the timeout is done for profiling only, and should not be used in production
         if let Ok(Ok(duration_secs)) =
             env::var("DKN_EXIT_TIMEOUT").map(|s| s.to_string().parse::<u64>())
         {
+            // the timeout is done for profiling only, and should not be used in production
             log::warn!("Waiting for {} seconds before exiting.", duration_secs);
             tokio::time::sleep(tokio::time::Duration::from_secs(duration_secs)).await;
 
             log::warn!("Exiting due to DKN_EXIT_TIMEOUT.");
+
             cancellation_token.cancel();
         } else if let Err(err) = wait_for_termination(cancellation_token.clone()).await {
+            // if there is no timeout, we wait for termination signals here
             log::error!("Error waiting for termination: {:?}", err);
             log::error!("Cancelling due to unexpected error.");
             cancellation_token.cancel();
         };
+
+        // close tracker in any case
+        task_tracker_to_close.close();
     });
 
     // create configurations & check required services & address in use
     let mut config = DriaComputeNodeConfig::new();
     config.assert_address_not_in_use()?;
-    let service_check_token = token.clone();
-    let config = tokio::spawn(async move {
-        tokio::select! {
-            result = config.workflows.check_services() => {
-                if let Err(err) = result {
-                    log::error!("Error checking services: {:?}", err);
-                    panic!("Service check failed.")
-                }
-                log::warn!("Using models: {:#?}", config.workflows.models);
-                config
-            }
-            _ = service_check_token.cancelled() => {
-                log::info!("Service check cancelled.");
-                config
-            }
+    // check services & models, will exit if there is an error
+    // since service check can take time, we allow early-exit here as well
+    tokio::select! {
+        result = config.workflows.check_services() => result,
+        _ = cancellation.cancelled() => {
+            log::info!("Service check cancelled, exiting.");
+            return Ok(());
         }
-    })
-    .await?;
-
-    // check early exit due to failed service check
-    if token.is_cancelled() {
-        log::warn!("Not launching node due to early exit, bye!");
-        return Ok(());
-    }
+    }?;
+    log::warn!("Using models: {:#?}", config.workflows.models);
 
     // create the node
-    let (mut node, p2p, mut worker_batch, mut worker_single) = DriaComputeNode::new(config).await?;
+    let (mut node, p2p, worker_batch, worker_single) = DriaComputeNode::new(config).await?;
 
+    // spawn threads
     log::info!("Spawning peer-to-peer client thread.");
-    let p2p_handle = tokio::spawn(async move { p2p.run().await });
+    task_tracker.spawn(async move { p2p.run().await });
 
-    log::info!("Spawning workflows batch worker thread.");
-    let worker_batch_handle = tokio::spawn(async move { worker_batch.run_batch().await });
+    if let Some(mut worker_batch) = worker_batch {
+        log::info!("Spawning workflows batch worker thread.");
+        task_tracker.spawn(async move { worker_batch.run_batch().await });
+    }
 
-    log::info!("Spawning workflows single worker thread.");
-    let worker_single_handle = tokio::spawn(async move { worker_single.run().await });
+    if let Some(mut worker_single) = worker_single {
+        log::info!("Spawning workflows single worker thread.");
+        task_tracker.spawn(async move { worker_single.run().await });
+    }
 
     // launch the node in a separate thread
     log::info!("Spawning compute node thread.");
-    let node_token = token.clone();
-    let node_handle = tokio::spawn(async move {
+    let node_token = cancellation.clone();
+    task_tracker.spawn(async move {
         if let Err(err) = node.run(node_token).await {
             log::error!("Node launch error: {}", err);
             panic!("Node failed.")
         };
+        log::info!("Closing node.")
     });
 
-    // wait for tasks to complete
-    if let Err(err) = node_handle.await {
-        log::error!("Node handle error: {}", err);
-    };
-    if let Err(err) = worker_single_handle.await {
-        log::error!("Workflows single worker handle error: {}", err);
-    };
-    if let Err(err) = worker_batch_handle.await {
-        log::error!("Workflows batch worker handle error: {}", err);
-    };
-    if let Err(err) = p2p_handle.await {
-        log::error!("P2P handle error: {}", err);
-    };
+    // wait for all tasks to finish
+    task_tracker.wait().await;
+    log::info!("All tasks have exited succesfully.");
 
     log::info!("Bye!");
     Ok(())
@@ -168,7 +161,7 @@ async fn wait_for_termination(cancellation: CancellationToken) -> Result<()> {
         cancellation.cancel();
     }
 
-    log::info!("Terminating the node...");
+    log::info!("Terminating the application...");
 
     Ok(())
 }

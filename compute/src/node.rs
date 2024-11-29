@@ -6,6 +6,7 @@ use dkn_p2p::{
     DriaP2PClient, DriaP2PCommander, DriaP2PProtocol,
 };
 use eyre::Result;
+use std::collections::HashSet;
 use tokio::{sync::mpsc, time::Duration};
 use tokio_util::{either::Either, sync::CancellationToken};
 
@@ -32,9 +33,15 @@ pub struct DriaComputeNode {
     /// Publish receiver to receive messages to be published.
     publish_rx: mpsc::Receiver<WorkflowsWorkerOutput>,
     /// Workflow transmitter to send batchable tasks.
-    workflow_batch_tx: mpsc::Sender<WorkflowsWorkerInput>,
+    workflow_batch_tx: Option<mpsc::Sender<WorkflowsWorkerInput>>,
     /// Workflow transmitter to send single tasks.
-    workflow_single_tx: mpsc::Sender<WorkflowsWorkerInput>,
+    workflow_single_tx: Option<mpsc::Sender<WorkflowsWorkerInput>>,
+    // TODO: instead of piggybacking task metadata within channels, we can store them here
+    // in a hashmap alone, and then use the task_id to get the metadata when needed
+    // Single tasks hash-map
+    pending_tasks_single: HashSet<String>,
+    // Batch tasks hash-map
+    pending_tasks_batch: HashSet<String>,
 }
 
 impl DriaComputeNode {
@@ -46,8 +53,8 @@ impl DriaComputeNode {
     ) -> Result<(
         DriaComputeNode,
         DriaP2PClient,
-        WorkflowsWorker,
-        WorkflowsWorker,
+        Option<WorkflowsWorker>,
+        Option<WorkflowsWorker>,
     )> {
         // create the keypair from secret key
         let keypair = secret_to_keypair(&config.secret_key);
@@ -77,8 +84,24 @@ impl DriaComputeNode {
 
         // create workflow workers, all workers use the same publish channel
         let (publish_tx, publish_rx) = mpsc::channel(PUBLISH_CHANNEL_BUFSIZE);
-        let (workflows_batch_worker, workflow_batch_tx) = WorkflowsWorker::new(publish_tx.clone());
-        let (workflows_single_worker, workflow_single_tx) = WorkflowsWorker::new(publish_tx);
+
+        // check if we should create a worker for batchable workflows
+        let (workflows_batch_worker, workflow_batch_tx) = if config.workflows.has_batchable_models()
+        {
+            let worker = WorkflowsWorker::new(publish_tx.clone());
+            (Some(worker.0), Some(worker.1))
+        } else {
+            (None, None)
+        };
+
+        // check if we should create a worker for single workflows
+        let (workflows_single_worker, workflow_single_tx) =
+            if config.workflows.has_non_batchable_models() {
+                let worker = WorkflowsWorker::new(publish_tx);
+                (Some(worker.0), Some(worker.1))
+            } else {
+                (None, None)
+            };
 
         Ok((
             DriaComputeNode {
@@ -89,6 +112,8 @@ impl DriaComputeNode {
                 publish_rx,
                 workflow_batch_tx,
                 workflow_single_tx,
+                pending_tasks_single: HashSet::new(),
+                pending_tasks_batch: HashSet::new(),
             },
             p2p_client,
             workflows_batch_worker,
@@ -119,10 +144,10 @@ impl DriaComputeNode {
     }
 
     /// Returns the task count within the channels, `single` and `batch`.
-    pub fn get_active_task_count(&self) -> [usize; 2] {
+    pub fn get_pending_task_count(&self) -> [usize; 2] {
         [
-            self.workflow_single_tx.max_capacity() - self.workflow_single_tx.capacity(),
-            self.workflow_batch_tx.max_capacity() - self.workflow_batch_tx.capacity(),
+            self.pending_tasks_single.len(),
+            self.pending_tasks_batch.len(),
         ]
     }
 
@@ -202,10 +227,32 @@ impl DriaComputeNode {
                             // we got acceptance, so something was not right about the workflow and we can ignore it
                             Ok(Either::Left(acceptance)) => Ok(acceptance),
                             // we got the parsed workflow itself, send to a worker thread w.r.t batchable
-                            Ok(Either::Right((workflow_message, batchable))) => {
-                                if let Err(e) = match batchable {
-                                    true => self.workflow_batch_tx.send(workflow_message).await,
-                                    false => self.workflow_single_tx.send(workflow_message).await,
+                            Ok(Either::Right(workflow_message)) => {
+                                if let Err(e) = match workflow_message.batchable {
+                                    // this is a batchable task, send it to batch worker
+                                    // and keep track of the task id in pending tasks
+                                    true => match self.workflow_batch_tx {
+                                        Some(ref mut tx) => {
+                                            self.pending_tasks_batch
+                                                .insert(workflow_message.task_id.clone());
+                                            tx.send(workflow_message).await
+                                        }
+                                        None => unreachable!(
+                                            "Batchable workflow received but no worker available."
+                                        ),
+                                    },
+                                    // this is a single task, send it to single worker
+                                    // and keep track of the task id in pending tasks
+                                    false => match self.workflow_single_tx {
+                                        Some(ref mut tx) => {
+                                            self.pending_tasks_single
+                                                .insert(workflow_message.task_id.clone());
+                                            tx.send(workflow_message).await
+                                        }
+                                        None => unreachable!(
+                                            "Single workflow received but no worker available."
+                                        ),
+                                    },
                                 } {
                                     log::error!("Error sending workflow message: {:?}", e);
                                 };
@@ -266,9 +313,16 @@ impl DriaComputeNode {
                 _ = available_node_refresh_interval.tick() => self.handle_available_nodes_refresh().await,
                 // a Workflow message to be published is received from the channel
                 // this is expected to be sent by the workflow worker
-                publish_msg = self.publish_rx.recv() => {
-                    if let Some(result) = publish_msg {
-                        WorkflowHandler::handle_publish(self, result).await?;
+                publish_msg_opt = self.publish_rx.recv() => {
+                    if let Some(publish_msg) = publish_msg_opt {
+                        // remove the task from pending tasks based on its batchability
+                        match publish_msg.batchable {
+                            true => self.pending_tasks_batch.remove(&publish_msg.task_id),
+                            false => self.pending_tasks_single.remove(&publish_msg.task_id),
+                        };
+
+                        // publish the message
+                        WorkflowHandler::handle_publish(self, publish_msg).await?;
                     } else {
                         log::error!("Publish channel closed unexpectedly.");
                         break;
@@ -276,8 +330,8 @@ impl DriaComputeNode {
                 },
                 // a GossipSub message is received from the channel
                 // this is expected to be sent by the p2p client
-                gossipsub_msg = self.message_rx.recv() => {
-                    if let Some((peer_id, message_id, message)) = gossipsub_msg {
+                gossipsub_msg_opt = self.message_rx.recv() => {
+                    if let Some((peer_id, message_id, message)) = gossipsub_msg_opt {
                         // handle the message, returning a message acceptance for the received one
                         let acceptance = self.handle_message((peer_id, &message_id, message)).await;
 
@@ -332,8 +386,8 @@ impl DriaComputeNode {
         }
 
         // print task counts
-        // let [single, batch] = self.get_active_task_count();
-        // log::info!("Active Task Count (single/batch): {} / {}", single, batch);
+        let [single, batch] = self.get_pending_task_count();
+        log::info!("Pending Task Count (single/batch): {} / {}", single, batch);
     }
 
     /// Updates the local list of available nodes by refreshing it.

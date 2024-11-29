@@ -32,7 +32,7 @@ impl WorkflowHandler {
     pub(crate) async fn handle_compute(
         node: &mut DriaComputeNode,
         compute_message: &DKNMessage,
-    ) -> Result<Either<MessageAcceptance, (WorkflowsWorkerInput, bool)>> {
+    ) -> Result<Either<MessageAcceptance, WorkflowsWorkerInput>> {
         let stats = TaskStats::new().record_received_at();
         let task = compute_message
             .parse_payload::<TaskRequestPayload<WorkflowPayload>>(true)
@@ -100,18 +100,16 @@ impl WorkflowHandler {
         // get workflow as well
         let workflow = task.input.workflow;
 
-        Ok(Either::Right((
-            WorkflowsWorkerInput {
-                entry,
-                executor,
-                workflow,
-                model_name,
-                task_id: task.task_id,
-                public_key: task_public_key,
-                stats,
-            },
+        Ok(Either::Right(WorkflowsWorkerInput {
+            entry,
+            executor,
+            workflow,
+            model_name,
+            task_id: task.task_id,
+            public_key: task_public_key,
+            stats,
             batchable,
-        )))
+        }))
     }
 
     /// Handles the result of a workflow task.

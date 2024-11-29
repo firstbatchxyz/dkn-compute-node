@@ -24,7 +24,7 @@ struct PingpongResponse {
     /// Models available in the node.
     pub(crate) models: Vec<(ModelProvider, Model)>,
     /// Number of tasks in the channel currently, `single` and `batch`.
-    pub(crate) active_task_count: [usize; 2],
+    pub(crate) pending_tasks: [usize; 2],
 }
 
 impl PingpongHandler {
@@ -66,7 +66,7 @@ impl PingpongHandler {
         let response_body = PingpongResponse {
             uuid: pingpong.uuid.clone(),
             models: node.config.workflows.models.clone(),
-            active_task_count: node.get_active_task_count(),
+            pending_tasks: node.get_pending_task_count(),
         };
 
         // publish message
