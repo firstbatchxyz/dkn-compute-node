@@ -49,13 +49,12 @@ impl WorkflowsWorker {
     ) -> (WorkflowsWorker, mpsc::Sender<WorkflowsWorkerInput>) {
         let (workflow_tx, workflow_rx) = mpsc::channel(WORKFLOW_CHANNEL_BUFSIZE);
 
-        (
-            Self {
-                workflow_rx,
-                publish_tx,
-            },
-            workflow_tx,
-        )
+        let worker = WorkflowsWorker {
+            workflow_rx,
+            publish_tx,
+        };
+
+        (worker, workflow_tx)
     }
 
     /// Closes the workflow receiver channel.

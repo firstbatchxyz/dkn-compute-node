@@ -248,7 +248,7 @@ impl DriaP2PClient {
                 self.cmd_rx.close();
 
                 // remove own peerId from Kademlia DHT
-                let peer_id = self.swarm.local_peer_id().clone();
+                let peer_id = *self.swarm.local_peer_id();
                 self.swarm.behaviour_mut().kademlia.remove_peer(&peer_id);
 
                 // remove own peerId from Autonat server list

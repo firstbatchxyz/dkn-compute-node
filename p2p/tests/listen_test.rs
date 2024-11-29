@@ -1,30 +1,25 @@
 use dkn_p2p::{DriaP2PClient, DriaP2PProtocol};
 use eyre::Result;
-use libp2p::Multiaddr;
 use libp2p_identity::Keypair;
-use std::{env, str::FromStr};
 
 #[tokio::test]
 #[ignore = "run this manually"]
 async fn test_listen_topic_once() -> Result<()> {
     const TOPIC: &str = "pong";
 
-    env::set_var("RUST_LOG", "none,listen_test=debug,dkn_p2p=debug");
-    let _ = env_logger::builder().is_test(true).try_init();
+    let _ = env_logger::builder()
+        .parse_filters("none,listen_test=debug,dkn_p2p=debug")
+        .is_test(true)
+        .try_init();
 
     // spawn P2P client in another task
     let (client, mut commander, mut msg_rx) = DriaP2PClient::new(
         Keypair::generate_secp256k1(),
-        Multiaddr::from_str("/ip4/0.0.0.0/tcp/4001")?,
-        vec![Multiaddr::from_str(
-            "/ip4/44.206.245.139/tcp/4001/p2p/16Uiu2HAm4q3LZU2T9kgjKK4ysy6KZYKLq8KiXQyae4RHdF7uqSt4",
-        )?].into_iter(),
-        vec![Multiaddr::from_str(
-            "/ip4/34.201.33.141/tcp/4001/p2p/16Uiu2HAkuXiV2CQkC9eJgU6cMnJ9SMARa85FZ6miTkvn5fuHNufa",
-        )?]
-        .into_iter(),
+        "/ip4/0.0.0.0/tcp/4001".parse()?,
+        vec!["/ip4/44.206.245.139/tcp/4001/p2p/16Uiu2HAm4q3LZU2T9kgjKK4ysy6KZYKLq8KiXQyae4RHdF7uqSt4".parse()?].into_iter(),
+        vec!["/ip4/34.201.33.141/tcp/4001/p2p/16Uiu2HAkuXiV2CQkC9eJgU6cMnJ9SMARa85FZ6miTkvn5fuHNufa".parse()?].into_iter(),
         vec![].into_iter(),
-        DriaP2PProtocol::new_major_minor("dria"),
+        DriaP2PProtocol::default(),
     )
     .expect("could not create p2p client");
 
@@ -57,6 +52,7 @@ async fn test_listen_topic_once() -> Result<()> {
 
     // close command channel
     commander.shutdown().await.expect("could not shutdown");
+
     // close message channel
     msg_rx.close();
 
