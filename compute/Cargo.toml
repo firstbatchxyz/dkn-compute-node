@@ -44,6 +44,7 @@ fastbloom-rs = "0.5.9"
 
 # dria subcrates
 dkn-p2p = { path = "../p2p" }
+dkn-utils = { path = "../utils" }
 dkn-workflows = { path = "../workflows" }
 
 # vendor OpenSSL so that its easier to build cross-platform packages

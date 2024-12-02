@@ -1,10 +1,8 @@
-use crate::utils::{
-    crypto::{sha256hash, sign_bytes_recoverable},
-    get_current_time_nanos,
-};
+use crate::utils::crypto::{sha256hash, sign_bytes_recoverable};
 use crate::DRIA_COMPUTE_NODE_VERSION;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use core::fmt;
+use dkn_utils::get_current_time_nanos;
 use ecies::PublicKey;
 use eyre::{eyre, Context, Result};
 use libsecp256k1::{verify, Message, SecretKey, Signature};
@@ -12,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 /// A message within Dria Knowledge Network.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct DKNMessage {
+pub struct DriaMessage {
     /// Base64 encoded payload, stores the main result.
     pub(crate) payload: String,
     /// The topic of the message, derived from `TopicHash`
@@ -39,7 +37,7 @@ pub struct DKNMessage {
 /// and therefore use 128 characters: SIGNATURE_SIZE - 2.
 const SIGNATURE_SIZE_HEX: usize = 130;
 
-impl DKNMessage {
+impl DriaMessage {
     /// Creates a new message with current timestamp and version equal to the crate version.
     ///
     /// - `data` is given as bytes, it is encoded into base64 to make up the `payload` within.
@@ -127,7 +125,7 @@ impl DKNMessage {
     ) -> Result<Self> {
         // the received message is expected to use IdentHash for the topic, so we can see the name of the topic immediately.
         log::debug!("Parsing {} message.", gossipsub_message.topic.as_str());
-        let message = serde_json::from_slice::<DKNMessage>(&gossipsub_message.data)
+        let message = serde_json::from_slice::<DriaMessage>(&gossipsub_message.data)
             .wrap_err("could not parse message")?;
         log::debug!("Parsed: {}", message);
 
@@ -141,7 +139,7 @@ impl DKNMessage {
     }
 }
 
-impl fmt::Display for DKNMessage {
+impl fmt::Display for DriaMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let payload_decoded = self
             .decode_payload()
@@ -156,7 +154,7 @@ impl fmt::Display for DKNMessage {
     }
 }
 
-impl TryFrom<&dkn_p2p::libp2p::gossipsub::Message> for DKNMessage {
+impl TryFrom<&dkn_p2p::libp2p::gossipsub::Message> for DriaMessage {
     type Error = serde_json::Error;
 
     fn try_from(value: &dkn_p2p::libp2p::gossipsub::Message) -> Result<Self, Self::Error> {
@@ -187,7 +185,7 @@ mod tests {
     #[test]
     #[ignore = "run manually"]
     fn test_display_message() {
-        let message = DKNMessage::new(b"hello world", TOPIC);
+        let message = DriaMessage::new(b"hello world", TOPIC);
         println!("{}", message);
     }
 
@@ -196,7 +194,7 @@ mod tests {
         // create payload & message
         let body = TestStruct::default();
         let data = serde_json::to_vec(&body).expect("Should serialize");
-        let message = DKNMessage::new(data, TOPIC);
+        let message = DriaMessage::new(data, TOPIC);
 
         // decode message
         let message_body = message.decode_payload().expect("Should decode");
@@ -223,7 +221,7 @@ mod tests {
         // create payload & message with signature & body
         let body = TestStruct::default();
         let body_str = serde_json::to_string(&body).unwrap();
-        let message = DKNMessage::new_signed(body_str, TOPIC, &sk);
+        let message = DriaMessage::new_signed(body_str, TOPIC, &sk);
 
         // decode message
         let message_body = message.decode_payload().expect("Should decode");

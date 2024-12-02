@@ -1,8 +1,6 @@
-use crate::{
-    utils::{get_current_time_nanos, DKNMessage},
-    DriaComputeNode,
-};
+use crate::{utils::DriaMessage, DriaComputeNode};
 use dkn_p2p::libp2p::gossipsub::MessageAcceptance;
+use dkn_utils::get_current_time_nanos;
 use dkn_workflows::{Model, ModelProvider};
 use eyre::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -42,7 +40,7 @@ impl PingpongHandler {
     /// 7. Returns `MessageAcceptance::Accept` so that ping is propagated to others as well.
     pub(crate) async fn handle_ping(
         node: &mut DriaComputeNode,
-        ping_message: &DKNMessage,
+        ping_message: &DriaMessage,
     ) -> Result<MessageAcceptance> {
         let pingpong = ping_message
             .parse_payload::<PingpongPayload>(true)
@@ -70,7 +68,7 @@ impl PingpongHandler {
         };
 
         // publish message
-        let message = DKNMessage::new_signed(
+        let message = DriaMessage::new_signed(
             serde_json::json!(response_body).to_string(),
             Self::RESPONSE_TOPIC,
             &node.config.secret_key,

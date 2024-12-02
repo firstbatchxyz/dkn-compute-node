@@ -3,7 +3,7 @@ use dkn_p2p::{
         gossipsub::{Message, MessageAcceptance, MessageId},
         PeerId,
     },
-    DriaP2PClient, DriaP2PCommander, DriaP2PProtocol,
+    DriaNodes, DriaP2PClient, DriaP2PCommander, DriaP2PProtocol,
 };
 use eyre::Result;
 use std::collections::HashSet;
@@ -13,7 +13,7 @@ use tokio_util::{either::Either, sync::CancellationToken};
 use crate::{
     config::*,
     handlers::*,
-    utils::{crypto::secret_to_keypair, AvailableNodes, DKNMessage},
+    utils::{crypto::secret_to_keypair, refresh_dria_nodes, DriaMessage},
     workers::workflow::{WorkflowsWorker, WorkflowsWorkerInput, WorkflowsWorkerOutput},
 };
 
@@ -26,7 +26,8 @@ const PUBLISH_CHANNEL_BUFSIZE: usize = 1024;
 
 pub struct DriaComputeNode {
     pub config: DriaComputeNodeConfig,
-    pub available_nodes: AvailableNodes,
+    /// Pre-defined nodes that belong to Dria, e.g. bootstraps, relays and RPCs.
+    pub dria_nodes: DriaNodes,
     /// Peer-to-peer client commander to interact with the network.
     pub p2p: DriaP2PCommander,
     /// Gossipsub message receiver, used by peer-to-peer client in a separate thread.
@@ -63,10 +64,10 @@ impl DriaComputeNode {
         let keypair = secret_to_keypair(&config.secret_key);
 
         // get available nodes (bootstrap, relay, rpc) for p2p
-        let mut available_nodes = AvailableNodes::new(config.network_type);
-        available_nodes.populate_with_statics();
-        available_nodes.populate_with_env();
-        if let Err(e) = available_nodes.populate_with_api().await {
+        let mut available_nodes = DriaNodes::new(config.network_type)
+            .with_statics()
+            .with_envs();
+        if let Err(e) = refresh_dria_nodes(&mut available_nodes).await {
             log::error!("Error populating available nodes: {:?}", e);
         };
 
@@ -81,7 +82,7 @@ impl DriaComputeNode {
             config.p2p_listen_addr.clone(),
             available_nodes.bootstrap_nodes.clone().into_iter(),
             available_nodes.relay_nodes.clone().into_iter(),
-            available_nodes.rpc_addrs.clone().into_iter(),
+            available_nodes.rpc_nodes.clone().into_iter(),
             protocol,
         )?;
 
@@ -110,7 +111,7 @@ impl DriaComputeNode {
             DriaComputeNode {
                 config,
                 p2p: p2p_commander,
-                available_nodes,
+                dria_nodes: available_nodes,
                 message_rx,
                 publish_rx,
                 workflow_batch_tx,
@@ -160,7 +161,7 @@ impl DriaComputeNode {
     ///
     /// Internally, identity is attached to the the message which is then JSON serialized to bytes
     /// and then published to the network as is.
-    pub async fn publish(&mut self, mut message: DKNMessage) -> Result<()> {
+    pub async fn publish(&mut self, mut message: DriaMessage) -> Result<()> {
         // attach protocol name to the message
         message = message.with_identity(self.p2p.protocol().name.clone());
 
@@ -203,17 +204,17 @@ impl DriaComputeNode {
                 );
 
                 // ensure that message is from the known RPCs
-                if !self.available_nodes.rpc_nodes.contains(&source_peer_id) {
+                if !self.dria_nodes.rpc_peerids.contains(&source_peer_id) {
                     log::warn!(
                         "Received message from unauthorized source: {}",
                         source_peer_id
                     );
-                    log::debug!("Allowed sources: {:#?}", self.available_nodes.rpc_nodes);
+                    log::debug!("Allowed sources: {:#?}", self.dria_nodes.rpc_peerids);
                     return MessageAcceptance::Ignore;
                 }
 
                 // parse the raw gossipsub message to a prepared DKN message
-                let message = match DKNMessage::try_from_gossipsub_message(
+                let message = match DriaMessage::try_from_gossipsub_message(
                     &message,
                     &self.config.admin_public_key,
                 ) {
@@ -414,20 +415,22 @@ impl DriaComputeNode {
     /// Updates the local list of available nodes by refreshing it.
     /// Dials the RPC nodes again for better connectivity.
     async fn handle_available_nodes_refresh(&mut self) {
-        log::info!("Refreshing available nodes.");
+        log::info!("Refreshing available Dria nodes.");
 
         // refresh available nodes
-        if let Err(e) = self.available_nodes.populate_with_api().await {
+        if let Err(e) = refresh_dria_nodes(&mut self.dria_nodes).await {
             log::error!("Error refreshing available nodes: {:?}", e);
         };
 
         // dial all rpc nodes
-        for rpc_addr in self.available_nodes.rpc_addrs.iter() {
-            log::debug!("Dialling RPC node: {}", rpc_addr);
+        for rpc_addr in self.dria_nodes.rpc_nodes.iter() {
+            log::info!("Dialling RPC node: {}", rpc_addr);
             if let Err(e) = self.p2p.dial(rpc_addr.clone()).await {
                 log::warn!("Error dialling RPC node: {:?}", e);
             };
         }
+
+        log::info!("Finished refreshing!");
     }
 }
 
@@ -462,7 +465,7 @@ mod tests {
 
         // publish a dummy message
         let topic = "foo";
-        let message = DKNMessage::new("hello from the other side", topic);
+        let message = DriaMessage::new("hello from the other side", topic);
         node.subscribe(topic).await.expect("should subscribe");
         node.publish(message).await.expect("should publish");
         node.unsubscribe(topic).await.expect("should unsubscribe");

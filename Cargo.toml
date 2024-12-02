@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["compute", "p2p", "workflows"]
+members = ["compute", "p2p", "workflows", "utils"]
 # compute node is the default member, until Oracle comes in
 # then, a Launcher will be the default member
 default-members = ["compute"]

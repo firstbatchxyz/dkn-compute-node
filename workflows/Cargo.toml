@@ -25,6 +25,7 @@ reqwest.workspace = true
 
 # utilities
 rand.workspace = true
+dkn-utils = { path = "../utils" }
 
 # logging & errors
 log.workspace = true

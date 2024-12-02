@@ -1,8 +1,7 @@
+use dkn_utils::safe_read_env;
 use eyre::{eyre, Context, Result};
 use reqwest::Client;
 use std::env;
-
-use crate::utils::safe_read_env;
 
 const ENV_VAR_NAME: &str = "SERPER_API_KEY";
 

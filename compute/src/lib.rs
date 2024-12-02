@@ -9,5 +9,5 @@ pub(crate) mod workers;
 /// This value is attached within the published messages.
 pub const DRIA_COMPUTE_NODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-pub use config::{DriaComputeNodeConfig, DriaNetworkType};
+pub use config::DriaComputeNodeConfig;
 pub use node::DriaComputeNode;

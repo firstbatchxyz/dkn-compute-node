@@ -1,8 +1,9 @@
 use crate::{
     apis::{JinaConfig, SerperConfig},
     providers::{GeminiConfig, OllamaConfig, OpenAIConfig, OpenRouterConfig},
-    split_csv_line, Model, ModelProvider,
+    Model, ModelProvider,
 };
+use dkn_utils::split_csv_line;
 use eyre::{eyre, Result};
 use rand::seq::IteratorRandom; // provides Vec<_>.choose
 

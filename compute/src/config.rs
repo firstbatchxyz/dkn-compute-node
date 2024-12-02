@@ -2,39 +2,12 @@ use crate::utils::{
     address_in_use,
     crypto::{secret_to_keypair, to_address},
 };
-use dkn_p2p::libp2p::Multiaddr;
+use dkn_p2p::{libp2p::Multiaddr, DriaNetworkType};
 use dkn_workflows::DriaWorkflowsConfig;
 use eyre::{eyre, Result};
 use libsecp256k1::{PublicKey, SecretKey};
 
 use std::{env, str::FromStr};
-
-/// Network type.
-#[derive(Default, Debug, Clone, Copy)]
-pub enum DriaNetworkType {
-    #[default]
-    Community,
-    Pro,
-}
-
-impl From<&str> for DriaNetworkType {
-    fn from(s: &str) -> Self {
-        match s {
-            "community" => DriaNetworkType::Community,
-            "pro" => DriaNetworkType::Pro,
-            _ => Default::default(),
-        }
-    }
-}
-
-impl DriaNetworkType {
-    pub fn protocol_name(&self) -> &str {
-        match self {
-            DriaNetworkType::Community => "dria",
-            DriaNetworkType::Pro => "dria-sdk",
-        }
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct DriaComputeNodeConfig {

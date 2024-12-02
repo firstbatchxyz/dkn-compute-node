@@ -34,5 +34,7 @@ eyre.workspace = true
 tokio-util.workspace = true
 tokio.workspace = true
 
+dkn-utils = { path = "../utils" }
+
 [dev-dependencies]
 env_logger.workspace = true

@@ -2,10 +2,10 @@ pub mod crypto;
 pub mod filter;
 
 mod message;
-pub use message::DKNMessage;
-
-mod available_nodes;
-pub use available_nodes::AvailableNodes;
+pub use message::DriaMessage;
 
 mod misc;
 pub use misc::*;
+
+mod nodes;
+pub use nodes::*;

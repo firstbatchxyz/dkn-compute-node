@@ -95,7 +95,6 @@ impl DriaP2PClient {
                 Protocol::P2p(peer_id) => Some(peer_id),
                 _ => None,
             }) {
-                log::info!("Dialling peer: {}", addr);
                 swarm.dial(addr.clone())?;
                 log::info!("Adding {} to Kademlia routing table", addr);
                 swarm.behaviour_mut().kademlia.add_address(&peer_id, addr);
@@ -333,6 +332,7 @@ impl DriaP2PClient {
             //         error
             //     );
             // }
+
             // SwarmEvent::IncomingConnection {
             //     connection_id,
             //     local_addr,
@@ -345,6 +345,7 @@ impl DriaP2PClient {
             //         send_back_addr
             //     );
             // }
+
             // SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
             //     if let Some(peer_id) = peer_id {
             //         log::warn!("Could not connect to peer {}: {:?}", peer_id, error);

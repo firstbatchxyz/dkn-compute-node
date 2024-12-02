@@ -1,0 +1,9 @@
+[package]
+name = "dkn-utils"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+readme = "README.md"
+authors = ["Erhan Tezcan <erhan@firstbatch.xyz>"]
+
+[dependencies]

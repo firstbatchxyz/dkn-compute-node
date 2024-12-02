@@ -1,4 +1,5 @@
 use dkn_p2p::libp2p::gossipsub::MessageAcceptance;
+use dkn_utils::get_current_time_nanos;
 use dkn_workflows::{Entry, Executor, ModelProvider, Workflow};
 use eyre::{Context, Result};
 use libsecp256k1::PublicKey;
@@ -6,7 +7,7 @@ use serde::Deserialize;
 use tokio_util::either::Either;
 
 use crate::payloads::{TaskErrorPayload, TaskRequestPayload, TaskResponsePayload, TaskStats};
-use crate::utils::{get_current_time_nanos, DKNMessage};
+use crate::utils::DriaMessage;
 use crate::workers::workflow::*;
 use crate::DriaComputeNode;
 
@@ -31,7 +32,7 @@ impl WorkflowHandler {
 
     pub(crate) async fn handle_compute(
         node: &mut DriaComputeNode,
-        compute_message: &DKNMessage,
+        compute_message: &DriaMessage,
     ) -> Result<Either<MessageAcceptance, WorkflowsWorkerInput>> {
         let stats = TaskStats::new().record_received_at();
         let task = compute_message
@@ -133,7 +134,7 @@ impl WorkflowHandler {
                     task.task_id,
                     payload_str
                 );
-                DKNMessage::new(payload_str, Self::RESPONSE_TOPIC)
+                DriaMessage::new(payload_str, Self::RESPONSE_TOPIC)
             }
             Err(err) => {
                 // use pretty display string for error logging with causes
@@ -150,7 +151,7 @@ impl WorkflowHandler {
                 let error_payload_str = serde_json::json!(error_payload).to_string();
 
                 // prepare signed message
-                DKNMessage::new_signed(
+                DriaMessage::new_signed(
                     error_payload_str,
                     Self::RESPONSE_TOPIC,
                     &node.config.secret_key,
@@ -167,7 +168,7 @@ impl WorkflowHandler {
                 "taskId": task.task_id,
                 "error": err_msg,
             });
-            let message = DKNMessage::new_signed(
+            let message = DriaMessage::new_signed(
                 payload.to_string(),
                 Self::RESPONSE_TOPIC,
                 &node.config.secret_key,

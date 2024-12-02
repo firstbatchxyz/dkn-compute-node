@@ -1,3 +1,5 @@
+use std::{fmt::Debug, str::FromStr, time::SystemTime};
+
 /// Utility to parse comma-separated string value line.
 ///
 /// - Trims `"` from both ends for the input
@@ -23,6 +25,29 @@ pub fn safe_read_env(var: Result<String, std::env::VarError>) -> Option<String> 
     var.map(|s| s.trim_matches('"').trim().to_string())
         .ok()
         .filter(|s| !s.is_empty())
+}
+
+/// Like `parse` of `str` but for vectors.
+pub fn parse_vec<T>(input: Vec<impl AsRef<str> + Debug>) -> Result<Vec<T>, T::Err>
+where
+    T: FromStr,
+{
+    let parsed = input
+        .iter()
+        .map(|s| s.as_ref().parse::<T>())
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(parsed)
+}
+
+/// Returns the current time in nanoseconds since the Unix epoch.
+///
+/// If a `SystemTimeError` occurs, will return 0 just to keep things running.
+pub fn get_current_time_nanos() -> u128 {
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos()
 }
 
 #[cfg(test)]

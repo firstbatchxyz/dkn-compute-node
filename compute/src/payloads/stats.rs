@@ -1,7 +1,6 @@
+use dkn_utils::get_current_time_nanos;
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
-
-use crate::utils::get_current_time_nanos;
 
 /// Task stats for diagnostics.
 /// Returning this as the payload helps to debug the errors received at client side, and latencies.
