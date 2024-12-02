@@ -1,7 +1,6 @@
-# DKN Workflows
+# Dria Workflows
 
-We make use of Ollama Workflows in DKN; however, we also want to make sure that the chosen models are valid and is performant enough (i.e. have enough TPS).
-This crate handles the configurations of models to be used, and implements various service checks.
+We make use of [Ollama Workflows](https://github.com/andthattoo/ollama-workflows) in Dria Knowledge Network; however, we also want to make sure that the chosen models are valid and is performant enough (i.e. have enough TPS). This crate handles the configurations of models to be used, and implements various service checks.
 
 There are two types of services:
 
@@ -20,13 +19,13 @@ Note that the underlying [Ollama Workflows](https://github.com/andthattoo/ollama
 
 ## Usage
 
-DKN Workflows make use of several environment variables, respecting the providers.
+DKN Workflows make use of several environment variables, with respect to several model providers.
 
-- `OLLAMA_HOST` is used to connect to Ollama server
-- `OLLAMA_PORT` is used to connect to Ollama server
+- `OLLAMA_HOST` is used to connect to **Ollama** server
+- `OLLAMA_PORT` is used to connect to **Ollama** server
 - `OLLAMA_AUTO_PULL` indicates whether we should pull missing models automatically or not
-- `OPENAI_API_KEY` is used for OpenAI requests
-- `GEMINI_API_KEY` is used for Gemini requests
+- `OPENAI_API_KEY` is used for **OpenAI** requests
+- `GEMINI_API_KEY` is used for **Gemini** requests
 - `SERPER_API_KEY` is optional API key to use **Serper**, for better Workflow executions
 - `JINA_API_KEY` is optional API key to use **Jina**, for better Workflow executions
 

@@ -1,11 +1,8 @@
+use dkn_utils::safe_read_env;
 use eyre::{eyre, Context, Result};
 use reqwest::Client;
 use std::env;
 
-use crate::utils::safe_read_env;
-
-/// Makes a search request.
-const SERPER_EXAMPLE_ENDPOINT: &str = "https://google.serper.dev/search";
 const ENV_VAR_NAME: &str = "SERPER_API_KEY";
 
 /// Serper-specific configurations.
@@ -45,15 +42,15 @@ impl SerperConfig {
     pub async fn check_optional(&self) -> Result<()> {
         // check API key
         let Some(api_key) = &self.api_key else {
-            log::debug!("Serper API key not found, skipping Serper check");
+            log::info!("Serper API key not found, skipping");
             return Ok(());
         };
-        log::info!("Serper API key found, checking Serper service");
+        log::info!("Serper API key found, checking service");
 
         // make a dummy request
         let client = Client::new();
         let request = client
-            .post(SERPER_EXAMPLE_ENDPOINT)
+            .post("https://google.serper.dev/search")
             .header("X-API-KEY", api_key)
             .header("Content-Type", "application/json")
             .body("{\"q\": \"Your search query here\"}")

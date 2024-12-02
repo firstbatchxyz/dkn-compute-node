@@ -1,10 +1,6 @@
-use super::ComputeHandler;
-use crate::{
-    utils::{get_current_time_nanos, DKNMessage},
-    DriaComputeNode,
-};
-use async_trait::async_trait;
+use crate::{utils::DriaMessage, DriaComputeNode};
 use dkn_p2p::libp2p::gossipsub::MessageAcceptance;
+use dkn_utils::get_current_time_nanos;
 use dkn_workflows::{Model, ModelProvider};
 use eyre::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -13,29 +9,42 @@ pub struct PingpongHandler;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct PingpongPayload {
+    /// UUID of the ping request, prevents replay attacks.
     uuid: String,
+    /// Deadline for the ping request.
     deadline: u128,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct PingpongResponse {
+    /// UUID as given in the ping payload.
     pub(crate) uuid: String,
+    /// Models available in the node.
     pub(crate) models: Vec<(ModelProvider, Model)>,
-    pub(crate) timestamp: u128,
+    /// Number of tasks in the channel currently, `single` and `batch`.
+    pub(crate) pending_tasks: [usize; 2],
 }
 
-#[async_trait]
-impl ComputeHandler for PingpongHandler {
-    const LISTEN_TOPIC: &'static str = "ping";
-    const RESPONSE_TOPIC: &'static str = "pong";
+impl PingpongHandler {
+    pub(crate) const LISTEN_TOPIC: &'static str = "ping";
+    pub(crate) const RESPONSE_TOPIC: &'static str = "pong";
 
-    async fn handle_compute(
+    /// Handles the ping message and responds with a pong message.
+    ///
+    /// 1. Parses the payload of the incoming message into a `PingpongPayload`.
+    /// 2. Checks if the current time is past the deadline specified in the ping request.
+    /// 3. If the current time is past the deadline, logs a debug message and ignores the ping request.
+    /// 4. If the current time is within the deadline, constructs a `PingpongResponse` with the UUID from the ping request, the models from the node's configuration, and the current timestamp.
+    /// 5. Creates a new signed `DKNMessage` with the response body and the `RESPONSE_TOPIC`.
+    /// 6. Publishes the response message.
+    /// 7. Returns `MessageAcceptance::Accept` so that ping is propagated to others as well.
+    pub(crate) async fn handle_ping(
         node: &mut DriaComputeNode,
-        message: DKNMessage,
+        ping_message: &DriaMessage,
     ) -> Result<MessageAcceptance> {
-        let pingpong = message
+        let pingpong = ping_message
             .parse_payload::<PingpongPayload>(true)
-            .wrap_err("Could not parse ping request")?;
+            .wrap_err("could not parse ping request")?;
 
         // check deadline
         let current_time = get_current_time_nanos();
@@ -55,11 +64,11 @@ impl ComputeHandler for PingpongHandler {
         let response_body = PingpongResponse {
             uuid: pingpong.uuid.clone(),
             models: node.config.workflows.models.clone(),
-            timestamp: get_current_time_nanos(),
+            pending_tasks: node.get_pending_task_count(),
         };
 
         // publish message
-        let message = DKNMessage::new_signed(
+        let message = DriaMessage::new_signed(
             serde_json::json!(response_body).to_string(),
             Self::RESPONSE_TOPIC,
             &node.config.secret_key,

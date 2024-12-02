@@ -4,7 +4,6 @@ use ollama_workflows::{
         generation::{
             completion::request::GenerationRequest,
             embeddings::request::{EmbeddingsInput, GenerateEmbeddingsRequest},
-            options::GenerationOptions,
         },
         Ollama,
     },
@@ -107,6 +106,7 @@ impl OllamaConfig {
         );
 
         let ollama = Ollama::new(&self.host, self.port);
+        log::info!("Connecting to Ollama at {}", ollama.url_str());
 
         // fetch local models
         let local_models = match ollama.list_local_models().await {
@@ -128,7 +128,7 @@ impl OllamaConfig {
             if !&local_models.iter().any(|s| s == model) {
                 self.try_pull(&ollama, model.to_owned())
                     .await
-                    .wrap_err("Could not pull model")?;
+                    .wrap_err("could not pull model")?;
             }
         }
 
@@ -139,7 +139,7 @@ impl OllamaConfig {
             if !local_models.contains(&model.to_string()) {
                 self.try_pull(&ollama, model.to_string())
                     .await
-                    .wrap_err("Could not pull model")?;
+                    .wrap_err("could not pull model")?;
             }
 
             if self.test_performance(&ollama, &model).await {
@@ -170,7 +170,7 @@ impl OllamaConfig {
             // otherwise, give error
             log::error!("Please download missing model with: ollama pull {}", model);
             log::error!("Or, set OLLAMA_AUTO_PULL=true to pull automatically.");
-            Err(eyre!("Required model not pulled in Ollama."))
+            Err(eyre!("required model not pulled in Ollama"))
         }
     }
 
@@ -191,19 +191,7 @@ impl OllamaConfig {
             return false;
         };
 
-        let mut generation_request =
-            GenerationRequest::new(model.to_string(), TEST_PROMPT.to_string());
-
-        // FIXME: temporary workaround, can take num threads from outside
-        if let Ok(num_thread) = std::env::var("OLLAMA_NUM_THREAD") {
-            generation_request = generation_request.options(
-                GenerationOptions::default().num_thread(
-                    num_thread
-                        .parse()
-                        .expect("num threads should be a positive integer"),
-                ),
-            );
-        }
+        let generation_request = GenerationRequest::new(model.to_string(), TEST_PROMPT.to_string());
 
         // then, run a sample generation with timeout and measure tps
         tokio::select! {

@@ -17,7 +17,7 @@ impl TaskFilter {
     pub fn contains(&self, address: &[u8]) -> Result<bool> {
         BloomFilter::try_from(self)
             .map(|filter| filter.contains(address))
-            .wrap_err("Could not create filter.")
+            .wrap_err("could not create filter")
     }
 }
 

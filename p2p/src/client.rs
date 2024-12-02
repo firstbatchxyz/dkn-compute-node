@@ -31,9 +31,9 @@ pub struct DriaP2PClient {
 /// Number of seconds before an idle connection is closed.
 const IDLE_CONNECTION_TIMEOUT_SECS: u64 = 60;
 /// Buffer size for command channel.
-const COMMAND_CHANNEL_BUFSIZE: usize = 256;
+const COMMAND_CHANNEL_BUFSIZE: usize = 1024;
 /// Buffer size for events channel.
-const MSG_CHANNEL_BUFSIZE: usize = 256;
+const MSG_CHANNEL_BUFSIZE: usize = 1024;
 
 impl DriaP2PClient {
     /// Creates a new P2P client with the given keypair and listen address.
@@ -95,7 +95,6 @@ impl DriaP2PClient {
                 Protocol::P2p(peer_id) => Some(peer_id),
                 _ => None,
             }) {
-                log::info!("Dialling peer: {}", addr);
                 swarm.dial(addr.clone())?;
                 log::info!("Adding {} to Kademlia routing table", addr);
                 swarm.behaviour_mut().kademlia.add_address(&peer_id, addr);
@@ -147,7 +146,6 @@ impl DriaP2PClient {
     ///
     /// To terminate, the command channel must be closed.
     pub async fn run(mut self) {
-        // FIXME: use refresh peers somewhere
         loop {
             tokio::select! {
                 event = self.swarm.select_next_some() => self.handle_event(event).await,
@@ -155,7 +153,7 @@ impl DriaP2PClient {
                     Some(c) => self.handle_command(c).await,
                     // channel closed, thus shutting down the network event loop
                     None=>  {
-                        log::warn!("Closing P2P client.");
+                        log::info!("Closing peer-to-peer client.");
                         return
                     },
                 },
@@ -245,7 +243,16 @@ impl DriaP2PClient {
                 let _ = sender.send((mesh, all));
             }
             DriaP2PCommand::Shutdown { sender } => {
+                // close the command channel
                 self.cmd_rx.close();
+
+                // remove own peerId from Kademlia DHT
+                let peer_id = *self.swarm.local_peer_id();
+                self.swarm.behaviour_mut().kademlia.remove_peer(&peer_id);
+
+                // remove own peerId from Autonat server list
+                self.swarm.behaviour_mut().autonat.remove_server(&peer_id);
+
                 let _ = sender.send(());
             }
         }
@@ -265,18 +272,22 @@ impl DriaP2PClient {
                 }
             }
 
+            // kademlia events
             SwarmEvent::Behaviour(DriaBehaviourEvent::Kademlia(
                 kad::Event::OutboundQueryProgressed {
                     result: QueryResult::GetClosestPeers(result),
                     ..
                 },
             )) => self.handle_closest_peers_result(result),
+
+            // identify events
             SwarmEvent::Behaviour(DriaBehaviourEvent::Identify(identify::Event::Received {
                 peer_id,
                 info,
                 ..
             })) => self.handle_identify_event(peer_id, info),
 
+            // autonat events
             SwarmEvent::Behaviour(DriaBehaviourEvent::Autonat(autonat::Event::StatusChanged {
                 old,
                 new,
@@ -284,13 +295,64 @@ impl DriaP2PClient {
                 log::warn!("AutoNAT status changed from {:?} to {:?}", old, new);
             }
 
+            // log listen addreses
             SwarmEvent::NewListenAddr { address, .. } => {
                 log::warn!("Local node is listening on {}", address);
             }
+
+            // add external address of peers to Kademlia routing table
+            SwarmEvent::NewExternalAddrOfPeer { peer_id, address } => {
+                self.swarm
+                    .behaviour_mut()
+                    .kademlia
+                    .add_address(&peer_id, address);
+            }
+            // add your own peer_id to kademlia as well
             SwarmEvent::ExternalAddrConfirmed { address } => {
                 // this is usually the external address via relay
                 log::info!("External address confirmed: {}", address);
+                let peer_id = *self.swarm.local_peer_id();
+                self.swarm
+                    .behaviour_mut()
+                    .kademlia
+                    .add_address(&peer_id, address);
             }
+
+            // SwarmEvent::IncomingConnectionError {
+            //     local_addr,
+            //     send_back_addr,
+            //     error,
+            //     connection_id,
+            // } => {
+            //     log::debug!(
+            //         "Incoming connection {} error: from {} to {} - {:?}",
+            //         connection_id,
+            //         local_addr,
+            //         send_back_addr,
+            //         error
+            //     );
+            // }
+
+            // SwarmEvent::IncomingConnection {
+            //     connection_id,
+            //     local_addr,
+            //     send_back_addr,
+            // } => {
+            //     log::debug!(
+            //         "Incoming connection {} attepmt: from {} to {}",
+            //         connection_id,
+            //         local_addr,
+            //         send_back_addr
+            //     );
+            // }
+
+            // SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
+            //     if let Some(peer_id) = peer_id {
+            //         log::warn!("Could not connect to peer {}: {:?}", peer_id, error);
+            //     } else {
+            //         log::warn!("Outgoing connection error: {:?}", error);
+            //     }
+            // }
             event => log::trace!("Unhandled Swarm Event: {:?}", event),
         }
     }

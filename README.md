@@ -28,17 +28,13 @@
 
 ## About
 
-A **Dria Compute Node** is a unit of computation within the Dria Knowledge Network. It's purpose is to process tasks given by the **Dria Admin Node**. To get started, see [node guide](./docs/NODE_GUIDE.md)!
-
-### Tasks
-
 Compute nodes can technically do any arbitrary task, from computing the square root of a given number to finding LLM outputs from a given prompt, or validating an LLM's output with respect to knowledge available on the web accessed via tools.
 
-- **Ping/Pong**: Dria Admin Node broadcasts **ping** messages at a set interval, it is a required duty of the compute node to respond with a **pong** to these so that they can be included in the list of available nodes for task assignment. These tasks will respect the type of model provided within the pong message, e.g. if a task requires `gpt-4o` and you are running `phi3`, you won't be selected for that task.
+- **Heartbeats**: Every few seconds, a heartbeat ping is published into the network, and every compute node responds with a digitally-signed pong message to indicate that they are alive, along with additional information such as which nodes they are running & how many tasks they have so far.
 
-- **Workflows**: Each task is given in the form of a workflow, based on [Ollama Workflows](https://github.com/andthattoo/ollama-workflows). In simple terms, each workflow defines the agentic behavior of an LLM, all captured in a single JSON file, and can represent things ranging from simple LLM generations to iterative web searching.
+- **Workflows**: Each task is given in the form of a [workflow](https://github.com/andthattoo/ollama-workflows). Every workflow defines an agentic behavior for the chosen LLM, all captured in a single JSON file, and can represent things ranging from simple LLM generations to iterative web searching & reasoning.
 
-## Node Running
+### Running a Node
 
 Refer to [node guide](./docs/NODE_GUIDE.md) to quickly get started and run your own node!
 

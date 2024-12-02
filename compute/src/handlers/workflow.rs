@@ -1,23 +1,21 @@
-use std::time::Instant;
-
-use async_trait::async_trait;
 use dkn_p2p::libp2p::gossipsub::MessageAcceptance;
-use dkn_workflows::{Entry, Executor, ModelProvider, ProgramMemory, Workflow};
-use eyre::{eyre, Context, Result};
+use dkn_utils::get_current_time_nanos;
+use dkn_workflows::{Entry, Executor, ModelProvider, Workflow};
+use eyre::{Context, Result};
 use libsecp256k1::PublicKey;
 use serde::Deserialize;
+use tokio_util::either::Either;
 
 use crate::payloads::{TaskErrorPayload, TaskRequestPayload, TaskResponsePayload, TaskStats};
-use crate::utils::{get_current_time_nanos, DKNMessage};
+use crate::utils::DriaMessage;
+use crate::workers::workflow::*;
 use crate::DriaComputeNode;
-
-use super::ComputeHandler;
 
 pub struct WorkflowHandler;
 
 #[derive(Debug, Deserialize)]
 struct WorkflowPayload {
-    /// [Workflow](https://github.com/andthattoo/ollama-workflows/) object to be parsed.
+    /// [Workflow](https://github.com/andthattoo/ollama-workflows/blob/main/src/program/workflow.rs) object to be parsed.
     pub(crate) workflow: Workflow,
     /// A lıst of model (that can be parsed into `Model`) or model provider names.
     /// If model provider is given, the first matching model in the node config is used for that.
@@ -28,19 +26,18 @@ struct WorkflowPayload {
     pub(crate) prompt: Option<String>,
 }
 
-#[async_trait]
-impl ComputeHandler for WorkflowHandler {
-    const LISTEN_TOPIC: &'static str = "task";
-    const RESPONSE_TOPIC: &'static str = "results";
+impl WorkflowHandler {
+    pub(crate) const LISTEN_TOPIC: &'static str = "task";
+    pub(crate) const RESPONSE_TOPIC: &'static str = "results";
 
-    async fn handle_compute(
+    pub(crate) async fn handle_compute(
         node: &mut DriaComputeNode,
-        message: DKNMessage,
-    ) -> Result<MessageAcceptance> {
-        let task = message
+        compute_message: &DriaMessage,
+    ) -> Result<Either<MessageAcceptance, WorkflowsWorkerInput>> {
+        let stats = TaskStats::new().record_received_at();
+        let task = compute_message
             .parse_payload::<TaskRequestPayload<WorkflowPayload>>(true)
-            .wrap_err("Could not parse workflow task")?;
-        let mut task_stats = TaskStats::default().record_received_at();
+            .wrap_err("could not parse workflow task")?;
 
         // check if deadline is past or not
         let current_time = get_current_time_nanos();
@@ -53,19 +50,22 @@ impl ComputeHandler for WorkflowHandler {
             );
 
             // ignore the message
-            return Ok(MessageAcceptance::Ignore);
+            return Ok(Either::Left(MessageAcceptance::Ignore));
         }
 
         // check task inclusion via the bloom filter
         if !task.filter.contains(&node.config.address)? {
-            log::info!(
-                "Task {} does not include this node within the filter.",
-                task.task_id
-            );
+            log::info!("Task {} ignored due to filter.", task.task_id);
 
             // accept the message, someone else may be included in filter
-            return Ok(MessageAcceptance::Accept);
+            return Ok(Either::Left(MessageAcceptance::Accept));
         }
+
+        // obtain public key from the payload
+        // do this early to avoid unnecessary processing
+        let task_public_key_bytes =
+            hex::decode(&task.public_key).wrap_err("could not decode public key")?;
+        let task_public_key = PublicKey::parse_slice(&task_public_key_bytes, None)?;
 
         // read model / provider from the task
         let (model_provider, model) = node
@@ -76,63 +76,65 @@ impl ComputeHandler for WorkflowHandler {
         log::info!("Using model {} for task {}", model_name, task.task_id);
 
         // prepare workflow executor
-        let executor = if model_provider == ModelProvider::Ollama {
-            Executor::new_at(
-                model,
-                &node.config.workflows.ollama.host,
-                node.config.workflows.ollama.port,
+        let (executor, batchable) = if model_provider == ModelProvider::Ollama {
+            (
+                Executor::new_at(
+                    model,
+                    &node.config.workflows.ollama.host,
+                    node.config.workflows.ollama.port,
+                ),
+                false,
             )
         } else {
-            Executor::new(model)
+            (Executor::new(model), true)
         };
-        let mut memory = ProgramMemory::new();
+
+        // prepare entry from prompt
         let entry: Option<Entry> = task
             .input
             .prompt
             .map(|prompt| Entry::try_value_or_str(&prompt));
 
-        // execute workflow with cancellation
-        let exec_result: Result<String>;
-        let exec_started_at = Instant::now();
-        tokio::select! {
-            _ = node.cancellation.cancelled() => {
-                log::info!("Received cancellation, quitting all tasks.");
-                return Ok(MessageAcceptance::Accept);
-            },
-            exec_result_inner = executor.execute(entry.as_ref(), &task.input.workflow, &mut memory) => {
-                exec_result = exec_result_inner.map_err(|e| eyre!("Execution error: {}", e.to_string()));
-            }
-        }
-        task_stats = task_stats.record_execution_time(exec_started_at);
+        // get workflow as well
+        let workflow = task.input.workflow;
 
-        let (message, acceptance) = match exec_result {
+        Ok(Either::Right(WorkflowsWorkerInput {
+            entry,
+            executor,
+            workflow,
+            model_name,
+            task_id: task.task_id,
+            public_key: task_public_key,
+            stats,
+            batchable,
+        }))
+    }
+
+    /// Handles the result of a workflow task.
+    pub(crate) async fn handle_publish(
+        node: &mut DriaComputeNode,
+        task: WorkflowsWorkerOutput,
+    ) -> Result<()> {
+        let message = match task.result {
             Ok(result) => {
-                // obtain public key from the payload
-                let task_public_key_bytes =
-                    hex::decode(&task.public_key).wrap_err("Could not decode public key")?;
-                let task_public_key = PublicKey::parse_slice(&task_public_key_bytes, None)?;
-
                 // prepare signed and encrypted payload
                 let payload = TaskResponsePayload::new(
                     result,
                     &task.task_id,
-                    &task_public_key,
+                    &task.public_key,
                     &node.config.secret_key,
-                    model_name,
-                    task_stats.record_published_at(),
+                    task.model_name,
+                    task.stats.record_published_at(),
                 )?;
-                let payload_str = serde_json::to_string(&payload)
-                    .wrap_err("Could not serialize response payload")?;
 
-                // prepare signed message
+                // convert payload to message
+                let payload_str = serde_json::json!(payload).to_string();
                 log::debug!(
                     "Publishing result for task {}\n{}",
                     task.task_id,
                     payload_str
                 );
-                let message = DKNMessage::new(payload_str, Self::RESPONSE_TOPIC);
-                // accept so that if there are others included in filter they can do the task
-                (message, MessageAcceptance::Accept)
+                DriaMessage::new(payload_str, Self::RESPONSE_TOPIC)
             }
             Err(err) => {
                 // use pretty display string for error logging with causes
@@ -143,40 +145,38 @@ impl ComputeHandler for WorkflowHandler {
                 let error_payload = TaskErrorPayload {
                     task_id: task.task_id.clone(),
                     error: err_string,
-                    model: model_name,
-                    stats: task_stats.record_published_at(),
+                    model: task.model_name,
+                    stats: task.stats.record_published_at(),
                 };
-                let error_payload_str = serde_json::to_string(&error_payload)
-                    .wrap_err("Could not serialize error payload")?;
+                let error_payload_str = serde_json::json!(error_payload).to_string();
 
                 // prepare signed message
-                let message = DKNMessage::new_signed(
+                DriaMessage::new_signed(
                     error_payload_str,
                     Self::RESPONSE_TOPIC,
                     &node.config.secret_key,
-                );
-                // ignore just in case, workflow may be bugged
-                (message, MessageAcceptance::Ignore)
+                )
             }
         };
 
         // try publishing the result
         if let Err(publish_err) = node.publish(message).await {
-            let err_msg = format!("Could not publish result: {:?}", publish_err);
+            let err_msg = format!("could not publish result: {:?}", publish_err);
             log::error!("{}", err_msg);
 
             let payload = serde_json::json!({
                 "taskId": task.task_id,
                 "error": err_msg,
             });
-            let message = DKNMessage::new_signed(
+            let message = DriaMessage::new_signed(
                 payload.to_string(),
                 Self::RESPONSE_TOPIC,
                 &node.config.secret_key,
             );
-            node.publish(message).await?;
-        }
 
-        Ok(acceptance)
+            node.publish(message).await?;
+        };
+
+        Ok(())
     }
 }

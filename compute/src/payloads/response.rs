@@ -88,26 +88,25 @@ mod tests {
             MODEL.to_string(),
             Default::default(),
         )
-        .expect("Should create payload");
+        .expect("to create payload");
 
         // decrypt result and compare it to plaintext
         let ciphertext_bytes = hex::decode(payload.ciphertext).unwrap();
-        let result = decrypt(&task_sk.serialize(), &ciphertext_bytes).expect("Could not decrypt");
+        let result = decrypt(&task_sk.serialize(), &ciphertext_bytes).expect("to decrypt");
         assert_eq!(result, RESULT, "Result mismatch");
 
         // verify signature
-        let signature_bytes = hex::decode(payload.signature).expect("Should decode");
+        let signature_bytes = hex::decode(payload.signature).expect("to decode");
         let signature = Signature::parse_standard_slice(&signature_bytes[..64]).unwrap();
         let recid = RecoveryId::parse(signature_bytes[64]).unwrap();
         let mut preimage = vec![];
         preimage.extend_from_slice(task_id.as_bytes());
         preimage.extend_from_slice(&result);
         let message = Message::parse(&sha256hash(preimage));
-        assert!(verify(&message, &signature, &signer_pk), "Could not verify");
+        assert!(verify(&message, &signature, &signer_pk), "could not verify");
 
         // recover verifying key (public key) from signature
-        let recovered_public_key =
-            recover(&message, &signature, &recid).expect("Could not recover");
-        assert_eq!(signer_pk, recovered_public_key, "Public key mismatch");
+        let recovered_public_key = recover(&message, &signature, &recid).expect("to recover");
+        assert_eq!(signer_pk, recovered_public_key, "public key mismatch");
     }
 }

@@ -1,6 +1,6 @@
 #[cfg(not(feature = "profiling"))]
 fn main() {
-    unimplemented!("This binary requires the 'profiling' feature to be enabled");
+    unimplemented!("this binary requires the 'profiling' feature to be enabled");
 }
 
 #[cfg(feature = "profiling")]

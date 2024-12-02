@@ -1,10 +1,9 @@
+use dkn_utils::safe_read_env;
 use eyre::{eyre, Context, Result};
 use ollama_workflows::Model;
 use reqwest::Client;
 use serde::Deserialize;
 use std::env;
-
-use crate::utils::safe_read_env;
 
 const ENV_VAR_NAME: &str = "OPENAI_API_KEY";
 
@@ -110,7 +109,7 @@ impl OpenAIConfig {
                 response
                     .text()
                     .await
-                    .unwrap_or("Could not get error text as well".to_string())
+                    .unwrap_or("could not get error text as well".to_string())
             ))
         } else {
             let openai_models = response.json::<OpenAIModelsResponse>().await?;
@@ -153,7 +152,7 @@ impl OpenAIConfig {
                 response
                     .text()
                     .await
-                    .unwrap_or("Could not get error text as well".to_string())
+                    .unwrap_or("could not get error text as well".to_string())
             ));
         }
         log::debug!("Dummy request successful for model {}", model);

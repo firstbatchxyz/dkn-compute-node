@@ -1,10 +1,9 @@
+use dkn_utils::get_current_time_nanos;
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
 
-use crate::utils::get_current_time_nanos;
-
-/// A task stat.
-/// Returning this as the payload helps to debug the errors received at client side.
+/// Task stats for diagnostics.
+/// Returning this as the payload helps to debug the errors received at client side, and latencies.
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskStats {
@@ -17,6 +16,10 @@ pub struct TaskStats {
 }
 
 impl TaskStats {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     /// Records the current timestamp within `received_at`.
     pub fn record_received_at(mut self) -> Self {
         // can unwrap safely here as UNIX_EPOCH is always smaller than now
@@ -30,6 +33,7 @@ impl TaskStats {
         self
     }
 
+    /// Records the execution time of the task.
     pub fn record_execution_time(mut self, started_at: Instant) -> Self {
         self.execution_time = Instant::now().duration_since(started_at).as_nanos();
         self

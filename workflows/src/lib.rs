@@ -3,9 +3,6 @@ pub use providers::OllamaConfig;
 
 mod apis;
 
-mod utils;
-pub use utils::split_csv_line;
-
 mod config;
 pub use config::DriaWorkflowsConfig;
 

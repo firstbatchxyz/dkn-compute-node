@@ -1,19 +1,22 @@
 use dkn_compute::*;
 use eyre::Result;
 use std::env;
-use tokio_util::sync::CancellationToken;
+use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let dotenv_result = dotenvy::dotenv();
-    // TODO: remove me later when the launcher is fixed
-    amend_log_levels();
 
     env_logger::builder()
         .format_timestamp(Some(env_logger::TimestampPrecision::Millis))
+        .filter(None, log::LevelFilter::Off)
+        .filter_module("dkn_compute", log::LevelFilter::Info)
+        .filter_module("dkn_p2p", log::LevelFilter::Info)
+        .filter_module("dkn_workflows", log::LevelFilter::Info)
+        .parse_default_env() // reads RUST_LOG variable
         .init();
     if let Err(e) = dotenv_result {
-        log::warn!("Could not load .env file: {}", e);
+        log::warn!("could not load .env file: {}", e);
     }
 
     log::info!(
@@ -28,75 +31,82 @@ async fn main() -> Result<()> {
 "#
     );
 
-    let token = CancellationToken::new();
-    let cancellation_token = token.clone();
+    // task tracker for multiple threads
+    let task_tracker = TaskTracker::new();
+    let cancellation = CancellationToken::new();
+
+    // spawn the background task to wait for termination signals
+    let task_tracker_to_close = task_tracker.clone();
+    let cancellation_token = cancellation.clone();
     tokio::spawn(async move {
         if let Ok(Ok(duration_secs)) =
             env::var("DKN_EXIT_TIMEOUT").map(|s| s.to_string().parse::<u64>())
         {
+            // the timeout is done for profiling only, and should not be used in production
             log::warn!("Waiting for {} seconds before exiting.", duration_secs);
             tokio::time::sleep(tokio::time::Duration::from_secs(duration_secs)).await;
 
             log::warn!("Exiting due to DKN_EXIT_TIMEOUT.");
+
             cancellation_token.cancel();
         } else if let Err(err) = wait_for_termination(cancellation_token.clone()).await {
+            // if there is no timeout, we wait for termination signals here
             log::error!("Error waiting for termination: {:?}", err);
             log::error!("Cancelling due to unexpected error.");
             cancellation_token.cancel();
         };
+
+        // close tracker in any case
+        task_tracker_to_close.close();
     });
 
     // create configurations & check required services & address in use
     let mut config = DriaComputeNodeConfig::new();
     config.assert_address_not_in_use()?;
-    let service_check_token = token.clone();
-    let config = tokio::spawn(async move {
-        tokio::select! {
-            result = config.workflows.check_services() => {
-                if let Err(err) = result {
-                    log::error!("Error checking services: {:?}", err);
-                    panic!("Service check failed.")
-                }
-                log::warn!("Using models: {:#?}", config.workflows.models);
-                config
-            }
-            _ = service_check_token.cancelled() => {
-                log::info!("Service check cancelled.");
-                config
-            }
+    // check services & models, will exit if there is an error
+    // since service check can take time, we allow early-exit here as well
+    tokio::select! {
+        result = config.workflows.check_services() => result,
+        _ = cancellation.cancelled() => {
+            log::info!("Service check cancelled, exiting.");
+            return Ok(());
         }
-    })
-    .await?;
+    }?;
+    log::warn!("Using models: {:#?}", config.workflows.models);
 
-    // check early exit due to failed service check
-    if token.is_cancelled() {
-        log::warn!("Not launching node due to early exit, bye!");
-        return Ok(());
+    // create the node
+    let (mut node, p2p, worker_batch, worker_single) = DriaComputeNode::new(config).await?;
+
+    // spawn p2p client first
+    log::info!("Spawning peer-to-peer client thread.");
+    task_tracker.spawn(async move { p2p.run().await });
+
+    // spawn batch worker thread if we are using such models (e.g. OpenAI, Gemini, OpenRouter)
+    if let Some(mut worker_batch) = worker_batch {
+        log::info!("Spawning workflows batch worker thread.");
+        task_tracker.spawn(async move { worker_batch.run_batch().await });
     }
 
-    let node_token = token.clone();
-    let (mut node, p2p) = DriaComputeNode::new(config, node_token).await?;
+    // spawn single worker thread if we are using such models (e.g. Ollama)
+    if let Some(mut worker_single) = worker_single {
+        log::info!("Spawning workflows single worker thread.");
+        task_tracker.spawn(async move { worker_single.run().await });
+    }
 
-    // launch the p2p in a separate thread
-    log::info!("Spawning peer-to-peer client thread.");
-    let p2p_handle = tokio::spawn(async move { p2p.run().await });
-
-    // launch the node in a separate thread
+    // spawn compute node thread
     log::info!("Spawning compute node thread.");
-    let node_handle = tokio::spawn(async move {
-        if let Err(err) = node.launch().await {
+    let node_token = cancellation.clone();
+    task_tracker.spawn(async move {
+        if let Err(err) = node.run(node_token).await {
             log::error!("Node launch error: {}", err);
             panic!("Node failed.")
         };
+        log::info!("Closing node.")
     });
 
-    // wait for tasks to complete
-    if let Err(err) = node_handle.await {
-        log::error!("Node handle error: {}", err);
-    };
-    if let Err(err) = p2p_handle.await {
-        log::error!("P2P handle error: {}", err);
-    };
+    // wait for all tasks to finish
+    task_tracker.wait().await;
+    log::info!("All tasks have exited succesfully.");
 
     log::info!("Bye!");
     Ok(())
@@ -155,41 +165,7 @@ async fn wait_for_termination(cancellation: CancellationToken) -> Result<()> {
         cancellation.cancel();
     }
 
-    log::info!("Terminating the node...");
+    log::info!("Terminating the application...");
 
     Ok(())
-}
-
-// #[deprecated]
-/// Very CRUDE fix due to launcher log level bug
-///
-/// TODO: remove me later when the launcher is fixed
-pub fn amend_log_levels() {
-    if let Ok(rust_log) = std::env::var("RUST_LOG") {
-        let log_level = if rust_log.contains("dkn_compute=info") {
-            "info"
-        } else if rust_log.contains("dkn_compute=debug") {
-            "debug"
-        } else if rust_log.contains("dkn_compute=trace") {
-            "trace"
-        } else {
-            return;
-        };
-
-        // check if it contains other log levels
-        let mut new_rust_log = rust_log.clone();
-        if !rust_log.contains("dkn_p2p") {
-            new_rust_log = format!("{},{}={}", new_rust_log, "dkn_p2p", log_level);
-        }
-        if !rust_log.contains("dkn_workflows") {
-            new_rust_log = format!("{},{}={}", new_rust_log, "dkn_workflows", log_level);
-        }
-        std::env::set_var("RUST_LOG", new_rust_log);
-    } else {
-        // TODO: use env_logger default function instead of this
-        std::env::set_var(
-            "RUST_LOG",
-            "none,dkn_compute=info,dkn_p2p=info,dkn_workflows=info",
-        );
-    }
 }
