@@ -11,7 +11,7 @@ launch:
 
 .PHONY: run #          | Run with INFO logs
 run:
-		RUST_LOG=none,dkn_compute=info,dkn_workflows=info,dkn_p2p=info cargo run
+		cargo run
 
 .PHONY: debug #        | Run with DEBUG logs with INFO log-level workflows
 debug:

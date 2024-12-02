@@ -9,6 +9,11 @@ async fn main() -> Result<()> {
 
     env_logger::builder()
         .format_timestamp(Some(env_logger::TimestampPrecision::Millis))
+        .filter(None, log::LevelFilter::Off)
+        .filter_module("dkn_compute", log::LevelFilter::Info)
+        .filter_module("dkn_p2p", log::LevelFilter::Info)
+        .filter_module("dkn_workflows", log::LevelFilter::Info)
+        .parse_default_env() // reads RUST_LOG variable
         .init();
     if let Err(e) = dotenv_result {
         log::warn!("could not load .env file: {}", e);
