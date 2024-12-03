@@ -1006,6 +1006,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "dkn-monitor"
+version = "0.2.25"
+dependencies = [
+ "async-trait",
+ "dkn-compute",
+ "dkn-p2p",
+ "dkn-utils",
+ "dotenvy",
+ "env_logger 0.11.5",
+ "eyre",
+ "libsecp256k1",
+ "log",
+ "reqwest 0.12.9",
+ "serde",
+ "serde_json",
+ "tokio 1.41.1",
+ "tokio-util 0.7.12",
+]
+
+[[package]]
 name = "dkn-p2p"
 version = "0.2.25"
 dependencies = [

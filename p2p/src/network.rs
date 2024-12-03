@@ -20,6 +20,16 @@ impl From<&str> for DriaNetworkType {
     }
 }
 
+impl std::fmt::Display for DriaNetworkType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DriaNetworkType::Community => write!(f, "community"),
+            DriaNetworkType::Pro => write!(f, "pro"),
+            DriaNetworkType::Test => write!(f, "test"),
+        }
+    }
+}
+
 impl DriaNetworkType {
     /// Returns the protocol name.
     pub fn protocol_name(&self) -> &str {

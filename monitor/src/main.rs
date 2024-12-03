@@ -1,8 +1,11 @@
-use dkn_compute::{refresh_dria_nodes, DriaMonitorNode};
+use dkn_compute::refresh_dria_nodes;
 use dkn_p2p::{
     libp2p_identity::Keypair, DriaNetworkType, DriaNodes, DriaP2PClient, DriaP2PProtocol,
 };
 use tokio_util::sync::CancellationToken;
+
+mod node;
+use node::DriaMonitorNode;
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
@@ -10,24 +13,26 @@ async fn main() -> eyre::Result<()> {
 
     env_logger::builder()
         .filter(None, log::LevelFilter::Off)
-        .filter_module("dkn_p2p", log::LevelFilter::Info)
+        .filter_module("dkn_p2p", log::LevelFilter::Warn)
         .filter_module("dkn_compute", log::LevelFilter::Info)
-        .filter_module("monitor", log::LevelFilter::Info)
+        .filter_module("dkn_monitor", log::LevelFilter::Info)
         .parse_default_env() // reads RUST_LOG variable
         .init();
 
-    log::info!("Starting Dria Task Monitor");
-
-    let network = DriaNetworkType::Pro;
+    let network = std::env::var("DKN_NETWORK")
+        .map(|s| DriaNetworkType::from(s.as_str()))
+        .unwrap_or(DriaNetworkType::Pro);
     let mut nodes = DriaNodes::new(network);
     refresh_dria_nodes(&mut nodes).await?;
 
     // setup p2p client
+    let listen_addr = "/ip4/0.0.0.0/tcp/4069".parse()?;
+    log::info!("Listen Address: {}", listen_addr);
     let keypair = Keypair::generate_secp256k1();
     log::info!("PeerID: {}", keypair.public().to_peer_id());
     let (client, commander, msg_rx) = DriaP2PClient::new(
-        Keypair::generate_secp256k1(),
-        "/ip4/0.0.0.0/tcp/4069".parse()?,
+        keypair,
+        listen_addr,
         nodes.bootstrap_nodes.into_iter(),
         nodes.relay_nodes.into_iter(),
         nodes.rpc_nodes.into_iter(),
@@ -54,6 +59,11 @@ async fn main() -> eyre::Result<()> {
     });
 
     // create monitor node
+    log::info!(
+        "Monitoring {} network (protocol: {}).",
+        network,
+        network.protocol_name()
+    );
     let mut monitor = DriaMonitorNode::new(commander, msg_rx);
 
     // setup monitor

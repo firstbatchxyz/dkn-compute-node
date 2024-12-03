@@ -12,22 +12,22 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriaMessage {
     /// Base64 encoded payload, stores the main result.
-    pub(crate) payload: String,
+    pub payload: String,
     /// The topic of the message, derived from `TopicHash`
     ///
     /// NOTE: This can be obtained via `TopicHash` in GossipSub
-    pub(crate) topic: String,
+    pub topic: String,
     /// The version of the Dria Compute Node
     ///
     /// NOTE: This can be obtained via Identify protocol version
-    pub(crate) version: String,
+    pub version: String,
     /// Identity protocol string of the Dria Compute Node
     #[serde(default)]
-    pub(crate) identity: String,
+    pub identity: String,
     /// The timestamp of the message, in nanoseconds
     ///
     /// NOTE: This can be obtained via `DataTransform` in GossipSub
-    pub(crate) timestamp: u128,
+    pub timestamp: u128,
 }
 
 /// 65-byte signature as hex characters take up 130 characters.
@@ -79,7 +79,7 @@ impl DriaMessage {
     }
 
     /// Decodes and parses the base64 payload into JSON for the provided type `T`.
-    pub(crate) fn parse_payload<T: for<'a> Deserialize<'a>>(&self, signed: bool) -> Result<T> {
+    pub fn parse_payload<T: for<'a> Deserialize<'a>>(&self, signed: bool) -> Result<T> {
         let payload = self.decode_payload()?;
 
         let body = if signed {

@@ -8,11 +8,11 @@ pub struct TaskRequestPayload<T> {
     /// The unique identifier of the task.
     pub task_id: String,
     /// The deadline of the task in nanoseconds.
-    pub(crate) deadline: u128,
+    pub deadline: u128,
     /// The input to the compute function.
-    pub(crate) input: T,
+    pub input: T,
     /// The Bloom filter of the task.
-    pub(crate) filter: TaskFilter,
+    pub filter: TaskFilter,
     /// The public key of the requester, in hexadecimals.
-    pub(crate) public_key: String,
+    pub public_key: String,
 }

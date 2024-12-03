@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{
+use dkn_compute::{
     handlers::{WorkflowHandler, WorkflowPayload},
     payloads::{TaskRequestPayload, TaskResponsePayload},
     utils::DriaMessage,
@@ -56,6 +56,9 @@ impl DriaMonitorNode {
         self.p2p.shutdown().await?;
         self.msg_rx.close();
 
+        // print tasks one final time
+        self.handle_task_print();
+
         Ok(())
     }
 
@@ -65,16 +68,16 @@ impl DriaMonitorNode {
 
         loop {
             tokio::select! {
+                // handle gossipsub message
                 message = self.msg_rx.recv() => match message {
                     Some(message) => match self.handle_message(message).await {
                         Ok(_) => {}
                         Err(e) => log::error!("Error handling message: {:?}", e),
                     }
-                    None => break, // channel closed
+                    None => break, // channel closed, we can return now
                 },
-                _ = task_print_interval.tick() => {
-                    log::info!("Current seen tasks: {:#?}", self.tasks.keys().collect::<Vec<_>>());
-                }
+                // print task counts
+                _ = task_print_interval.tick() => self.handle_task_print(),
                 _ = token.cancelled() => break,
             }
         }
@@ -115,5 +118,27 @@ impl DriaMonitorNode {
             _ => { /* ignore */ }
         }
         Ok(())
+    }
+
+    fn handle_task_print(&self) {
+        let seen_task_ids = self.tasks.keys().collect::<Vec<_>>();
+        let seen_result_ids = self.results.keys().collect::<Vec<_>>();
+
+        // print the tasks that have not been responded to
+        let pending_tasks = seen_task_ids
+            .iter()
+            .filter(|id| !seen_result_ids.contains(*id))
+            .map(|id| self.tasks.get(*id).unwrap())
+            .collect::<Vec<_>>();
+
+        log::info!(
+            "Pending tasks ({} / {}): {:#?}",
+            pending_tasks.len(),
+            self.tasks.len(),
+            pending_tasks
+                .iter()
+                .map(|t| t.task_id.clone())
+                .collect::<Vec<_>>()
+        );
     }
 }

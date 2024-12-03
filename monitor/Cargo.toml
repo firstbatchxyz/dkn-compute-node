@@ -1,0 +1,35 @@
+[package]
+name = "dkn-monitor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+readme = "README.md"
+authors = ["Erhan Tezcan <erhan@firstbatch.xyz>"]
+
+[dependencies]
+# async stuff
+tokio-util.workspace = true
+tokio.workspace = true
+async-trait.workspace = true
+
+# serialize & deserialize
+serde.workspace = true
+serde_json.workspace = true
+
+# http & networking
+reqwest.workspace = true
+
+# utilities
+dotenvy.workspace = true
+
+# logging & errors
+env_logger.workspace = true
+log.workspace = true
+eyre.workspace = true
+
+libsecp256k1 = "0.7.1"
+
+# dria subcrates
+dkn-p2p = { path = "../p2p" }
+dkn-utils = { path = "../utils" }
+dkn-compute = { path = "../compute" }
