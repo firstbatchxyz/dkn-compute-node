@@ -6,7 +6,7 @@ use libsecp256k1::PublicKey;
 use serde::Deserialize;
 use tokio_util::either::Either;
 
-use crate::payloads::{TaskErrorPayload, TaskRequestPayload, TaskResponsePayload, TaskStats};
+use crate::payloads::*;
 use crate::utils::DriaMessage;
 use crate::workers::workflow::*;
 use crate::DriaComputeNode;
@@ -14,7 +14,7 @@ use crate::DriaComputeNode;
 pub struct WorkflowHandler;
 
 #[derive(Debug, Deserialize)]
-struct WorkflowPayload {
+pub struct WorkflowPayload {
     /// [Workflow](https://github.com/andthattoo/ollama-workflows/blob/main/src/program/workflow.rs) object to be parsed.
     pub(crate) workflow: Workflow,
     /// A lıst of model (that can be parsed into `Model`) or model provider names.
@@ -27,8 +27,8 @@ struct WorkflowPayload {
 }
 
 impl WorkflowHandler {
-    pub(crate) const LISTEN_TOPIC: &'static str = "task";
-    pub(crate) const RESPONSE_TOPIC: &'static str = "results";
+    pub const LISTEN_TOPIC: &'static str = "task";
+    pub const RESPONSE_TOPIC: &'static str = "results";
 
     pub(crate) async fn handle_compute(
         node: &mut DriaComputeNode,

@@ -4,7 +4,7 @@ use base64::{prelude::BASE64_STANDARD, Engine};
 use core::fmt;
 use dkn_utils::get_current_time_nanos;
 use ecies::PublicKey;
-use eyre::{eyre, Context, Result};
+use eyre::{Context, Result};
 use libsecp256k1::{verify, Message, SecretKey, Signature};
 use serde::{Deserialize, Serialize};
 
@@ -113,29 +113,6 @@ impl DriaMessage {
         // verify signature w.r.t the body and the given public key
         let digest = Message::parse(&sha256hash(body));
         Ok(verify(&digest, &signature, public_key))
-    }
-
-    /// Tries to parse the given gossipsub message into a DKNMessage.
-    ///
-    /// This prepared message includes the topic, payload, version and timestamp.
-    /// It also checks the signature of the message, expecting a valid signature from admin node.
-    pub(crate) fn try_from_gossipsub_message(
-        gossipsub_message: &dkn_p2p::libp2p::gossipsub::Message,
-        public_key: &libsecp256k1::PublicKey,
-    ) -> Result<Self> {
-        // the received message is expected to use IdentHash for the topic, so we can see the name of the topic immediately.
-        log::debug!("Parsing {} message.", gossipsub_message.topic.as_str());
-        let message = serde_json::from_slice::<DriaMessage>(&gossipsub_message.data)
-            .wrap_err("could not parse message")?;
-        log::debug!("Parsed: {}", message);
-
-        // check dria signature
-        // NOTE: when we have many public keys, we should check the signature against all of them
-        if !message.is_signed(public_key)? {
-            return Err(eyre!("Invalid signature."));
-        }
-
-        Ok(message)
     }
 }
 

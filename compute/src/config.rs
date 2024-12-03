@@ -33,7 +33,7 @@ pub(crate) const DEFAULT_P2P_LISTEN_ADDR: &str = "/ip4/0.0.0.0/tcp/4001";
 #[allow(clippy::new_without_default)]
 impl DriaComputeNodeConfig {
     /// Creates new config from environment variables.
-    pub fn new() -> Self {
+    pub fn new(workflows: DriaWorkflowsConfig) -> Self {
         let secret_key = match env::var("DKN_WALLET_SECRET_KEY") {
             Ok(secret_env) => {
                 let secret_dec = hex::decode(secret_env.trim_start_matches("0x"))
@@ -91,15 +91,7 @@ impl DriaComputeNodeConfig {
             hex::encode(admin_public_key.serialize_compressed())
         );
 
-        let workflows =
-            DriaWorkflowsConfig::new_from_csv(&env::var("DKN_MODELS").unwrap_or_default());
-        #[cfg(not(test))]
-        if workflows.models.is_empty() {
-            log::error!("No models were provided, make sure to restart with at least one model provided within DKN_MODELS.");
-            panic!("No models provided.");
-        }
-        log::info!("Configured models: {:?}", workflows.models);
-
+        // parse listen address
         let p2p_listen_addr_str = env::var("DKN_P2P_LISTEN_ADDR")
             .map(|addr| addr.trim_matches('"').to_string())
             .unwrap_or(DEFAULT_P2P_LISTEN_ADDR.to_string());
@@ -152,7 +144,7 @@ impl Default for DriaComputeNodeConfig {
         );
         env::set_var("DKN_MODELS", "gpt-3.5-turbo");
 
-        Self::new()
+        Self::new(Default::default())
     }
 }
 

@@ -4,7 +4,7 @@ use eyre::Result;
 
 /// Refresh available nodes using the API.
 pub async fn refresh_dria_nodes(nodes: &mut DriaNodes) -> Result<()> {
-    #[derive(serde::Deserialize, Default, Debug)]
+    #[derive(serde::Deserialize, Debug)]
     struct AvailableNodesApiResponse {
         pub bootstraps: Vec<String>,
         pub relays: Vec<String>,
@@ -14,7 +14,7 @@ pub async fn refresh_dria_nodes(nodes: &mut DriaNodes) -> Result<()> {
     }
 
     // url to be used is determined by the network type
-    let url = match nodes.network_type {
+    let url = match nodes.network {
         DriaNetworkType::Community => "https://dkn.dria.co/available-nodes",
         DriaNetworkType::Pro => "https://dkn.dria.co/sdk/available-nodes",
         DriaNetworkType::Test => "https://dkn.dria.co/test/available-nodes",

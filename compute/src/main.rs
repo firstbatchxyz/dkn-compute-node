@@ -1,4 +1,5 @@
 use dkn_compute::*;
+use dkn_workflows::DriaWorkflowsConfig;
 use eyre::Result;
 use std::env;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
@@ -61,7 +62,14 @@ async fn main() -> Result<()> {
     });
 
     // create configurations & check required services & address in use
-    let mut config = DriaComputeNodeConfig::new();
+    let workflows_config =
+        DriaWorkflowsConfig::new_from_csv(&env::var("DKN_MODELS").unwrap_or_default());
+    if workflows_config.models.is_empty() {
+        return Err(eyre::eyre!("No models were provided, make sure to restart with at least one model provided within DKN_MODELS."));
+    }
+
+    log::info!("Configured models: {:?}", workflows_config.models);
+    let mut config = DriaComputeNodeConfig::new(workflows_config);
     config.assert_address_not_in_use()?;
     // check services & models, will exit if there is an error
     // since service check can take time, we allow early-exit here as well

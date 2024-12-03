@@ -28,9 +28,9 @@ base64 = "0.22.0"
 hex = "0.4.3"
 hex-literal = "0.4.1"
 uuid = { version = "1.8.0", features = ["v4"] }
+rand.workspace = true
 
 # logging & errors
-rand.workspace = true
 env_logger.workspace = true
 log.workspace = true
 eyre.workspace = true

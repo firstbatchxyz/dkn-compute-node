@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 pub struct PingpongHandler;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-struct PingpongPayload {
+pub struct PingpongPayload {
     /// UUID of the ping request, prevents replay attacks.
     uuid: String,
     /// Deadline for the ping request.
@@ -16,7 +16,7 @@ struct PingpongPayload {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-struct PingpongResponse {
+pub struct PingpongResponse {
     /// UUID as given in the ping payload.
     pub(crate) uuid: String,
     /// Models available in the node.
@@ -26,8 +26,8 @@ struct PingpongResponse {
 }
 
 impl PingpongHandler {
-    pub(crate) const LISTEN_TOPIC: &'static str = "ping";
-    pub(crate) const RESPONSE_TOPIC: &'static str = "pong";
+    pub const LISTEN_TOPIC: &'static str = "ping";
+    pub const RESPONSE_TOPIC: &'static str = "pong";
 
     /// Handles the ping message and responds with a pong message.
     ///

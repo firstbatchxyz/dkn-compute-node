@@ -31,6 +31,12 @@ pub struct DriaWorkflowsConfig {
     pub jina: JinaConfig,
 }
 
+impl Default for DriaWorkflowsConfig {
+    fn default() -> Self {
+        Self::new(Vec::default())
+    }
+}
+
 impl DriaWorkflowsConfig {
     /// Creates a new config with the given models.
     pub fn new(models: Vec<Model>) -> Self {
