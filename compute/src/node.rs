@@ -319,8 +319,10 @@ impl DriaComputeNode {
         // prepare durations for sleeps
         let mut peer_refresh_interval =
             tokio::time::interval(Duration::from_secs(DIAGNOSTIC_REFRESH_INTERVAL_SECS));
+        peer_refresh_interval.tick().await; // move one tick
         let mut available_node_refresh_interval =
             tokio::time::interval(Duration::from_secs(AVAILABLE_NODES_REFRESH_INTERVAL_SECS));
+        available_node_refresh_interval.tick().await; // move one tick
 
         // subscribe to topics
         self.subscribe(PingpongHandler::LISTEN_TOPIC).await?;
