@@ -17,11 +17,11 @@ use super::DriaP2PCommander;
 
 /// Peer-to-peer client for Dria Knowledge Network.
 pub struct DriaP2PClient {
-    /// `Swarm` instance, everything is accesses through this one.
+    /// `Swarm` instance, everything p2p-related are accessed through this instace.
     swarm: Swarm<DriaBehaviour>,
     /// Dria protocol, used for identifying the client.
     protocol: DriaP2PProtocol,
-    /// Message sender / transmitter.
+    /// Gossipsub message sender.
     msg_tx: mpsc::Sender<(PeerId, MessageId, Message)>,
     /// Command receiver.
     cmd_rx: mpsc::Receiver<DriaP2PCommand>,

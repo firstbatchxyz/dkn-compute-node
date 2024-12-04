@@ -4,7 +4,7 @@ use base64::{prelude::BASE64_STANDARD, Engine};
 use core::fmt;
 use dkn_utils::get_current_time_nanos;
 use ecies::PublicKey;
-use eyre::{eyre, Context, Result};
+use eyre::{Context, Result};
 use libsecp256k1::{verify, Message, SecretKey, Signature};
 use serde::{Deserialize, Serialize};
 
@@ -12,22 +12,22 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriaMessage {
     /// Base64 encoded payload, stores the main result.
-    pub(crate) payload: String,
+    pub payload: String,
     /// The topic of the message, derived from `TopicHash`
     ///
     /// NOTE: This can be obtained via `TopicHash` in GossipSub
-    pub(crate) topic: String,
+    pub topic: String,
     /// The version of the Dria Compute Node
     ///
     /// NOTE: This can be obtained via Identify protocol version
-    pub(crate) version: String,
+    pub version: String,
     /// Identity protocol string of the Dria Compute Node
     #[serde(default)]
-    pub(crate) identity: String,
+    pub identity: String,
     /// The timestamp of the message, in nanoseconds
     ///
     /// NOTE: This can be obtained via `DataTransform` in GossipSub
-    pub(crate) timestamp: u128,
+    pub timestamp: u128,
 }
 
 /// 65-byte signature as hex characters take up 130 characters.
@@ -79,7 +79,7 @@ impl DriaMessage {
     }
 
     /// Decodes and parses the base64 payload into JSON for the provided type `T`.
-    pub(crate) fn parse_payload<T: for<'a> Deserialize<'a>>(&self, signed: bool) -> Result<T> {
+    pub fn parse_payload<T: for<'a> Deserialize<'a>>(&self, signed: bool) -> Result<T> {
         let payload = self.decode_payload()?;
 
         let body = if signed {
@@ -113,29 +113,6 @@ impl DriaMessage {
         // verify signature w.r.t the body and the given public key
         let digest = Message::parse(&sha256hash(body));
         Ok(verify(&digest, &signature, public_key))
-    }
-
-    /// Tries to parse the given gossipsub message into a DKNMessage.
-    ///
-    /// This prepared message includes the topic, payload, version and timestamp.
-    /// It also checks the signature of the message, expecting a valid signature from admin node.
-    pub(crate) fn try_from_gossipsub_message(
-        gossipsub_message: &dkn_p2p::libp2p::gossipsub::Message,
-        public_key: &libsecp256k1::PublicKey,
-    ) -> Result<Self> {
-        // the received message is expected to use IdentHash for the topic, so we can see the name of the topic immediately.
-        log::debug!("Parsing {} message.", gossipsub_message.topic.as_str());
-        let message = serde_json::from_slice::<DriaMessage>(&gossipsub_message.data)
-            .wrap_err("could not parse message")?;
-        log::debug!("Parsed: {}", message);
-
-        // check dria signature
-        // NOTE: when we have many public keys, we should check the signature against all of them
-        if !message.is_signed(public_key)? {
-            return Err(eyre!("Invalid signature."));
-        }
-
-        Ok(message)
     }
 }
 

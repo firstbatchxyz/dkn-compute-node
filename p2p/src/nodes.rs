@@ -14,7 +14,7 @@ pub struct DriaNodes {
     pub relay_nodes: HashSet<Multiaddr>,
     pub rpc_nodes: HashSet<Multiaddr>,
     pub rpc_peerids: HashSet<PeerId>,
-    pub network_type: DriaNetworkType,
+    pub network: DriaNetworkType,
 }
 
 impl DriaNodes {
@@ -23,9 +23,9 @@ impl DriaNodes {
         Self {
             bootstrap_nodes: HashSet::new(),
             relay_nodes: HashSet::new(),
-            rpc_peerids: HashSet::new(),
             rpc_nodes: HashSet::new(),
-            network_type: network,
+            rpc_peerids: HashSet::new(),
+            network,
         }
     }
 
@@ -61,11 +61,11 @@ impl DriaNodes {
     /// Adds the static nodes to the struct, with respect to network type.
     pub fn with_statics(mut self) -> Self {
         self.bootstrap_nodes
-            .extend(self.network_type.get_static_bootstrap_nodes());
+            .extend(self.network.get_static_bootstrap_nodes());
         self.relay_nodes
-            .extend(self.network_type.get_static_relay_nodes());
+            .extend(self.network.get_static_relay_nodes());
         self.rpc_peerids
-            .extend(self.network_type.get_static_rpc_peer_ids());
+            .extend(self.network.get_static_rpc_peer_ids());
 
         self
     }

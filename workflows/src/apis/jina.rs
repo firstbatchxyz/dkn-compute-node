@@ -41,7 +41,7 @@ impl JinaConfig {
             log::info!("Jina API key not found, skipping");
             return Ok(());
         };
-        log::info!("Jina API key found {api_key}, checking service");
+        log::info!("Jina API key found, checking service");
 
         // make a dummy request to "example.com"
         let client = Client::new();

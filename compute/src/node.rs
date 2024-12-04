@@ -15,6 +15,7 @@ use crate::{
     handlers::*,
     utils::{crypto::secret_to_keypair, refresh_dria_nodes, DriaMessage},
     workers::workflow::{WorkflowsWorker, WorkflowsWorkerInput, WorkflowsWorkerOutput},
+    DRIA_COMPUTE_NODE_VERSION,
 };
 
 /// Number of seconds between refreshing for diagnostic prints.
@@ -180,16 +181,16 @@ impl DriaComputeNode {
     /// Handles a GossipSub message received from the network.
     async fn handle_message(
         &mut self,
-        (peer_id, message_id, message): (PeerId, &MessageId, Message),
+        (peer_id, message_id, gossipsub_message): (PeerId, &MessageId, Message),
     ) -> MessageAcceptance {
         // handle message with respect to its topic
-        match message.topic.as_str() {
+        match gossipsub_message.topic.as_str() {
             PingpongHandler::LISTEN_TOPIC | WorkflowHandler::LISTEN_TOPIC => {
                 // ensure that the message is from a valid source (origin)
-                let Some(source_peer_id) = message.source else {
+                let Some(source_peer_id) = gossipsub_message.source else {
                     log::warn!(
                         "Received {} message from {} without source.",
-                        message.topic,
+                        gossipsub_message.topic,
                         peer_id
                     );
                     return MessageAcceptance::Ignore;
@@ -198,7 +199,7 @@ impl DriaComputeNode {
                 // log the received message
                 log::info!(
                     "Received {} message ({}) from {}",
-                    message.topic,
+                    gossipsub_message.topic,
                     message_id,
                     peer_id,
                 );
@@ -214,17 +215,34 @@ impl DriaComputeNode {
                 }
 
                 // parse the raw gossipsub message to a prepared DKN message
-                let message = match DriaMessage::try_from_gossipsub_message(
-                    &message,
-                    &self.config.admin_public_key,
-                ) {
+                // the received message is expected to use IdentHash for the topic, so we can see the name of the topic immediately.
+                log::debug!("Parsing {} message.", gossipsub_message.topic.as_str());
+                let message: DriaMessage = match serde_json::from_slice(&gossipsub_message.data) {
                     Ok(message) => message,
                     Err(e) => {
                         log::error!("Error parsing message: {:?}", e);
-                        log::debug!("Message: {}", String::from_utf8_lossy(&message.data));
+                        log::debug!(
+                            "Message: {}",
+                            String::from_utf8_lossy(&gossipsub_message.data)
+                        );
                         return MessageAcceptance::Ignore;
                     }
                 };
+
+                // check signature
+                match message.is_signed(&self.config.admin_public_key) {
+                    Ok(true) => { /* message is signed correctly, nothing to do here */ }
+                    Ok(false) => {
+                        log::warn!("Message has wrong signature!");
+                        return MessageAcceptance::Reject;
+                    }
+                    Err(e) => {
+                        log::error!("Error verifying signature: {:?}", e);
+                        return MessageAcceptance::Ignore;
+                    }
+                }
+
+                log::debug!("Parsed: {}", message);
 
                 // handle the DKN message with respect to the topic
                 let handler_result = match message.topic.as_str() {
@@ -285,7 +303,7 @@ impl DriaComputeNode {
             PingpongHandler::RESPONSE_TOPIC | WorkflowHandler::RESPONSE_TOPIC => {
                 // since we are responding to these topics, we might receive messages from other compute nodes
                 // we can gracefully ignore them and propagate it to to others
-                log::trace!("Ignoring message for topic: {}", message.topic);
+                log::trace!("Ignoring {} message", gossipsub_message.topic);
                 MessageAcceptance::Accept
             }
             other => {
@@ -302,8 +320,10 @@ impl DriaComputeNode {
         // prepare durations for sleeps
         let mut peer_refresh_interval =
             tokio::time::interval(Duration::from_secs(DIAGNOSTIC_REFRESH_INTERVAL_SECS));
+        peer_refresh_interval.tick().await; // move one tick
         let mut available_node_refresh_interval =
             tokio::time::interval(Duration::from_secs(AVAILABLE_NODES_REFRESH_INTERVAL_SECS));
+        available_node_refresh_interval.tick().await; // move one tick
 
         // subscribe to topics
         self.subscribe(PingpongHandler::LISTEN_TOPIC).await?;
@@ -394,22 +414,34 @@ impl DriaComputeNode {
 
     /// Peer refresh simply reports the peer count to the user.
     async fn handle_diagnostic_refresh(&self) {
+        let mut diagnostics = Vec::new();
         // print peer counts
         match self.p2p.peer_counts().await {
-            Ok((mesh, all)) => log::info!("Peer Count (mesh/all): {} / {}", mesh, all),
+            Ok((mesh, all)) => {
+                diagnostics.push(format!("Peer Count (mesh/all): {} / {}", mesh, all))
+            }
             Err(e) => log::error!("Error getting peer counts: {:?}", e),
         }
 
         // print tasks count
         let [single, batch] = self.get_pending_task_count();
-        log::info!("Pending Tasks (single/batch): {} / {}", single, batch);
+        diagnostics.push(format!(
+            "Pending Tasks (single/batch): {} / {}",
+            single, batch
+        ));
 
-        // completed tasks count
-        log::debug!(
-            "Completed Tasks (single/batch): {} / {}",
-            self.completed_tasks_single,
-            self.completed_tasks_batch
-        );
+        // completed tasks count is printed as well in debug
+        if log::log_enabled!(log::Level::Debug) {
+            diagnostics.push(format!(
+                "Completed Tasks (single/batch): {} / {}",
+                self.completed_tasks_single, self.completed_tasks_batch
+            ));
+        }
+
+        // print version
+        diagnostics.push(format!("Version: v{}", DRIA_COMPUTE_NODE_VERSION));
+
+        log::info!("{}", diagnostics.join(" | "));
     }
 
     /// Updates the local list of available nodes by refreshing it.
@@ -447,9 +479,7 @@ mod tests {
 
         // create node
         let cancellation = CancellationToken::new();
-        let (mut node, p2p, _, _) = DriaComputeNode::new(DriaComputeNodeConfig::default())
-            .await
-            .expect("should create node");
+        let (mut node, p2p, _, _) = DriaComputeNode::new(DriaComputeNodeConfig::default()).await?;
 
         // spawn p2p task
         let p2p_task = tokio::spawn(async move { p2p.run().await });
@@ -466,9 +496,9 @@ mod tests {
         // publish a dummy message
         let topic = "foo";
         let message = DriaMessage::new("hello from the other side", topic);
-        node.subscribe(topic).await.expect("should subscribe");
-        node.publish(message).await.expect("should publish");
-        node.unsubscribe(topic).await.expect("should unsubscribe");
+        node.subscribe(topic).await?;
+        node.publish(message).await?;
+        node.unsubscribe(topic).await?;
 
         // close everything
         log::info!("Shutting down node.");
