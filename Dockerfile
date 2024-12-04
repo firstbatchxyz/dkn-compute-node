@@ -18,7 +18,7 @@ RUN echo "Target platform: $TARGETPLATFORM"
 # build release binary
 WORKDIR /usr/src/app
 COPY . .
-RUN cargo build --release
+RUN cargo build --bin dkn-compute --release
 
 # copy release binary to distroless
 FROM --platform=$BUILDPLATFORM gcr.io/distroless/cc

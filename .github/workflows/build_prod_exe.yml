@@ -8,9 +8,8 @@ permissions:
   contents: write
 
 jobs:
-
   check_release:
-    if: "! contains(github.event.release.tag_name, '-dev')"  # skip if the tag ends with -dev
+    if: "! contains(github.event.release.tag_name, '-dev')" # skip if the tag ends with -dev
     runs-on: ubuntu-latest
     steps:
       - name: Echo tag
@@ -24,11 +23,43 @@ jobs:
     strategy:
       matrix:
         include:
-          - { runner: macos-latest,  osname: macOS,   arch: amd64, target: x86_64-apple-darwin, command: build }
-          - { runner: macos-latest,  osname: macOS,   arch: arm64, target: aarch64-apple-darwin, command: build }
-          - { runner: ubuntu-latest, osname: linux,   arch: amd64, target: x86_64-unknown-linux-musl, command: build }
-          - { runner: ubuntu-latest, osname: linux,   arch: arm64, target: aarch64-unknown-linux-musl, command: build, build_args: --no-default-features }
-          - { runner: windows-latest, osname: windows, arch: amd64, target: x86_64-pc-windows-msvc, command: build, extension: ".exe" }
+          - {
+              runner: macos-latest,
+              osname: macOS,
+              arch: amd64,
+              target: x86_64-apple-darwin,
+              command: build,
+            }
+          - {
+              runner: macos-latest,
+              osname: macOS,
+              arch: arm64,
+              target: aarch64-apple-darwin,
+              command: build,
+            }
+          - {
+              runner: ubuntu-latest,
+              osname: linux,
+              arch: amd64,
+              target: x86_64-unknown-linux-musl,
+              command: build,
+            }
+          - {
+              runner: ubuntu-latest,
+              osname: linux,
+              arch: arm64,
+              target: aarch64-unknown-linux-musl,
+              command: build,
+              build_args: --no-default-features,
+            }
+          - {
+              runner: windows-latest,
+              osname: windows,
+              arch: amd64,
+              target: x86_64-pc-windows-msvc,
+              command: build,
+              extension: ".exe",
+            }
           # - { runner: windows-latest, osname: windows, arch: arm64, target: aarch64-pc-windows-msvc, command: build, extension: ".exe", toolchain: nightly }
 
     steps:
@@ -44,14 +75,13 @@ jobs:
         with:
           command: ${{ matrix.command }}
           target: ${{ matrix.target }}
-          args: "--locked --release ${{ matrix.build_args }}"
+          args: "--bin dkn-compute --locked --release ${{ matrix.build_args }}"
           strip: true
 
       - name: Prepare Release File
         run: |
           # move the binary
           mv target/${{ matrix.target }}/release/dkn-compute${{ matrix.extension }} ./dkn-compute-binary-${{ matrix.osname }}-${{ matrix.arch }}${{ matrix.extension }}
-          
 
       - name: Upload Launch Artifacts
         uses: actions/upload-artifact@v4
@@ -59,16 +89,15 @@ jobs:
           name: dkn-compute-binary-${{ matrix.osname }}-${{ matrix.arch }}
           path: dkn-compute-binary-${{ matrix.osname }}-${{ matrix.arch }}${{ matrix.extension }}
 
-
   release:
     needs: build
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # Fetch all tags and history
+          fetch-depth: 0 # Fetch all tags and history
 
       - name: Download Launch Artifacts
         uses: actions/download-artifact@v4
