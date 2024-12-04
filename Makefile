@@ -7,7 +7,6 @@ endif
 ###############################################################################
 .PHONY: launch #       | Run with INFO logs in release mode
 launch:
-		RUST_LOG=none,dkn_compute=info,dkn_workflows=info,dkn_p2p=info \
 		cargo run --release --bin dkn-compute
 
 .PHONY: run #          | Run with INFO logs

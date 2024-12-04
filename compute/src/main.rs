@@ -16,9 +16,6 @@ async fn main() -> Result<()> {
         .filter_module("dkn_workflows", log::LevelFilter::Info)
         .parse_default_env() // reads RUST_LOG variable
         .init();
-    if let Err(e) = dotenv_result {
-        log::warn!("could not load .env file: {}", e);
-    }
 
     log::info!(
         r#"
@@ -31,6 +28,12 @@ async fn main() -> Result<()> {
 ╚═════╝ ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝
 "#
     );
+
+    // log about env usage
+    match dotenv_result {
+        Ok(path) => log::info!("Loaded .env file at: {}", path.display()),
+        Err(e) => log::warn!("Could not load .env file: {}", e),
+    }
 
     // task tracker for multiple threads
     let task_tracker = TaskTracker::new();
