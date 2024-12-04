@@ -4,7 +4,7 @@ members = ["compute", "p2p", "workflows", "utils", "monitor"]
 
 [workspace.package]
 edition = "2021"
-version = "0.2.25"
+version = "0.2.26"
 license = "Apache-2.0"
 readme = "README.md"
 

@@ -15,6 +15,7 @@ use crate::{
     handlers::*,
     utils::{crypto::secret_to_keypair, refresh_dria_nodes, DriaMessage},
     workers::workflow::{WorkflowsWorker, WorkflowsWorkerInput, WorkflowsWorkerOutput},
+    DRIA_COMPUTE_NODE_VERSION,
 };
 
 /// Number of seconds between refreshing for diagnostic prints.
@@ -413,22 +414,34 @@ impl DriaComputeNode {
 
     /// Peer refresh simply reports the peer count to the user.
     async fn handle_diagnostic_refresh(&self) {
+        let mut diagnostics = Vec::new();
         // print peer counts
         match self.p2p.peer_counts().await {
-            Ok((mesh, all)) => log::info!("Peer Count (mesh/all): {} / {}", mesh, all),
+            Ok((mesh, all)) => {
+                diagnostics.push(format!("Peer Count (mesh/all): {} / {}", mesh, all))
+            }
             Err(e) => log::error!("Error getting peer counts: {:?}", e),
         }
 
         // print tasks count
         let [single, batch] = self.get_pending_task_count();
-        log::info!("Pending Tasks (single/batch): {} / {}", single, batch);
+        diagnostics.push(format!(
+            "Pending Tasks (single/batch): {} / {}",
+            single, batch
+        ));
 
-        // completed tasks count
-        log::debug!(
-            "Completed Tasks (single/batch): {} / {}",
-            self.completed_tasks_single,
-            self.completed_tasks_batch
-        );
+        // completed tasks count is printed as well in debug
+        if log::log_enabled!(log::Level::Debug) {
+            diagnostics.push(format!(
+                "Completed Tasks (single/batch): {} / {}",
+                self.completed_tasks_single, self.completed_tasks_batch
+            ));
+        }
+
+        // print version
+        diagnostics.push(format!("Version: v{}", DRIA_COMPUTE_NODE_VERSION));
+
+        log::info!("{}", diagnostics.join(" | "));
     }
 
     /// Updates the local list of available nodes by refreshing it.

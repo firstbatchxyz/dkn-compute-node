@@ -23,8 +23,8 @@ impl DriaNodes {
         Self {
             bootstrap_nodes: HashSet::new(),
             relay_nodes: HashSet::new(),
-            rpc_peerids: HashSet::new(),
             rpc_nodes: HashSet::new(),
+            rpc_peerids: HashSet::new(),
             network,
         }
     }
