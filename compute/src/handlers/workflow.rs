@@ -129,7 +129,7 @@ impl WorkflowHandler {
 
                 // convert payload to message
                 let payload_str = serde_json::json!(payload).to_string();
-                log::debug!(
+                log::info!(
                     "Publishing result for task {}\n{}",
                     task.task_id,
                     payload_str
@@ -161,7 +161,7 @@ impl WorkflowHandler {
 
         // try publishing the result
         if let Err(publish_err) = node.publish(message).await {
-            let err_msg = format!("could not publish result: {:?}", publish_err);
+            let err_msg = format!("Could not publish task result: {:?}", publish_err);
             log::error!("{}", err_msg);
 
             let payload = serde_json::json!({

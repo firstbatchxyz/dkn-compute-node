@@ -9,6 +9,9 @@ use libsecp256k1::{PublicKey, SecretKey};
 
 use std::{env, str::FromStr};
 
+// TODO: make this configurable later
+const DEFAULT_WORKFLOW_BATCH_SIZE: usize = 5;
+
 #[derive(Debug, Clone)]
 pub struct DriaComputeNodeConfig {
     /// Wallet secret/private key.
@@ -25,6 +28,11 @@ pub struct DriaComputeNodeConfig {
     pub workflows: DriaWorkflowsConfig,
     /// Network type of the node.
     pub network_type: DriaNetworkType,
+    /// Batch size for batchable workflows.
+    ///
+    /// A higher value will help execute more tasks concurrently,
+    /// at the risk of hitting rate-limits.
+    pub batch_size: usize,
 }
 
 /// The default P2P network listen address.
@@ -103,6 +111,11 @@ impl DriaComputeNodeConfig {
             .map(|s| DriaNetworkType::from(s.as_str()))
             .unwrap_or_default();
 
+        // parse batch size
+        let batch_size = env::var("DKN_BATCH_SIZE")
+            .map(|s| s.parse::<usize>().unwrap_or(DEFAULT_WORKFLOW_BATCH_SIZE))
+            .unwrap_or(DEFAULT_WORKFLOW_BATCH_SIZE);
+
         Self {
             admin_public_key,
             secret_key,
@@ -111,6 +124,7 @@ impl DriaComputeNodeConfig {
             workflows,
             p2p_listen_addr,
             network_type,
+            batch_size,
         }
     }
 
