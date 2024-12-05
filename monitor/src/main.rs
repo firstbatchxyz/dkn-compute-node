@@ -33,9 +33,7 @@ async fn main() -> eyre::Result<()> {
     let (client, commander, msg_rx) = DriaP2PClient::new(
         keypair,
         listen_addr,
-        nodes.bootstrap_nodes.into_iter(),
-        nodes.relay_nodes.into_iter(),
-        nodes.rpc_nodes.into_iter(),
+        &nodes,
         DriaP2PProtocol::new_major_minor(network.protocol_name()),
     )?;
 

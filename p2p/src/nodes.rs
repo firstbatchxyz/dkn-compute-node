@@ -29,6 +29,26 @@ impl DriaNodes {
         }
     }
 
+    pub fn with_relay_nodes(mut self, addresses: impl IntoIterator<Item = Multiaddr>) -> Self {
+        self.relay_nodes.extend(addresses);
+        self
+    }
+
+    pub fn with_bootstrap_nodes(mut self, addresses: impl IntoIterator<Item = Multiaddr>) -> Self {
+        self.bootstrap_nodes.extend(addresses);
+        self
+    }
+
+    pub fn with_rpc_nodes(mut self, addresses: impl IntoIterator<Item = Multiaddr>) -> Self {
+        self.rpc_nodes.extend(addresses);
+        self
+    }
+
+    pub fn with_rpc_peer_ids(mut self, addresses: impl IntoIterator<Item = PeerId>) -> Self {
+        self.rpc_peerids.extend(addresses);
+        self
+    }
+
     /// Parses static bootstrap & relay nodes from environment variables.
     ///
     /// The environment variables are:

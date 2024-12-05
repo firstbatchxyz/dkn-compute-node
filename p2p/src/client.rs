@@ -10,7 +10,7 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 
 use crate::behaviour::{DriaBehaviour, DriaBehaviourEvent};
-use crate::DriaP2PProtocol;
+use crate::{DriaNodes, DriaP2PProtocol};
 
 use super::commands::DriaP2PCommand;
 use super::DriaP2PCommander;
@@ -46,9 +46,7 @@ impl DriaP2PClient {
     pub fn new(
         keypair: Keypair,
         listen_addr: Multiaddr,
-        bootstraps: impl Iterator<Item = Multiaddr>,
-        relays: impl Iterator<Item = Multiaddr>,
-        rpcs: impl Iterator<Item = Multiaddr>,
+        nodes: &DriaNodes,
         protocol: DriaP2PProtocol,
     ) -> Result<(
         DriaP2PClient,
@@ -89,7 +87,7 @@ impl DriaP2PClient {
             .set_mode(Some(libp2p::kad::Mode::Server));
 
         // initiate bootstrap
-        for addr in bootstraps {
+        for addr in &nodes.bootstrap_nodes {
             log::info!("Dialling bootstrap: {:#?}", addr);
             if let Some(peer_id) = addr.iter().find_map(|p| match p {
                 Protocol::P2p(peer_id) => Some(peer_id),
@@ -97,7 +95,10 @@ impl DriaP2PClient {
             }) {
                 swarm.dial(addr.clone())?;
                 log::info!("Adding {} to Kademlia routing table", addr);
-                swarm.behaviour_mut().kademlia.add_address(&peer_id, addr);
+                swarm
+                    .behaviour_mut()
+                    .kademlia
+                    .add_address(&peer_id, addr.clone());
             } else {
                 log::warn!("Missing peerID in address: {}", addr);
             }
@@ -115,16 +116,28 @@ impl DriaP2PClient {
         // listen on all interfaces for incoming connections
         log::info!("Listening p2p network on: {}", listen_addr);
         swarm.listen_on(listen_addr)?;
-        for addr in relays {
+
+        // listen on relay addresses with p2p circuit
+        for addr in &nodes.relay_nodes {
             log::info!("Listening to relay: {}", addr);
             swarm.listen_on(addr.clone().with(Protocol::P2pCircuit))?;
         }
 
         // dial rpc nodes
-        for rpc_addr in rpcs {
+        for rpc_addr in &nodes.rpc_nodes {
             log::info!("Dialing RPC node: {}", rpc_addr);
-            swarm.dial(rpc_addr)?;
+            swarm.dial(rpc_addr.clone())?;
         }
+
+        // add rpcs as explicit peers
+        // TODO: may not be necessary
+        // for rpc_peer_id in &nodes.rpc_peerids {
+        //     log::info!("Adding {} as explicit peer.", rpc_peer_id);
+        //     swarm
+        //         .behaviour_mut()
+        //         .gossipsub
+        //         .add_explicit_peer(rpc_peer_id);
+        // }
 
         // create commander
         let (cmd_tx, cmd_rx) = mpsc::channel(COMMAND_CHANNEL_BUFSIZE);

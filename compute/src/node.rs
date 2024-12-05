@@ -81,9 +81,7 @@ impl DriaComputeNode {
         let (p2p_client, p2p_commander, message_rx) = DriaP2PClient::new(
             keypair,
             config.p2p_listen_addr.clone(),
-            available_nodes.bootstrap_nodes.clone().into_iter(),
-            available_nodes.relay_nodes.clone().into_iter(),
-            available_nodes.rpc_nodes.clone().into_iter(),
+            &available_nodes,
             protocol,
         )?;
 

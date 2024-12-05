@@ -129,11 +129,7 @@ impl WorkflowHandler {
 
                 // convert payload to message
                 let payload_str = serde_json::json!(payload).to_string();
-                log::info!(
-                    "Publishing result for task {}\n{}",
-                    task.task_id,
-                    payload_str
-                );
+                log::info!("Publishing result for task {}", task.task_id);
                 DriaMessage::new(payload_str, Self::RESPONSE_TOPIC)
             }
             Err(err) => {
