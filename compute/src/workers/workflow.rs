@@ -32,7 +32,9 @@ pub struct WorkflowsWorkerOutput {
 ///
 /// It is expected to be spawned in another thread, with `run_batch` for batch processing and `run` for single processing.
 pub struct WorkflowsWorker {
+    /// Workflow message channel receiver, the sender is most likely the compute node itself.
     workflow_rx: mpsc::Receiver<WorkflowsWorkerInput>,
+    /// Publish message channel sender, the receiver is most likely the compute node itself.
     publish_tx: mpsc::Sender<WorkflowsWorkerOutput>,
 }
 
@@ -40,10 +42,11 @@ pub struct WorkflowsWorker {
 const WORKFLOW_CHANNEL_BUFSIZE: usize = 1024;
 
 impl WorkflowsWorker {
-    /// Batch size that defines how many tasks can be executed in parallel at once.
-    /// IMPORTANT NOTE: `run` function is designed to handle the batch size here specifically,
+    /// Batch size that defines how many tasks can be executed concurrently at once.
+    ///
+    /// The `run` function is designed to handle the batch size here specifically,
     /// if there are more tasks than the batch size, the function will panic.
-    const BATCH_SIZE: usize = 8;
+    pub const MAX_BATCH_SIZE: usize = 8;
 
     /// Creates a worker and returns the sender and receiver for the worker.
     pub fn new(
@@ -65,24 +68,20 @@ impl WorkflowsWorker {
         self.workflow_rx.close();
     }
 
-    /// Launches the thread that can process tasks one by one.
+    /// Launches the thread that can process tasks one by one (in series).
     /// This function will block until the channel is closed.
     ///
     /// It is suitable for task streams that consume local resources, unlike API calls.
-    pub async fn run(&mut self) {
+    pub async fn run_series(&mut self) {
         loop {
             let task = self.workflow_rx.recv().await;
 
-            let result = if let Some(task) = task {
+            if let Some(task) = task {
                 log::info!("Processing single workflow for task {}", task.task_id);
-                WorkflowsWorker::execute(task).await
+                WorkflowsWorker::execute((task, self.publish_tx.clone())).await
             } else {
                 return self.shutdown();
             };
-
-            if let Err(e) = self.publish_tx.send(result).await {
-                log::error!("Error sending workflow result: {}", e);
-            }
         }
     }
 
@@ -91,13 +90,16 @@ impl WorkflowsWorker {
     ///
     /// It is suitable for task streams that make use of API calls, unlike Ollama-like
     /// tasks that consumes local resources and would not make sense to run in parallel.
-    pub async fn run_batch(&mut self) {
+    ///
+    /// Batch size must NOT be larger than `MAX_BATCH_SIZE`, otherwise will panic.
+    pub async fn run_batch(&mut self, batch_size: usize) {
+        // TODO: need some better batch_size error handling here
         loop {
             // get tasks in batch from the channel
             let mut task_buffer = Vec::new();
             let num_tasks = self
                 .workflow_rx
-                .recv_many(&mut task_buffer, Self::BATCH_SIZE)
+                .recv_many(&mut task_buffer, batch_size)
                 .await;
 
             if num_tasks == 0 {
@@ -106,8 +108,10 @@ impl WorkflowsWorker {
 
             // process the batch
             log::info!("Processing {} workflows in batch", num_tasks);
-            let mut batch = task_buffer.into_iter();
-            let results = match num_tasks {
+            let mut batch = task_buffer
+                .into_iter()
+                .map(|b| (b, self.publish_tx.clone()));
+            match num_tasks {
                 1 => {
                     let r0 = WorkflowsWorker::execute(batch.next().unwrap()).await;
                     vec![r0]
@@ -186,23 +190,17 @@ impl WorkflowsWorker {
                     unreachable!(
                         "number of tasks cant be larger than batch size ({} > {})",
                         num_tasks,
-                        Self::BATCH_SIZE
+                        Self::MAX_BATCH_SIZE
                     );
                 }
             };
-
-            // publish all results
-            log::info!("Publishing {} workflow results", results.len());
-            for result in results {
-                if let Err(e) = self.publish_tx.send(result).await {
-                    log::error!("Error sending workflow result: {}", e);
-                }
-            }
         }
     }
 
-    /// A single task execution.
-    pub async fn execute(input: WorkflowsWorkerInput) -> WorkflowsWorkerOutput {
+    /// Executes a single task, and publishes the output.
+    pub async fn execute(
+        (input, publish_tx): (WorkflowsWorkerInput, mpsc::Sender<WorkflowsWorkerOutput>),
+    ) {
         let mut memory = ProgramMemory::new();
 
         let started_at = std::time::Instant::now();
@@ -211,13 +209,17 @@ impl WorkflowsWorker {
             .execute(input.entry.as_ref(), &input.workflow, &mut memory)
             .await;
 
-        WorkflowsWorkerOutput {
+        let output = WorkflowsWorkerOutput {
             result,
             public_key: input.public_key,
             task_id: input.task_id,
             model_name: input.model_name,
             batchable: input.batchable,
             stats: input.stats.record_execution_time(started_at),
+        };
+
+        if let Err(e) = publish_tx.send(output).await {
+            log::error!("Error sending workflow result: {}", e);
         }
     }
 }

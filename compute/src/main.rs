@@ -3,6 +3,7 @@ use dkn_workflows::DriaWorkflowsConfig;
 use eyre::Result;
 use std::env;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
+use workers::workflow::WorkflowsWorker;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -86,6 +87,7 @@ async fn main() -> Result<()> {
     log::warn!("Using models: {:#?}", config.workflows.models);
 
     // create the node
+    let batch_size = config.batch_size;
     let (mut node, p2p, worker_batch, worker_single) = DriaComputeNode::new(config).await?;
 
     // spawn p2p client first
@@ -94,14 +96,21 @@ async fn main() -> Result<()> {
 
     // spawn batch worker thread if we are using such models (e.g. OpenAI, Gemini, OpenRouter)
     if let Some(mut worker_batch) = worker_batch {
-        log::info!("Spawning workflows batch worker thread.");
-        task_tracker.spawn(async move { worker_batch.run_batch().await });
+        assert!(
+            batch_size <= WorkflowsWorker::MAX_BATCH_SIZE,
+            "batch size too large"
+        );
+        log::info!(
+            "Spawning workflows batch worker thread. (batch size {})",
+            batch_size
+        );
+        task_tracker.spawn(async move { worker_batch.run_batch(batch_size).await });
     }
 
     // spawn single worker thread if we are using such models (e.g. Ollama)
     if let Some(mut worker_single) = worker_single {
         log::info!("Spawning workflows single worker thread.");
-        task_tracker.spawn(async move { worker_single.run().await });
+        task_tracker.spawn(async move { worker_single.run_series().await });
     }
 
     // spawn compute node thread

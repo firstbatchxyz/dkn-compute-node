@@ -1,4 +1,4 @@
-use dkn_p2p::{DriaP2PClient, DriaP2PProtocol};
+use dkn_p2p::{DriaNodes, DriaP2PClient, DriaP2PProtocol};
 use eyre::Result;
 use libp2p_identity::Keypair;
 
@@ -12,13 +12,18 @@ async fn test_listen_topic_once() -> Result<()> {
         .is_test(true)
         .try_init();
 
+    let listen_addr = "/ip4/0.0.0.0/tcp/4001".parse()?;
+
+    // prepare nodes
+    let nodes = DriaNodes::new(dkn_p2p::DriaNetworkType::Community)
+    .with_bootstrap_nodes(["/ip4/44.206.245.139/tcp/4001/p2p/16Uiu2HAm4q3LZU2T9kgjKK4ysy6KZYKLq8KiXQyae4RHdF7uqSt4".parse()?])
+    .with_relay_nodes(["/ip4/34.201.33.141/tcp/4001/p2p/16Uiu2HAkuXiV2CQkC9eJgU6cMnJ9SMARa85FZ6miTkvn5fuHNufa".parse()?]);
+
     // spawn P2P client in another task
     let (client, mut commander, mut msg_rx) = DriaP2PClient::new(
         Keypair::generate_secp256k1(),
-        "/ip4/0.0.0.0/tcp/4001".parse()?,
-        vec!["/ip4/44.206.245.139/tcp/4001/p2p/16Uiu2HAm4q3LZU2T9kgjKK4ysy6KZYKLq8KiXQyae4RHdF7uqSt4".parse()?].into_iter(),
-        vec!["/ip4/34.201.33.141/tcp/4001/p2p/16Uiu2HAkuXiV2CQkC9eJgU6cMnJ9SMARa85FZ6miTkvn5fuHNufa".parse()?].into_iter(),
-        vec![].into_iter(),
+        listen_addr,
+        &nodes,
         DriaP2PProtocol::default(),
     )
     .expect("could not create p2p client");
