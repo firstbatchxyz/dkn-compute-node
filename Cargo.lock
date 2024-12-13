@@ -974,7 +974,7 @@ dependencies = [
 
 [[package]]
 name = "dkn-compute"
-version = "0.2.29"
+version = "0.2.30"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -1007,7 +1007,7 @@ dependencies = [
 
 [[package]]
 name = "dkn-monitor"
-version = "0.2.29"
+version = "0.2.30"
 dependencies = [
  "async-trait",
  "dkn-compute",
@@ -1027,7 +1027,7 @@ dependencies = [
 
 [[package]]
 name = "dkn-p2p"
-version = "0.2.29"
+version = "0.2.30"
 dependencies = [
  "dkn-utils",
  "env_logger 0.11.5",
@@ -1041,11 +1041,11 @@ dependencies = [
 
 [[package]]
 name = "dkn-utils"
-version = "0.2.29"
+version = "0.2.30"
 
 [[package]]
 name = "dkn-workflows"
-version = "0.2.29"
+version = "0.2.30"
 dependencies = [
  "dkn-utils",
  "dotenvy",
@@ -4613,9 +4613,9 @@ dependencies = [
 
 [[package]]
 name = "semver"
-version = "1.0.23"
+version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61697e0a1c7e512e84a621326239844a24d8207b4669b41bc18b32ea5cbf988b"
+checksum = "3cb6eb87a131f756572d7fb904f6e7b68633f09cca868c5df1c4b8d1a694bbba"
 
 [[package]]
 name = "serde"

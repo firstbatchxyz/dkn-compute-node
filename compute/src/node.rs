@@ -331,10 +331,9 @@ impl DriaComputeNode {
 
         loop {
             tokio::select! {
-                // check peer count every now and then
-                _ = peer_refresh_interval.tick() => self.handle_diagnostic_refresh().await,
-                // available nodes are refreshed every now and then
-                _ = available_node_refresh_interval.tick() => self.handle_available_nodes_refresh().await,
+                // prioritize the branches in the order below
+                biased;
+
                 // a Workflow message to be published is received from the channel
                 // this is expected to be sent by the workflow worker
                 publish_msg_opt = self.publish_rx.recv() => {
@@ -358,6 +357,11 @@ impl DriaComputeNode {
                         break;
                     };
                 },
+
+                // check peer count every now and then
+                _ = peer_refresh_interval.tick() => self.handle_diagnostic_refresh().await,
+                // available nodes are refreshed every now and then
+                _ = available_node_refresh_interval.tick() => self.handle_available_nodes_refresh().await,
                 // a GossipSub message is received from the channel
                 // this is expected to be sent by the p2p client
                 gossipsub_msg_opt = self.message_rx.recv() => {

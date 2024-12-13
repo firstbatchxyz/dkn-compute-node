@@ -118,8 +118,9 @@ async fn main() -> Result<()> {
     let node_token = cancellation.clone();
     task_tracker.spawn(async move {
         if let Err(err) = node.run(node_token).await {
-            log::error!("Node launch error: {}", err);
-            panic!("Node failed.")
+            log::error!("Error within main node loop: {}", err);
+            log::error!("Shutting down node.");
+            node.shutdown().await.expect("could not shutdown node");
         };
         log::info!("Closing node.")
     });

@@ -78,7 +78,7 @@ impl WorkflowsWorker {
 
             if let Some(task) = task {
                 log::info!("Processing single workflow for task {}", task.task_id);
-                WorkflowsWorker::execute((task, self.publish_tx.clone())).await
+                WorkflowsWorker::execute((task, &self.publish_tx)).await
             } else {
                 return self.shutdown();
             };
@@ -108,50 +108,43 @@ impl WorkflowsWorker {
 
             // process the batch
             log::info!("Processing {} workflows in batch", num_tasks);
-            let mut batch = task_buffer
-                .into_iter()
-                .map(|b| (b, self.publish_tx.clone()));
+            let mut batch = task_buffer.into_iter().map(|b| (b, &self.publish_tx));
             match num_tasks {
                 1 => {
-                    let r0 = WorkflowsWorker::execute(batch.next().unwrap()).await;
-                    vec![r0]
+                    WorkflowsWorker::execute(batch.next().unwrap()).await;
                 }
                 2 => {
-                    let (r0, r1) = tokio::join!(
+                    tokio::join!(
                         WorkflowsWorker::execute(batch.next().unwrap()),
                         WorkflowsWorker::execute(batch.next().unwrap())
                     );
-                    vec![r0, r1]
                 }
                 3 => {
-                    let (r0, r1, r2) = tokio::join!(
+                    tokio::join!(
                         WorkflowsWorker::execute(batch.next().unwrap()),
                         WorkflowsWorker::execute(batch.next().unwrap()),
                         WorkflowsWorker::execute(batch.next().unwrap())
                     );
-                    vec![r0, r1, r2]
                 }
                 4 => {
-                    let (r0, r1, r2, r3) = tokio::join!(
+                    tokio::join!(
                         WorkflowsWorker::execute(batch.next().unwrap()),
                         WorkflowsWorker::execute(batch.next().unwrap()),
                         WorkflowsWorker::execute(batch.next().unwrap()),
                         WorkflowsWorker::execute(batch.next().unwrap())
                     );
-                    vec![r0, r1, r2, r3]
                 }
                 5 => {
-                    let (r0, r1, r2, r3, r4) = tokio::join!(
+                    tokio::join!(
                         WorkflowsWorker::execute(batch.next().unwrap()),
                         WorkflowsWorker::execute(batch.next().unwrap()),
                         WorkflowsWorker::execute(batch.next().unwrap()),
                         WorkflowsWorker::execute(batch.next().unwrap()),
                         WorkflowsWorker::execute(batch.next().unwrap())
                     );
-                    vec![r0, r1, r2, r3, r4]
                 }
                 6 => {
-                    let (r0, r1, r2, r3, r4, r5) = tokio::join!(
+                    tokio::join!(
                         WorkflowsWorker::execute(batch.next().unwrap()),
                         WorkflowsWorker::execute(batch.next().unwrap()),
                         WorkflowsWorker::execute(batch.next().unwrap()),
@@ -159,10 +152,9 @@ impl WorkflowsWorker {
                         WorkflowsWorker::execute(batch.next().unwrap()),
                         WorkflowsWorker::execute(batch.next().unwrap())
                     );
-                    vec![r0, r1, r2, r3, r4, r5]
                 }
                 7 => {
-                    let (r0, r1, r2, r3, r4, r5, r6) = tokio::join!(
+                    tokio::join!(
                         WorkflowsWorker::execute(batch.next().unwrap()),
                         WorkflowsWorker::execute(batch.next().unwrap()),
                         WorkflowsWorker::execute(batch.next().unwrap()),
@@ -171,10 +163,9 @@ impl WorkflowsWorker {
                         WorkflowsWorker::execute(batch.next().unwrap()),
                         WorkflowsWorker::execute(batch.next().unwrap())
                     );
-                    vec![r0, r1, r2, r3, r4, r5, r6]
                 }
                 8 => {
-                    let (r0, r1, r2, r3, r4, r5, r6, r7) = tokio::join!(
+                    tokio::join!(
                         WorkflowsWorker::execute(batch.next().unwrap()),
                         WorkflowsWorker::execute(batch.next().unwrap()),
                         WorkflowsWorker::execute(batch.next().unwrap()),
@@ -184,7 +175,6 @@ impl WorkflowsWorker {
                         WorkflowsWorker::execute(batch.next().unwrap()),
                         WorkflowsWorker::execute(batch.next().unwrap())
                     );
-                    vec![r0, r1, r2, r3, r4, r5, r6, r7]
                 }
                 _ => {
                     unreachable!(
@@ -199,15 +189,20 @@ impl WorkflowsWorker {
 
     /// Executes a single task, and publishes the output.
     pub async fn execute(
-        (input, publish_tx): (WorkflowsWorkerInput, mpsc::Sender<WorkflowsWorkerOutput>),
+        (input, publish_tx): (WorkflowsWorkerInput, &mpsc::Sender<WorkflowsWorkerOutput>),
     ) {
+        let mut stats = input.stats;
+
         let mut memory = ProgramMemory::new();
 
+        // TODO: will be removed later
         let started_at = std::time::Instant::now();
+        stats = stats.record_execution_started_at();
         let result = input
             .executor
             .execute(input.entry.as_ref(), &input.workflow, &mut memory)
             .await;
+        stats = stats.record_execution_ended_at();
 
         let output = WorkflowsWorkerOutput {
             result,
@@ -215,7 +210,7 @@ impl WorkflowsWorker {
             task_id: input.task_id,
             model_name: input.model_name,
             batchable: input.batchable,
-            stats: input.stats.record_execution_time(started_at),
+            stats: stats.record_execution_time(started_at),
         };
 
         if let Err(e) = publish_tx.send(output).await {
