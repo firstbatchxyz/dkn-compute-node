@@ -51,7 +51,7 @@ impl TaskStats {
     }
 
     /// Records the execution time of the task.
-    #[deprecated = "will be removed later"]
+    /// TODO: #[deprecated = "will be removed later"]
     pub fn record_execution_time(mut self, started_at: Instant) -> Self {
         self.execution_time = Instant::now().duration_since(started_at).as_nanos();
         self
