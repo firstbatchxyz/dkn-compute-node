@@ -129,16 +129,6 @@ impl DriaP2PClient {
             swarm.dial(rpc_addr.clone())?;
         }
 
-        // add rpcs as explicit peers
-        // TODO: may not be necessary
-        // for rpc_peer_id in &nodes.rpc_peerids {
-        //     log::info!("Adding {} as explicit peer.", rpc_peer_id);
-        //     swarm
-        //         .behaviour_mut()
-        //         .gossipsub
-        //         .add_explicit_peer(rpc_peer_id);
-        // }
-
         // create commander
         let (cmd_tx, cmd_rx) = mpsc::channel(COMMAND_CHANNEL_BUFSIZE);
         let commander = DriaP2PCommander::new(cmd_tx, protocol.clone());
@@ -161,7 +151,9 @@ impl DriaP2PClient {
     pub async fn run(mut self) {
         loop {
             tokio::select! {
-                event = self.swarm.select_next_some() => self.handle_event(event).await,
+                // this is a special keyword that changes the polling order from random to linear,
+                // which will effectively prioritize commands over events
+                biased;
                 command = self.cmd_rx.recv() => match command {
                     Some(c) => self.handle_command(c).await,
                     // channel closed, thus shutting down the network event loop
@@ -170,6 +162,7 @@ impl DriaP2PClient {
                         return
                     },
                 },
+                event = self.swarm.select_next_some() => self.handle_event(event).await,
             }
         }
     }
