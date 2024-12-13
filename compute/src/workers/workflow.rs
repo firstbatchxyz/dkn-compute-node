@@ -105,7 +105,7 @@ impl WorkflowsWorker {
             // get tasks in batch from the channel, we enter the loop if:
             // (1) there are no tasks, or,
             // (2) there are tasks less than the batch size and the channel is not empty
-            while tasks.len() == 0 || (tasks.len() < batch_size && !self.workflow_rx.is_empty()) {
+            while tasks.is_empty() || (tasks.len() < batch_size && !self.workflow_rx.is_empty()) {
                 let limit = batch_size - tasks.len();
                 match self.workflow_rx.recv_many(&mut tasks, limit).await {
                     // 0 tasks returned means that the channel is closed
