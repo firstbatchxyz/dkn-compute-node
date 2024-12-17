@@ -471,13 +471,16 @@ impl DriaComputeNode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env;
 
     #[tokio::test]
     #[ignore = "run this manually"]
     async fn test_publish_message() -> eyre::Result<()> {
-        env::set_var("RUST_LOG", "none,dkn_compute=debug,dkn_p2p=debug");
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = env_logger::builder()
+            .filter_level(log::LevelFilter::Off)
+            .filter_module("dkn_compute", log::LevelFilter::Debug)
+            .filter_module("dkn_p2p", log::LevelFilter::Debug)
+            .is_test(true)
+            .try_init();
 
         // create node
         let cancellation = CancellationToken::new();

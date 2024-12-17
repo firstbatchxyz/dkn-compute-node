@@ -106,6 +106,7 @@ impl WorkflowsWorker {
             // (1) there are no tasks, or,
             // (2) there are tasks less than the batch size and the channel is not empty
             while tasks.is_empty() || (tasks.len() < batch_size && !self.workflow_rx.is_empty()) {
+                log::info!("Waiting for more workflows to process ({})", tasks.len());
                 let limit = batch_size - tasks.len();
                 match self.workflow_rx.recv_many(&mut tasks, limit).await {
                     // 0 tasks returned means that the channel is closed
@@ -233,5 +234,109 @@ impl WorkflowsWorker {
         if let Err(e) = publish_tx.send(output).await {
             log::error!("Error sending workflow result: {}", e);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::payloads::TaskStats;
+
+    use dkn_workflows::{Executor, Model};
+    use libsecp256k1::{PublicKey, SecretKey};
+    use tokio::sync::mpsc;
+
+    // cargo test --package dkn-compute --lib --all-features -- workers::workflow::tests::test_workflows_worker --exact --show-output --nocapture --ignored
+    #[tokio::test]
+    #[ignore = "run manually"]
+    async fn test_workflows_worker() {
+        let _ = env_logger::builder()
+            .filter_level(log::LevelFilter::Off)
+            .filter_module("dkn_compute", log::LevelFilter::Debug)
+            .is_test(true)
+            .try_init();
+
+        let (publish_tx, mut publish_rx) = mpsc::channel(1024);
+        let (mut worker, workflow_tx) = WorkflowsWorker::new(publish_tx);
+
+        // create batch workflow worker
+        let worker_handle = tokio::spawn(async move {
+            worker.run_batch(4).await;
+        });
+
+        let num_tasks = 4;
+        let model = Model::O1Preview;
+        let workflow = serde_json::json!({
+            "config": {
+                "max_steps": 10,
+                "max_time": 250,
+                "tools": [""]
+            },
+            "tasks": [
+                {
+                    "id": "A",
+                    "name": "",
+                    "description": "",
+                    "operator": "generation",
+                    "messages": [{ "role": "user", "content": "Write a 4 paragraph poem about Julius Caesar." }],
+                    "inputs": [],
+                    "outputs": [ { "type": "write", "key": "result", "value": "__result" } ]
+                },
+                {
+                    "id": "__end",
+                    "name": "end",
+                    "description": "End of the task",
+                    "operator": "end",
+                    "messages": [{ "role": "user", "content": "End of the task" }],
+                    "inputs": [],
+                    "outputs": []
+                }
+            ],
+            "steps": [ { "source": "A", "target": "__end" } ],
+            "return_value": { "input": { "type": "read", "key": "result" }
+            }
+        });
+
+        for i in 0..num_tasks {
+            log::info!("Sending task {}", i + 1);
+
+            let workflow = serde_json::from_value(workflow.clone()).unwrap();
+
+            let executor = Executor::new(model.clone());
+            let input = WorkflowsWorkerInput {
+                entry: None,
+                executor,
+                workflow,
+                public_key: PublicKey::from_secret_key(&SecretKey::default()),
+                task_id: "task_id".to_string(),
+                model_name: model.to_string(),
+                stats: TaskStats::default(),
+                batchable: true,
+            };
+
+            // send workflow to worker
+            workflow_tx.send(input).await.unwrap();
+        }
+
+        // now wait for all results
+        let mut results = Vec::new();
+        for i in 0..num_tasks {
+            log::info!("Waiting for result {}", i + 1);
+            let result = publish_rx.recv().await.unwrap();
+            log::info!(
+                "Got result {} (exeuction time: {})",
+                i + 1,
+                (result.stats.execution_time as f64) / 1_000_000_000f64
+            );
+            if result.result.is_err() {
+                println!("Error: {:?}", result.result);
+            }
+            results.push(result);
+        }
+
+        log::info!("Got all results, closing channel.");
+        publish_rx.close();
+        workflow_tx.worker_handle.await.unwrap();
+        log::info!("Done.");
     }
 }

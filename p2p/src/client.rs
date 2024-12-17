@@ -126,7 +126,9 @@ impl DriaP2PClient {
         // dial rpc nodes
         for rpc_addr in &nodes.rpc_nodes {
             log::info!("Dialing RPC node: {}", rpc_addr);
-            swarm.dial(rpc_addr.clone())?;
+            if let Err(e) = swarm.dial(rpc_addr.clone()) {
+                log::error!("Error dialing RPC node: {:?}", e);
+            };
         }
 
         // create commander
