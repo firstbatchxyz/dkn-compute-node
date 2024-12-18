@@ -336,7 +336,9 @@ mod tests {
 
         log::info!("Got all results, closing channel.");
         publish_rx.close();
-        workflow_tx.worker_handle.await.unwrap();
+
+        // TODO: this bugs out
+        worker_handle.await.unwrap();
         log::info!("Done.");
     }
 }
