@@ -8,7 +8,9 @@ async fn test_listen_topic_once() -> Result<()> {
     const TOPIC: &str = "pong";
 
     let _ = env_logger::builder()
-        .parse_filters("none,listen_test=debug,dkn_p2p=debug")
+        .filter_level(log::LevelFilter::Off)
+        .filter_module("listen_test", log::LevelFilter::Debug)
+        .filter_module("dkn_p2p", log::LevelFilter::Debug)
         .is_test(true)
         .try_init();
 
