@@ -1,41 +1,11 @@
-use dkn_compute::*;
+use crate::*;
 use dkn_workflows::DriaWorkflowsConfig;
 use eyre::Result;
 use std::env;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use workers::workflow::WorkflowsWorker;
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    let dotenv_result = dotenvy::dotenv();
-
-    env_logger::builder()
-        .format_timestamp(Some(env_logger::TimestampPrecision::Millis))
-        .filter(None, log::LevelFilter::Off)
-        .filter_module("dkn_compute", log::LevelFilter::Info)
-        .filter_module("dkn_p2p", log::LevelFilter::Info)
-        .filter_module("dkn_workflows", log::LevelFilter::Info)
-        .parse_default_env() // reads RUST_LOG variable
-        .init();
-
-    log::info!(
-        r#"
-
-██████╗ ██████╗ ██╗ █████╗ 
-██╔══██╗██╔══██╗██║██╔══██╗   Dria Compute Node 
-██║  ██║██████╔╝██║███████║   v{DRIA_COMPUTE_NODE_VERSION}
-██║  ██║██╔══██╗██║██╔══██║   https://dria.co
-██████╔╝██║  ██║██║██║  ██║
-╚═════╝ ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝
-"#
-    );
-
-    // log about env usage
-    match dotenv_result {
-        Ok(path) => log::info!("Loaded .env file at: {}", path.display()),
-        Err(e) => log::warn!("Could not load .env file: {}", e),
-    }
-
+pub async fn launch() -> Result<()> {
     // task tracker for multiple threads
     let task_tracker = TaskTracker::new();
     let cancellation = CancellationToken::new();
