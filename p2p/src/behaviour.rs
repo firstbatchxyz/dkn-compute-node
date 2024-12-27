@@ -6,7 +6,11 @@ use eyre::{eyre, Context, Result};
 use libp2p::identity::{Keypair, PeerId, PublicKey};
 use libp2p::kad::store::MemoryStore;
 use libp2p::StreamProtocol;
-use libp2p::{autonat, connection_limits, dcutr, gossipsub, identify, kad, relay};
+use libp2p::{
+    autonat, connection_limits, dcutr, gossipsub, identify, kad, relay, request_response,
+};
+
+use crate::reqres;
 
 #[derive(libp2p::swarm::NetworkBehaviour)]
 pub struct DriaBehaviour {
@@ -17,6 +21,8 @@ pub struct DriaBehaviour {
     pub autonat: autonat::Behaviour,
     pub dcutr: dcutr::Behaviour,
     pub connection_limits: connection_limits::Behaviour,
+    pub request_response:
+        request_response::json::Behaviour<reqres::ReqresRequest, reqres::ReqresResponse>,
 }
 
 impl DriaBehaviour {
@@ -25,6 +31,7 @@ impl DriaBehaviour {
         relay_behaviour: relay::client::Behaviour,
         identity_protocol: String,
         kademlia_protocol: StreamProtocol,
+        reqres_protocol: StreamProtocol,
     ) -> Result<Self> {
         let public_key = key.public();
         let peer_id = public_key.to_peer_id();
@@ -38,8 +45,23 @@ impl DriaBehaviour {
             dcutr: create_dcutr_behaviour(peer_id),
             identify: create_identify_behaviour(public_key, identity_protocol),
             connection_limits: create_connection_limits_behaviour(),
+            request_response: create_request_response_behaviour(reqres_protocol),
         })
     }
+}
+
+/// Configures the request-response behaviour for the node.
+#[inline]
+fn create_request_response_behaviour(
+    protocol_name: StreamProtocol,
+) -> request_response::json::Behaviour<reqres::ReqresRequest, reqres::ReqresResponse> {
+    // TODO: use json instead here?
+    use request_response::{Behaviour, ProtocolSupport};
+
+    Behaviour::new(
+        [(protocol_name, ProtocolSupport::Full)],
+        request_response::Config::default(),
+    )
 }
 
 /// Configures the connection limits.

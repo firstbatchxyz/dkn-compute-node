@@ -2,6 +2,7 @@ use eyre::Result;
 use libp2p::futures::StreamExt;
 use libp2p::gossipsub::{Message, MessageId};
 use libp2p::kad::{GetClosestPeersError, GetClosestPeersOk, QueryResult};
+use libp2p::request_response;
 use libp2p::swarm::SwarmEvent;
 use libp2p::{autonat, gossipsub, identify, kad, multiaddr::Protocol, noise, tcp, yamux};
 use libp2p::{Multiaddr, PeerId, Swarm, SwarmBuilder};
@@ -72,6 +73,7 @@ impl DriaP2PClient {
                     relay_behaviour,
                     protocol.identity(),
                     protocol.kademlia(),
+                    protocol.request_response(),
                 )
                 .map_err(Into::into)
             })?
@@ -301,6 +303,60 @@ impl DriaP2PClient {
                 new,
             })) => {
                 log::warn!("AutoNAT status changed from {:?} to {:?}", old, new);
+            }
+
+            // request-response events
+            SwarmEvent::Behaviour(DriaBehaviourEvent::RequestResponse(
+                request_response::Event::Message { message, .. },
+            )) => match message {
+                request_response::Message::Request {
+                    request, channel, ..
+                } => {
+                    // TODO: handle request
+                }
+                request_response::Message::Response {
+                    request_id,
+                    response,
+                } => {
+                    // TODO: handle response
+                }
+            },
+            SwarmEvent::Behaviour(DriaBehaviourEvent::RequestResponse(
+                request_response::Event::ResponseSent { peer, request_id },
+            )) => {
+                log::debug!(
+                    "Request-Response: Response sent to peer {} with request_id {}",
+                    peer,
+                    request_id
+                )
+            }
+            SwarmEvent::Behaviour(DriaBehaviourEvent::RequestResponse(
+                request_response::Event::OutboundFailure {
+                    peer,
+                    request_id,
+                    error,
+                },
+            )) => {
+                log::error!(
+                    "Request-Response: Outbound failure to peer {} with request_id {}: {:?}",
+                    peer,
+                    request_id,
+                    error
+                );
+            }
+            SwarmEvent::Behaviour(DriaBehaviourEvent::RequestResponse(
+                request_response::Event::InboundFailure {
+                    peer,
+                    request_id,
+                    error,
+                },
+            )) => {
+                log::error!(
+                    "Request-Response: Inbound failure to peer {} with request_id {}: {:?}",
+                    peer,
+                    request_id,
+                    error
+                );
             }
 
             // log listen addreses

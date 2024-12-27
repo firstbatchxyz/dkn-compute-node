@@ -22,6 +22,8 @@ libp2p = { git = "https://github.com/anilaltuner/rust-libp2p.git", rev = "7ce9f9
     "mdns",
     "noise",
     "macros",
+    "request-response",
+    "json",
     "tcp",
     "yamux",
     "quic",
@@ -30,6 +32,8 @@ libp2p = { git = "https://github.com/anilaltuner/rust-libp2p.git", rev = "7ce9f9
 libp2p-identity = { version = "0.2.9", features = ["secp256k1"] }
 log.workspace = true
 eyre.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 
 tokio-util.workspace = true
 tokio.workspace = true

@@ -18,6 +18,12 @@ pub struct DriaP2PProtocol {
     /// which is mandatory for a `StreamProtocol`.
     ///
     pub kademlia: StreamProtocol,
+    /// Request-response protocol, must match with other peers in the network.
+    ///
+    /// This is usually `/{name}/rr/{version}`, notice the `/` at the start
+    /// which is mandatory for a `StreamProtocol`.
+    ///
+    pub request_response: StreamProtocol,
 }
 
 impl std::fmt::Display for DriaP2PProtocol {
@@ -38,12 +44,14 @@ impl DriaP2PProtocol {
     pub fn new(name: &str, version: &str) -> Self {
         let identity = format!("{}/{}", name, version);
         let kademlia = format!("/{}/kad/{}", name, version);
+        let request_response = format!("/{}/rr/{}", name, version);
 
         Self {
             name: name.to_string(),
             version: version.to_string(),
             identity,
             kademlia: StreamProtocol::try_from_owned(kademlia).unwrap(), // guaranteed to unwrap
+            request_response: StreamProtocol::try_from_owned(request_response).unwrap(), // guaranteed to unwrap
         }
     }
 
@@ -67,6 +75,11 @@ impl DriaP2PProtocol {
     /// Returns the kademlia protocol, e.g. `/dria/kad/0.2`.
     pub fn kademlia(&self) -> StreamProtocol {
         self.kademlia.clone()
+    }
+
+    /// Returns the request-response protocol, e.g. `/dria/rr/0.2`.
+    pub fn request_response(&self) -> StreamProtocol {
+        self.request_response.clone()
     }
 
     /// Returns `true` if the given protocol has a matching prefix with out Kademlia protocol.
