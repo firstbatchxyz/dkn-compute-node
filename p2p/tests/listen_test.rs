@@ -22,7 +22,7 @@ async fn test_listen_topic_once() -> Result<()> {
     .with_relay_nodes(["/ip4/34.201.33.141/tcp/4001/p2p/16Uiu2HAkuXiV2CQkC9eJgU6cMnJ9SMARa85FZ6miTkvn5fuHNufa".parse()?]);
 
     // spawn P2P client in another task
-    let (client, mut commander, mut msg_rx) = DriaP2PClient::new(
+    let (client, mut commander, mut msg_rx, _) = DriaP2PClient::new(
         Keypair::generate_secp256k1(),
         listen_addr,
         &nodes,

@@ -10,8 +10,6 @@ use libp2p::{
     autonat, connection_limits, dcutr, gossipsub, identify, kad, relay, request_response,
 };
 
-use crate::reqres;
-
 #[derive(libp2p::swarm::NetworkBehaviour)]
 pub struct DriaBehaviour {
     pub relay: relay::client::Behaviour,
@@ -21,8 +19,7 @@ pub struct DriaBehaviour {
     pub autonat: autonat::Behaviour,
     pub dcutr: dcutr::Behaviour,
     pub connection_limits: connection_limits::Behaviour,
-    pub request_response:
-        request_response::json::Behaviour<reqres::ReqresRequest, reqres::ReqresResponse>,
+    pub request_response: request_response::cbor::Behaviour<Vec<u8>, Vec<u8>>,
 }
 
 impl DriaBehaviour {
@@ -51,10 +48,12 @@ impl DriaBehaviour {
 }
 
 /// Configures the request-response behaviour for the node.
+///
+/// The protocol supports bytes only,
 #[inline]
 fn create_request_response_behaviour(
     protocol_name: StreamProtocol,
-) -> request_response::json::Behaviour<reqres::ReqresRequest, reqres::ReqresResponse> {
+) -> request_response::cbor::Behaviour<Vec<u8>, Vec<u8>> {
     // TODO: use json instead here?
     use request_response::{Behaviour, ProtocolSupport};
 

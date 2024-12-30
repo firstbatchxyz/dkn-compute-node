@@ -1,6 +1,7 @@
 use dkn_p2p::{
     libp2p::{
         gossipsub::{Message, MessageAcceptance, MessageId},
+        request_response::ResponseChannel,
         PeerId,
     },
     DriaNodes, DriaP2PClient, DriaP2PCommander, DriaP2PProtocol,
@@ -33,6 +34,8 @@ pub struct DriaComputeNode {
     pub p2p: DriaP2PCommander,
     /// Gossipsub message receiver, used by peer-to-peer client in a separate thread.
     message_rx: mpsc::Receiver<(PeerId, MessageId, Message)>,
+    /// Request-response request receiver.
+    request_rx: mpsc::Receiver<(Vec<u8>, ResponseChannel<Vec<u8>>)>,
     /// Publish receiver to receive messages to be published,
     publish_rx: mpsc::Receiver<WorkflowsWorkerOutput>,
     /// Workflow transmitter to send batchable tasks.
@@ -78,7 +81,7 @@ impl DriaComputeNode {
         log::info!("Using identity: {}", protocol);
 
         // create p2p client
-        let (p2p_client, p2p_commander, message_rx) = DriaP2PClient::new(
+        let (p2p_client, p2p_commander, message_rx, request_rx) = DriaP2PClient::new(
             keypair,
             config.p2p_listen_addr.clone(),
             &available_nodes,
@@ -111,8 +114,9 @@ impl DriaComputeNode {
                 config,
                 p2p: p2p_commander,
                 dria_nodes: available_nodes,
-                message_rx,
                 publish_rx,
+                message_rx,
+                request_rx,
                 workflow_batch_tx,
                 workflow_single_tx,
                 pending_tasks_single: HashSet::new(),
@@ -312,6 +316,12 @@ impl DriaComputeNode {
         }
     }
 
+    /// Handles a request-response request received from the network.
+    ///
+    /// Internally, the data is expected to be some JSON serialized data that is expected to be parsed and handled.
+    async fn handle_request(&mut self, data: Vec<u8>, channel: ResponseChannel<Vec<u8>>) {
+        // TODO: !!!
+    }
     /// Runs the main loop of the compute node.
     /// This method is not expected to return until cancellation occurs for the given token.
     pub async fn run(&mut self, cancellation: CancellationToken) -> Result<()> {
@@ -331,8 +341,6 @@ impl DriaComputeNode {
 
         loop {
             tokio::select! {
-                // prioritize the branches in the order below
-                biased;
 
                 // a Workflow message to be published is received from the channel
                 // this is expected to be sent by the workflow worker
@@ -375,7 +383,17 @@ impl DriaComputeNode {
                             log::error!("Error validating message {}: {:?}", message_id, e);
                         }
                     } else {
-                        log::error!("Message channel closed unexpectedly.");
+                        log::error!("message_rx channel closed unexpectedly.");
+                        break;
+                    };
+                },
+                // a Response message is received from the channel
+                // this is expected to be sent by the p2p client
+                request_msg_opt = self.request_rx.recv() => {
+                    if let Some((data, channel)) = request_msg_opt {
+                        self.handle_request(data, channel).await;
+                    } else {
+                        log::error!("request_rx channel closed unexpectedly.");
                         break;
                     };
                 },

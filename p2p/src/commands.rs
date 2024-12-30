@@ -1,5 +1,5 @@
 use eyre::{Context, Result};
-use libp2p::{gossipsub, kad, swarm, Multiaddr, PeerId};
+use libp2p::{gossipsub, kad, request_response, swarm, Multiaddr, PeerId};
 use tokio::sync::{mpsc, oneshot};
 
 use crate::DriaP2PProtocol;
@@ -42,6 +42,12 @@ pub enum DriaP2PCommand {
         topic: String,
         data: Vec<u8>,
         sender: oneshot::Sender<Result<gossipsub::MessageId, gossipsub::PublishError>>,
+    },
+    /// Respond to a request-response message.
+    Respond {
+        data: Vec<u8>,
+        channel: request_response::ResponseChannel<Vec<u8>>,
+        sender: oneshot::Sender<Result<()>>,
     },
     /// Validates a GossipSub message for propagation, returns whether the message existed in cache.
     ///
