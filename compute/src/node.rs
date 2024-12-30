@@ -14,7 +14,8 @@ use tokio_util::{either::Either, sync::CancellationToken};
 use crate::{
     config::*,
     handlers::*,
-    utils::{crypto::secret_to_keypair, refresh_dria_nodes, DriaMessage},
+    responders::{IsResponder, SpecResponder},
+    utils::{crypto::secret_to_keypair, refresh_dria_nodes, DriaMessage, SpecCollector},
     workers::workflow::{WorkflowsWorker, WorkflowsWorkerInput, WorkflowsWorkerOutput},
     DRIA_COMPUTE_NODE_VERSION,
 };
@@ -50,6 +51,8 @@ pub struct DriaComputeNode {
     completed_tasks_single: usize,
     /// Completed batch tasks count
     completed_tasks_batch: usize,
+    /// Spec collector for the node.
+    spec_collector: SpecCollector,
 }
 
 impl DriaComputeNode {
@@ -123,6 +126,7 @@ impl DriaComputeNode {
                 pending_tasks_batch: HashSet::new(),
                 completed_tasks_single: 0,
                 completed_tasks_batch: 0,
+                spec_collector: SpecCollector::new(),
             },
             p2p_client,
             workflows_batch_worker,
@@ -319,8 +323,13 @@ impl DriaComputeNode {
     /// Handles a request-response request received from the network.
     ///
     /// Internally, the data is expected to be some JSON serialized data that is expected to be parsed and handled.
-    async fn handle_request(&mut self, data: Vec<u8>, channel: ResponseChannel<Vec<u8>>) {
-        // TODO: !!!
+    async fn handle_request(&mut self, data: Vec<u8>, mut channel: ResponseChannel<Vec<u8>>) {
+        if let Ok(req) = SpecResponder::try_parse_request(&data) {
+            let response = SpecResponder::respond(req, self.spec_collector.collect().await);
+            // TODO: send response
+        } else {
+            log::warn!("Received unknown request: {:?}", data);
+        }
     }
     /// Runs the main loop of the compute node.
     /// This method is not expected to return until cancellation occurs for the given token.

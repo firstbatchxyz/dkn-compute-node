@@ -113,6 +113,7 @@ async fn main() {
                     * 1_000_000_000f64;
 
                 // add row to table
+                // FIXME: this should be updated on each iteration
                 table.add_row(Row::new(vec![
                     Cell::new(&model.to_string()),
                     Cell::new(&tps.to_string()),

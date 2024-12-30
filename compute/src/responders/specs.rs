@@ -1,6 +1,6 @@
-use super::IsResponder;
-use eyre::Result;
+use crate::utils::Specs;
 
+use super::IsResponder;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -12,7 +12,8 @@ pub struct Request {
 #[derive(Serialize, Deserialize)]
 pub struct Response {
     request_id: String,
-    response: String,
+    #[serde(flatten)]
+    specs: Specs,
 }
 
 pub struct SpecResponder;
@@ -23,7 +24,10 @@ impl IsResponder for SpecResponder {
 }
 
 impl SpecResponder {
-    pub fn respond(request: Request) -> Response {
-        // TODO: collect specs
+    pub fn respond(request: Request, specs: Specs) -> Response {
+        Response {
+            request_id: request.request_id,
+            specs,
+        }
     }
 }
