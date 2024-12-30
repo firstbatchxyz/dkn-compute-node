@@ -159,6 +159,28 @@ impl DriaP2PCommander {
             .wrap_err("could not publish")
     }
 
+    pub async fn respond(
+        &mut self,
+        data: Vec<u8>,
+        channel: request_response::ResponseChannel<Vec<u8>>,
+    ) -> Result<()> {
+        let (sender, receiver) = oneshot::channel();
+
+        self.sender
+            .send(DriaP2PCommand::Respond {
+                data,
+                channel,
+                sender,
+            })
+            .await
+            .wrap_err("could not send")?;
+
+        receiver
+            .await
+            .wrap_err("could not receive")?
+            .wrap_err("could not publish")
+    }
+
     /// Dials a given peer.
     pub async fn dial(&mut self, peer_id: Multiaddr) -> Result<()> {
         let (sender, receiver) = oneshot::channel();

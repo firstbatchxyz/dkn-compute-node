@@ -323,14 +323,21 @@ impl DriaComputeNode {
     /// Handles a request-response request received from the network.
     ///
     /// Internally, the data is expected to be some JSON serialized data that is expected to be parsed and handled.
-    async fn handle_request(&mut self, data: Vec<u8>, mut channel: ResponseChannel<Vec<u8>>) {
-        if let Ok(req) = SpecResponder::try_parse_request(&data) {
+    async fn handle_request(
+        &mut self,
+        data: Vec<u8>,
+        channel: ResponseChannel<Vec<u8>>,
+    ) -> Result<()> {
+        let response_data = if let Ok(req) = SpecResponder::try_parse_request(&data) {
             let response = SpecResponder::respond(req, self.spec_collector.collect().await);
-            // TODO: send response
+            serde_json::to_vec(&response).unwrap()
         } else {
-            log::warn!("Received unknown request: {:?}", data);
-        }
+            return Err(eyre::eyre!("Received unknown request: {:?}", data));
+        };
+
+        self.p2p.respond(response_data, channel).await
     }
+
     /// Runs the main loop of the compute node.
     /// This method is not expected to return until cancellation occurs for the given token.
     pub async fn run(&mut self, cancellation: CancellationToken) -> Result<()> {
@@ -400,7 +407,9 @@ impl DriaComputeNode {
                 // this is expected to be sent by the p2p client
                 request_msg_opt = self.request_rx.recv() => {
                     if let Some((data, channel)) = request_msg_opt {
-                        self.handle_request(data, channel).await;
+                        if let Err(e) = self.handle_request(data, channel).await {
+                            log::error!("Error handling request: {:?}", e);
+                        }
                     } else {
                         log::error!("request_rx channel closed unexpectedly.");
                         break;
