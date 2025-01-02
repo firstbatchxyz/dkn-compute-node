@@ -69,7 +69,7 @@ fn create_connection_limits_behaviour() -> connection_limits::Behaviour {
 
     /// Number of established outgoing connections limit, this is directly correlated to peer count
     /// so limiting this will cause a limitation on peers as well.
-    const EST_OUTGOING_LIMIT: u32 = 20;
+    const EST_OUTGOING_LIMIT: u32 = 300;
 
     let limits =
         ConnectionLimits::default().with_max_established_outgoing(Some(EST_OUTGOING_LIMIT));
