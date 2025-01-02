@@ -4,6 +4,7 @@ use dkn_utils::get_current_time_nanos;
 use dkn_workflows::{Model, ModelProvider};
 use eyre::{Context, Result};
 use serde::{Deserialize, Serialize};
+use tokio::time::Instant;
 
 pub struct PingpongHandler;
 
@@ -59,6 +60,9 @@ impl PingpongHandler {
             // ignore message due to past deadline
             return Ok(MessageAcceptance::Ignore);
         }
+
+        // record ping moment
+        node.last_pinged_at = Instant::now();
 
         // respond
         let response_body = PingpongResponse {

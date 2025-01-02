@@ -25,7 +25,7 @@ pub struct DriaP2PClient {
     /// Gossipsub protoocol, gossip message sender.
     msg_tx: mpsc::Sender<(PeerId, MessageId, Message)>,
     /// Request-response protocol, request sender.
-    req_tx: mpsc::Sender<(Vec<u8>, ResponseChannel<Vec<u8>>)>,
+    req_tx: mpsc::Sender<(PeerId, Vec<u8>, ResponseChannel<Vec<u8>>)>,
     /// Command receiver.
     cmd_rx: mpsc::Receiver<DriaP2PCommand>,
 }
@@ -55,7 +55,7 @@ impl DriaP2PClient {
         DriaP2PClient,
         DriaP2PCommander,
         mpsc::Receiver<(PeerId, MessageId, Message)>,
-        mpsc::Receiver<(Vec<u8>, ResponseChannel<Vec<u8>>)>,
+        mpsc::Receiver<(PeerId, Vec<u8>, ResponseChannel<Vec<u8>>)>,
     )> {
         // this is our peerId
         let node_peerid = keypair.public().to_peer_id();
@@ -302,12 +302,12 @@ impl DriaP2PClient {
 
             // request-response events
             SwarmEvent::Behaviour(DriaBehaviourEvent::RequestResponse(
-                request_response::Event::Message { message, .. },
+                request_response::Event::Message { message, peer },
             )) => match message {
                 request_response::Message::Request {
                     request, channel, ..
                 } => {
-                    if let Err(e) = self.req_tx.send((request, channel)).await {
+                    if let Err(e) = self.req_tx.send((peer, request, channel)).await {
                         log::error!("Could not send request-response request: {:?}", e);
                     }
                 }
