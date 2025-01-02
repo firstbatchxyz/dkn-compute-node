@@ -8,11 +8,13 @@ on:
       # Source files in each member
       - "compute/src/**"
       - "p2p/src/**"
+      - "monitor/src/**"
       - "workflows/src/**"
       # Cargo in each member
       - "compute/Cargo.toml"
       - "p2p/Cargo.toml"
       - "workflows/Cargo.toml"
+      - "monitor/Cargo.toml"
       # root-level Cargo
       - "Cargo.lock"
       # workflow itself
