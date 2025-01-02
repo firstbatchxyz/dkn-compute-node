@@ -211,14 +211,6 @@ impl DriaComputeNode {
                     return MessageAcceptance::Ignore;
                 };
 
-                // log the received message
-                log::info!(
-                    "Received {} message ({}) from {}",
-                    gossipsub_message.topic,
-                    message_id,
-                    peer_id,
-                );
-
                 // ensure that message is from the known RPCs
                 if !self.dria_nodes.rpc_peerids.contains(&source_peer_id) {
                     log::warn!(
@@ -244,6 +236,15 @@ impl DriaComputeNode {
                     }
                 };
 
+                // debug-log the received message
+                log::debug!(
+                    "Received {} message ({}) from {}\n{}",
+                    gossipsub_message.topic,
+                    message_id,
+                    peer_id,
+                    message
+                );
+
                 // check signature
                 match message.is_signed(&self.config.admin_public_key) {
                     Ok(true) => { /* message is signed correctly, nothing to do here */ }
@@ -256,8 +257,6 @@ impl DriaComputeNode {
                         return MessageAcceptance::Ignore;
                     }
                 }
-
-                log::debug!("Parsed: {}", message);
 
                 // handle the DKN message with respect to the topic
                 let handler_result = match message.topic.as_str() {

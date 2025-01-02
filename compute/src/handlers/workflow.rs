@@ -61,6 +61,8 @@ impl WorkflowHandler {
             return Ok(Either::Left(MessageAcceptance::Accept));
         }
 
+        log::info!("Received a task with id: {}", task.task_id);
+
         // obtain public key from the payload
         // do this early to avoid unnecessary processing
         let task_public_key_bytes =

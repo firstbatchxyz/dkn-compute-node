@@ -61,6 +61,7 @@ impl PingpongHandler {
             return Ok(MessageAcceptance::Ignore);
         }
 
+        log::info!("Received a ping for: {}", pingpong.uuid);
         // record ping moment
         node.last_pinged_at = Instant::now();
 

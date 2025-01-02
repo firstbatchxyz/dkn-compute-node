@@ -34,14 +34,13 @@ impl DriaBehaviour {
         let peer_id = public_key.to_peer_id();
 
         Ok(Self {
-            relay: relay_behaviour,
-            gossipsub: create_gossipsub_behaviour(peer_id)
-                .wrap_err("could not create Gossipsub behaviour")?,
-            kademlia: create_kademlia_behaviour(peer_id, kademlia_protocol),
-            autonat: create_autonat_behaviour(peer_id),
-            dcutr: create_dcutr_behaviour(peer_id),
-            identify: create_identify_behaviour(public_key, identity_protocol),
             connection_limits: create_connection_limits_behaviour(),
+            relay: relay_behaviour,
+            dcutr: create_dcutr_behaviour(peer_id),
+            autonat: create_autonat_behaviour(peer_id),
+            identify: create_identify_behaviour(public_key, identity_protocol),
+            kademlia: create_kademlia_behaviour(peer_id, kademlia_protocol),
+            gossipsub: create_gossipsub_behaviour(peer_id)?,
             request_response: create_request_response_behaviour(reqres_protocol),
         })
     }
@@ -70,7 +69,7 @@ fn create_connection_limits_behaviour() -> connection_limits::Behaviour {
 
     /// Number of established outgoing connections limit, this is directly correlated to peer count
     /// so limiting this will cause a limitation on peers as well.
-    const EST_OUTGOING_LIMIT: u32 = 300;
+    const EST_OUTGOING_LIMIT: u32 = 20;
 
     let limits =
         ConnectionLimits::default().with_max_established_outgoing(Some(EST_OUTGOING_LIMIT));
