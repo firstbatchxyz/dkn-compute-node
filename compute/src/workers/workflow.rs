@@ -246,7 +246,13 @@ mod tests {
     use libsecp256k1::{PublicKey, SecretKey};
     use tokio::sync::mpsc;
 
-    // cargo test --package dkn-compute --lib --all-features -- workers::workflow::tests::test_workflows_worker --exact --show-output --nocapture --ignored
+    /// Tests the workflows worker with a single task sent within a batch.
+    ///
+    /// ## Run command
+    ///
+    /// ```sh
+    /// cargo test --package dkn-compute --lib --all-features -- workers::workflow::tests::test_workflows_worker --exact --show-output --nocapture --ignored
+    /// ```
     #[tokio::test]
     #[ignore = "run manually"]
     async fn test_workflows_worker() {

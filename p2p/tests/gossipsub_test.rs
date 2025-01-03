@@ -2,14 +2,22 @@ use dkn_p2p::{DriaNodes, DriaP2PClient, DriaP2PProtocol};
 use eyre::Result;
 use libp2p_identity::Keypair;
 
+/// A gossipsub test that listens for a single message on a given topic.
+/// Terminates when a message is received.
+///
+/// ## Run command
+///
+/// ```sh
+/// cargo test --package dkn-p2p --test gossipsub_test --all-features -- test_gossipsub --exact --show-output --ignored
+/// ```
 #[tokio::test]
 #[ignore = "run this manually"]
-async fn test_listen_topic_once() -> Result<()> {
+async fn test_gossipsub() -> Result<()> {
     const TOPIC: &str = "pong";
 
     let _ = env_logger::builder()
         .filter_level(log::LevelFilter::Off)
-        .filter_module("listen_test", log::LevelFilter::Debug)
+        .filter_module("gossipsub_test", log::LevelFilter::Debug)
         .filter_module("dkn_p2p", log::LevelFilter::Debug)
         .is_test(true)
         .try_init();

@@ -18,6 +18,8 @@ use super::DriaP2PCommander;
 
 /// Peer-to-peer client for Dria Knowledge Network.
 pub struct DriaP2PClient {
+    /// Your peer id.
+    pub peer_id: PeerId,
     /// `Swarm` instance, everything p2p-related are accessed through this instace.
     swarm: Swarm<DriaBehaviour>,
     /// Dria protocol, used for identifying the client.
@@ -58,8 +60,8 @@ impl DriaP2PClient {
         mpsc::Receiver<(PeerId, Vec<u8>, ResponseChannel<Vec<u8>>)>,
     )> {
         // this is our peerId
-        let node_peerid = keypair.public().to_peer_id();
-        log::info!("Compute node peer address: {}", node_peerid);
+        let peer_id = keypair.public().to_peer_id();
+        log::info!("Compute node peer address: {}", peer_id);
 
         let mut swarm = SwarmBuilder::with_existing_identity(keypair)
             .with_tokio()
@@ -144,6 +146,7 @@ impl DriaP2PClient {
         let (msg_tx, msg_rx) = mpsc::channel(MSG_CHANNEL_BUFSIZE);
         let (req_tx, req_rx) = mpsc::channel(MSG_CHANNEL_BUFSIZE);
         let client = Self {
+            peer_id,
             swarm,
             protocol,
             msg_tx,
@@ -226,6 +229,18 @@ impl DriaP2PClient {
                         .map_err(|_| eyre::eyre!("could not send response, channel is closed?")),
                 );
             }
+            DriaP2PCommand::Request {
+                data,
+                peer_id,
+                sender,
+            } => {
+                let _ = sender.send(
+                    self.swarm
+                        .behaviour_mut()
+                        .request_response
+                        .send_request(&peer_id, data),
+                );
+            }
             DriaP2PCommand::ValidateMessage {
                 msg_id,
                 propagation_source,
@@ -304,6 +319,8 @@ impl DriaP2PClient {
             SwarmEvent::Behaviour(DriaBehaviourEvent::RequestResponse(
                 request_response::Event::Message { message, peer },
             )) => match message {
+                // a request has been made with us as the target, and we should respond
+                // using the created `channel`; we simply forward this to the request channel
                 request_response::Message::Request {
                     request, channel, ..
                 } => {
@@ -316,7 +333,7 @@ impl DriaP2PClient {
                     response,
                 } => {
                     // while we support the protocol, we dont really make any requests
-                    // TODO: p2p crate should support this
+                    // TODO: should p2p crate support this?
                     log::warn!(
                         "Unexpected response message with request_id {}: {:?}",
                         request_id,

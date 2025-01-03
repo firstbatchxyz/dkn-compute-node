@@ -49,6 +49,14 @@ pub enum DriaP2PCommand {
         channel: request_response::ResponseChannel<Vec<u8>>,
         sender: oneshot::Sender<Result<()>>,
     },
+    /// Request a request-response message.
+    /// Note that you are likely to be caught by the RPC peer id check,
+    /// and your messages will be ignored.
+    Request {
+        peer_id: PeerId,
+        data: Vec<u8>,
+        sender: oneshot::Sender<request_response::OutboundRequestId>,
+    },
     /// Validates a GossipSub message for propagation, returns whether the message existed in cache.
     ///
     /// - `Accept`: Accept the message and propagate it.
@@ -179,6 +187,25 @@ impl DriaP2PCommander {
             .await
             .wrap_err("could not receive")?
             .wrap_err("could not publish")
+    }
+
+    pub async fn request(
+        &mut self,
+        peer_id: PeerId,
+        data: Vec<u8>,
+    ) -> Result<request_response::OutboundRequestId> {
+        let (sender, receiver) = oneshot::channel();
+
+        self.sender
+            .send(DriaP2PCommand::Request {
+                data,
+                peer_id,
+                sender,
+            })
+            .await
+            .wrap_err("could not send")?;
+
+        receiver.await.wrap_err("could not receive")
     }
 
     /// Dials a given peer.
