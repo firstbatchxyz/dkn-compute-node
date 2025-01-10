@@ -32,6 +32,12 @@ pub struct SpecCollector {
     gpus: Vec<AdapterInfo>,
 }
 
+impl Default for SpecCollector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SpecCollector {
     pub fn new() -> Self {
         SpecCollector {

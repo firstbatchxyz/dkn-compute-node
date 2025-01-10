@@ -1,9 +1,10 @@
-use dkn_workflows::OllamaConfig;
+#[cfg(feature = "profiling")]
+use dkn_workflows::{Model, OllamaConfig};
+#[cfg(feature = "profiling")]
 use ollama_workflows::ollama_rs::{
     generation::completion::{request::GenerationRequest, GenerationResponse},
     Ollama,
 };
-use ollama_workflows::Model;
 
 #[cfg(not(feature = "profiling"))]
 fn main() {
@@ -136,6 +137,7 @@ async fn run_benchmark(ollama: Ollama, models: Vec<Model>) {
 }
 
 /// Computes the TPS.
+#[cfg(feature = "profiling")]
 #[inline(always)]
 fn get_response_tps(res: &GenerationResponse) -> f64 {
     (res.eval_count.unwrap_or_default() as f64) / (res.eval_duration.unwrap_or(1) as f64)
