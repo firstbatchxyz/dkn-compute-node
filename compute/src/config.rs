@@ -1,16 +1,16 @@
-use crate::utils::{
-    address_in_use,
-    crypto::{secret_to_keypair, to_address},
-};
 use dkn_p2p::{libp2p::Multiaddr, DriaNetworkType};
 use dkn_workflows::DriaWorkflowsConfig;
 use eyre::{eyre, Result};
 use libsecp256k1::{PublicKey, SecretKey};
-
 use std::{env, str::FromStr};
 
-// TODO: make this configurable later
+use crate::utils::{
+    address_in_use,
+    crypto::{secret_to_keypair, to_address},
+};
+
 const DEFAULT_WORKFLOW_BATCH_SIZE: usize = 5;
+const DEFAULT_P2P_LISTEN_ADDR: &str = "/ip4/0.0.0.0/tcp/4001";
 
 #[derive(Debug, Clone)]
 pub struct DriaComputeNodeConfig {
@@ -34,9 +34,6 @@ pub struct DriaComputeNodeConfig {
     /// at the risk of hitting rate-limits.
     pub batch_size: usize,
 }
-
-/// The default P2P network listen address.
-pub(crate) const DEFAULT_P2P_LISTEN_ADDR: &str = "/ip4/0.0.0.0/tcp/4001";
 
 #[allow(clippy::new_without_default)]
 impl DriaComputeNodeConfig {

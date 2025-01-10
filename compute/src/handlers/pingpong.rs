@@ -1,10 +1,11 @@
-use crate::{utils::DriaMessage, DriaComputeNode};
 use dkn_p2p::libp2p::gossipsub::MessageAcceptance;
 use dkn_utils::get_current_time_nanos;
 use dkn_workflows::{Model, ModelProvider};
 use eyre::{Context, Result};
 use serde::{Deserialize, Serialize};
 use tokio::time::Instant;
+
+use crate::{utils::DriaMessage, DriaComputeNode};
 
 pub struct PingpongHandler;
 

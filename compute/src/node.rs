@@ -17,7 +17,7 @@ use tokio_util::{either::Either, sync::CancellationToken};
 use crate::{
     config::*,
     handlers::*,
-    responders::{IsResponder, SpecResponder},
+    responders::{IsResponder, SpecResponder, WorkflowResponder},
     utils::{crypto::secret_to_keypair, refresh_dria_nodes, DriaMessage, SpecCollector},
     workers::workflow::{WorkflowsWorker, WorkflowsWorkerInput, WorkflowsWorkerOutput},
     DRIA_COMPUTE_NODE_VERSION,
@@ -144,6 +144,9 @@ impl DriaComputeNode {
     }
 
     /// Subscribe to a certain task with its topic.
+    ///
+    /// These are likely to be called once, so can be inlined.
+    #[inline]
     pub async fn subscribe(&mut self, topic: &str) -> Result<()> {
         let ok = self.p2p.subscribe(topic).await?;
         if ok {
@@ -155,6 +158,9 @@ impl DriaComputeNode {
     }
 
     /// Unsubscribe from a certain task with its topic.
+    ///
+    /// These are likely to be called once, so can be inlined.
+    #[inline]
     pub async fn unsubscribe(&mut self, topic: &str) -> Result<()> {
         let ok = self.p2p.unsubscribe(topic).await?;
         if ok {
@@ -166,6 +172,7 @@ impl DriaComputeNode {
     }
 
     /// Returns the task count within the channels, `single` and `batch`.
+    #[inline]
     pub fn get_pending_task_count(&self) -> [usize; 2] {
         [
             self.pending_tasks_single.len(),
@@ -349,6 +356,11 @@ impl DriaComputeNode {
         let response_data = if let Ok(req) = SpecResponder::try_parse_request(&data) {
             let response = SpecResponder::respond(req, self.spec_collector.collect().await);
             serde_json::to_vec(&response).unwrap()
+        } else if let Ok(req) = WorkflowResponder::try_parse_request(&data) {
+            log::info!("Received a task request with id: {}", req.task_id);
+            return Err(eyre::eyre!(
+                "REQUEST RESPONSE FOR TASKS ARE NOT IMPLEMENTED YET"
+            ));
         } else {
             return Err(eyre::eyre!("Received unknown request: {:?}", data));
         };

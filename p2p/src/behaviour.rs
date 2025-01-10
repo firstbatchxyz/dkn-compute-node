@@ -53,7 +53,6 @@ impl DriaBehaviour {
 fn create_request_response_behaviour(
     protocol_name: StreamProtocol,
 ) -> request_response::cbor::Behaviour<Vec<u8>, Vec<u8>> {
-    // TODO: use json instead here?
     use request_response::{Behaviour, ProtocolSupport};
 
     Behaviour::new(

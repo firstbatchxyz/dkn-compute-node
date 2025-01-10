@@ -1,5 +1,3 @@
-use crate::utils::crypto::{sha256hash, sign_bytes_recoverable};
-use crate::DRIA_COMPUTE_NODE_VERSION;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use core::fmt;
 use dkn_utils::get_current_time_nanos;
@@ -7,6 +5,9 @@ use ecies::PublicKey;
 use eyre::{Context, Result};
 use libsecp256k1::{verify, Message, SecretKey, Signature};
 use serde::{Deserialize, Serialize};
+
+use crate::utils::crypto::{sha256hash, sign_bytes_recoverable};
+use crate::DRIA_COMPUTE_NODE_VERSION;
 
 /// A message within Dria Knowledge Network.
 #[derive(Serialize, Deserialize, Debug, Clone)]

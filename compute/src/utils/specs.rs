@@ -1,5 +1,7 @@
+use public_ip_address::response::LookupResponse;
 use serde::{Deserialize, Serialize};
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind};
+use wgpu::AdapterInfo;
 
 /// Machine info & location.
 #[derive(Debug, Serialize, Deserialize)]
@@ -10,12 +12,16 @@ pub struct Specs {
     free_mem: u64,
     /// Number of physical CPU cores.
     num_cpus: Option<usize>,
+    /// Global CPU usage, in percentage.
     cpu_usage: f32,
+    /// Operating system name, e.g. `linux`, `macos`, `windows`.
     os: String,
+    /// CPU architecture, e.g. `x86_64`, `aarch64`.
     arch: String,
-    family: String,
-    gpus: Vec<wgpu::AdapterInfo>,
-    lookup: Option<public_ip_address::response::LookupResponse>,
+    /// GPU adapter infos, showing information about the available GPUs.
+    gpus: Vec<AdapterInfo>,
+    /// Public IP lookup response.
+    lookup: Option<LookupResponse>,
 }
 
 pub struct SpecCollector {
@@ -23,7 +29,7 @@ pub struct SpecCollector {
     /// as per the [docs](https://github.com/GuillaumeGomez/sysinfo?tab=readme-ov-file#good-practice--performance-tips).
     system: sysinfo::System,
     /// GPU adapter infos, showing information about the available GPUs.
-    gpus: Vec<wgpu::AdapterInfo>,
+    gpus: Vec<AdapterInfo>,
 }
 
 impl SpecCollector {
@@ -38,6 +44,8 @@ impl SpecCollector {
         }
     }
 
+    /// Returns the selected refresh kinds. It is important to ignore
+    /// process values here because it will consume a lot of file-descriptors.
     #[inline(always)]
     fn get_refresh_specifics() -> RefreshKind {
         RefreshKind::nothing()
@@ -55,7 +63,6 @@ impl SpecCollector {
             cpu_usage: self.system.global_cpu_usage(),
             os: std::env::consts::OS.to_string(),
             arch: std::env::consts::ARCH.to_string(),
-            family: std::env::consts::FAMILY.to_string(),
             gpus: self.gpus.clone(),
             lookup: public_ip_address::perform_lookup(None).await.ok(),
         }
