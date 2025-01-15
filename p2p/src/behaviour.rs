@@ -53,12 +53,9 @@ impl DriaBehaviour {
 fn create_request_response_behaviour(
     protocol_name: StreamProtocol,
 ) -> request_response::cbor::Behaviour<Vec<u8>, Vec<u8>> {
-    use request_response::{Behaviour, ProtocolSupport};
+    use request_response::{Behaviour, Config, ProtocolSupport};
 
-    Behaviour::new(
-        [(protocol_name, ProtocolSupport::Full)],
-        request_response::Config::default(),
-    )
+    Behaviour::new([(protocol_name, ProtocolSupport::Full)], Config::default())
 }
 
 /// Configures the connection limits.

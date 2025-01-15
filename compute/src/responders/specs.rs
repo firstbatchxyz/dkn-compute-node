@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize)]
 pub struct Request {
     /// UUID of the specs request, prevents replay attacks.
-    request_id: String,
+    pub request_id: String,
 }
 
 #[derive(Serialize, Deserialize)]

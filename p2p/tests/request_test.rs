@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use dkn_p2p::DriaNetworkType::Community;
 use dkn_p2p::{DriaNodes, DriaP2PClient, DriaP2PProtocol};
 use eyre::Result;
 use libp2p::PeerId;
@@ -25,9 +26,9 @@ async fn test_request_message() -> Result<()> {
     let listen_addr = "/ip4/0.0.0.0/tcp/4001".parse()?;
 
     // prepare nodes
-    let nodes = DriaNodes::new(dkn_p2p::DriaNetworkType::Community)
-    .with_bootstrap_nodes(["/ip4/44.206.245.139/tcp/4001/p2p/16Uiu2HAm4q3LZU2T9kgjKK4ysy6KZYKLq8KiXQyae4RHdF7uqSt4".parse()?])
-    .with_relay_nodes(["/ip4/34.201.33.141/tcp/4001/p2p/16Uiu2HAkuXiV2CQkC9eJgU6cMnJ9SMARa85FZ6miTkvn5fuHNufa".parse()?]);
+    let nodes = DriaNodes::new(Community)
+        .with_bootstrap_nodes(Community.get_static_bootstrap_nodes())
+        .with_relay_nodes(Community.get_static_relay_nodes());
 
     // spawn P2P client in another task
     let (client, mut commander, mut msg_rx, mut req_rx) = DriaP2PClient::new(

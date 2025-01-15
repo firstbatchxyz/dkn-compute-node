@@ -35,19 +35,11 @@ async fn test_gossipsub() -> Result<()> {
         listen_addr,
         &nodes,
         DriaP2PProtocol::default(),
-    )
-    .expect("could not create p2p client");
-
-    // spawn task
+    )?;
     let task_handle = tokio::spawn(async move { client.run().await });
 
-    // subscribe to the given topic
-    commander
-        .subscribe(TOPIC)
-        .await
-        .expect("could not subscribe");
-
     // wait for a single gossipsub message on this topic
+    commander.subscribe(TOPIC).await?;
     log::info!("Waiting for messages...");
     let message = msg_rx.recv().await;
     match message {
@@ -58,20 +50,13 @@ async fn test_gossipsub() -> Result<()> {
             log::warn!("No message received for topic: {}", TOPIC);
         }
     }
+    commander.unsubscribe(TOPIC).await?;
 
-    // unsubscribe to the given topic
-    commander
-        .unsubscribe(TOPIC)
-        .await
-        .expect("could not unsubscribe");
-
-    // close command channel
-    commander.shutdown().await.expect("could not shutdown");
-
-    // close message channel
+    // close everything
+    commander.shutdown().await?;
     msg_rx.close();
 
-    log::info!("Waiting for p2p task to finish...");
+    // wait for handle to return
     task_handle.await?;
 
     log::info!("Done!");

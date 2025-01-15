@@ -41,17 +41,22 @@ impl Default for DriaP2PProtocol {
 
 impl DriaP2PProtocol {
     /// Creates a new instance of the protocol with the given `name` and `version`.
-    pub fn new(name: &str, version: &str) -> Self {
+    pub fn new(name: impl ToString, version: impl ToString) -> Self {
+        let name = name.to_string();
+        let version = version.to_string();
+
         let identity = format!("{}/{}", name, version);
-        let kademlia = format!("/{}/kad/{}", name, version);
-        let request_response = format!("/{}/rr/{}", name, version);
+        let kademlia =
+            StreamProtocol::try_from_owned(format!("/{}/kad/{}", name, version)).unwrap();
+        let request_response =
+            StreamProtocol::try_from_owned(format!("/{}/rr/{}", name, version)).unwrap();
 
         Self {
-            name: name.to_string(),
-            version: version.to_string(),
+            name,
+            version,
             identity,
-            kademlia: StreamProtocol::try_from_owned(kademlia).unwrap(), // guaranteed to unwrap
-            request_response: StreamProtocol::try_from_owned(request_response).unwrap(), // guaranteed to unwrap
+            kademlia,
+            request_response,
         }
     }
 
