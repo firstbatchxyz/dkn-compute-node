@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM rust:1.75 AS builder
+FROM --platform=$BUILDPLATFORM rust:1.76 AS builder
 
 # https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
 #
