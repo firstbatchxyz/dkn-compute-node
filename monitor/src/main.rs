@@ -30,7 +30,7 @@ async fn main() -> eyre::Result<()> {
     log::info!("Listen Address: {}", listen_addr);
     let keypair = Keypair::generate_secp256k1();
     log::info!("PeerID: {}", keypair.public().to_peer_id());
-    let (client, commander, msg_rx) = DriaP2PClient::new(
+    let (client, commander, msg_rx, _) = DriaP2PClient::new(
         keypair,
         listen_addr,
         &nodes,

@@ -2,14 +2,22 @@ use dkn_p2p::{DriaNodes, DriaP2PClient, DriaP2PProtocol};
 use eyre::Result;
 use libp2p_identity::Keypair;
 
+/// A gossipsub test that listens for a single message on a given topic.
+/// Terminates when a message is received.
+///
+/// ## Run command
+///
+/// ```sh
+/// cargo test --package dkn-p2p --test gossipsub_test --all-features -- test_gossipsub --exact --show-output --ignored
+/// ```
 #[tokio::test]
 #[ignore = "run this manually"]
-async fn test_listen_topic_once() -> Result<()> {
+async fn test_gossipsub() -> Result<()> {
     const TOPIC: &str = "pong";
 
     let _ = env_logger::builder()
         .filter_level(log::LevelFilter::Off)
-        .filter_module("listen_test", log::LevelFilter::Debug)
+        .filter_module("gossipsub_test", log::LevelFilter::Debug)
         .filter_module("dkn_p2p", log::LevelFilter::Debug)
         .is_test(true)
         .try_init();
@@ -22,24 +30,16 @@ async fn test_listen_topic_once() -> Result<()> {
     .with_relay_nodes(["/ip4/34.201.33.141/tcp/4001/p2p/16Uiu2HAkuXiV2CQkC9eJgU6cMnJ9SMARa85FZ6miTkvn5fuHNufa".parse()?]);
 
     // spawn P2P client in another task
-    let (client, mut commander, mut msg_rx) = DriaP2PClient::new(
+    let (client, mut commander, mut msg_rx, _) = DriaP2PClient::new(
         Keypair::generate_secp256k1(),
         listen_addr,
         &nodes,
         DriaP2PProtocol::default(),
-    )
-    .expect("could not create p2p client");
-
-    // spawn task
+    )?;
     let task_handle = tokio::spawn(async move { client.run().await });
 
-    // subscribe to the given topic
-    commander
-        .subscribe(TOPIC)
-        .await
-        .expect("could not subscribe");
-
     // wait for a single gossipsub message on this topic
+    commander.subscribe(TOPIC).await?;
     log::info!("Waiting for messages...");
     let message = msg_rx.recv().await;
     match message {
@@ -50,20 +50,13 @@ async fn test_listen_topic_once() -> Result<()> {
             log::warn!("No message received for topic: {}", TOPIC);
         }
     }
+    commander.unsubscribe(TOPIC).await?;
 
-    // unsubscribe to the given topic
-    commander
-        .unsubscribe(TOPIC)
-        .await
-        .expect("could not unsubscribe");
-
-    // close command channel
-    commander.shutdown().await.expect("could not shutdown");
-
-    // close message channel
+    // close everything
+    commander.shutdown().await?;
     msg_rx.close();
 
-    log::info!("Waiting for p2p task to finish...");
+    // wait for handle to return
     task_handle.await?;
 
     log::info!("Done!");

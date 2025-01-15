@@ -1,19 +1,24 @@
 use dkn_p2p::{
     libp2p::{
         gossipsub::{Message, MessageAcceptance, MessageId},
+        request_response::ResponseChannel,
         PeerId,
     },
     DriaNodes, DriaP2PClient, DriaP2PCommander, DriaP2PProtocol,
 };
 use eyre::Result;
 use std::collections::HashSet;
-use tokio::{sync::mpsc, time::Duration};
+use tokio::{
+    sync::mpsc,
+    time::{Duration, Instant},
+};
 use tokio_util::{either::Either, sync::CancellationToken};
 
 use crate::{
     config::*,
     handlers::*,
-    utils::{crypto::secret_to_keypair, refresh_dria_nodes, DriaMessage},
+    responders::{IsResponder, SpecResponder, WorkflowResponder},
+    utils::{crypto::secret_to_keypair, refresh_dria_nodes, DriaMessage, SpecCollector},
     workers::workflow::{WorkflowsWorker, WorkflowsWorkerInput, WorkflowsWorkerOutput},
     DRIA_COMPUTE_NODE_VERSION,
 };
@@ -22,6 +27,8 @@ use crate::{
 const DIAGNOSTIC_REFRESH_INTERVAL_SECS: u64 = 30;
 /// Number of seconds between refreshing the available nodes.
 const AVAILABLE_NODES_REFRESH_INTERVAL_SECS: u64 = 30 * 60; // 30 minutes
+/// Number of seconds such that if the last ping is older than this, the node is considered unreachable.
+const PING_LIVENESS_SECS: u64 = 150;
 /// Buffer size for message publishes.
 const PUBLISH_CHANNEL_BUFSIZE: usize = 1024;
 
@@ -31,8 +38,13 @@ pub struct DriaComputeNode {
     pub dria_nodes: DriaNodes,
     /// Peer-to-peer client commander to interact with the network.
     pub p2p: DriaP2PCommander,
+    /// The last time the node was pinged by the network.
+    /// If this is too much, we can say that the node is not reachable by RPC.
+    pub last_pinged_at: Instant,
     /// Gossipsub message receiver, used by peer-to-peer client in a separate thread.
     message_rx: mpsc::Receiver<(PeerId, MessageId, Message)>,
+    /// Request-response request receiver.
+    request_rx: mpsc::Receiver<(PeerId, Vec<u8>, ResponseChannel<Vec<u8>>)>,
     /// Publish receiver to receive messages to be published,
     publish_rx: mpsc::Receiver<WorkflowsWorkerOutput>,
     /// Workflow transmitter to send batchable tasks.
@@ -47,6 +59,8 @@ pub struct DriaComputeNode {
     completed_tasks_single: usize,
     /// Completed batch tasks count
     completed_tasks_batch: usize,
+    /// Spec collector for the node.
+    spec_collector: SpecCollector,
 }
 
 impl DriaComputeNode {
@@ -78,7 +92,7 @@ impl DriaComputeNode {
         log::info!("Using identity: {}", protocol);
 
         // create p2p client
-        let (p2p_client, p2p_commander, message_rx) = DriaP2PClient::new(
+        let (p2p_client, p2p_commander, message_rx, request_rx) = DriaP2PClient::new(
             keypair,
             config.p2p_listen_addr.clone(),
             &available_nodes,
@@ -111,14 +125,17 @@ impl DriaComputeNode {
                 config,
                 p2p: p2p_commander,
                 dria_nodes: available_nodes,
-                message_rx,
                 publish_rx,
+                message_rx,
+                request_rx,
                 workflow_batch_tx,
                 workflow_single_tx,
                 pending_tasks_single: HashSet::new(),
                 pending_tasks_batch: HashSet::new(),
                 completed_tasks_single: 0,
                 completed_tasks_batch: 0,
+                spec_collector: SpecCollector::new(),
+                last_pinged_at: Instant::now(),
             },
             p2p_client,
             workflows_batch_worker,
@@ -127,6 +144,9 @@ impl DriaComputeNode {
     }
 
     /// Subscribe to a certain task with its topic.
+    ///
+    /// These are likely to be called once, so can be inlined.
+    #[inline]
     pub async fn subscribe(&mut self, topic: &str) -> Result<()> {
         let ok = self.p2p.subscribe(topic).await?;
         if ok {
@@ -138,6 +158,9 @@ impl DriaComputeNode {
     }
 
     /// Unsubscribe from a certain task with its topic.
+    ///
+    /// These are likely to be called once, so can be inlined.
+    #[inline]
     pub async fn unsubscribe(&mut self, topic: &str) -> Result<()> {
         let ok = self.p2p.unsubscribe(topic).await?;
         if ok {
@@ -149,6 +172,7 @@ impl DriaComputeNode {
     }
 
     /// Returns the task count within the channels, `single` and `batch`.
+    #[inline]
     pub fn get_pending_task_count(&self) -> [usize; 2] {
         [
             self.pending_tasks_single.len(),
@@ -194,14 +218,6 @@ impl DriaComputeNode {
                     return MessageAcceptance::Ignore;
                 };
 
-                // log the received message
-                log::info!(
-                    "Received {} message ({}) from {}",
-                    gossipsub_message.topic,
-                    message_id,
-                    peer_id,
-                );
-
                 // ensure that message is from the known RPCs
                 if !self.dria_nodes.rpc_peerids.contains(&source_peer_id) {
                     log::warn!(
@@ -227,6 +243,15 @@ impl DriaComputeNode {
                     }
                 };
 
+                // debug-log the received message
+                log::debug!(
+                    "Received {} message ({}) from {}\n{}",
+                    gossipsub_message.topic,
+                    message_id,
+                    peer_id,
+                    message
+                );
+
                 // check signature
                 match message.is_signed(&self.config.admin_public_key) {
                     Ok(true) => { /* message is signed correctly, nothing to do here */ }
@@ -239,8 +264,6 @@ impl DriaComputeNode {
                         return MessageAcceptance::Ignore;
                     }
                 }
-
-                log::debug!("Parsed: {}", message);
 
                 // handle the DKN message with respect to the topic
                 let handler_result = match message.topic.as_str() {
@@ -312,13 +335,57 @@ impl DriaComputeNode {
         }
     }
 
+    /// Handles a request-response request received from the network.
+    ///
+    /// Internally, the data is expected to be some JSON serialized data that is expected to be parsed and handled.
+    async fn handle_request(
+        &mut self,
+        (peer_id, data, channel): (PeerId, Vec<u8>, ResponseChannel<Vec<u8>>),
+    ) -> Result<()> {
+        // ensure that message is from the known RPCs
+        if !self.dria_nodes.rpc_peerids.contains(&peer_id) {
+            log::warn!("Received request from unauthorized source: {}", peer_id);
+            log::debug!("Allowed sources: {:#?}", self.dria_nodes.rpc_peerids);
+            return Err(eyre::eyre!(
+                "Received unauthorized request from {}",
+                peer_id
+            ));
+        }
+
+        // respond w.r.t data
+        let response_data = if let Ok(req) = SpecResponder::try_parse_request(&data) {
+            log::info!(
+                "Got a spec request from peer {} with id {}",
+                peer_id,
+                req.request_id
+            );
+
+            let response = SpecResponder::respond(req, self.spec_collector.collect().await);
+            serde_json::to_vec(&response)?
+        } else if let Ok(req) = WorkflowResponder::try_parse_request(&data) {
+            log::info!("Received a task request with id: {}", req.task_id);
+            return Err(eyre::eyre!(
+                "REQUEST RESPONSE FOR TASKS ARE NOT IMPLEMENTED YET"
+            ));
+        } else {
+            return Err(eyre::eyre!(
+                "Received unknown request from {}: {:?}",
+                peer_id,
+                data,
+            ));
+        };
+
+        log::info!("Responding to peer {}", peer_id);
+        self.p2p.respond(response_data, channel).await
+    }
+
     /// Runs the main loop of the compute node.
     /// This method is not expected to return until cancellation occurs for the given token.
     pub async fn run(&mut self, cancellation: CancellationToken) -> Result<()> {
         // prepare durations for sleeps
-        let mut peer_refresh_interval =
+        let mut diagnostic_refresh_interval =
             tokio::time::interval(Duration::from_secs(DIAGNOSTIC_REFRESH_INTERVAL_SECS));
-        peer_refresh_interval.tick().await; // move one tick
+        diagnostic_refresh_interval.tick().await; // move one tick
         let mut available_node_refresh_interval =
             tokio::time::interval(Duration::from_secs(AVAILABLE_NODES_REFRESH_INTERVAL_SECS));
         available_node_refresh_interval.tick().await; // move one tick
@@ -331,8 +398,6 @@ impl DriaComputeNode {
 
         loop {
             tokio::select! {
-                // prioritize the branches in the order below
-                biased;
 
                 // a Workflow message to be published is received from the channel
                 // this is expected to be sent by the workflow worker
@@ -359,7 +424,7 @@ impl DriaComputeNode {
                 },
 
                 // check peer count every now and then
-                _ = peer_refresh_interval.tick() => self.handle_diagnostic_refresh().await,
+                _ = diagnostic_refresh_interval.tick() => self.handle_diagnostic_refresh().await,
                 // available nodes are refreshed every now and then
                 _ = available_node_refresh_interval.tick() => self.handle_available_nodes_refresh().await,
                 // a GossipSub message is received from the channel
@@ -375,7 +440,19 @@ impl DriaComputeNode {
                             log::error!("Error validating message {}: {:?}", message_id, e);
                         }
                     } else {
-                        log::error!("Message channel closed unexpectedly.");
+                        log::error!("message_rx channel closed unexpectedly.");
+                        break;
+                    };
+                },
+                // a Response message is received from the channel
+                // this is expected to be sent by the p2p client
+                request_msg_opt = self.request_rx.recv() => {
+                    if let Some((peer_id, data, channel)) = request_msg_opt {
+                        if let Err(e) = self.handle_request((peer_id, data, channel)).await {
+                            log::error!("Error handling request: {:?}", e);
+                        }
+                    } else {
+                        log::error!("request_rx channel closed unexpectedly.");
                         break;
                     };
                 },
@@ -417,6 +494,7 @@ impl DriaComputeNode {
     /// Peer refresh simply reports the peer count to the user.
     async fn handle_diagnostic_refresh(&self) {
         let mut diagnostics = Vec::new();
+
         // print peer counts
         match self.p2p.peer_counts().await {
             Ok((mesh, all)) => {
@@ -444,6 +522,13 @@ impl DriaComputeNode {
         diagnostics.push(format!("Version: v{}", DRIA_COMPUTE_NODE_VERSION));
 
         log::info!("{}", diagnostics.join(" | "));
+
+        if self.last_pinged_at < Instant::now() - Duration::from_secs(PING_LIVENESS_SECS) {
+            log::error!(
+                "Node has not received any pings for at least {} seconds & it may be unreachable!\nPlease restart your node!",
+                PING_LIVENESS_SECS
+            );
+        }
     }
 
     /// Updates the local list of available nodes by refreshing it.

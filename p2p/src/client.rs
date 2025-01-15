@@ -2,6 +2,7 @@ use eyre::Result;
 use libp2p::futures::StreamExt;
 use libp2p::gossipsub::{Message, MessageId};
 use libp2p::kad::{GetClosestPeersError, GetClosestPeersOk, QueryResult};
+use libp2p::request_response::{self, ResponseChannel};
 use libp2p::swarm::SwarmEvent;
 use libp2p::{autonat, gossipsub, identify, kad, multiaddr::Protocol, noise, tcp, yamux};
 use libp2p::{Multiaddr, PeerId, Swarm, SwarmBuilder};
@@ -17,12 +18,16 @@ use super::DriaP2PCommander;
 
 /// Peer-to-peer client for Dria Knowledge Network.
 pub struct DriaP2PClient {
+    /// Your peer id.
+    pub peer_id: PeerId,
     /// `Swarm` instance, everything p2p-related are accessed through this instace.
     swarm: Swarm<DriaBehaviour>,
     /// Dria protocol, used for identifying the client.
     protocol: DriaP2PProtocol,
-    /// Gossipsub message sender.
+    /// Gossipsub protoocol, gossip message sender.
     msg_tx: mpsc::Sender<(PeerId, MessageId, Message)>,
+    /// Request-response protocol, request sender.
+    req_tx: mpsc::Sender<(PeerId, Vec<u8>, ResponseChannel<Vec<u8>>)>,
     /// Command receiver.
     cmd_rx: mpsc::Receiver<DriaP2PCommand>,
 }
@@ -52,10 +57,11 @@ impl DriaP2PClient {
         DriaP2PClient,
         DriaP2PCommander,
         mpsc::Receiver<(PeerId, MessageId, Message)>,
+        mpsc::Receiver<(PeerId, Vec<u8>, ResponseChannel<Vec<u8>>)>,
     )> {
         // this is our peerId
-        let node_peerid = keypair.public().to_peer_id();
-        log::info!("Compute node peer address: {}", node_peerid);
+        let peer_id = keypair.public().to_peer_id();
+        log::info!("Compute node peer address: {}", peer_id);
 
         let mut swarm = SwarmBuilder::with_existing_identity(keypair)
             .with_tokio()
@@ -72,6 +78,7 @@ impl DriaP2PClient {
                     relay_behaviour,
                     protocol.identity(),
                     protocol.kademlia(),
+                    protocol.request_response(),
                 )
                 .map_err(Into::into)
             })?
@@ -137,14 +144,17 @@ impl DriaP2PClient {
 
         // create p2p client itself
         let (msg_tx, msg_rx) = mpsc::channel(MSG_CHANNEL_BUFSIZE);
+        let (req_tx, req_rx) = mpsc::channel(MSG_CHANNEL_BUFSIZE);
         let client = Self {
+            peer_id,
             swarm,
             protocol,
             msg_tx,
+            req_tx,
             cmd_rx,
         };
 
-        Ok((client, commander, msg_rx))
+        Ok((client, commander, msg_rx, req_rx))
     }
 
     /// Waits for swarm events and Node commands at the same time.
@@ -204,6 +214,31 @@ impl DriaP2PClient {
                         .behaviour_mut()
                         .gossipsub
                         .publish(gossipsub::IdentTopic::new(topic), data),
+                );
+            }
+            DriaP2PCommand::Respond {
+                data,
+                channel,
+                sender,
+            } => {
+                let _ = sender.send(
+                    self.swarm
+                        .behaviour_mut()
+                        .request_response
+                        .send_response(channel, data)
+                        .map_err(|_| eyre::eyre!("could not send response, channel is closed?")),
+                );
+            }
+            DriaP2PCommand::Request {
+                data,
+                peer_id,
+                sender,
+            } => {
+                let _ = sender.send(
+                    self.swarm
+                        .behaviour_mut()
+                        .request_response
+                        .send_request(&peer_id, data),
                 );
             }
             DriaP2PCommand::ValidateMessage {
@@ -276,8 +311,72 @@ impl DriaP2PClient {
                 message,
             })) => {
                 if let Err(e) = self.msg_tx.send((peer_id, message_id, message)).await {
-                    log::error!("Error sending message: {:?}", e);
+                    log::error!("Could not send Gossipsub message: {:?}", e);
                 }
+            }
+
+            // request-response events
+            SwarmEvent::Behaviour(DriaBehaviourEvent::RequestResponse(
+                request_response::Event::Message { message, peer },
+            )) => match message {
+                // a request has been made with us as the target, and we should respond
+                // using the created `channel`; we simply forward this to the request channel
+                request_response::Message::Request {
+                    request, channel, ..
+                } => {
+                    if let Err(e) = self.req_tx.send((peer, request, channel)).await {
+                        log::error!("Could not send request-response request: {:?}", e);
+                    }
+                }
+                request_response::Message::Response {
+                    request_id,
+                    response,
+                } => {
+                    // while we support the protocol, we dont really make any requests
+                    // TODO: should p2p crate support this?
+                    log::warn!(
+                        "Unexpected response message with request_id {}: {:?}",
+                        request_id,
+                        response
+                    );
+                }
+            },
+            SwarmEvent::Behaviour(DriaBehaviourEvent::RequestResponse(
+                request_response::Event::ResponseSent { peer, request_id },
+            )) => {
+                log::debug!(
+                    "Request-Response: Response sent to peer {} with request_id {}",
+                    peer,
+                    request_id
+                )
+            }
+            SwarmEvent::Behaviour(DriaBehaviourEvent::RequestResponse(
+                request_response::Event::OutboundFailure {
+                    peer,
+                    request_id,
+                    error,
+                },
+            )) => {
+                log::error!(
+                    "Request-Response: Outbound failure to peer {} with request_id {}: {:?}",
+                    peer,
+                    request_id,
+                    error
+                );
+            }
+            SwarmEvent::Behaviour(DriaBehaviourEvent::RequestResponse(
+                request_response::Event::InboundFailure {
+                    peer,
+                    request_id,
+                    error,
+                },
+            )) => {
+                log::error!(
+                    "Request-Response: Inbound failure to peer {} with request_id {}: {:?}",
+                    peer,
+                    request_id,
+                    error
+                );
             }
 
             // kademlia events

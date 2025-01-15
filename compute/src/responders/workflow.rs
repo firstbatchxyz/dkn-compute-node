@@ -1,17 +1,24 @@
-use dkn_p2p::libp2p::gossipsub::MessageAcceptance;
+#![allow(unused)]
+
 use dkn_utils::get_current_time_nanos;
 use dkn_workflows::{Entry, Executor, ModelProvider, Workflow};
 use eyre::{Context, Result};
 use libsecp256k1::PublicKey;
 use serde::Deserialize;
-use tokio_util::either::Either;
 
 use crate::payloads::*;
 use crate::utils::DriaMessage;
 use crate::workers::workflow::*;
 use crate::DriaComputeNode;
 
-pub struct WorkflowHandler;
+use super::IsResponder;
+
+pub struct WorkflowResponder;
+
+impl IsResponder for WorkflowResponder {
+    type Request = TaskRequestPayload<WorkflowPayload>;
+    type Response = TaskResponsePayload;
+}
 
 #[derive(Debug, Deserialize)]
 pub struct WorkflowPayload {
@@ -26,40 +33,25 @@ pub struct WorkflowPayload {
     pub(crate) prompt: Option<String>,
 }
 
-impl WorkflowHandler {
-    pub const LISTEN_TOPIC: &'static str = "task";
-    pub const RESPONSE_TOPIC: &'static str = "results";
-
+impl WorkflowResponder {
     pub(crate) async fn handle_compute(
         node: &mut DriaComputeNode,
         compute_message: &DriaMessage,
-    ) -> Result<Either<MessageAcceptance, WorkflowsWorkerInput>> {
+    ) -> Result<Option<WorkflowsWorkerInput>> {
         let stats = TaskStats::new().record_received_at();
+
+        // parse payload
         let task = compute_message
             .parse_payload::<TaskRequestPayload<WorkflowPayload>>(true)
             .wrap_err("could not parse workflow task")?;
 
         // check if deadline is past or not
-        let current_time = get_current_time_nanos();
-        if current_time >= task.deadline {
-            log::debug!(
-                "Task (id: {}) is past the deadline, ignoring. (local: {}, deadline: {})",
-                task.task_id,
-                current_time,
-                task.deadline
-            );
-
-            // ignore the message
-            return Ok(Either::Left(MessageAcceptance::Ignore));
+        if get_current_time_nanos() >= task.deadline {
+            log::debug!("Task {} is past the deadline, ignoring", task.task_id,);
+            return Ok(None);
         }
 
-        // check task inclusion via the bloom filter
-        if !task.filter.contains(&node.config.address)? {
-            log::debug!("Task {} ignored due to filter.", task.task_id);
-
-            // accept the message, someone else may be included in filter
-            return Ok(Either::Left(MessageAcceptance::Accept));
-        }
+        // TODO: we dont check the filter at all, because this was a request to the given peer
 
         log::info!("Received a task with id: {}", task.task_id);
 
@@ -100,7 +92,7 @@ impl WorkflowHandler {
         // get workflow as well
         let workflow = task.input.workflow;
 
-        Ok(Either::Right(WorkflowsWorkerInput {
+        Ok(Some(WorkflowsWorkerInput {
             entry,
             executor,
             workflow,
@@ -113,11 +105,12 @@ impl WorkflowHandler {
     }
 
     /// Handles the result of a workflow task.
-    pub(crate) async fn handle_publish(
+    pub(crate) async fn handle_respond(
         node: &mut DriaComputeNode,
         task: WorkflowsWorkerOutput,
     ) -> Result<()> {
-        let message = match task.result {
+        // TODO: handle response
+        let _response = match task.result {
             Ok(result) => {
                 // prepare signed and encrypted payload
                 let payload = TaskResponsePayload::new(
@@ -132,7 +125,8 @@ impl WorkflowHandler {
                 // convert payload to message
                 let payload_str = serde_json::json!(payload).to_string();
                 log::info!("Publishing result for task {}", task.task_id);
-                DriaMessage::new(payload_str, Self::RESPONSE_TOPIC)
+
+                DriaMessage::new(payload_str, "response")
             }
             Err(err) => {
                 // use pretty display string for error logging with causes
@@ -149,31 +143,12 @@ impl WorkflowHandler {
                 let error_payload_str = serde_json::json!(error_payload).to_string();
 
                 // prepare signed message
-                DriaMessage::new_signed(
-                    error_payload_str,
-                    Self::RESPONSE_TOPIC,
-                    &node.config.secret_key,
-                )
+                DriaMessage::new_signed(error_payload_str, "response", &node.config.secret_key)
             }
         };
 
-        // try publishing the result
-        if let Err(publish_err) = node.publish(message).await {
-            let err_msg = format!("Could not publish task result: {:?}", publish_err);
-            log::error!("{}", err_msg);
-
-            let payload = serde_json::json!({
-                "taskId": task.task_id,
-                "error": err_msg,
-            });
-            let message = DriaMessage::new_signed(
-                payload.to_string(),
-                Self::RESPONSE_TOPIC,
-                &node.config.secret_key,
-            );
-
-            node.publish(message).await?;
-        };
+        // respond through the channel
+        // TODO: !!!
 
         Ok(())
     }

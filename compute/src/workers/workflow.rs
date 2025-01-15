@@ -106,7 +106,11 @@ impl WorkflowsWorker {
             // (1) there are no tasks, or,
             // (2) there are tasks less than the batch size and the channel is not empty
             while tasks.is_empty() || (tasks.len() < batch_size && !self.workflow_rx.is_empty()) {
-                log::info!("Waiting for more workflows to process ({})", tasks.len());
+                log::info!(
+                    "Worker is waiting for tasks ({} < {})",
+                    tasks.len(),
+                    batch_size
+                );
                 let limit = batch_size - tasks.len();
                 match self.workflow_rx.recv_many(&mut tasks, limit).await {
                     // 0 tasks returned means that the channel is closed
@@ -246,7 +250,13 @@ mod tests {
     use libsecp256k1::{PublicKey, SecretKey};
     use tokio::sync::mpsc;
 
-    // cargo test --package dkn-compute --lib --all-features -- workers::workflow::tests::test_workflows_worker --exact --show-output --nocapture --ignored
+    /// Tests the workflows worker with a single task sent within a batch.
+    ///
+    /// ## Run command
+    ///
+    /// ```sh
+    /// cargo test --package dkn-compute --lib --all-features -- workers::workflow::tests::test_workflows_worker --exact --show-output --nocapture --ignored
+    /// ```
     #[tokio::test]
     #[ignore = "run manually"]
     async fn test_workflows_worker() {
