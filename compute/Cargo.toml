@@ -45,8 +45,12 @@ fastbloom-rs = "0.5.9"
 # machine diagnostics
 # system info
 sysinfo = "0.33.1"
-# gpu info
-wgpu = { version = "23.0.1", features = ["serde"] }
+# gpu info TODO: this gives a build error on Windows
+# wgpu = { version = "23.0.1", features = [
+#     "serde",
+#     "dx12",
+#     "metal",
+# ], default-features = false }
 # public ip
 public-ip-address = "0.3.2"
 

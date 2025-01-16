@@ -1,7 +1,6 @@
 use public_ip_address::response::LookupResponse;
 use serde::{Deserialize, Serialize};
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind};
-use wgpu::AdapterInfo;
 
 /// Machine info & location.
 #[derive(Debug, Serialize, Deserialize)]
@@ -18,8 +17,8 @@ pub struct Specs {
     os: String,
     /// CPU architecture, e.g. `x86_64`, `aarch64`.
     arch: String,
-    /// GPU adapter infos, showing information about the available GPUs.
-    gpus: Vec<AdapterInfo>,
+    // GPU adapter infos, showing information about the available GPUs.
+    // gpus: Vec<wgpu::AdapterInfo>,
     /// Public IP lookup response.
     lookup: Option<LookupResponse>,
 }
@@ -28,8 +27,8 @@ pub struct SpecCollector {
     /// System information object, this is expected to be created only once
     /// as per the [docs](https://github.com/GuillaumeGomez/sysinfo?tab=readme-ov-file#good-practice--performance-tips).
     system: sysinfo::System,
-    /// GPU adapter infos, showing information about the available GPUs.
-    gpus: Vec<AdapterInfo>,
+    // GPU adapter infos, showing information about the available GPUs.
+    // gpus: Vec<wgpu::AdapterInfo>,
 }
 
 impl Default for SpecCollector {
@@ -42,11 +41,11 @@ impl SpecCollector {
     pub fn new() -> Self {
         SpecCollector {
             system: sysinfo::System::new_with_specifics(Self::get_refresh_specifics()),
-            gpus: wgpu::Instance::default()
-                .enumerate_adapters(wgpu::Backends::all())
-                .into_iter()
-                .map(|a| a.get_info())
-                .collect(),
+            // gpus: wgpu::Instance::default()
+            //     .enumerate_adapters(wgpu::Backends::all())
+            //     .into_iter()
+            //     .map(|a| a.get_info())
+            //     .collect(),
         }
     }
 
@@ -69,7 +68,7 @@ impl SpecCollector {
             cpu_usage: self.system.global_cpu_usage(),
             os: std::env::consts::OS.to_string(),
             arch: std::env::consts::ARCH.to_string(),
-            gpus: self.gpus.clone(),
+            // gpus: self.gpus.clone(),
             lookup: public_ip_address::perform_lookup(None).await.ok(),
         }
     }
