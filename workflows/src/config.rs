@@ -180,6 +180,7 @@ impl DriaWorkflowsConfig {
     }
 
     /// Returns the list of unique providers in the config.
+    #[inline]
     pub fn get_providers(&self) -> Vec<ModelProvider> {
         self.models
             .iter()
@@ -189,6 +190,15 @@ impl DriaWorkflowsConfig {
                 }
                 unique
             })
+    }
+
+    /// Returns the list of all models in the config.
+    #[inline]
+    pub fn get_model_names(&self) -> Vec<String> {
+        self.models
+            .iter()
+            .map(|(_, model)| model.to_string())
+            .collect()
     }
 
     /// Check if the required compute services are running.

@@ -120,6 +120,7 @@ impl DriaComputeNode {
                 (None, None)
             };
 
+        let model_names = config.workflows.get_model_names();
         Ok((
             DriaComputeNode {
                 config,
@@ -134,7 +135,7 @@ impl DriaComputeNode {
                 pending_tasks_batch: HashSet::new(),
                 completed_tasks_single: 0,
                 completed_tasks_batch: 0,
-                spec_collector: SpecCollector::new(),
+                spec_collector: SpecCollector::new(model_names),
                 last_pinged_at: Instant::now(),
             },
             p2p_client,
