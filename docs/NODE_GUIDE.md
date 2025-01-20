@@ -254,14 +254,28 @@ You can stop the node as usual by pressing <kbd>Control + C</kbd>, or kill it fr
 
 You will be asked to provide your choice of models within the CLI. You can also pass them from the command line using `-m` flags:
 
+#### For Ollama
+
 ```sh
 # macos or linux
-./dkn-compute-launcher -m=llama3.1:latest -m=gpt-4o-mini
+./dkn-compute-launcher -m=llama3.1:latest
 ```
 
 ```sh
 # windows
-.\dkn-compute-launcher.exe -m=llama3.1:latest -m=gpt-4o-mini
+.\dkn-compute-launcher.exe -m=llama3.1:latest
+```
+
+#### For OpenAI
+
+```sh
+# macos or linux
+ ./dkn-compute-launcher -m=gpt-4o-mini
+```
+
+```sh
+# windows
+.\dkn-compute-launcher.exe -m=gpt-4o-mini
 ```
 
 Available models can be seen within the launcher, or under [`ollama-workflows/models`](https://github.com/andthattoo/ollama-workflows/blob/main/src/program/models.rs).
