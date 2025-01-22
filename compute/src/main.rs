@@ -52,7 +52,6 @@ async fn main() -> Result<()> {
             tokio::time::sleep(tokio::time::Duration::from_secs(duration_secs)).await;
 
             log::warn!("Exiting due to DKN_EXIT_TIMEOUT.");
-
             cancellation_token.cancel();
         } else if let Err(err) = wait_for_termination(cancellation_token.clone()).await {
             // if there is no timeout, we wait for termination signals here
@@ -85,6 +84,9 @@ async fn main() -> Result<()> {
         }
     }?;
     log::warn!("Using models: {:#?}", config.workflows.models);
+
+    // check network-specific configurations
+    config.check_network_specific()?;
 
     // create the node
     let batch_size = config.batch_size;

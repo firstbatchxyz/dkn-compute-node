@@ -21,6 +21,7 @@ pub fn split_csv_line(input: &str) -> Vec<String> {
 
 /// Reads an environment variable and trims whitespace and `"` from both ends.
 /// If the trimmed value is empty, returns `None`.
+#[inline]
 pub fn safe_read_env(var: Result<String, std::env::VarError>) -> Option<String> {
     var.map(|s| s.trim_matches('"').trim().to_string())
         .ok()
@@ -43,6 +44,7 @@ where
 /// Returns the current time in nanoseconds since the Unix epoch.
 ///
 /// If a `SystemTimeError` occurs, will return 0 just to keep things running.
+#[inline]
 pub fn get_current_time_nanos() -> u128 {
     SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
