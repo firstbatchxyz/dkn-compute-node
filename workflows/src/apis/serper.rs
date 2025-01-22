@@ -20,6 +20,12 @@ impl SerperConfig {
         }
     }
 
+    /// Checks if the API key is present.
+    #[inline]
+    pub fn has_api_key(&self) -> bool {
+        self.api_key.is_some()
+    }
+
     /// Sets the API key for Serper.
     pub fn with_api_key(mut self, api_key: String) -> Self {
         self.api_key = Some(api_key);

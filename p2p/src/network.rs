@@ -1,7 +1,7 @@
 use libp2p::{Multiaddr, PeerId};
 
 /// Network type.
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy, PartialEq)]
 pub enum DriaNetworkType {
     #[default]
     Community,

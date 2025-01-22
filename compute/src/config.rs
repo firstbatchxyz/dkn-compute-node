@@ -127,12 +127,28 @@ impl DriaComputeNodeConfig {
 
     /// Asserts that the configured listen address is free.
     /// Throws an error if the address is already in use.
+    #[inline]
     pub fn assert_address_not_in_use(&self) -> Result<()> {
         if address_in_use(&self.p2p_listen_addr) {
             return Err(eyre!(
                 "Listen address {} is already in use.",
                 self.p2p_listen_addr
             ));
+        }
+
+        Ok(())
+    }
+
+    /// Checks the network specific configurations.
+    pub fn check_network_specific(&self) -> Result<()> {
+        // if network is `pro`, we require Jina and Serper to be present.
+        if self.network_type == DriaNetworkType::Pro {
+            if !self.workflows.jina.has_api_key() {
+                return Err(eyre!("Jina is required for the Pro network."));
+            }
+            if !self.workflows.serper.has_api_key() {
+                return Err(eyre!("Serper is required for the Pro network."));
+            }
         }
 
         Ok(())
