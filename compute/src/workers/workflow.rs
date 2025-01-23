@@ -1,4 +1,4 @@
-use dkn_workflows::{Entry, ExecutionError, Executor, ProgramMemory, Workflow};
+use dkn_workflows::{Entry, ExecutionError, Executor, Workflow};
 use libsecp256k1::PublicKey;
 use tokio::sync::mpsc;
 
@@ -211,20 +211,18 @@ impl WorkflowsWorker {
 
     /// Executes a single task, and publishes the output.
     pub async fn execute(
-        (input, publish_tx): (WorkflowsWorkerInput, &mpsc::Sender<WorkflowsWorkerOutput>),
+        (mut input, publish_tx): (WorkflowsWorkerInput, &mpsc::Sender<WorkflowsWorkerOutput>),
     ) {
-        let mut stats = input.stats;
-
-        let mut memory = ProgramMemory::new();
-
-        // TODO: will be removed later
-        let started_at = std::time::Instant::now();
-        stats = stats.record_execution_started_at();
+        input.stats = input.stats.record_execution_started_at();
         let result = input
             .executor
-            .execute(input.entry.as_ref(), &input.workflow, &mut memory)
+            .execute(
+                input.entry.as_ref(),
+                &input.workflow,
+                &mut Default::default(),
+            )
             .await;
-        stats = stats.record_execution_ended_at();
+        input.stats = input.stats.record_execution_ended_at();
 
         let output = WorkflowsWorkerOutput {
             result,
@@ -232,7 +230,7 @@ impl WorkflowsWorker {
             task_id: input.task_id,
             model_name: input.model_name,
             batchable: input.batchable,
-            stats: stats.record_execution_time(started_at),
+            stats: input.stats,
         };
 
         if let Err(e) = publish_tx.send(output).await {
@@ -336,7 +334,8 @@ mod tests {
             log::info!(
                 "Got result {} (exeuction time: {})",
                 i + 1,
-                (result.stats.execution_time as f64) / 1_000_000_000f64
+                (result.stats.execution_ended_at - result.stats.execution_started_at) as f64
+                    / 1_000_000_000f64
             );
             if result.result.is_err() {
                 println!("Error: {:?}", result.result);
