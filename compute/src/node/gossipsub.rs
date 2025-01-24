@@ -5,7 +5,7 @@ use eyre::Result;
 use crate::utils::DriaMessage;
 use crate::DriaComputeNode;
 
-use crate::handlers::*;
+use crate::gossipsub::*;
 
 impl DriaComputeNode {
     /// Subscribe to a certain task with its topic.
@@ -108,8 +108,8 @@ impl DriaComputeNode {
                     message
                 );
 
-                // check signature
-                match message.is_signed(&self.config.admin_public_key) {
+                // check signature w.r.t recovered peer id
+                match message.is_signed(&self.dria_nodes.rpc_peerids) {
                     Ok(true) => { /* message is signed correctly, nothing to do here */ }
                     Ok(false) => {
                         log::warn!("Message has wrong signature!");

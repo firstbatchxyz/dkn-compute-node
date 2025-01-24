@@ -1,13 +1,8 @@
 pub mod config;
-
-/// Gossipsub message handlers.
-pub mod handlers;
-
-// Request-response handlers.
-pub mod responders;
-
+pub mod gossipsub;
 pub mod node;
 pub mod payloads;
+pub mod reqres;
 pub mod utils;
 pub mod workers;
 

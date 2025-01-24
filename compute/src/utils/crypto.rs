@@ -1,4 +1,4 @@
-use dkn_p2p::libp2p_identity;
+use dkn_p2p::{libp2p::PeerId, libp2p_identity};
 use ecies::PublicKey;
 use eyre::{Context, Result};
 use libsecp256k1::{Message, SecretKey};
@@ -61,6 +61,18 @@ pub fn secret_to_keypair(secret_key: &SecretKey) -> libp2p_identity::Keypair {
     let secret_key = dkn_p2p::libp2p_identity::secp256k1::SecretKey::try_from_bytes(bytes)
         .expect("Failed to create secret key");
     libp2p_identity::secp256k1::Keypair::from(secret_key).into()
+}
+
+/// Converts a `libsecp256k1::PublicKey` to a `libp2p_identity::PeerId`.
+/// To do this, we serialize the secret key and create a new keypair from it.
+#[inline]
+pub fn public_key_to_peer_id(public_key: &PublicKey) -> libp2p_identity::PeerId {
+    let bytes = public_key.serialize_compressed();
+
+    let public_key = dkn_p2p::libp2p_identity::secp256k1::PublicKey::try_from_bytes(&bytes)
+        .expect("Failed to create secret key");
+
+    PeerId::from_public_key(&public_key.into())
 }
 
 #[cfg(test)]

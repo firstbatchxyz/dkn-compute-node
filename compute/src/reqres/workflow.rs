@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+use dkn_p2p::libp2p::request_response::ResponseChannel;
 use dkn_utils::get_current_time_nanos;
 use dkn_workflows::{Entry, Executor, ModelProvider, Workflow};
 use eyre::{eyre, Context, Result};
@@ -17,7 +18,7 @@ pub struct WorkflowResponder;
 
 impl IsResponder for WorkflowResponder {
     type Request = DriaMessage; // TaskRequestPayload<WorkflowPayload>;
-    type Response = TaskResponsePayload;
+    type Response = DriaMessage; // TaskResponsePayload;
 }
 
 #[derive(Debug, Deserialize)]
@@ -152,7 +153,7 @@ impl WorkflowResponder {
         };
 
         // respond through the channel
-        // TODO: !!!
+        todo!("TODO: respond through the channel");
 
         Ok(())
     }

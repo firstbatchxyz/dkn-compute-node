@@ -12,7 +12,7 @@ use tokio::{sync::mpsc, time::Instant};
 
 use crate::{
     config::*,
-    handlers::*,
+    gossipsub::*,
     utils::{crypto::secret_to_keypair, refresh_dria_nodes, SpecCollector},
     workers::workflow::{WorkflowsWorker, WorkflowsWorkerInput, WorkflowsWorkerOutput},
 };
@@ -44,9 +44,9 @@ pub struct DriaComputeNode {
     workflow_batch_tx: Option<mpsc::Sender<WorkflowsWorkerInput>>,
     /// Workflow transmitter to send single tasks.
     workflow_single_tx: Option<mpsc::Sender<WorkflowsWorkerInput>>,
-    // Single tasks hash-map
+    // Single tasks
     pending_tasks_single: HashSet<String>,
-    // Batch tasks hash-map
+    // Batchable tasks
     pending_tasks_batch: HashSet<String>,
     /// Completed single tasks count
     completed_tasks_single: usize,

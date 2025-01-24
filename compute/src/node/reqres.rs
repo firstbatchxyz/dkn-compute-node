@@ -1,7 +1,7 @@
 use dkn_p2p::libp2p::{request_response::ResponseChannel, PeerId};
-use eyre::Result;
+use eyre::{eyre, Result};
 
-use crate::responders::*;
+use crate::reqres::*;
 
 use super::DriaComputeNode;
 
@@ -17,10 +17,7 @@ impl DriaComputeNode {
         if !self.dria_nodes.rpc_peerids.contains(&peer_id) {
             log::warn!("Received request from unauthorized source: {}", peer_id);
             log::debug!("Allowed sources: {:#?}", self.dria_nodes.rpc_peerids);
-            return Err(eyre::eyre!(
-                "Received unauthorized request from {}",
-                peer_id
-            ));
+            return Err(eyre!("Received unauthorized request from {}", peer_id));
         }
 
         // try and parse the request

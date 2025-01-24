@@ -1,13 +1,16 @@
 use base64::{prelude::BASE64_STANDARD, Engine};
 use core::fmt;
+use dkn_p2p::libp2p::PeerId;
 use dkn_utils::get_current_time_nanos;
-use ecies::PublicKey;
 use eyre::{Context, Result};
-use libsecp256k1::{verify, Message, SecretKey, Signature};
+use libsecp256k1::{recover, Message, RecoveryId, SecretKey, Signature};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
 use crate::utils::crypto::{sha256hash, sign_bytes_recoverable};
 use crate::DRIA_COMPUTE_NODE_VERSION;
+
+use super::crypto::public_key_to_peer_id;
 
 /// A message within Dria Knowledge Network.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -94,26 +97,36 @@ impl DriaMessage {
         Ok(parsed)
     }
 
-    /// Checks if the payload is signed by the given public key.
-    pub(crate) fn is_signed(&self, public_key: &PublicKey) -> Result<bool> {
+    /// Checks if the payload is signed by the owner of one of the given peer ids.
+    pub(crate) fn is_signed(&self, authorized_peerids: &HashSet<PeerId>) -> Result<bool> {
         // decode base64 payload
         let data = self.decode_payload()?;
 
         // parse signature from the following bytes:
         //    32   +   32  +     1      +  ...
         // (  x   ||   y   ||  rec_id  || data
-        let (signature_hex_bytes, body) =
-            (&data[..SIGNATURE_SIZE_HEX - 2], &data[SIGNATURE_SIZE_HEX..]);
+        let (signature_hex, rec_id_hex, body) = (
+            &data[..SIGNATURE_SIZE_HEX - 2],
+            &data[SIGNATURE_SIZE_HEX - 2..SIGNATURE_SIZE_HEX],
+            &data[SIGNATURE_SIZE_HEX..],
+        );
         let signature_bytes =
-            hex::decode(signature_hex_bytes).wrap_err("could not decode signature hex")?;
+            hex::decode(signature_hex).wrap_err("could not decode signature hex")?;
+        let recovery_id_bytes = hex::decode(rec_id_hex).wrap_err("could not decode rec id hex")?;
 
         // now obtain the signature itself
         let signature = Signature::parse_standard_slice(&signature_bytes)
             .wrap_err("could not parse signature bytes")?;
+        let recovery_id =
+            RecoveryId::parse(recovery_id_bytes[0]).wrap_err("could not decode recovery id")?;
 
         // verify signature w.r.t the body and the given public key
-        let digest = Message::parse(&sha256hash(body));
-        Ok(verify(&digest, &signature, public_key))
+        let message = Message::parse(&sha256hash(body));
+
+        let recovered_public_key = recover(&message, &signature, &recovery_id)?;
+        let recovered_peer_id = public_key_to_peer_id(&recovered_public_key);
+
+        Ok(authorized_peerids.contains(&recovered_peer_id))
     }
 }
 
@@ -142,8 +155,10 @@ impl TryFrom<&dkn_p2p::libp2p::gossipsub::Message> for DriaMessage {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use ecies::PublicKey;
     use rand::thread_rng;
+
+    use super::*;
 
     #[derive(Serialize, Deserialize, PartialEq, Debug)]
     struct TestStruct {
@@ -195,6 +210,7 @@ mod tests {
         let mut rng = thread_rng();
         let sk = SecretKey::random(&mut rng);
         let pk = PublicKey::from_secret_key(&sk);
+        let peer_id = public_key_to_peer_id(&pk);
 
         // create payload & message with signature & body
         let body = TestStruct::default();
@@ -213,7 +229,11 @@ mod tests {
         assert_eq!(message.version, DRIA_COMPUTE_NODE_VERSION);
         assert!(message.timestamp > 0);
 
-        assert!(message.is_signed(&pk).expect("Should check signature"));
+        let mut peer_ids = HashSet::new();
+        peer_ids.insert(peer_id);
+        assert!(message
+            .is_signed(&peer_ids)
+            .expect("Should verify signature"));
 
         let parsed_body = message.parse_payload(true).expect("Should decode");
         assert_eq!(body, parsed_body);

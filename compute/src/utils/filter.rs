@@ -21,8 +21,6 @@ impl TaskFilter {
     }
 }
 
-// FIXME: too many TryFrom's here, simplify in a single function here!
-
 impl TryFrom<&TaskFilter> for String {
     type Error = serde_json::Error;
 

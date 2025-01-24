@@ -1,3 +1,5 @@
+//! Request-response handlers.
+
 use eyre::Context;
 use serde::{de::DeserializeOwned, Serialize};
 
