@@ -42,7 +42,7 @@ impl DriaComputeNode {
     /// and then published to the network as is.
     pub async fn publish(&mut self, mut message: DriaMessage) -> Result<()> {
         // attach protocol name to the message
-        message = message.with_identity(self.p2p.protocol().name.clone());
+        message = message.with_protocol(self.p2p.protocol());
 
         let message_bytes = serde_json::to_vec(&message)?;
         let message_id = self.p2p.publish(&message.topic, message_bytes).await?;

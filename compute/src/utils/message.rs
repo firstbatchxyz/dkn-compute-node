@@ -1,6 +1,7 @@
 use base64::{prelude::BASE64_STANDARD, Engine};
 use core::fmt;
 use dkn_p2p::libp2p::PeerId;
+use dkn_p2p::DriaP2PProtocol;
 use dkn_utils::get_current_time_nanos;
 use eyre::{Context, Result};
 use libsecp256k1::{recover, Message, RecoveryId, SecretKey, Signature};
@@ -25,9 +26,8 @@ pub struct DriaMessage {
     ///
     /// NOTE: This can be obtained via Identify protocol version
     pub version: String,
-    /// Identity protocol string of the Dria Compute Node
-    #[serde(default)]
-    pub identity: String,
+    /// Protocol name of the Dria Compute Node, e.g. `dria`.
+    pub protocol: String,
     /// The timestamp of the message, in nanoseconds
     ///
     /// NOTE: This can be obtained via `DataTransform` in GossipSub
@@ -51,7 +51,7 @@ impl DriaMessage {
             payload: BASE64_STANDARD.encode(data),
             topic: topic.to_string(),
             version: DRIA_COMPUTE_NODE_VERSION.to_string(),
-            identity: String::default(),
+            protocol: String::default(),
             timestamp: get_current_time_nanos(),
         }
     }
@@ -71,8 +71,8 @@ impl DriaMessage {
     }
 
     /// Sets the identity of the message.
-    pub(crate) fn with_identity(mut self, identity: String) -> Self {
-        self.identity = identity;
+    pub(crate) fn with_protocol(mut self, protocol: &DriaP2PProtocol) -> Self {
+        self.protocol = protocol.name.clone();
         self
     }
 
