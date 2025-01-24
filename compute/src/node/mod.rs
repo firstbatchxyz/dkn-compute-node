@@ -98,8 +98,8 @@ impl DriaComputeNode {
         // check if we should create a worker for batchable workflows
         let (workflows_batch_worker, workflow_batch_tx) = if config.workflows.has_batchable_models()
         {
-            let worker = WorkflowsWorker::new(publish_tx.clone());
-            (Some(worker.0), Some(worker.1))
+            let (worker, sender) = WorkflowsWorker::new(publish_tx.clone());
+            (Some(worker), Some(sender))
         } else {
             (None, None)
         };
@@ -107,8 +107,8 @@ impl DriaComputeNode {
         // check if we should create a worker for single workflows
         let (workflows_single_worker, workflow_single_tx) =
             if config.workflows.has_non_batchable_models() {
-                let worker = WorkflowsWorker::new(publish_tx);
-                (Some(worker.0), Some(worker.1))
+                let (worker, sender) = WorkflowsWorker::new(publish_tx);
+                (Some(worker), Some(sender))
             } else {
                 (None, None)
             };

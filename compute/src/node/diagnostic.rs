@@ -46,7 +46,7 @@ impl DriaComputeNode {
         // print version
         diagnostics.push(format!("Version: v{}", DRIA_COMPUTE_NODE_VERSION));
 
-        log::info!("Diagnostics:\n{}", diagnostics.join("\n\t"));
+        log::info!("Diagnostics:\n  {}", diagnostics.join("\n  "));
 
         if self.last_pinged_at < Instant::now() - Duration::from_secs(PING_LIVENESS_SECS) {
             log::error!(

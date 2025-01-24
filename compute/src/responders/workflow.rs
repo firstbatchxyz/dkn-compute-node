@@ -2,7 +2,7 @@
 
 use dkn_utils::get_current_time_nanos;
 use dkn_workflows::{Entry, Executor, ModelProvider, Workflow};
-use eyre::{Context, Result};
+use eyre::{eyre, Context, Result};
 use libsecp256k1::PublicKey;
 use serde::Deserialize;
 
@@ -16,7 +16,7 @@ use super::IsResponder;
 pub struct WorkflowResponder;
 
 impl IsResponder for WorkflowResponder {
-    type Request = TaskRequestPayload<WorkflowPayload>;
+    type Request = DriaMessage; // TaskRequestPayload<WorkflowPayload>;
     type Response = TaskResponsePayload;
 }
 
@@ -34,26 +34,30 @@ pub struct WorkflowPayload {
 }
 
 impl WorkflowResponder {
+    /// Handles the compute message for workflows.
+    ///
+    /// - FIXME: DOES NOT CHECK FOR FILTER AS IT IS NO LONGER USED
+    /// - FIXME: GIVES ERROR ON DEADLINE PAST CASE, BUT WE DONT NEED DEADLINE AS WELL
     pub(crate) async fn handle_compute(
         node: &mut DriaComputeNode,
         compute_message: &DriaMessage,
-    ) -> Result<Option<WorkflowsWorkerInput>> {
-        let stats = TaskStats::new().record_received_at();
-
+    ) -> Result<WorkflowsWorkerInput> {
         // parse payload
         let task = compute_message
             .parse_payload::<TaskRequestPayload<WorkflowPayload>>(true)
             .wrap_err("could not parse workflow task")?;
+        log::info!("Handling task {}", task.task_id);
+
+        let stats = TaskStats::new().record_received_at();
 
         // check if deadline is past or not
+        // with request-response, we dont expect this to happen much
         if get_current_time_nanos() >= task.deadline {
-            log::debug!("Task {} is past the deadline, ignoring", task.task_id,);
-            return Ok(None);
+            return Err(eyre!(
+                "Task {} is past the deadline, ignoring",
+                task.task_id
+            ));
         }
-
-        // TODO: we dont check the filter at all, because this was a request to the given peer
-
-        log::info!("Received a task with id: {}", task.task_id);
 
         // obtain public key from the payload
         // do this early to avoid unnecessary processing
@@ -92,7 +96,7 @@ impl WorkflowResponder {
         // get workflow as well
         let workflow = task.input.workflow;
 
-        Ok(Some(WorkflowsWorkerInput {
+        Ok(WorkflowsWorkerInput {
             entry,
             executor,
             workflow,
@@ -101,7 +105,7 @@ impl WorkflowResponder {
             public_key: task_public_key,
             stats,
             batchable,
-        }))
+        })
     }
 
     /// Handles the result of a workflow task.

@@ -77,10 +77,10 @@ impl DriaComputeNode {
                 // ensure that message is from the known RPCs
                 if !self.dria_nodes.rpc_peerids.contains(&source_peer_id) {
                     log::warn!(
-                        "Received message from unauthorized source: {}",
-                        source_peer_id
+                        "Received message from unauthorized source: {}, allowed sources: {:#?}",
+                        source_peer_id,
+                        self.dria_nodes.rpc_peerids
                     );
-                    log::debug!("Allowed sources: {:#?}", self.dria_nodes.rpc_peerids);
                     return MessageAcceptance::Ignore;
                 }
 
@@ -123,48 +123,6 @@ impl DriaComputeNode {
 
                 // handle the DKN message with respect to the topic
                 let handler_result = match message.topic.as_str() {
-                    // WorkflowHandler::LISTEN_TOPIC => {
-                    //     match WorkflowHandler::handle_compute(self, &message).await {
-                    //         // we got acceptance, so something was not right about the workflow and we can ignore it
-                    //         Ok(Either::Left(acceptance)) => Ok(acceptance),
-                    //         // we got the parsed workflow itself, send to a worker thread w.r.t batchable
-                    //         Ok(Either::Right(workflow_message)) => {
-                    //             if let Err(e) = match workflow_message.batchable {
-                    //                 // this is a batchable task, send it to batch worker
-                    //                 // and keep track of the task id in pending tasks
-                    //                 true => match self.workflow_batch_tx {
-                    //                     Some(ref mut tx) => {
-                    //                         self.pending_tasks_batch
-                    //                             .insert(workflow_message.task_id.clone());
-                    //                         tx.send(workflow_message).await
-                    //                     }
-                    //                     None => unreachable!(
-                    //                         "Batchable workflow received but no worker available."
-                    //                     ),
-                    //                 },
-                    //                 // this is a single task, send it to single worker
-                    //                 // and keep track of the task id in pending tasks
-                    //                 false => match self.workflow_single_tx {
-                    //                     Some(ref mut tx) => {
-                    //                         self.pending_tasks_single
-                    //                             .insert(workflow_message.task_id.clone());
-                    //                         tx.send(workflow_message).await
-                    //                     }
-                    //                     None => unreachable!(
-                    //                         "Single workflow received but no worker available."
-                    //                     ),
-                    //                 },
-                    //             } {
-                    //                 log::error!("Error sending workflow message: {:?}", e);
-                    //             };
-
-                    //             // accept the message in case others may be included in the filter as well
-                    //             Ok(MessageAcceptance::Accept)
-                    //         }
-                    //         // something went wrong, handle this outside
-                    //         Err(err) => Err(err),
-                    //     }
-                    // }
                     PingpongHandler::LISTEN_TOPIC => {
                         PingpongHandler::handle_ping(self, &message).await
                     }

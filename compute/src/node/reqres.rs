@@ -23,21 +23,43 @@ impl DriaComputeNode {
             ));
         }
 
-        // respond w.r.t data
-        let response_data = if let Ok(req) = SpecResponder::try_parse_request(&data) {
-            log::info!(
-                "Got a spec request from peer {} with id {}",
-                peer_id,
-                req.request_id
-            );
+        // try and parse the request
+        if let Ok(spec_request) = SpecResponder::try_parse_request(&data) {
+            self.handle_spec_request(peer_id, channel, spec_request)
+                .await?;
+        } else if let Ok(task_request) = WorkflowResponder::try_parse_request(&data) {
+            log::info!("Received a task request from {}", peer_id);
 
-            let response = SpecResponder::respond(req, self.spec_collector.collect().await);
-            serde_json::to_vec(&response)?
-        } else if let Ok(req) = WorkflowResponder::try_parse_request(&data) {
-            log::info!("Received a task request with id: {}", req.task_id);
-            return Err(eyre::eyre!(
-                "REQUEST RESPONSE FOR TASKS ARE NOT IMPLEMENTED YET"
-            ));
+            let workflow_message = WorkflowResponder::handle_compute(self, &task_request).await?;
+            if let Err(e) = match workflow_message.batchable {
+                // this is a batchable task, send it to batch worker
+                // and keep track of the task id in pending tasks
+                true => match self.workflow_batch_tx {
+                    Some(ref mut tx) => {
+                        self.pending_tasks_batch
+                            .insert(workflow_message.task_id.clone());
+                        tx.send(workflow_message).await
+                    }
+                    None => {
+                        unreachable!("Batchable workflow received but no worker available.")
+                    }
+                },
+
+                // this is a single task, send it to single worker
+                // and keep track of the task id in pending tasks
+                false => match self.workflow_single_tx {
+                    Some(ref mut tx) => {
+                        self.pending_tasks_single
+                            .insert(workflow_message.task_id.clone());
+                        tx.send(workflow_message).await
+                    }
+                    None => {
+                        unreachable!("Single workflow received but no worker available.")
+                    }
+                },
+            } {
+                log::error!("Error sending workflow message: {:?}", e);
+            };
         } else {
             return Err(eyre::eyre!(
                 "Received unknown request from {}: {:?}",
@@ -46,7 +68,31 @@ impl DriaComputeNode {
             ));
         };
 
-        log::info!("Responding to peer {}", peer_id);
-        self.p2p.respond(response_data, channel).await
+        Ok(())
+    }
+
+    async fn handle_spec_request(
+        &mut self,
+        peer_id: PeerId,
+        channel: ResponseChannel<Vec<u8>>,
+        request: <SpecResponder as IsResponder>::Request,
+    ) -> Result<()> {
+        log::info!(
+            "Got a spec request from peer {} with id {}",
+            peer_id,
+            request.request_id
+        );
+
+        let response = SpecResponder::respond(request, self.spec_collector.collect().await);
+        let response_data = serde_json::to_vec(&response)?;
+
+        log::info!(
+            "Responding to spec request from peer {} with id {}",
+            peer_id,
+            response.request_id
+        );
+        self.p2p.respond(response_data, channel).await?;
+
+        Ok(())
     }
 }

@@ -11,7 +11,7 @@ pub struct Request {
 
 #[derive(Serialize, Deserialize)]
 pub struct Response {
-    request_id: String,
+    pub request_id: String,
     #[serde(flatten)]
     specs: Specs,
 }
