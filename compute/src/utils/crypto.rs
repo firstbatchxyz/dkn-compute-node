@@ -33,8 +33,7 @@ pub fn to_address(public_key: &PublicKey) -> [u8; 20] {
 /// serialized to 65 byte hex-string.
 #[inline]
 pub fn sign_bytes_recoverable(message: &[u8; 32], secret_key: &SecretKey) -> String {
-    let message = Message::parse(message);
-    let (signature, recid) = libsecp256k1::sign(&message, secret_key);
+    let (signature, recid) = libsecp256k1::sign(&Message::parse(message), secret_key);
 
     format!(
         "{}{}",

@@ -118,14 +118,9 @@ impl DriaComputeNodeConfig {
             .p2p_listen_addr
             .iter()
             // find the port within our multiaddr
-            .find_map(|p| {
-                if let Protocol::Tcp(port) = p {
-                    Some(port)
-                } else {
-                    None
-                }
-
-                // }
+            .find_map(|protocol| match protocol {
+                Protocol::Tcp(port) => Some(port),
+                _ => None,
             })
             // check if its reachable or not
             .map(|port| is_port_reachable(SocketAddrV4::new(Ipv4Addr::LOCALHOST, port)))

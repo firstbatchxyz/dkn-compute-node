@@ -45,7 +45,7 @@ impl PingpongHandler {
         ping_message: &DriaMessage,
     ) -> Result<MessageAcceptance> {
         let pingpong = ping_message
-            .parse_payload::<PingpongPayload>(true)
+            .parse_payload::<PingpongPayload>()
             .wrap_err("could not parse ping request")?;
 
         // check deadline
@@ -75,7 +75,7 @@ impl PingpongHandler {
         };
 
         // publish message
-        let message = DriaMessage::new_signed(
+        let message = DriaMessage::new(
             serde_json::json!(response_body).to_string(),
             Self::RESPONSE_TOPIC,
             &node.config.secret_key,

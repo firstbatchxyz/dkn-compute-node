@@ -45,7 +45,7 @@ impl WorkflowResponder {
     ) -> Result<WorkflowsWorkerInput> {
         // parse payload
         let task = compute_message
-            .parse_payload::<TaskRequestPayload<WorkflowPayload>>(true)
+            .parse_payload::<TaskRequestPayload<WorkflowPayload>>()
             .wrap_err("could not parse workflow task")?;
         log::info!("Handling task {}", task.task_id);
 
@@ -131,7 +131,8 @@ impl WorkflowResponder {
                 let payload_str = serde_json::json!(payload).to_string();
                 log::info!("Publishing result for task {}", task.task_id);
 
-                DriaMessage::new(payload_str, "response")
+                todo!("TODO: convert payload to message");
+                // DriaMessage::new(payload_str, "response")
             }
             Err(err) => {
                 // use pretty display string for error logging with causes
@@ -148,7 +149,7 @@ impl WorkflowResponder {
                 let error_payload_str = serde_json::json!(error_payload).to_string();
 
                 // prepare signed message
-                DriaMessage::new_signed(error_payload_str, "response", &node.config.secret_key)
+                DriaMessage::new(error_payload_str, "response", &node.config.secret_key)
             }
         };
 

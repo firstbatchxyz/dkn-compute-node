@@ -168,7 +168,8 @@ mod tests {
 
         // create node
         let cancellation = CancellationToken::new();
-        let (mut node, p2p, _, _) = DriaComputeNode::new(DriaComputeNodeConfig::default()).await?;
+        let config = DriaComputeNodeConfig::default();
+        let (mut node, p2p, _, _) = DriaComputeNode::new(config).await?;
 
         // spawn p2p task
         let p2p_task = tokio::spawn(async move { p2p.run().await });
@@ -184,7 +185,7 @@ mod tests {
 
         // publish a dummy message
         let topic = "foo";
-        let message = DriaMessage::new("hello from the other side", topic);
+        let message = DriaMessage::new("hello from the other side", topic, &node.config.secret_key);
         node.subscribe(topic).await?;
         node.publish(message).await?;
         node.unsubscribe(topic).await?;
