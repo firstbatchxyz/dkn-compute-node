@@ -25,41 +25,8 @@ impl DriaComputeNode {
             self.handle_spec_request(peer_id, channel, spec_request)
                 .await?;
         } else if let Ok(task_request) = TaskResponder::try_parse_request(&data) {
-            log::info!("Received a task request from {}", peer_id);
-
-            let (task_input, task_metadata) =
-                TaskResponder::prepare_worker_input(self, &task_request, channel).await?;
-            if let Err(e) = match task_input.batchable {
-                // this is a batchable task, send it to batch worker
-                // and keep track of the task id in pending tasks
-                true => match self.task_batch_tx {
-                    Some(ref mut tx) => {
-                        self.pending_tasks_batch
-                            .insert(task_input.task_id.clone(), task_metadata);
-                        tx.send(task_input).await
-                    }
-                    None => {
-                        return Err(eyre!(
-                            "Batchable workflow received but no worker available."
-                        ));
-                    }
-                },
-
-                // this is a single task, send it to single worker
-                // and keep track of the task id in pending tasks
-                false => match self.task_single_tx {
-                    Some(ref mut tx) => {
-                        self.pending_tasks_single
-                            .insert(task_input.task_id.clone(), task_metadata);
-                        tx.send(task_input).await
-                    }
-                    None => {
-                        return Err(eyre!("Single workflow received but no worker available."));
-                    }
-                },
-            } {
-                log::error!("Error sending workflow message: {:?}", e);
-            };
+            self.handle_task_request(peer_id, channel, task_request)
+                .await?;
         } else {
             return Err(eyre::eyre!(
                 "Received unknown request from {}: {:?}",
@@ -75,15 +42,25 @@ impl DriaComputeNode {
         &mut self,
         peer_id: PeerId,
         channel: ResponseChannel<Vec<u8>>,
-        request: <SpecResponder as IsResponder>::Request,
+        spec_request: <SpecResponder as IsResponder>::Request,
     ) -> Result<()> {
         log::info!(
             "Got a spec request from peer {} with id {}",
             peer_id,
-            request.request_id
+            spec_request.request_id
         );
 
-        let response = SpecResponder::respond(request, self.spec_collector.collect().await);
+        // ensure peer is authorized
+        if !self.dria_nodes.rpc_peerids.contains(&peer_id) {
+            log::warn!(
+                "Received spec request from unauthorized source: {}",
+                peer_id
+            );
+            log::debug!("Allowed sources: {:#?}", self.dria_nodes.rpc_peerids);
+            return Err(eyre!("Received unauthorized spec request from {}", peer_id));
+        }
+
+        let response = SpecResponder::respond(spec_request, self.spec_collector.collect().await);
         let response_data = serde_json::to_vec(&response)?;
 
         log::info!(
@@ -92,6 +69,51 @@ impl DriaComputeNode {
             response.request_id
         );
         self.p2p.respond(response_data, channel).await?;
+
+        Ok(())
+    }
+
+    async fn handle_task_request(
+        &mut self,
+        peer_id: PeerId,
+        channel: ResponseChannel<Vec<u8>>,
+        task_request: <TaskResponder as IsResponder>::Request,
+    ) -> Result<()> {
+        log::info!("Received a task request from {}", peer_id);
+
+        let (task_input, task_metadata) =
+            TaskResponder::prepare_worker_input(self, &task_request, channel).await?;
+        if let Err(e) = match task_input.batchable {
+            // this is a batchable task, send it to batch worker
+            // and keep track of the task id in pending tasks
+            true => match self.task_batch_tx {
+                Some(ref mut tx) => {
+                    self.pending_tasks_batch
+                        .insert(task_input.task_id.clone(), task_metadata);
+                    tx.send(task_input).await
+                }
+                None => {
+                    return Err(eyre!(
+                        "Batchable workflow received but no worker available."
+                    ));
+                }
+            },
+
+            // this is a single task, send it to single worker
+            // and keep track of the task id in pending tasks
+            false => match self.task_single_tx {
+                Some(ref mut tx) => {
+                    self.pending_tasks_single
+                        .insert(task_input.task_id.clone(), task_metadata);
+                    tx.send(task_input).await
+                }
+                None => {
+                    return Err(eyre!("Single workflow received but no worker available."));
+                }
+            },
+        } {
+            log::error!("Error sending workflow message: {:?}", e);
+        };
 
         Ok(())
     }
