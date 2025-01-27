@@ -1,6 +1,5 @@
-use crate::utils::crypto::{encrypt_bytes, sha256hash, sign_bytes_recoverable};
 use eyre::Result;
-use libsecp256k1::{PublicKey, SecretKey};
+use libsecp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
 
 use super::TaskStats;
@@ -15,8 +14,6 @@ use super::TaskStats;
 pub struct TaskResponsePayload {
     /// The unique identifier of the task.
     pub task_id: String,
-    /// Signature of the payload with task id, hexadecimally encoded.
-    pub signature: String,
     /// Result encrypted with the public key of the task, Hexadecimally encoded.
     pub ciphertext: String,
     /// Name of the model used for this task.
@@ -32,25 +29,16 @@ impl TaskResponsePayload {
     /// - Encrypt `result` with `task_public_key`
     pub fn new(
         result: impl AsRef<[u8]>,
-        task_id: &str,
-        encrypting_public_key: &PublicKey,
-        signing_secret_key: &SecretKey,
+        task_id: impl ToString,
+        task_pk: &PublicKey,
         model: String,
         stats: TaskStats,
     ) -> Result<Self> {
-        // create the message `task_id || payload`
-        let mut preimage = Vec::new();
-        preimage.extend_from_slice(task_id.as_ref());
-        preimage.extend_from_slice(result.as_ref());
-
-        let task_id = task_id.to_string();
-        let signature = sign_bytes_recoverable(&sha256hash(preimage), signing_secret_key);
-        let ciphertext = encrypt_bytes(result, encrypting_public_key)?;
+        let ciphertext = ecies::encrypt(&task_pk.serialize(), result.as_ref())?;
 
         Ok(TaskResponsePayload {
-            task_id,
-            signature,
-            ciphertext,
+            task_id: task_id.to_string(),
+            ciphertext: hex::encode(ciphertext),
             model,
             stats,
         })
@@ -60,8 +48,7 @@ impl TaskResponsePayload {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ecies::decrypt;
-    use libsecp256k1::{recover, verify, Message, PublicKey, RecoveryId, Signature};
+    use ecies::{decrypt, PublicKey, SecretKey};
     use rand::thread_rng;
 
     #[test]
@@ -69,10 +56,6 @@ mod tests {
         // this is the result that we are "sending"
         const RESULT: &[u8; 44] = b"hey im an LLM and I came up with this output";
         const MODEL: &str = "gpt-4-turbo";
-
-        // the signer will sign the payload, and it will be verified
-        let signer_sk = SecretKey::random(&mut thread_rng());
-        let signer_pk = PublicKey::from_secret_key(&signer_sk);
 
         // the payload will be encrypted with this key
         let task_sk = SecretKey::random(&mut thread_rng());
@@ -84,7 +67,6 @@ mod tests {
             RESULT,
             &task_id,
             &task_pk,
-            &signer_sk,
             MODEL.to_string(),
             Default::default(),
         )
@@ -94,19 +76,5 @@ mod tests {
         let ciphertext_bytes = hex::decode(payload.ciphertext).unwrap();
         let result = decrypt(&task_sk.serialize(), &ciphertext_bytes).expect("to decrypt");
         assert_eq!(result, RESULT, "Result mismatch");
-
-        // verify signature
-        let signature_bytes = hex::decode(payload.signature).expect("to decode");
-        let signature = Signature::parse_standard_slice(&signature_bytes[..64]).unwrap();
-        let recid = RecoveryId::parse(signature_bytes[64]).unwrap();
-        let mut preimage = vec![];
-        preimage.extend_from_slice(task_id.as_bytes());
-        preimage.extend_from_slice(&result);
-        let message = Message::parse(&sha256hash(preimage));
-        assert!(verify(&message, &signature, &signer_pk), "could not verify");
-
-        // recover verifying key (public key) from signature
-        let recovered_public_key = recover(&message, &signature, &recid).expect("to recover");
-        assert_eq!(signer_pk, recovered_public_key, "public key mismatch");
     }
 }

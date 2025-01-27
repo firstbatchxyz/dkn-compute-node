@@ -2,7 +2,7 @@ use eyre::Result;
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
-use crate::{node::PingpongHandler, DriaComputeNode};
+use crate::{node::PingpongHandler, utils::DriaMessage, DriaComputeNode};
 
 impl DriaComputeNode {
     /// Runs the main loop of the compute node.
@@ -106,6 +106,12 @@ impl DriaComputeNode {
         self.shutdown().await?;
 
         Ok(())
+    }
+
+    /// Shorthand method to create a signed message with the given data and topic.
+    #[inline(always)]
+    pub fn new_message(&self, data: impl AsRef<[u8]>, topic: impl ToString) -> DriaMessage {
+        DriaMessage::new(data, topic, self.p2p.protocol(), &self.config.secret_key)
     }
 
     /// Shutdown channels between p2p, worker and yourself.

@@ -13,8 +13,7 @@ impl DriaComputeNode {
     /// These are likely to be called once, so can be inlined.
     #[inline]
     pub async fn subscribe(&mut self, topic: &str) -> Result<()> {
-        let ok = self.p2p.subscribe(topic).await?;
-        if ok {
+        if self.p2p.subscribe(topic).await? {
             log::info!("Subscribed to {}", topic);
         } else {
             log::info!("Already subscribed to {}", topic);
@@ -27,8 +26,7 @@ impl DriaComputeNode {
     /// These are likely to be called once, so can be inlined.
     #[inline]
     pub async fn unsubscribe(&mut self, topic: &str) -> Result<()> {
-        let ok = self.p2p.unsubscribe(topic).await?;
-        if ok {
+        if self.p2p.unsubscribe(topic).await? {
             log::info!("Unsubscribed from {}", topic);
         } else {
             log::info!("Already unsubscribed from {}", topic);
@@ -38,15 +36,11 @@ impl DriaComputeNode {
 
     /// Publishes a given message to the network w.r.t the topic of it.
     ///
-    /// Internally, identity is attached to the the message which is then JSON serialized to bytes
-    /// and then published to the network as is.
-    pub async fn publish(&mut self, mut message: DriaMessage) -> Result<()> {
-        // attach protocol name to the message
-        message = message.with_protocol(self.p2p.protocol());
-
+    /// The entire message is serialized to JSON in bytes and then published.
+    pub async fn publish(&mut self, message: DriaMessage) -> Result<()> {
         let message_bytes = serde_json::to_vec(&message)?;
         let message_id = self.p2p.publish(&message.topic, message_bytes).await?;
-        log::info!("Published message ({}) to {}", message_id, message.topic);
+        log::info!("Published {} message ({})", message.topic, message_id);
         Ok(())
     }
 
@@ -185,7 +179,7 @@ mod tests {
 
         // publish a dummy message
         let topic = "foo";
-        let message = DriaMessage::new("hello from the other side", topic, &node.config.secret_key);
+        let message = node.new_message("hello from the other side", topic);
         node.subscribe(topic).await?;
         node.publish(message).await?;
         node.unsubscribe(topic).await?;

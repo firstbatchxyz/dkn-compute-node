@@ -34,38 +34,34 @@ pub struct DriaMessage {
 }
 
 impl DriaMessage {
-    /// Creates a new message with current timestamp and version equal to the crate version.
+    /// Creates a new Dria message.
     ///
-    /// - `data` is given as bytes, it is encoded into base64 to make up the `payload` within.
+    /// - `data` is converted to a bytes reference, and encoded into base64 to make up the `payload` within.
     /// - `topic` is the name of the [gossipsub topic](https://docs.libp2p.io/concepts/pubsub/overview/).
+    /// - `protocol` is the protocol name, e.g. `dria`.
     /// - `signing_key` is the secret key to sign the message.
     pub(crate) fn new(
         data: impl AsRef<[u8]>,
         topic: impl ToString,
+        protocol: &DriaP2PProtocol,
         signing_key: &SecretKey,
     ) -> Self {
-        // encode the data into base64
+        // base64 encode the data to obtain payload
         let payload = BASE64_STANDARD.encode(data);
 
-        // sign the SHA256 hash of the data
+        // sign the SHA256 hash of the payload
         let (signature, recovery_id) =
             libsecp256k1::sign(&Message::parse(&sha256hash(&payload)), signing_key);
 
         Self {
             payload,
             topic: topic.to_string(),
-            protocol: String::default(),
+            protocol: protocol.name.to_string(),
             timestamp: get_current_time_nanos(),
             version: DRIA_COMPUTE_NODE_VERSION.to_string(),
             signature: hex::encode(signature.serialize()),
             recovery_id: recovery_id.serialize(),
         }
-    }
-
-    /// Sets the identity of the message.
-    pub(crate) fn with_protocol(mut self, protocol: &DriaP2PProtocol) -> Self {
-        self.protocol = protocol.name.clone();
-        self
     }
 
     /// Decodes the base64 payload into bytes.
@@ -109,8 +105,8 @@ impl fmt::Display for DriaMessage {
         let payload_str = String::from_utf8(payload_decoded).unwrap_or(self.payload.clone());
         write!(
             f,
-            "{} message at {}\n{}",
-            self.topic, self.timestamp, payload_str
+            "{} message for {} at {}\n{}",
+            self.topic, self.protocol, self.timestamp, payload_str
         )
     }
 }
@@ -125,7 +121,7 @@ impl TryFrom<&dkn_p2p::libp2p::gossipsub::Message> for DriaMessage {
 
 #[cfg(test)]
 mod tests {
-    use ecies::PublicKey;
+    use libsecp256k1::PublicKey;
     use rand::thread_rng;
 
     use super::*;
@@ -146,14 +142,6 @@ mod tests {
     const TOPIC: &str = "test-topic";
 
     #[test]
-    #[ignore = "run manually"]
-    fn test_display_message() {
-        let random_signing_key = SecretKey::random(&mut thread_rng());
-        let message = DriaMessage::new(b"hello world", TOPIC, &random_signing_key);
-        println!("{}", message);
-    }
-
-    #[test]
     fn test_signed_message() {
         let mut rng = thread_rng();
         let sk = SecretKey::random(&mut rng);
@@ -163,7 +151,12 @@ mod tests {
         // create payload & message with signature & body
         let body = TestStruct::default();
         let body_str = serde_json::to_string(&body).unwrap();
-        let message = DriaMessage::new(body_str, TOPIC, &sk);
+        let message = DriaMessage::new(
+            body_str,
+            TOPIC,
+            &DriaP2PProtocol::new_major_minor("test"),
+            &sk,
+        );
 
         // decode message
         let body = message

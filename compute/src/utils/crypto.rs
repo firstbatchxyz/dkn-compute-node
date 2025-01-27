@@ -1,7 +1,6 @@
 use dkn_p2p::{libp2p::PeerId, libp2p_identity};
 use ecies::PublicKey;
-use eyre::{Context, Result};
-use libsecp256k1::{Message, SecretKey};
+use libsecp256k1::SecretKey;
 use sha2::{Digest, Sha256};
 use sha3::Keccak256;
 
@@ -27,28 +26,6 @@ pub fn to_address(public_key: &PublicKey) -> [u8; 20] {
     let mut addr = [0u8; 20];
     addr.copy_from_slice(&keccak256hash(public_key_xy)[12..32]);
     addr
-}
-
-/// Shorthand to sign a digest (bytes) with node's secret key and return signature & recovery id
-/// serialized to 65 byte hex-string.
-#[inline]
-pub fn sign_bytes_recoverable(message: &[u8; 32], secret_key: &SecretKey) -> String {
-    let (signature, recid) = libsecp256k1::sign(&Message::parse(message), secret_key);
-
-    format!(
-        "{}{}",
-        hex::encode(signature.serialize()),
-        hex::encode([recid.serialize()])
-    )
-}
-
-/// Shorthand to encrypt bytes with a given public key.
-/// Returns hexadecimal encoded ciphertext.
-#[inline]
-pub fn encrypt_bytes(data: impl AsRef<[u8]>, public_key: &PublicKey) -> Result<String> {
-    ecies::encrypt(&public_key.serialize(), data.as_ref())
-        .wrap_err("could not encrypt data")
-        .map(hex::encode)
 }
 
 /// Converts a `libsecp256k1::SecretKey` to a `libp2p_identity::secp256k1::Keypair`.

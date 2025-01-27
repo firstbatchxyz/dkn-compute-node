@@ -114,25 +114,22 @@ impl WorkflowResponder {
         node: &mut DriaComputeNode,
         task: WorkflowsWorkerOutput,
     ) -> Result<()> {
-        // TODO: handle response
-        let _response = match task.result {
+        let response = match task.result {
             Ok(result) => {
                 // prepare signed and encrypted payload
+                log::info!("Publishing result for task {}", task.task_id);
                 let payload = TaskResponsePayload::new(
                     result,
                     &task.task_id,
                     &task.public_key,
-                    &node.config.secret_key,
                     task.model_name,
                     task.stats.record_published_at(),
                 )?;
 
                 // convert payload to message
                 let payload_str = serde_json::json!(payload).to_string();
-                log::info!("Publishing result for task {}", task.task_id);
 
-                todo!("TODO: convert payload to message");
-                // DriaMessage::new(payload_str, "response")
+                node.new_message(payload_str, "response")
             }
             Err(err) => {
                 // use pretty display string for error logging with causes
@@ -148,8 +145,7 @@ impl WorkflowResponder {
                 };
                 let error_payload_str = serde_json::json!(error_payload).to_string();
 
-                // prepare signed message
-                DriaMessage::new(error_payload_str, "response", &node.config.secret_key)
+                node.new_message(error_payload_str, "response")
             }
         };
 

@@ -75,10 +75,9 @@ impl PingpongHandler {
         };
 
         // publish message
-        let message = DriaMessage::new(
+        let message = node.new_message(
             serde_json::json!(response_body).to_string(),
             Self::RESPONSE_TOPIC,
-            &node.config.secret_key,
         );
         node.publish(message).await?;
 
