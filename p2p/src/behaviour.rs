@@ -101,9 +101,7 @@ fn create_identify_behaviour(
 ) -> identify::Behaviour {
     use identify::{Behaviour, Config};
 
-    let cfg = Config::new(protocol_version, local_public_key);
-
-    Behaviour::new(cfg)
+    Behaviour::new(Config::new(protocol_version, local_public_key))
 }
 
 /// Configures the Dcutr behavior to allow nodes to connect via hole-punching.
@@ -154,6 +152,11 @@ fn create_gossipsub_behaviour(author: PeerId) -> Result<gossipsub::Behaviour> {
     /// because we don't need historic messages at all
     const MAX_IHAVE_LENGTH: usize = 100;
 
+    /// Connection handler queue length
+    ///
+    /// This was added as a counter-measure for the backpressure problems, defaults to `5000`.
+    const CONNECTION_HANDLER_QUEUE_LEN: usize = 1000;
+
     // message id's are simply hashes of the message data, via SipHash13
     let message_id_fn = |message: &Message| {
         let mut hasher = hash_map::DefaultHasher::new();
@@ -172,6 +175,7 @@ fn create_gossipsub_behaviour(author: PeerId) -> Result<gossipsub::Behaviour> {
             .max_ihave_length(MAX_IHAVE_LENGTH)
             .validation_mode(VALIDATION_MODE)
             .validate_messages()
+            .connection_handler_queue_len(CONNECTION_HANDLER_QUEUE_LEN)
             .build()
             .wrap_err(eyre!("could not create Gossipsub config"))?,
     )

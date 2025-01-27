@@ -24,34 +24,36 @@ impl DriaComputeNode {
         if let Ok(spec_request) = SpecResponder::try_parse_request(&data) {
             self.handle_spec_request(peer_id, channel, spec_request)
                 .await?;
-        } else if let Ok(task_request) = WorkflowResponder::try_parse_request(&data) {
+        } else if let Ok(task_request) = TaskResponder::try_parse_request(&data) {
             log::info!("Received a task request from {}", peer_id);
 
-            let workflow_message = WorkflowResponder::handle_compute(self, &task_request).await?;
-            if let Err(e) = match workflow_message.batchable {
+            let task_tx_message = TaskResponder::handle_compute(self, &task_request).await?;
+            if let Err(e) = match task_tx_message.batchable {
                 // this is a batchable task, send it to batch worker
                 // and keep track of the task id in pending tasks
-                true => match self.workflow_batch_tx {
+                true => match self.task_batch_tx {
                     Some(ref mut tx) => {
                         self.pending_tasks_batch
-                            .insert(workflow_message.task_id.clone(), channel);
-                        tx.send(workflow_message).await
+                            .insert(task_tx_message.task_id.clone(), channel);
+                        tx.send(task_tx_message).await
                     }
                     None => {
-                        unreachable!("Batchable workflow received but no worker available.")
+                        return Err(eyre!(
+                            "Batchable workflow received but no worker available."
+                        ));
                     }
                 },
 
                 // this is a single task, send it to single worker
                 // and keep track of the task id in pending tasks
-                false => match self.workflow_single_tx {
+                false => match self.task_single_tx {
                     Some(ref mut tx) => {
                         self.pending_tasks_single
-                            .insert(workflow_message.task_id.clone(), channel);
-                        tx.send(workflow_message).await
+                            .insert(task_tx_message.task_id.clone(), channel);
+                        tx.send(task_tx_message).await
                     }
                     None => {
-                        unreachable!("Single workflow received but no worker available.")
+                        return Err(eyre!("Single workflow received but no worker available."));
                     }
                 },
             } {

@@ -6,7 +6,7 @@ use std::{env, str::FromStr};
 
 use crate::utils::crypto::{secret_to_keypair, to_address};
 
-const DEFAULT_WORKFLOW_BATCH_SIZE: usize = 5;
+const DEFAULT_TASK_BATCH_SIZE: usize = 5;
 const DEFAULT_P2P_LISTEN_ADDR: &str = "/ip4/0.0.0.0/tcp/4001";
 
 #[derive(Debug, Clone)]
@@ -23,7 +23,7 @@ pub struct DriaComputeNodeConfig {
     pub workflows: DriaWorkflowsConfig,
     /// Network type of the node.
     pub network_type: DriaNetworkType,
-    /// Batch size for batchable workflows.
+    /// Batch size for batchable tasks (e.g. API-based ones).
     ///
     /// A higher value will help execute more tasks concurrently,
     /// at the risk of hitting rate-limits.
@@ -87,8 +87,8 @@ impl DriaComputeNodeConfig {
 
         // parse batch size
         let batch_size = env::var("DKN_BATCH_SIZE")
-            .map(|s| s.parse::<usize>().unwrap_or(DEFAULT_WORKFLOW_BATCH_SIZE))
-            .unwrap_or(DEFAULT_WORKFLOW_BATCH_SIZE);
+            .map(|s| s.parse::<usize>().unwrap_or(DEFAULT_TASK_BATCH_SIZE))
+            .unwrap_or(DEFAULT_TASK_BATCH_SIZE);
 
         Self {
             secret_key,

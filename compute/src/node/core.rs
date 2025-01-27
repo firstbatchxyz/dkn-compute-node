@@ -2,9 +2,7 @@ use eyre::Result;
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
-use crate::{
-    node::PingpongHandler, reqres::WorkflowResponder, utils::DriaMessage, DriaComputeNode,
-};
+use crate::{node::PingpongHandler, reqres::TaskResponder, utils::DriaMessage, DriaComputeNode};
 
 impl DriaComputeNode {
     /// Runs the main loop of the compute node.
@@ -48,7 +46,7 @@ impl DriaComputeNode {
                         // respond to the request
                         match channel {
                             Some(channel) => {
-                              WorkflowResponder::handle_respond(self, publish_msg, channel).await?;
+                              TaskResponder::handle_respond(self, publish_msg, channel).await?;
                             }
                             None => log::error!("Channel not found for task id: {}", publish_msg.task_id),
                         }

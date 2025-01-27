@@ -9,20 +9,20 @@ use serde::Deserialize;
 
 use crate::payloads::*;
 use crate::utils::DriaMessage;
-use crate::workers::workflow::*;
+use crate::workers::task::*;
 use crate::DriaComputeNode;
 
 use super::IsResponder;
 
-pub struct WorkflowResponder;
+pub struct TaskResponder;
 
-impl IsResponder for WorkflowResponder {
+impl IsResponder for TaskResponder {
     type Request = DriaMessage; // TODO: TaskRequestPayload<WorkflowPayload>;
     type Response = DriaMessage; // TODO: TaskResponsePayload;
 }
 
 #[derive(Debug, Deserialize)]
-pub struct WorkflowPayload {
+pub struct TaskPayload {
     /// [Workflow](https://github.com/andthattoo/ollama-workflows/blob/main/src/program/workflow.rs) object to be parsed.
     pub(crate) workflow: Workflow,
     /// A lıst of model (that can be parsed into `Model`) or model provider names.
@@ -34,7 +34,7 @@ pub struct WorkflowPayload {
     pub(crate) prompt: Option<String>,
 }
 
-impl WorkflowResponder {
+impl TaskResponder {
     /// Handles the compute message for workflows.
     ///
     /// - FIXME: DOES NOT CHECK FOR FILTER AS IT IS NO LONGER USED
@@ -42,10 +42,10 @@ impl WorkflowResponder {
     pub(crate) async fn handle_compute(
         node: &mut DriaComputeNode,
         compute_message: &DriaMessage,
-    ) -> Result<WorkflowsWorkerInput> {
+    ) -> Result<TaskWorkerInput> {
         // parse payload
         let task = compute_message
-            .parse_payload::<TaskRequestPayload<WorkflowPayload>>()
+            .parse_payload::<TaskRequestPayload<TaskPayload>>()
             .wrap_err("could not parse workflow task")?;
         log::info!("Handling task {}", task.task_id);
 
@@ -97,7 +97,7 @@ impl WorkflowResponder {
         // get workflow as well
         let workflow = task.input.workflow;
 
-        Ok(WorkflowsWorkerInput {
+        Ok(TaskWorkerInput {
             entry,
             executor,
             workflow,
@@ -112,7 +112,7 @@ impl WorkflowResponder {
     /// Handles the result of a workflow task.
     pub(crate) async fn handle_respond(
         node: &mut DriaComputeNode,
-        task: WorkflowsWorkerOutput,
+        task: TaskWorkerOutput,
         channel: ResponseChannel<Vec<u8>>,
     ) -> Result<()> {
         let response = match task.result {

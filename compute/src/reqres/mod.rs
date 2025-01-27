@@ -6,8 +6,8 @@ use serde::{de::DeserializeOwned, Serialize};
 mod specs;
 pub use specs::SpecResponder;
 
-mod workflow;
-pub use workflow::WorkflowResponder;
+mod task;
+pub use task::TaskResponder;
 
 /// A responder should implement a request & response type, both serializable.
 ///
