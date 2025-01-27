@@ -116,7 +116,7 @@ impl DriaComputeNode {
                 }
 
                 // handle the DKN message with respect to the topic
-                let handler_result = match message.topic.as_str() {
+                let handler_result = match gossipsub_message.topic.as_str() {
                     PingpongHandler::LISTEN_TOPIC => {
                         PingpongHandler::handle_ping(self, &message).await
                     }
@@ -125,7 +125,11 @@ impl DriaComputeNode {
 
                 // validate the message based on the result
                 handler_result.unwrap_or_else(|err| {
-                    log::error!("Error handling {} message: {:?}", message.topic, err);
+                    log::error!(
+                        "Error handling {} message: {:?}",
+                        gossipsub_message.topic,
+                        err
+                    );
                     MessageAcceptance::Ignore
                 })
             }

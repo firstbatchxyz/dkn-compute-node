@@ -7,7 +7,7 @@ use dkn_p2p::{
     DriaNodes, DriaP2PClient, DriaP2PCommander, DriaP2PProtocol,
 };
 use eyre::Result;
-use std::collections::HashSet;
+use std::collections::HashMap;
 use tokio::{sync::mpsc, time::Instant};
 
 use crate::{
@@ -38,16 +38,16 @@ pub struct DriaComputeNode {
     message_rx: mpsc::Receiver<(PeerId, MessageId, Message)>,
     /// Request-response request receiver.
     request_rx: mpsc::Receiver<(PeerId, Vec<u8>, ResponseChannel<Vec<u8>>)>,
-    /// Publish receiver to receive messages to be published,
+    /// Publish receiver to receive messages to be published.
     publish_rx: mpsc::Receiver<WorkflowsWorkerOutput>,
     /// Workflow transmitter to send batchable tasks.
     workflow_batch_tx: Option<mpsc::Sender<WorkflowsWorkerInput>>,
     /// Workflow transmitter to send single tasks.
     workflow_single_tx: Option<mpsc::Sender<WorkflowsWorkerInput>>,
     // Single tasks
-    pending_tasks_single: HashSet<String>,
+    pending_tasks_single: HashMap<String, ResponseChannel<Vec<u8>>>,
     // Batchable tasks
-    pending_tasks_batch: HashSet<String>,
+    pending_tasks_batch: HashMap<String, ResponseChannel<Vec<u8>>>,
     /// Completed single tasks count
     completed_tasks_single: usize,
     /// Completed batch tasks count
@@ -124,8 +124,8 @@ impl DriaComputeNode {
                 request_rx,
                 workflow_batch_tx,
                 workflow_single_tx,
-                pending_tasks_single: HashSet::new(),
-                pending_tasks_batch: HashSet::new(),
+                pending_tasks_single: HashMap::new(),
+                pending_tasks_batch: HashMap::new(),
                 completed_tasks_single: 0,
                 completed_tasks_batch: 0,
                 spec_collector: SpecCollector::new(model_names),

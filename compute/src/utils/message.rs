@@ -94,6 +94,11 @@ impl DriaMessage {
 
         Ok(authorized_peerids.contains(&recovered_peer_id))
     }
+
+    /// Converts the message to bytes.
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+        serde_json::to_vec(self).wrap_err("could not serialize message")
+    }
 }
 
 impl fmt::Display for DriaMessage {

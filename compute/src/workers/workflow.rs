@@ -10,9 +10,9 @@ pub struct WorkflowsWorkerInput {
     pub entry: Option<Entry>,
     pub executor: Executor,
     pub workflow: Workflow,
+    pub task_id: String,
     // piggybacked
     pub public_key: PublicKey,
-    pub task_id: String,
     pub model_name: String,
     pub stats: TaskStats,
     pub batchable: bool,
@@ -20,9 +20,9 @@ pub struct WorkflowsWorkerInput {
 
 pub struct WorkflowsWorkerOutput {
     pub result: Result<String, ExecutionError>,
+    pub task_id: String,
     // piggybacked
     pub public_key: PublicKey,
-    pub task_id: String,
     pub model_name: String,
     pub stats: TaskStats,
     pub batchable: bool,
@@ -241,12 +241,11 @@ impl WorkflowsWorker {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::payloads::TaskStats;
-
     use dkn_workflows::{Executor, Model};
     use libsecp256k1::{PublicKey, SecretKey};
-    use tokio::sync::mpsc;
+
+    use super::*;
+    use crate::payloads::TaskStats;
 
     /// Tests the workflows worker with a single task sent within a batch.
     ///
@@ -316,7 +315,7 @@ mod tests {
                 executor,
                 workflow,
                 public_key: PublicKey::from_secret_key(&SecretKey::default()),
-                task_id: "task_id".to_string(),
+                task_id: format!("task-{}", i + 1),
                 model_name: model.to_string(),
                 stats: TaskStats::default(),
                 batchable: true,

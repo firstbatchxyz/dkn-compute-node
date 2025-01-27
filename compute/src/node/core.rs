@@ -2,7 +2,9 @@ use eyre::Result;
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
-use crate::{node::PingpongHandler, utils::DriaMessage, DriaComputeNode};
+use crate::{
+    node::PingpongHandler, reqres::WorkflowResponder, utils::DriaMessage, DriaComputeNode,
+};
 
 impl DriaComputeNode {
     /// Runs the main loop of the compute node.
@@ -32,22 +34,26 @@ impl DriaComputeNode {
                 publish_msg_opt = self.publish_rx.recv() => {
                     if let Some(publish_msg) = publish_msg_opt {
                         // remove the task from pending tasks based on its batchability
-                        match publish_msg.batchable {
+                        let channel = match publish_msg.batchable {
                             true => {
                                 self.completed_tasks_batch += 1;
-                                self.pending_tasks_batch.remove(&publish_msg.task_id);
+                                self.pending_tasks_batch.remove(&publish_msg.task_id)
                             },
                             false => {
                                 self.completed_tasks_single += 1;
-                                self.pending_tasks_single.remove(&publish_msg.task_id);
+                                self.pending_tasks_single.remove(&publish_msg.task_id)
                             }
                         };
 
-                        // publish the message
-                        todo!("will respond via req-res");
-                        // WorkflowHandler::handle_publish(self, publish_msg).await?;
+                        // respond to the request
+                        match channel {
+                            Some(channel) => {
+                              WorkflowResponder::handle_respond(self, publish_msg, channel).await?;
+                            }
+                            None => log::error!("Channel not found for task id: {}", publish_msg.task_id),
+                        }
                     } else {
-                        log::error!("Publish channel closed unexpectedly.");
+                        log::error!("Publish channel closed unexpectedly, we still have {} batch and {} single tasks.", self.pending_tasks_batch.len(), self.pending_tasks_single.len());
                         break;
                     };
                 },

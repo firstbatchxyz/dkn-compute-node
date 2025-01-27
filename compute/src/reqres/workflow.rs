@@ -17,8 +17,8 @@ use super::IsResponder;
 pub struct WorkflowResponder;
 
 impl IsResponder for WorkflowResponder {
-    type Request = DriaMessage; // TaskRequestPayload<WorkflowPayload>;
-    type Response = DriaMessage; // TaskResponsePayload;
+    type Request = DriaMessage; // TODO: TaskRequestPayload<WorkflowPayload>;
+    type Response = DriaMessage; // TODO: TaskResponsePayload;
 }
 
 #[derive(Debug, Deserialize)]
@@ -113,6 +113,7 @@ impl WorkflowResponder {
     pub(crate) async fn handle_respond(
         node: &mut DriaComputeNode,
         task: WorkflowsWorkerOutput,
+        channel: ResponseChannel<Vec<u8>>,
     ) -> Result<()> {
         let response = match task.result {
             Ok(result) => {
@@ -138,7 +139,7 @@ impl WorkflowResponder {
 
                 // prepare error payload
                 let error_payload = TaskErrorPayload {
-                    task_id: task.task_id.clone(),
+                    task_id: task.task_id,
                     error: err_string,
                     model: task.model_name,
                     stats: task.stats.record_published_at(),
@@ -150,7 +151,8 @@ impl WorkflowResponder {
         };
 
         // respond through the channel
-        todo!("TODO: respond through the channel");
+        let data = response.to_bytes()?;
+        node.p2p.respond(data, channel).await?;
 
         Ok(())
     }

@@ -34,7 +34,7 @@ impl DriaComputeNode {
                 true => match self.workflow_batch_tx {
                     Some(ref mut tx) => {
                         self.pending_tasks_batch
-                            .insert(workflow_message.task_id.clone());
+                            .insert(workflow_message.task_id.clone(), channel);
                         tx.send(workflow_message).await
                     }
                     None => {
@@ -47,7 +47,7 @@ impl DriaComputeNode {
                 false => match self.workflow_single_tx {
                     Some(ref mut tx) => {
                         self.pending_tasks_single
-                            .insert(workflow_message.task_id.clone());
+                            .insert(workflow_message.task_id.clone(), channel);
                         tx.send(workflow_message).await
                     }
                     None => {
