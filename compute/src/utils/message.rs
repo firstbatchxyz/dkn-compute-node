@@ -44,17 +44,20 @@ impl DriaMessage {
         topic: impl ToString,
         signing_key: &SecretKey,
     ) -> Self {
+        // encode the data into base64
+        let payload = BASE64_STANDARD.encode(data);
+
         // sign the SHA256 hash of the data
         let (signature, recovery_id) =
-            libsecp256k1::sign(&Message::parse(&sha256hash(data.as_ref())), signing_key);
+            libsecp256k1::sign(&Message::parse(&sha256hash(&payload)), signing_key);
 
         Self {
-            payload: BASE64_STANDARD.encode(data),
+            payload,
             topic: topic.to_string(),
             protocol: String::default(),
             timestamp: get_current_time_nanos(),
             version: DRIA_COMPUTE_NODE_VERSION.to_string(),
-            signature: hex::encode(signature.serialize_der()),
+            signature: hex::encode(signature.serialize()),
             recovery_id: recovery_id.serialize(),
         }
     }
@@ -145,8 +148,8 @@ mod tests {
     #[test]
     #[ignore = "run manually"]
     fn test_display_message() {
-        let random_key = SecretKey::random(&mut thread_rng());
-        let message = DriaMessage::new(b"hello world", TOPIC, &random_key);
+        let random_signing_key = SecretKey::random(&mut thread_rng());
+        let message = DriaMessage::new(b"hello world", TOPIC, &random_signing_key);
         println!("{}", message);
     }
 
@@ -163,9 +166,9 @@ mod tests {
         let message = DriaMessage::new(body_str, TOPIC, &sk);
 
         // decode message
-        let message_body = message.decode_payload().expect("Should decode");
-        let body =
-            serde_json::from_slice::<TestStruct>(&message_body[130..]).expect("Should parse");
+        let body = message
+            .parse_payload::<TestStruct>()
+            .expect("Should decode");
         assert_eq!(
             serde_json::to_string(&body).expect("Should stringify"),
             "{\"hello\":\"world\"}"
@@ -176,9 +179,12 @@ mod tests {
 
         let mut peer_ids = HashSet::new();
         peer_ids.insert(peer_id);
-        assert!(message
-            .is_signed(&peer_ids)
-            .expect("Should verify signature"));
+        assert!(
+            message
+                .is_signed(&peer_ids)
+                .expect("Should verify signature"),
+            "invalid signature"
+        );
 
         let parsed_body = message.parse_payload().expect("Should decode");
         assert_eq!(body, parsed_body);
