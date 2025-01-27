@@ -36,13 +36,11 @@ pub struct TaskPayload {
 
 impl TaskResponder {
     /// Handles the compute message for workflows.
-    ///
-    /// - FIXME: DOES NOT CHECK FOR FILTER AS IT IS NO LONGER USED
-    /// - FIXME: GIVES ERROR ON DEADLINE PAST CASE, BUT WE DONT NEED DEADLINE AS WELL
-    pub(crate) async fn handle_compute(
+    pub(crate) async fn prepare_worker_input(
         node: &mut DriaComputeNode,
         compute_message: &DriaMessage,
-    ) -> Result<TaskWorkerInput> {
+        channel: ResponseChannel<Vec<u8>>,
+    ) -> Result<(TaskWorkerInput, TaskWorkerMetadata)> {
         // parse payload
         let task = compute_message
             .parse_payload::<TaskRequestPayload<TaskPayload>>()
@@ -52,7 +50,7 @@ impl TaskResponder {
         let stats = TaskStats::new().record_received_at();
 
         // check if deadline is past or not
-        // with request-response, we dont expect this to happen much
+        // FIXME: with request-response, we dont expect this to happen much
         if get_current_time_nanos() >= task.deadline {
             return Err(eyre!(
                 "Task {} is past the deadline, ignoring",
@@ -97,34 +95,40 @@ impl TaskResponder {
         // get workflow as well
         let workflow = task.input.workflow;
 
-        Ok(TaskWorkerInput {
+        let task_input = TaskWorkerInput {
             entry,
             executor,
             workflow,
-            model_name,
             task_id: task.task_id,
-            public_key: task_public_key,
             stats,
             batchable,
-        })
+        };
+
+        let task_metadata = TaskWorkerMetadata {
+            model_name,
+            public_key: task_public_key,
+            channel,
+        };
+
+        Ok((task_input, task_metadata))
     }
 
     /// Handles the result of a workflow task.
     pub(crate) async fn handle_respond(
         node: &mut DriaComputeNode,
-        task: TaskWorkerOutput,
-        channel: ResponseChannel<Vec<u8>>,
+        task_output: TaskWorkerOutput,
+        task_metadata: TaskWorkerMetadata,
     ) -> Result<()> {
-        let response = match task.result {
+        let response = match task_output.result {
             Ok(result) => {
                 // prepare signed and encrypted payload
-                log::info!("Publishing result for task {}", task.task_id);
+                log::info!("Publishing result for task {}", task_output.task_id);
                 let payload = TaskResponsePayload::new(
                     result,
-                    &task.task_id,
-                    &task.public_key,
-                    task.model_name,
-                    task.stats.record_published_at(),
+                    &task_output.task_id,
+                    &task_metadata.public_key,
+                    task_metadata.model_name,
+                    task_output.stats.record_published_at(),
                 )?;
 
                 // convert payload to message
@@ -135,14 +139,14 @@ impl TaskResponder {
             Err(err) => {
                 // use pretty display string for error logging with causes
                 let err_string = format!("{:#}", err);
-                log::error!("Task {} failed: {}", task.task_id, err_string);
+                log::error!("Task {} failed: {}", task_output.task_id, err_string);
 
                 // prepare error payload
                 let error_payload = TaskErrorPayload {
-                    task_id: task.task_id,
+                    task_id: task_output.task_id,
                     error: err_string,
-                    model: task.model_name,
-                    stats: task.stats.record_published_at(),
+                    model: task_metadata.model_name,
+                    stats: task_output.stats.record_published_at(),
                 };
                 let error_payload_str = serde_json::json!(error_payload).to_string();
 
@@ -152,7 +156,7 @@ impl TaskResponder {
 
         // respond through the channel
         let data = response.to_bytes()?;
-        node.p2p.respond(data, channel).await?;
+        node.p2p.respond(data, task_metadata.channel).await?;
 
         Ok(())
     }

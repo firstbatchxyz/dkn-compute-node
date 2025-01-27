@@ -32,7 +32,7 @@ impl DriaComputeNode {
                 publish_msg_opt = self.publish_rx.recv() => {
                     if let Some(publish_msg) = publish_msg_opt {
                         // remove the task from pending tasks based on its batchability
-                        let channel = match publish_msg.batchable {
+                        let task_metadata = match publish_msg.batchable {
                             true => {
                                 self.completed_tasks_batch += 1;
                                 self.pending_tasks_batch.remove(&publish_msg.task_id)
@@ -44,7 +44,7 @@ impl DriaComputeNode {
                         };
 
                         // respond to the request
-                        match channel {
+                        match task_metadata {
                             Some(channel) => {
                               TaskResponder::handle_respond(self, publish_msg, channel).await?;
                             }

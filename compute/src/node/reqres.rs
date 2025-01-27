@@ -27,15 +27,16 @@ impl DriaComputeNode {
         } else if let Ok(task_request) = TaskResponder::try_parse_request(&data) {
             log::info!("Received a task request from {}", peer_id);
 
-            let task_tx_message = TaskResponder::handle_compute(self, &task_request).await?;
-            if let Err(e) = match task_tx_message.batchable {
+            let (task_input, task_metadata) =
+                TaskResponder::prepare_worker_input(self, &task_request, channel).await?;
+            if let Err(e) = match task_input.batchable {
                 // this is a batchable task, send it to batch worker
                 // and keep track of the task id in pending tasks
                 true => match self.task_batch_tx {
                     Some(ref mut tx) => {
                         self.pending_tasks_batch
-                            .insert(task_tx_message.task_id.clone(), channel);
-                        tx.send(task_tx_message).await
+                            .insert(task_input.task_id.clone(), task_metadata);
+                        tx.send(task_input).await
                     }
                     None => {
                         return Err(eyre!(
@@ -49,8 +50,8 @@ impl DriaComputeNode {
                 false => match self.task_single_tx {
                     Some(ref mut tx) => {
                         self.pending_tasks_single
-                            .insert(task_tx_message.task_id.clone(), channel);
-                        tx.send(task_tx_message).await
+                            .insert(task_input.task_id.clone(), task_metadata);
+                        tx.send(task_input).await
                     }
                     None => {
                         return Err(eyre!("Single workflow received but no worker available."));

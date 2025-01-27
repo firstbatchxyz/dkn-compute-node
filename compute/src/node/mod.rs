@@ -14,7 +14,7 @@ use crate::{
     config::*,
     gossipsub::*,
     utils::{crypto::secret_to_keypair, refresh_dria_nodes, SpecCollector},
-    workers::task::{TaskWorker, TaskWorkerInput, TaskWorkerOutput},
+    workers::task::{TaskWorker, TaskWorkerInput, TaskWorkerMetadata, TaskWorkerOutput},
 };
 
 mod core;
@@ -45,9 +45,9 @@ pub struct DriaComputeNode {
     /// Task worker transmitter to send single tasks.
     task_single_tx: Option<mpsc::Sender<TaskWorkerInput>>,
     // Single tasks
-    pending_tasks_single: HashMap<String, ResponseChannel<Vec<u8>>>,
+    pending_tasks_single: HashMap<String, TaskWorkerMetadata>,
     // Batchable tasks
-    pending_tasks_batch: HashMap<String, ResponseChannel<Vec<u8>>>,
+    pending_tasks_batch: HashMap<String, TaskWorkerMetadata>,
     /// Completed single tasks count
     completed_tasks_single: usize,
     /// Completed batch tasks count

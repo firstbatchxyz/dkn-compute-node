@@ -1,19 +1,21 @@
+use dkn_p2p::libp2p::request_response::ResponseChannel;
 use dkn_workflows::{Entry, ExecutionError, Executor, Workflow};
 use libsecp256k1::PublicKey;
 use tokio::sync::mpsc;
 
 use crate::payloads::TaskStats;
 
-// TODO: instead of piggybacking stuff here, maybe node can hold it in a hashmap w.r.t taskId
+pub struct TaskWorkerMetadata {
+    pub public_key: PublicKey,
+    pub model_name: String,
+    pub channel: ResponseChannel<Vec<u8>>,
+}
 
 pub struct TaskWorkerInput {
     pub entry: Option<Entry>,
     pub executor: Executor,
     pub workflow: Workflow,
     pub task_id: String,
-    // piggybacked
-    pub public_key: PublicKey,
-    pub model_name: String,
     pub stats: TaskStats,
     pub batchable: bool,
 }
@@ -21,9 +23,6 @@ pub struct TaskWorkerInput {
 pub struct TaskWorkerOutput {
     pub result: Result<String, ExecutionError>,
     pub task_id: String,
-    // piggybacked
-    pub public_key: PublicKey,
-    pub model_name: String,
     pub stats: TaskStats,
     pub batchable: bool,
 }
@@ -129,6 +128,7 @@ impl TaskWorker {
                 "number of tasks cant be larger than batch size"
             );
             debug_assert!(num_tasks != 0, "number of tasks cant be zero");
+
             log::info!("Processing {} tasks in batch", num_tasks);
             let mut batch = tasks.into_iter().map(|b| (b, &self.publish_tx));
             match num_tasks {
@@ -226,9 +226,7 @@ impl TaskWorker {
 
         let output = TaskWorkerOutput {
             result,
-            public_key: input.public_key,
             task_id: input.task_id,
-            model_name: input.model_name,
             batchable: input.batchable,
             stats: input.stats,
         };
@@ -242,7 +240,6 @@ impl TaskWorker {
 #[cfg(test)]
 mod tests {
     use dkn_workflows::{Executor, Model};
-    use libsecp256k1::{PublicKey, SecretKey};
 
     use super::*;
     use crate::payloads::TaskStats;
@@ -311,9 +308,7 @@ mod tests {
                 entry: None,
                 executor,
                 workflow,
-                public_key: PublicKey::from_secret_key(&SecretKey::default()),
                 task_id: format!("task-{}", i + 1),
-                model_name: model.to_string(),
                 stats: TaskStats::default(),
                 batchable: true,
             };
