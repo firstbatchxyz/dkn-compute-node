@@ -48,11 +48,17 @@ impl DriaComputeNode {
 
         log::info!("{}", diagnostics.join("\n  "));
 
+        // check liveness of the node w.r.t last ping-pong time
         if self.last_pinged_at < Instant::now() - Duration::from_secs(PING_LIVENESS_SECS) {
             log::error!(
-            "Node has not received any pings for at least {} seconds & it may be unreachable!\nPlease restart your node!",
-            PING_LIVENESS_SECS
-        );
+                "Node has not received any pings for at least {} seconds & it may be unreachable!\nPlease restart your node!",
+                PING_LIVENESS_SECS
+            );
+        }
+
+        // added rpc nodes check, sometimes this happens when API is down / bugs for some reason
+        if self.dria_nodes.rpc_peerids.is_empty() {
+            log::error!("No RPC peerids were found to be available, please restart your node!",);
         }
     }
 

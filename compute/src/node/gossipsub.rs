@@ -152,8 +152,10 @@ impl DriaComputeNode {
 mod tests {
     use super::*;
     use crate::DriaComputeNodeConfig;
+    use tokio::time::sleep;
     use tokio_util::sync::CancellationToken;
 
+    // FIXME: test is failing
     #[tokio::test]
     #[ignore = "run this manually"]
     async fn test_publish_message() -> eyre::Result<()> {
@@ -173,11 +175,16 @@ mod tests {
         let p2p_task = tokio::spawn(async move { p2p.run().await });
 
         // launch & wait for a while for connections
-        log::info!("Waiting a bit for peer setup.");
         let run_cancellation = cancellation.clone();
+        let wait_duration = tokio::time::Duration::from_secs(20);
+        log::info!(
+            "Waiting a bit ({}ms) for peer setup.",
+            wait_duration.as_millis()
+        );
+        sleep(wait_duration).await;
         tokio::select! {
             _ = node.run(run_cancellation) => (),
-            _ = tokio::time::sleep(tokio::time::Duration::from_secs(20)) => cancellation.cancel(),
+            _ = tokio::time::sleep(wait_duration) => cancellation.cancel(),
         }
         log::info!("Connected Peers:\n{:#?}", node.peers().await?);
 

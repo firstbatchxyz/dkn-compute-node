@@ -1,8 +1,8 @@
-use eyre::Result;
+use eyre::{eyre, Result};
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
-use crate::{node::PingpongHandler, reqres::TaskResponder, utils::DriaMessage, DriaComputeNode};
+use crate::{node::PingpongHandler, utils::DriaMessage, DriaComputeNode};
 
 impl DriaComputeNode {
     /// Runs the main loop of the compute node.
@@ -27,33 +27,37 @@ impl DriaComputeNode {
 
         loop {
             tokio::select! {
-                // a Workflow message to be published is received from the channel
-                // this is expected to be sent by the workflow worker
-                publish_msg_opt = self.publish_rx.recv() => {
-                    if let Some(publish_msg) = publish_msg_opt {
-                        // remove the task from pending tasks based on its batchability
-                        let task_metadata = match publish_msg.batchable {
-                            true => {
-                                self.completed_tasks_batch += 1;
-                                self.pending_tasks_batch.remove(&publish_msg.task_id)
-                            },
-                            false => {
-                                self.completed_tasks_single += 1;
-                                self.pending_tasks_single.remove(&publish_msg.task_id)
-                            }
-                        };
+                // a task is completed by the worker & should be responded to the requesting peer
+                task_response_msg_opt = self.task_output_rx.recv() => {
+                    let task_response_msg = task_response_msg_opt.ok_or(
+                      eyre!("Publish channel closed unexpectedly, we still have {} batch and {} single tasks.", self.pending_tasks_batch.len(), self.pending_tasks_single.len())
+                    )?; {
+                        self.handle_task_response(task_response_msg).await?;
+                    }
+                },
 
-                        // respond to the request
-                        match task_metadata {
-                            Some(channel) => {
-                              TaskResponder::handle_respond(self, publish_msg, channel).await?;
-                            }
-                            None => log::error!("Channel not found for task id: {}", publish_msg.task_id),
-                        }
-                    } else {
-                        log::error!("Publish channel closed unexpectedly, we still have {} batch and {} single tasks.", self.pending_tasks_batch.len(), self.pending_tasks_single.len());
-                        break;
-                    };
+                // a GossipSub message is received from the channel
+                // this is expected to be sent by the p2p client
+                gossipsub_msg_opt = self.gossip_message_rx.recv() => {
+                    let (peer_id, message_id, message) = gossipsub_msg_opt.ok_or(eyre!("message_rx channel closed unexpectedly."))?;
+
+                    // handle the message, returning a message acceptance for the received one
+                    let acceptance = self.handle_message((peer_id, &message_id, message)).await;
+
+                    // validate the message based on the acceptance
+                    // cant do anything but log if this gives an error as well
+                    if let Err(e) = self.p2p.validate_message(&message_id, &peer_id, acceptance).await {
+                        log::error!("Error validating message {}: {:?}", message_id, e);
+                    }
+
+                },
+
+                // a Request is received from the channel, sent by p2p client
+                request_msg_opt = self.request_rx.recv() => {
+                  let request = request_msg_opt.ok_or(eyre!("request_rx channel closed unexpectedly."))?;
+                  if let Err(e) = self.handle_request(request).await {
+                      log::error!("Error handling request: {:?}", e);
+                  }
                 },
 
                 // check peer count every now and then
@@ -61,37 +65,6 @@ impl DriaComputeNode {
 
                 // available nodes are refreshed every now and then
                 _ = available_node_refresh_interval.tick() => self.handle_available_nodes_refresh().await,
-
-                // a GossipSub message is received from the channel
-                // this is expected to be sent by the p2p client
-                gossipsub_msg_opt = self.message_rx.recv() => {
-                    if let Some((peer_id, message_id, message)) = gossipsub_msg_opt {
-                        // handle the message, returning a message acceptance for the received one
-                        let acceptance = self.handle_message((peer_id, &message_id, message)).await;
-
-                        // validate the message based on the acceptance
-                        // cant do anything but log if this gives an error as well
-                        if let Err(e) = self.p2p.validate_message(&message_id, &peer_id, acceptance).await {
-                            log::error!("Error validating message {}: {:?}", message_id, e);
-                        }
-                    } else {
-                        log::error!("message_rx channel closed unexpectedly.");
-                        break;
-                    };
-                },
-
-                // a Response message is received from the channel
-                // this is expected to be sent by the p2p client
-                request_msg_opt = self.request_rx.recv() => {
-                    if let Some((peer_id, data, channel)) = request_msg_opt {
-                        if let Err(e) = self.handle_request((peer_id, data, channel)).await {
-                            log::error!("Error handling request: {:?}", e);
-                        }
-                    } else {
-                        log::error!("request_rx channel closed unexpectedly.");
-                        break;
-                    };
-                },
 
                 // check if the cancellation token is cancelled
                 // this is expected to be cancelled by the main thread with signal handling
@@ -119,15 +92,18 @@ impl DriaComputeNode {
     }
 
     /// Shutdown channels between p2p, worker and yourself.
+    ///
+    /// Can be inlined as it is called only once from very few places.
+    #[inline]
     pub async fn shutdown(&mut self) -> Result<()> {
         log::debug!("Sending shutdown command to p2p client.");
         self.p2p.shutdown().await?;
 
-        log::debug!("Closing message channel.");
-        self.message_rx.close();
+        log::debug!("Closing gossip message receipt channel.");
+        self.gossip_message_rx.close();
 
-        log::debug!("Closing publish channel.");
-        self.publish_rx.close();
+        log::debug!("Closing task response channel.");
+        self.task_output_rx.close();
 
         Ok(())
     }

@@ -1,7 +1,7 @@
 use dkn_p2p::libp2p::{request_response::ResponseChannel, PeerId};
 use eyre::{eyre, Result};
 
-use crate::reqres::*;
+use crate::{reqres::*, workers::task::TaskWorkerOutput};
 
 use super::DriaComputeNode;
 
@@ -38,6 +38,7 @@ impl DriaComputeNode {
         Ok(())
     }
 
+    /// Handles a Specifications request received from the network.
     async fn handle_spec_request(
         &mut self,
         peer_id: PeerId,
@@ -73,6 +74,11 @@ impl DriaComputeNode {
         Ok(())
     }
 
+    /// Handles a Task request received from the network.
+    ///
+    /// Based on the task type, the task is sent to the appropriate worker & metadata is stored in memory.
+    /// This metadata will be used during response as well, and we can count the number of tasks at hand by
+    /// looking at the number metadata stored.
     async fn handle_task_request(
         &mut self,
         peer_id: PeerId,
@@ -86,7 +92,7 @@ impl DriaComputeNode {
         if let Err(e) = match task_input.batchable {
             // this is a batchable task, send it to batch worker
             // and keep track of the task id in pending tasks
-            true => match self.task_batch_tx {
+            true => match self.task_request_batch_tx {
                 Some(ref mut tx) => {
                     self.pending_tasks_batch
                         .insert(task_input.task_id.clone(), task_metadata);
@@ -101,7 +107,7 @@ impl DriaComputeNode {
 
             // this is a single task, send it to single worker
             // and keep track of the task id in pending tasks
-            false => match self.task_single_tx {
+            false => match self.task_request_single_tx {
                 Some(ref mut tx) => {
                     self.pending_tasks_single
                         .insert(task_input.task_id.clone(), task_metadata);
@@ -113,6 +119,33 @@ impl DriaComputeNode {
             },
         } {
             log::error!("Error sending workflow message: {:?}", e);
+        };
+
+        Ok(())
+    }
+
+    pub(crate) async fn handle_task_response(
+        &mut self,
+        task_response: TaskWorkerOutput,
+    ) -> Result<()> {
+        // remove the task from pending tasks, and get its metadata
+        let task_metadata = match task_response.batchable {
+            true => {
+                self.completed_tasks_batch += 1; // TODO: this should be done in success
+                self.pending_tasks_batch.remove(&task_response.task_id)
+            }
+            false => {
+                self.completed_tasks_single += 1; // TODO: this should be done in success
+                self.pending_tasks_single.remove(&task_response.task_id)
+            }
+        };
+
+        // respond to the response channel with the result
+        match task_metadata {
+            Some(channel) => {
+                TaskResponder::handle_respond(self, task_response, channel).await?;
+            }
+            None => log::error!("Channel not found for task id: {}", task_response.task_id),
         };
 
         Ok(())

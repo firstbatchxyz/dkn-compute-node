@@ -35,15 +35,17 @@ pub struct DriaComputeNode {
     /// If this is too much, we can say that the node is not reachable by RPC.
     pub last_pinged_at: Instant,
     /// Gossipsub message receiver, used by peer-to-peer client in a separate thread.
-    message_rx: mpsc::Receiver<(PeerId, MessageId, Message)>,
+    ///
+    /// It will publish messages sent to this channel to the network.
+    gossip_message_rx: mpsc::Receiver<(PeerId, MessageId, Message)>,
     /// Request-response request receiver.
     request_rx: mpsc::Receiver<(PeerId, Vec<u8>, ResponseChannel<Vec<u8>>)>,
-    /// Publish receiver to receive messages to be published.
-    publish_rx: mpsc::Receiver<TaskWorkerOutput>,
+    /// Task response receiver, will respond to the request-response channel with the given result.
+    task_output_rx: mpsc::Receiver<TaskWorkerOutput>,
     /// Task worker transmitter to send batchable tasks.
-    task_batch_tx: Option<mpsc::Sender<TaskWorkerInput>>,
+    task_request_batch_tx: Option<mpsc::Sender<TaskWorkerInput>>,
     /// Task worker transmitter to send single tasks.
-    task_single_tx: Option<mpsc::Sender<TaskWorkerInput>>,
+    task_request_single_tx: Option<mpsc::Sender<TaskWorkerInput>>,
     // Single tasks
     pending_tasks_single: HashMap<String, TaskWorkerMetadata>,
     // Batchable tasks
@@ -118,12 +120,12 @@ impl DriaComputeNode {
                 p2p: p2p_commander,
                 dria_nodes,
                 // receivers
-                publish_rx,
-                message_rx,
+                task_output_rx: publish_rx,
+                gossip_message_rx: message_rx,
                 request_rx,
                 // transmitters
-                task_batch_tx,
-                task_single_tx,
+                task_request_batch_tx: task_batch_tx,
+                task_request_single_tx: task_single_tx,
                 // task trackers
                 pending_tasks_single: HashMap::new(),
                 pending_tasks_batch: HashMap::new(),
