@@ -1,7 +1,7 @@
 use dkn_workflows::Workflow;
 
 #[test]
-fn test_parse_example() -> eyre::Result<()> {
+fn test_parse_example() {
     let object = serde_json::json!({
        "config":{
           "max_steps":50,
@@ -70,13 +70,7 @@ fn test_parse_example() -> eyre::Result<()> {
                 }
              ],
              "schema":null,
-             "inputs":[
-
-             ],
              "operator":"end",
-             "outputs":[
-
-             ]
           }
        ],
        "steps":[
@@ -99,7 +93,8 @@ fn test_parse_example() -> eyre::Result<()> {
        }
     });
 
-    serde_json::from_value::<Workflow>(object)?;
-
-    Ok(())
+    assert!(
+        serde_json::from_value::<Workflow>(object).is_ok(),
+        "could not parse"
+    );
 }

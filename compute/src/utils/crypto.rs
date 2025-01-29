@@ -114,23 +114,4 @@ mod tests {
             "could not verify signature"
         );
     }
-
-    #[test]
-    #[ignore = "run only with profiler if wanted"]
-    fn test_memory_usage() {
-        let secret_key =
-            SecretKey::parse_slice(DUMMY_SECRET_KEY).expect("to parse private key slice");
-        let public_key = PublicKey::from_secret_key(&secret_key);
-
-        // sign the message using the secret key
-        let digest = sha256hash(MESSAGE);
-        let message = Message::parse_slice(&digest).expect("to parse message");
-        let (signature, _) = sign(&message, &secret_key);
-
-        // verify signature with context
-        for _ in 0..1_000_000 {
-            let ok = verify(&message, &signature, &public_key);
-            assert!(ok);
-        }
-    }
 }
