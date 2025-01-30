@@ -18,7 +18,7 @@ impl DriaComputeNode {
 
     /// Peer refresh simply reports the peer count to the user.
     pub(crate) async fn handle_diagnostic_refresh(&self) {
-        let mut diagnostics = vec!["Diagnostics:".to_string()];
+        let mut diagnostics = vec![format!("Diagnostics (v{}):", DRIA_COMPUTE_NODE_VERSION)];
 
         // print peer counts
         match self.p2p.peer_counts().await {
@@ -54,9 +54,6 @@ impl DriaComputeNode {
                 .collect::<Vec<String>>()
                 .join(", ")
         ));
-
-        // print version
-        diagnostics.push(format!("Version: v{}", DRIA_COMPUTE_NODE_VERSION));
 
         log::info!("{}", diagnostics.join("\n  "));
 
