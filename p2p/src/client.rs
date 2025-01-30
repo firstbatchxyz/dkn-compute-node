@@ -317,17 +317,24 @@ impl DriaP2PClient {
 
             // request-response events
             SwarmEvent::Behaviour(DriaBehaviourEvent::RequestResponse(
-                request_response::Event::Message { message, peer },
+                request_response::Event::Message { message, peer, .. },
             )) => match message {
                 // a request has been made with us as the target, and we should respond
                 // using the created `channel`; we simply forward this to the request channel
                 request_response::Message::Request {
-                    request, channel, ..
+                    request,
+                    channel,
+                    request_id,
                 } => {
                     if let Err(e) = self.req_tx.send((peer, request, channel)).await {
-                        log::error!("Could not send request-response request: {:?}", e);
+                        log::error!(
+                            "Could not send response for request_id {}: {:?}",
+                            request_id,
+                            e,
+                        );
                     }
                 }
+
                 request_response::Message::Response {
                     request_id,
                     response,
@@ -342,12 +349,17 @@ impl DriaP2PClient {
                 }
             },
             SwarmEvent::Behaviour(DriaBehaviourEvent::RequestResponse(
-                request_response::Event::ResponseSent { peer, request_id },
+                request_response::Event::ResponseSent {
+                    peer,
+                    request_id,
+                    connection_id,
+                },
             )) => {
                 log::debug!(
-                    "Request-Response: Response sent to peer {} with request_id {}",
+                    "Request-Response: Response sent to peer {} with request_id {} (conn: {})",
                     peer,
-                    request_id
+                    request_id,
+                    connection_id,
                 )
             }
             SwarmEvent::Behaviour(DriaBehaviourEvent::RequestResponse(
@@ -355,12 +367,14 @@ impl DriaP2PClient {
                     peer,
                     request_id,
                     error,
+                    connection_id,
                 },
             )) => {
                 log::error!(
-                    "Request-Response: Outbound failure to peer {} with request_id {}: {:?}",
+                    "Request-Response: Outbound failure to peer {} with request_id {} (conn: {}): {:?}",
                     peer,
                     request_id,
+                    connection_id,
                     error
                 );
             }
@@ -369,12 +383,14 @@ impl DriaP2PClient {
                     peer,
                     request_id,
                     error,
+                    connection_id,
                 },
             )) => {
                 log::error!(
-                    "Request-Response: Inbound failure to peer {} with request_id {}: {:?}",
+                    "Request-Response: Inbound failure to peer {} with request_id {} (conn: {}): {:?}",
                     peer,
                     request_id,
+                    connection_id,
                     error
                 );
             }

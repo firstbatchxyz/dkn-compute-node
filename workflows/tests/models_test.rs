@@ -1,13 +1,16 @@
 use dkn_workflows::{DriaWorkflowsConfig, Model, ModelProvider};
 use eyre::Result;
 
+#[inline(always)]
 fn setup() {
     // read api key from .env
     let _ = dotenvy::dotenv();
 
     // set logger
     let _ = env_logger::builder()
-        .parse_filters("none,dkn_workflows=debug")
+        .filter_level(log::LevelFilter::Off)
+        .filter_module("models_test", log::LevelFilter::Debug)
+        .filter_module("dkn_workflows", log::LevelFilter::Debug)
         .is_test(true)
         .try_init();
 }
@@ -57,6 +60,22 @@ async fn test_gemini_check() -> Result<()> {
     assert_eq!(
         model_config.models[0],
         (ModelProvider::Gemini, Model::Gemini15Flash)
+    );
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires OpenRouter"]
+async fn test_openrouter_check() -> Result<()> {
+    setup();
+
+    let models = vec![Model::ORDeepSeek2_5];
+    let mut model_config = DriaWorkflowsConfig::new(models);
+    model_config.check_services().await?;
+
+    assert_eq!(
+        model_config.models[0],
+        (ModelProvider::OpenRouter, Model::ORDeepSeek2_5)
     );
     Ok(())
 }

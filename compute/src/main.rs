@@ -3,7 +3,7 @@ use dkn_workflows::DriaWorkflowsConfig;
 use eyre::Result;
 use std::env;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
-use workers::workflow::WorkflowsWorker;
+use workers::task::TaskWorker;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -83,7 +83,16 @@ async fn main() -> Result<()> {
             return Ok(());
         }
     }?;
-    log::warn!("Using models: {:#?}", config.workflows.models);
+    log::warn!(
+        "Using models: {}",
+        config
+            .workflows
+            .models
+            .iter()
+            .map(|(p, m)| format!("{}/{}", p, m))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
 
     // check network-specific configurations
     config.check_network_specific()?;
@@ -99,7 +108,7 @@ async fn main() -> Result<()> {
     // spawn batch worker thread if we are using such models (e.g. OpenAI, Gemini, OpenRouter)
     if let Some(mut worker_batch) = worker_batch {
         assert!(
-            batch_size <= WorkflowsWorker::MAX_BATCH_SIZE,
+            batch_size <= TaskWorker::MAX_BATCH_SIZE,
             "batch size too large"
         );
         log::info!(

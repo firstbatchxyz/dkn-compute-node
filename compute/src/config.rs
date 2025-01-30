@@ -4,12 +4,9 @@ use eyre::{eyre, Result};
 use libsecp256k1::{PublicKey, SecretKey};
 use std::{env, str::FromStr};
 
-use crate::utils::{
-    address_in_use,
-    crypto::{secret_to_keypair, to_address},
-};
+use crate::utils::crypto::{secret_to_keypair, to_address};
 
-const DEFAULT_WORKFLOW_BATCH_SIZE: usize = 5;
+const DEFAULT_TASK_BATCH_SIZE: usize = 5;
 const DEFAULT_P2P_LISTEN_ADDR: &str = "/ip4/0.0.0.0/tcp/4001";
 
 #[derive(Debug, Clone)]
@@ -20,15 +17,13 @@ pub struct DriaComputeNodeConfig {
     pub public_key: PublicKey,
     /// Wallet address, derived from the public key.
     pub address: [u8; 20],
-    /// Admin public key, used for message authenticity.
-    pub admin_public_key: PublicKey,
     /// P2P listen address, e.g. `/ip4/0.0.0.0/tcp/4001`.
     pub p2p_listen_addr: Multiaddr,
     /// Workflow configurations, e.g. models and providers.
     pub workflows: DriaWorkflowsConfig,
     /// Network type of the node.
     pub network_type: DriaNetworkType,
-    /// Batch size for batchable workflows.
+    /// Batch size for batchable tasks (e.g. API-based ones).
     ///
     /// A higher value will help execute more tasks concurrently,
     /// at the risk of hitting rate-limits.
@@ -69,19 +64,6 @@ impl DriaComputeNodeConfig {
             hex::encode(public_key.serialize_compressed())
         );
 
-        let admin_public_key = match env::var("DKN_ADMIN_PUBLIC_KEY") {
-            Ok(admin_public_key) => {
-                let pubkey_dec = hex::decode(admin_public_key.trim_start_matches("0x"))
-                    .expect("Admin public key should be 33-bytes hex encoded.");
-                PublicKey::parse_slice(&pubkey_dec, None)
-                    .expect("Admin public key should be parseable.")
-            }
-            Err(err) => {
-                log::error!("No admin public key provided: {}", err);
-                panic!("Please provide an admin public key.");
-            }
-        };
-
         let address = to_address(&public_key);
         log::info!("Node Address:     0x{}", hex::encode(address));
 
@@ -89,11 +71,6 @@ impl DriaComputeNodeConfig {
         log::info!(
             "Node PeerID:      {}",
             secret_to_keypair(&secret_key).public().to_peer_id()
-        );
-
-        log::info!(
-            "Admin Public Key: 0x{}",
-            hex::encode(admin_public_key.serialize_compressed())
         );
 
         // parse listen address
@@ -110,11 +87,10 @@ impl DriaComputeNodeConfig {
 
         // parse batch size
         let batch_size = env::var("DKN_BATCH_SIZE")
-            .map(|s| s.parse::<usize>().unwrap_or(DEFAULT_WORKFLOW_BATCH_SIZE))
-            .unwrap_or(DEFAULT_WORKFLOW_BATCH_SIZE);
+            .map(|s| s.parse::<usize>().unwrap_or(DEFAULT_TASK_BATCH_SIZE))
+            .unwrap_or(DEFAULT_TASK_BATCH_SIZE);
 
         Self {
-            admin_public_key,
             secret_key,
             public_key,
             address,
@@ -127,9 +103,36 @@ impl DriaComputeNodeConfig {
 
     /// Asserts that the configured listen address is free.
     /// Throws an error if the address is already in use.
+    ///
+    /// Uses `is_port_reachable` function internally, which makes a simple
+    /// TCP connection to the given address.
+    ///
+    /// Can be inlined because the function is small and called only once.
     #[inline]
     pub fn assert_address_not_in_use(&self) -> Result<()> {
-        if address_in_use(&self.p2p_listen_addr) {
+        use dkn_p2p::libp2p::multiaddr::Protocol;
+        use port_check::is_port_reachable;
+        use std::net::{Ipv4Addr, SocketAddrV4};
+
+        let address_in_use = self
+            .p2p_listen_addr
+            .iter()
+            // find the port within our multiaddr
+            .find_map(|protocol| match protocol {
+                Protocol::Tcp(port) => Some(port),
+                _ => None,
+            })
+            // check if its reachable or not
+            .map(|port| is_port_reachable(SocketAddrV4::new(Ipv4Addr::LOCALHOST, port)))
+            .unwrap_or_else(|| {
+                log::error!(
+                    "could not find any TCP port in the given address: {:?}",
+                    self.p2p_listen_addr
+                );
+                false
+            });
+
+        if address_in_use {
             return Err(eyre!(
                 "Listen address {} is already in use.",
                 self.p2p_listen_addr
@@ -162,10 +165,6 @@ impl Default for DriaComputeNodeConfig {
     /// Should only be used for testing purposes.
     fn default() -> Self {
         env::set_var(
-            "DKN_ADMIN_PUBLIC_KEY",
-            "0208ef5e65a9c656a6f92fb2c770d5d5e2ecffe02a6aade19207f75110be6ae658",
-        );
-        env::set_var(
             "DKN_WALLET_SECRET_KEY",
             "6e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f6465",
         );
@@ -188,10 +187,6 @@ mod tests {
             "1f56f6131705fbf19371122c80d7a2d40fcf9a68"
         );
 
-        env::set_var(
-            "DKN_ADMIN_PUBLIC_KEY",
-            "0208ef5e65a9c656a6f92fb2c770d5d5e2ecffe02a6aade19207f75110be6ae658",
-        );
         env::set_var(
             "DKN_WALLET_SECRET_KEY",
             "6e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f6465",

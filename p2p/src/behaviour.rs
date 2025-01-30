@@ -101,9 +101,7 @@ fn create_identify_behaviour(
 ) -> identify::Behaviour {
     use identify::{Behaviour, Config};
 
-    let cfg = Config::new(protocol_version, local_public_key);
-
-    Behaviour::new(cfg)
+    Behaviour::new(Config::new(protocol_version, local_public_key))
 }
 
 /// Configures the Dcutr behavior to allow nodes to connect via hole-punching.
@@ -137,9 +135,6 @@ fn create_gossipsub_behaviour(author: PeerId) -> Result<gossipsub::Behaviour> {
         Behaviour, ConfigBuilder, Message, MessageAuthenticity, MessageId, ValidationMode,
     };
 
-    /// Message TTL in seconds
-    const MESSAGE_TTL_SECS: u64 = 100;
-
     /// We accept permissive validation mode, meaning that we accept all messages
     /// and check their fields based on whether they exist or not.
     const VALIDATION_MODE: ValidationMode = ValidationMode::Permissive;
@@ -150,12 +145,6 @@ fn create_gossipsub_behaviour(author: PeerId) -> Result<gossipsub::Behaviour> {
     /// Duplicate cache time in seconds
     const DUPLICATE_CACHE_TIME_SECS: u64 = 120;
 
-    /// Gossip cache TTL in seconds
-    const GOSSIP_TTL_SECS: u64 = 100;
-
-    /// Message capacity for the gossipsub cache
-    const MESSAGE_CAPACITY: usize = 100;
-
     /// Max transmit size for payloads 256 KB
     const MAX_TRANSMIT_SIZE: usize = 256 << 10;
 
@@ -163,9 +152,10 @@ fn create_gossipsub_behaviour(author: PeerId) -> Result<gossipsub::Behaviour> {
     /// because we don't need historic messages at all
     const MAX_IHAVE_LENGTH: usize = 100;
 
-    /// Max size of the send queue
-    /// This helps to avoid memory exhaustion during high load
-    const MAX_SEND_QUEUE_SIZE: usize = 400;
+    /// Connection handler queue length
+    ///
+    /// This was added as a counter-measure for the backpressure problems, defaults to `5000`.
+    const CONNECTION_HANDLER_QUEUE_LEN: usize = 1000;
 
     // message id's are simply hashes of the message data, via SipHash13
     let message_id_fn = |message: &Message| {
@@ -181,14 +171,11 @@ fn create_gossipsub_behaviour(author: PeerId) -> Result<gossipsub::Behaviour> {
             .heartbeat_interval(Duration::from_secs(HEARTBEAT_INTERVAL_SECS))
             .max_transmit_size(MAX_TRANSMIT_SIZE)
             .message_id_fn(message_id_fn)
-            .message_capacity(MESSAGE_CAPACITY)
-            .message_ttl(Duration::from_secs(MESSAGE_TTL_SECS))
-            .gossip_ttl(Duration::from_secs(GOSSIP_TTL_SECS))
             .duplicate_cache_time(Duration::from_secs(DUPLICATE_CACHE_TIME_SECS))
             .max_ihave_length(MAX_IHAVE_LENGTH)
-            .send_queue_size(MAX_SEND_QUEUE_SIZE)
             .validation_mode(VALIDATION_MODE)
             .validate_messages()
+            .connection_handler_queue_len(CONNECTION_HANDLER_QUEUE_LEN)
             .build()
             .wrap_err(eyre!("could not create Gossipsub config"))?,
     )

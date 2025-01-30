@@ -84,6 +84,7 @@ impl DriaNodes {
             .extend(self.network.get_static_bootstrap_nodes());
         self.relay_nodes
             .extend(self.network.get_static_relay_nodes());
+        self.rpc_nodes.extend(self.network.get_static_rpc_nodes());
         self.rpc_peerids
             .extend(self.network.get_static_rpc_peer_ids());
 

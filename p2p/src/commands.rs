@@ -35,7 +35,7 @@ pub enum DriaP2PCommand {
     /// Unsubscribe from a topic.
     Unsubscribe {
         topic: String,
-        sender: oneshot::Sender<Result<bool, gossipsub::PublishError>>,
+        sender: oneshot::Sender<bool>,
     },
     /// Publishes a message to a topic, returns the message ID.
     Publish {
@@ -69,7 +69,7 @@ pub enum DriaP2PCommand {
         msg_id: gossipsub::MessageId,
         propagation_source: PeerId,
         acceptance: gossipsub::MessageAcceptance,
-        sender: oneshot::Sender<Result<bool, gossipsub::PublishError>>,
+        sender: oneshot::Sender<bool>,
     },
     /// Shutsdown the client, closes the command channel.
     Shutdown { sender: oneshot::Sender<()> },
@@ -135,10 +135,7 @@ impl DriaP2PCommander {
             .await
             .wrap_err("could not send")?;
 
-        receiver
-            .await
-            .wrap_err("could not receive")?
-            .wrap_err("could not unsubscribe")
+        receiver.await.wrap_err("could not receive")
     }
 
     /// Publish a message to a topic.
@@ -250,10 +247,7 @@ impl DriaP2PCommander {
             .await
             .wrap_err("could not send")?;
 
-        let msg_was_in_cache = receiver
-            .await
-            .wrap_err("could not receive")?
-            .wrap_err("could not unsubscribe")?;
+        let msg_was_in_cache = receiver.await.wrap_err("could not receive")?;
 
         if !msg_was_in_cache {
             log::debug!("Validated message was not in cache.");

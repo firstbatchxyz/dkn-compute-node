@@ -84,10 +84,18 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    #[ignore = "run manually"]
     async fn test_print_specs() {
         let mut spec_collector = SpecCollector::new(vec!["gpt-4o".to_string()]);
         let specs = spec_collector.collect().await;
-        println!("{}", serde_json::to_string_pretty(&specs).unwrap());
+        assert!(specs.total_mem > 0);
+        assert!(specs.free_mem > 0);
+        assert!(specs.num_cpus.is_some());
+        assert!(specs.cpu_usage > 0.0);
+        assert!(!specs.os.is_empty());
+        assert!(!specs.arch.is_empty());
+        assert!(specs.lookup.is_some());
+
+        // print optionally:
+        // println!("{}", serde_json::to_string_pretty(&specs).unwrap());
     }
 }

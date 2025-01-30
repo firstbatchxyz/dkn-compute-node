@@ -1,6 +1,5 @@
 use dkn_utils::get_current_time_nanos;
 use serde::{Deserialize, Serialize};
-use std::time::Instant;
 
 /// Task stats for diagnostics.
 /// Returning this as the payload helps to debug the errors received at client side, and latencies.
@@ -11,13 +10,10 @@ pub struct TaskStats {
     pub received_at: u128,
     /// Timestamp at which the task was published back to network.
     pub published_at: u128,
-    /// Time taken to execute the task.
-    /// FIXME: will be removed after
-    pub execution_time: u128,
     /// Timestamp at which the task execution had started.
     pub execution_started_at: u128,
     /// Timestamp at which the task execution had finished.
-    pub execution_ended_time: u128,
+    pub execution_ended_at: u128,
 }
 
 impl TaskStats {
@@ -46,14 +42,7 @@ impl TaskStats {
 
     /// Records the execution end time within `execution_ended_time`.
     pub fn record_execution_ended_at(mut self) -> Self {
-        self.execution_ended_time = get_current_time_nanos();
-        self
-    }
-
-    /// Records the execution time of the task.
-    /// TODO: #[deprecated = "will be removed later"]
-    pub fn record_execution_time(mut self, started_at: Instant) -> Self {
-        self.execution_time = Instant::now().duration_since(started_at).as_nanos();
+        self.execution_ended_at = get_current_time_nanos();
         self
     }
 }
