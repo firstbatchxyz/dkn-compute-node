@@ -54,7 +54,7 @@ async fn main() -> eyre::Result<()> {
 
     match &cli.command {
         Commands::ApiKeys => commands::edit_api_keys()?,
-        Commands::Wallet => commands::edit_wallet(),
+        Commands::Wallet => commands::edit_wallet()?,
         Commands::Models => commands::edit_models()?,
         Commands::Env => commands::edit_environment_file(&cli.env)?,
         Commands::Compute => {

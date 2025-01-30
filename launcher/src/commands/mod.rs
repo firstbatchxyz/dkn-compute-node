@@ -21,7 +21,7 @@ pub enum Commands {
     Models,
     /// Configure your API Keys.
     ApiKeys,
-    /// Edit the environment variables in raw mode.
+    /// Edit the environment variables within your terminal's text editor.
     Env,
     /// Launch the compute node.
     Compute,

@@ -16,6 +16,8 @@ env_logger.workspace = true
 log.workspace = true
 eyre.workspace = true
 
+hex = "0.4.3"
+
 dkn-workflows = { path = "../workflows" }
 
 tokio-util.workspace = true
