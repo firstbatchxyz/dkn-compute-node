@@ -43,6 +43,18 @@ impl DriaComputeNode {
             ));
         }
 
+        // print models
+        diagnostics.push(format!(
+            "Models: {}",
+            self.config
+                .workflows
+                .models
+                .iter()
+                .map(|(p, m)| format!("{}/{}", p, m))
+                .collect::<Vec<String>>()
+                .join(", ")
+        ));
+
         // print version
         diagnostics.push(format!("Version: v{}", DRIA_COMPUTE_NODE_VERSION));
 
