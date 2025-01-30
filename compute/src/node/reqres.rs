@@ -51,16 +51,6 @@ impl DriaComputeNode {
             spec_request.request_id
         );
 
-        // ensure peer is authorized
-        if !self.dria_nodes.rpc_peerids.contains(&peer_id) {
-            log::warn!(
-                "Received spec request from unauthorized source: {}",
-                peer_id
-            );
-            log::debug!("Allowed sources: {:#?}", self.dria_nodes.rpc_peerids);
-            return Err(eyre!("Received unauthorized spec request from {}", peer_id));
-        }
-
         let response = SpecResponder::respond(spec_request, self.spec_collector.collect().await);
         let response_data = serde_json::to_vec(&response)?;
 
@@ -145,7 +135,12 @@ impl DriaComputeNode {
             Some(channel) => {
                 TaskResponder::handle_respond(self, task_response, channel).await?;
             }
-            None => log::error!("Channel not found for task id: {}", task_response.task_id),
+            None => {
+                return Err(eyre!(
+                    "Channel not found for task id: {}",
+                    task_response.task_id
+                ))
+            }
         };
 
         Ok(())

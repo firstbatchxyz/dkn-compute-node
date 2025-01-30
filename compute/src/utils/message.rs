@@ -86,7 +86,7 @@ impl DriaMessage {
         let recovery_id =
             RecoveryId::parse(self.recovery_id).wrap_err("could not decode recovery id")?;
 
-        // verify signature w.r.t the body and the given public key
+        // verify signature w.r.t the payload and the given public key
         let message = Message::parse(&sha256hash(&self.payload));
 
         let recovered_public_key = recover(&message, &signature, &recovery_id)?;
