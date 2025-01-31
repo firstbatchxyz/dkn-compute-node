@@ -6,9 +6,10 @@ use std::{io::Write, path::PathBuf};
 pub fn edit_environment_file(env_path: &PathBuf) -> eyre::Result<()> {
     let old_env_content = fs::read_to_string(env_path)?;
 
-    let prompt = format!("Edit environment at {}:", env_path.display());
+    let prompt = format!("Edit {} file:", env_path.display());
     let Some(new_env_content) = Editor::new(&prompt)
         .with_predefined_text(&old_env_content)
+        .with_help_message("ESC to go back")
         .prompt_skippable()?
     else {
         return Ok(());
@@ -20,7 +21,7 @@ pub fn edit_environment_file(env_path: &PathBuf) -> eyre::Result<()> {
 
         println!("Environment file updated successfully.");
     } else {
-        println!("No changes made to the environment file.");
+        println!("No changes made to the file.");
     }
 
     Ok(())

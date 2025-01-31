@@ -6,6 +6,8 @@ use tokio_util::sync::CancellationToken;
 mod commands;
 use commands::Commands;
 
+mod settings;
+
 mod utils;
 
 #[derive(Parser)]
@@ -53,10 +55,7 @@ async fn main() -> eyre::Result<()> {
     // let env_file = dotenvy::from_path_iter(&cli.env)?;
 
     match &cli.command {
-        Commands::ApiKeys => commands::edit_api_keys()?,
-        Commands::Wallet => commands::edit_wallet()?,
-        Commands::Models => commands::edit_models()?,
-        Commands::Env => commands::edit_environment_file(&cli.env)?,
+        Commands::Settings => commands::change_settings(&cli.env)?,
         Commands::Compute => {
             todo!("todo")
         }

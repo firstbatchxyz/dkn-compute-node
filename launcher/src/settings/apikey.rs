@@ -10,19 +10,20 @@ pub fn edit_api_keys() -> eyre::Result<()> {
     ];
 
     loop {
-        // choose a provider
-        let Some(chosen_api_key_name) = Select::new(
-            "Select an API key to change (ESC to abort):",
-            API_KEY_NAMES.into(),
-        )
-        .prompt_skippable()?
+        // choose an API key name
+        let Some(chosen_api_key_name) =
+            Select::new("Select an API key to change:", API_KEY_NAMES.into())
+                .with_help_message("↑↓ to move, enter to select, type to filter, ESC to go back")
+                .prompt_skippable()?
         else {
             break;
         };
 
+        // edit the API key
         let existing_value = std::env::var(&chosen_api_key_name).unwrap_or_default();
-        let Some(new_value) = inquire::Text::new("Enter the new value (ESC to go back to menu):")
+        let Some(new_value) = inquire::Text::new("Enter the new value:")
             .with_default(&existing_value)
+            .with_help_message("ESC to go back")
             .prompt_skippable()?
         else {
             continue;

@@ -4,6 +4,8 @@ use std::process::Stdio;
 use tokio::process::{Child, Command};
 use which::which;
 
+// TODO: check if the Ollama process is running already at a given host & port
+
 /// Spawns a local Ollama server process at the given host and port.
 ///
 /// ## Arguments
@@ -36,6 +38,8 @@ pub async fn spawn_ollama(host: &str, port: u16) -> Result<Child> {
     } else {
         env::remove_var("OLLAMA_HOST");
     }
+
+    // TODO: wait for server to start
 
     Ok(command)
 }

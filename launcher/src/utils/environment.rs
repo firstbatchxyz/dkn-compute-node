@@ -1,12 +1,19 @@
+//! This module is used to load environment variables from a `.env` file into their respective structs.
+//!
+//! It makes use of `dotenv_config::EnvConfig` to load the environment variables into the struct.
+//! For a struct `foo` and field `bar`, this module will look for an environment variable `FOO_BAR`, unless a `name` attribute is provided
+//! such as `env_config(name = "BAZ")` in which case it will look for `BAZ`.
+//!
+
 use dotenv_config::EnvConfig;
 
-#[derive(Debug, EnvConfig)]
+#[derive(Debug, Default, EnvConfig)]
 struct Ollama {
-    // #[env_config(default = "http://127.0.0.1")]
+    #[env_config(default = "http://127.0.0.1")]
     host: String,
-    // #[env_config(default = 11434)]
+    #[env_config(default = 11434)]
     port: u16,
-    // #[env_config(name = "OLLAMA_AUTO_PULL", default = true)]
+    #[env_config(default = true)]
     auto_pull: bool,
 }
 
