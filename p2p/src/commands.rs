@@ -183,7 +183,7 @@ impl DriaP2PCommander {
         receiver
             .await
             .wrap_err("could not receive")?
-            .wrap_err("could not publish")
+            .wrap_err("could not respond")
     }
 
     pub async fn request(

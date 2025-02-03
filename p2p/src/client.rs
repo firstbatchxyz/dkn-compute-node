@@ -263,21 +263,9 @@ impl DriaP2PClient {
                 );
             }
             DriaP2PCommand::Peers { sender } => {
-                let mesh = self
-                    .swarm
-                    .behaviour()
-                    .gossipsub
-                    .all_mesh_peers()
-                    .cloned()
-                    .collect();
-                let all = self
-                    .swarm
-                    .behaviour()
-                    .gossipsub
-                    .all_peers()
-                    .map(|(p, _)| p)
-                    .cloned()
-                    .collect();
+                let gossipsub = &self.swarm.behaviour().gossipsub;
+                let mesh = gossipsub.all_mesh_peers().cloned().collect();
+                let all = gossipsub.all_peers().map(|(p, _)| p).cloned().collect();
                 let _ = sender.send((mesh, all));
             }
             DriaP2PCommand::PeerCounts { sender } => {
@@ -340,7 +328,6 @@ impl DriaP2PClient {
                     response,
                 } => {
                     // while we support the protocol, we dont really make any requests
-                    // TODO: should p2p crate support this?
                     log::warn!(
                         "Unexpected response message with request_id {}: {:?}",
                         request_id,

@@ -15,6 +15,7 @@ async fn main() -> Result<()> {
         .filter_module("dkn_compute", log::LevelFilter::Info)
         .filter_module("dkn_p2p", log::LevelFilter::Info)
         .filter_module("dkn_workflows", log::LevelFilter::Info)
+        .filter_module("libp2p", log::LevelFilter::Error)
         .parse_default_env() // reads RUST_LOG variable
         .init();
 

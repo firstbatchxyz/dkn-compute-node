@@ -32,7 +32,9 @@ impl DriaComputeNode {
                     let task_response_msg = task_response_msg_opt.ok_or(
                       eyre!("Publish channel closed unexpectedly, we still have {} batch and {} single tasks.", self.pending_tasks_batch.len(), self.pending_tasks_single.len())
                     )?; {
-                        self.handle_task_response(task_response_msg).await?;
+                        if let Err(e) = self.handle_task_response(task_response_msg).await {
+                          log::error!("Error responding to task: {:?}", e);
+                      }
                     }
                 },
 
