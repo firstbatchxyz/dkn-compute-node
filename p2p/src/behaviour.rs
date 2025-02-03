@@ -54,8 +54,10 @@ fn create_request_response_behaviour(
     protocol_name: StreamProtocol,
 ) -> request_response::cbor::Behaviour<Vec<u8>, Vec<u8>> {
     use request_response::{Behaviour, Config, ProtocolSupport};
+    const REQUEST_RESPONSE_TIMEOUT: u64 = 180;
 
-    Behaviour::new([(protocol_name, ProtocolSupport::Full)], Config::default())
+    Behaviour::new([(protocol_name, ProtocolSupport::Full)],
+                   Config::default().with_request_timeout(Duration::from_secs(REQUEST_RESPONSE_TIMEOUT)))
 }
 
 /// Configures the connection limits.
