@@ -1,27 +1,28 @@
 #![allow(unused)]
 
+use dkn_p2p::libp2p::request_response::ResponseChannel;
 use dkn_utils::get_current_time_nanos;
 use dkn_workflows::{Entry, Executor, ModelProvider, Workflow};
-use eyre::{Context, Result};
+use eyre::{eyre, Context, Result};
 use libsecp256k1::PublicKey;
 use serde::Deserialize;
 
 use crate::payloads::*;
 use crate::utils::DriaMessage;
-use crate::workers::workflow::*;
+use crate::workers::task::*;
 use crate::DriaComputeNode;
 
 use super::IsResponder;
 
-pub struct WorkflowResponder;
+pub struct TaskResponder;
 
-impl IsResponder for WorkflowResponder {
-    type Request = TaskRequestPayload<WorkflowPayload>;
-    type Response = TaskResponsePayload;
+impl IsResponder for TaskResponder {
+    type Request = DriaMessage; // TODO: TaskRequestPayload<WorkflowPayload>;
+    type Response = DriaMessage; // TODO: TaskResponsePayload;
 }
 
 #[derive(Debug, Deserialize)]
-pub struct WorkflowPayload {
+pub struct TaskPayload {
     /// [Workflow](https://github.com/andthattoo/ollama-workflows/blob/main/src/program/workflow.rs) object to be parsed.
     pub(crate) workflow: Workflow,
     /// A lıst of model (that can be parsed into `Model`) or model provider names.
@@ -33,27 +34,29 @@ pub struct WorkflowPayload {
     pub(crate) prompt: Option<String>,
 }
 
-impl WorkflowResponder {
-    pub(crate) async fn handle_compute(
+impl TaskResponder {
+    /// Handles the compute message for workflows.
+    pub(crate) async fn prepare_worker_input(
         node: &mut DriaComputeNode,
         compute_message: &DriaMessage,
-    ) -> Result<Option<WorkflowsWorkerInput>> {
-        let stats = TaskStats::new().record_received_at();
-
+        channel: ResponseChannel<Vec<u8>>,
+    ) -> Result<(TaskWorkerInput, TaskWorkerMetadata)> {
         // parse payload
         let task = compute_message
-            .parse_payload::<TaskRequestPayload<WorkflowPayload>>(true)
+            .parse_payload::<TaskRequestPayload<TaskPayload>>()
             .wrap_err("could not parse workflow task")?;
+        log::info!("Handling task {}", task.task_id);
+
+        let stats = TaskStats::new().record_received_at();
 
         // check if deadline is past or not
+        // FIXME: with request-response, we dont expect this to happen much
         if get_current_time_nanos() >= task.deadline {
-            log::debug!("Task {} is past the deadline, ignoring", task.task_id,);
-            return Ok(None);
+            return Err(eyre!(
+                "Task {} is past the deadline, ignoring",
+                task.task_id
+            ));
         }
-
-        // TODO: we dont check the filter at all, because this was a request to the given peer
-
-        log::info!("Received a task with id: {}", task.task_id);
 
         // obtain public key from the payload
         // do this early to avoid unnecessary processing
@@ -92,63 +95,68 @@ impl WorkflowResponder {
         // get workflow as well
         let workflow = task.input.workflow;
 
-        Ok(Some(WorkflowsWorkerInput {
+        let task_input = TaskWorkerInput {
             entry,
             executor,
             workflow,
-            model_name,
             task_id: task.task_id,
-            public_key: task_public_key,
             stats,
             batchable,
-        }))
+        };
+
+        let task_metadata = TaskWorkerMetadata {
+            model_name,
+            public_key: task_public_key,
+            channel,
+        };
+
+        Ok((task_input, task_metadata))
     }
 
     /// Handles the result of a workflow task.
     pub(crate) async fn handle_respond(
         node: &mut DriaComputeNode,
-        task: WorkflowsWorkerOutput,
+        task_output: TaskWorkerOutput,
+        task_metadata: TaskWorkerMetadata,
     ) -> Result<()> {
-        // TODO: handle response
-        let _response = match task.result {
+        let response = match task_output.result {
             Ok(result) => {
                 // prepare signed and encrypted payload
+                log::info!("Publishing result for task {}", task_output.task_id);
                 let payload = TaskResponsePayload::new(
                     result,
-                    &task.task_id,
-                    &task.public_key,
-                    &node.config.secret_key,
-                    task.model_name,
-                    task.stats.record_published_at(),
+                    &task_output.task_id,
+                    &task_metadata.public_key,
+                    task_metadata.model_name,
+                    task_output.stats.record_published_at(),
                 )?;
 
                 // convert payload to message
                 let payload_str = serde_json::json!(payload).to_string();
-                log::info!("Publishing result for task {}", task.task_id);
 
-                DriaMessage::new(payload_str, "response")
+                node.new_message(payload_str, "response")
             }
             Err(err) => {
                 // use pretty display string for error logging with causes
                 let err_string = format!("{:#}", err);
-                log::error!("Task {} failed: {}", task.task_id, err_string);
+                log::error!("Task {} failed: {}", task_output.task_id, err_string);
 
                 // prepare error payload
                 let error_payload = TaskErrorPayload {
-                    task_id: task.task_id.clone(),
+                    task_id: task_output.task_id,
                     error: err_string,
-                    model: task.model_name,
-                    stats: task.stats.record_published_at(),
+                    model: task_metadata.model_name,
+                    stats: task_output.stats.record_published_at(),
                 };
                 let error_payload_str = serde_json::json!(error_payload).to_string();
 
-                // prepare signed message
-                DriaMessage::new_signed(error_payload_str, "response", &node.config.secret_key)
+                node.new_message(error_payload_str, "response")
             }
         };
 
         // respond through the channel
-        // TODO: !!!
+        let data = response.to_bytes()?;
+        node.p2p.respond(data, task_metadata.channel).await?;
 
         Ok(())
     }

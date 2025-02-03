@@ -56,14 +56,19 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    #[ignore = "run this manually"]
     async fn test_refresh_dria_nodes() {
         let mut nodes = DriaNodes::new(DriaNetworkType::Community);
         refresh_dria_nodes(&mut nodes).await.unwrap();
-        println!("Community: {:#?}", nodes);
+        assert!(!nodes.bootstrap_nodes.is_empty());
+        assert!(!nodes.relay_nodes.is_empty());
+        assert!(!nodes.rpc_nodes.is_empty());
+        assert!(!nodes.rpc_peerids.is_empty());
 
         let mut nodes = DriaNodes::new(DriaNetworkType::Pro);
         refresh_dria_nodes(&mut nodes).await.unwrap();
-        println!("Pro: {:#?}", nodes);
+        assert!(!nodes.bootstrap_nodes.is_empty());
+        assert!(!nodes.relay_nodes.is_empty());
+        assert!(!nodes.rpc_nodes.is_empty());
+        assert!(!nodes.rpc_peerids.is_empty());
     }
 }

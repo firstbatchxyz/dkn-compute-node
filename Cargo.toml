@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["compute", "p2p", "workflows", "utils", "monitor"]
+members = ["compute", "p2p", "workflows", "utils"]
 
 # FIXME: removing this breaks the workflows
 # compute node is the default member, until Oracle comes in
@@ -9,7 +9,7 @@ default-members = ["compute"]
 
 [workspace.package]
 edition = "2021"
-version = "0.2.34"
+version = "0.3.0"
 license = "Apache-2.0"
 readme = "README.md"
 

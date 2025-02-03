@@ -148,10 +148,6 @@ cp .env.example .env
 
 We will fill out the missing parts witin `.env` file in a moment.
 
-> [!NOTE]
->
-> `DKN_ADMIN_PUBLIC_KEY` is used to verify that the tasks are given by certain nodes, so that your node does not work for tasks given to the network by untrusted people. You don't need to change this, simply copy and paste it to your `.env`.
-
 > [!TIP]
 >
 > While adding anything to your `.env`, you can do it without leaving the terminal. For example, suppose you want to set `VALUE` to some `KEY`, you can do it as:

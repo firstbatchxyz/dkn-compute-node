@@ -1,7 +1,6 @@
-use dkn_p2p::libp2p_identity;
+use dkn_p2p::{libp2p::PeerId, libp2p_identity};
 use ecies::PublicKey;
-use eyre::{Context, Result};
-use libsecp256k1::{Message, SecretKey};
+use libsecp256k1::SecretKey;
 use sha2::{Digest, Sha256};
 use sha3::Keccak256;
 
@@ -29,29 +28,6 @@ pub fn to_address(public_key: &PublicKey) -> [u8; 20] {
     addr
 }
 
-/// Shorthand to sign a digest (bytes) with node's secret key and return signature & recovery id
-/// serialized to 65 byte hex-string.
-#[inline]
-pub fn sign_bytes_recoverable(message: &[u8; 32], secret_key: &SecretKey) -> String {
-    let message = Message::parse(message);
-    let (signature, recid) = libsecp256k1::sign(&message, secret_key);
-
-    format!(
-        "{}{}",
-        hex::encode(signature.serialize()),
-        hex::encode([recid.serialize()])
-    )
-}
-
-/// Shorthand to encrypt bytes with a given public key.
-/// Returns hexadecimal encoded ciphertext.
-#[inline]
-pub fn encrypt_bytes(data: impl AsRef<[u8]>, public_key: &PublicKey) -> Result<String> {
-    ecies::encrypt(&public_key.serialize(), data.as_ref())
-        .wrap_err("could not encrypt data")
-        .map(hex::encode)
-}
-
 /// Converts a `libsecp256k1::SecretKey` to a `libp2p_identity::secp256k1::Keypair`.
 /// To do this, we serialize the secret key and create a new keypair from it.
 #[inline]
@@ -61,6 +37,18 @@ pub fn secret_to_keypair(secret_key: &SecretKey) -> libp2p_identity::Keypair {
     let secret_key = dkn_p2p::libp2p_identity::secp256k1::SecretKey::try_from_bytes(bytes)
         .expect("Failed to create secret key");
     libp2p_identity::secp256k1::Keypair::from(secret_key).into()
+}
+
+/// Converts a `libsecp256k1::PublicKey` to a `libp2p_identity::PeerId`.
+/// To do this, we serialize the secret key and create a new keypair from it.
+#[inline]
+pub fn public_key_to_peer_id(public_key: &PublicKey) -> libp2p_identity::PeerId {
+    let bytes = public_key.serialize_compressed();
+
+    let public_key = dkn_p2p::libp2p_identity::secp256k1::PublicKey::try_from_bytes(&bytes)
+        .expect("Failed to create secret key");
+
+    PeerId::from_public_key(&public_key.into())
 }
 
 #[cfg(test)]
@@ -125,24 +113,5 @@ mod tests {
             verify(&message, &signature, &public_key),
             "could not verify signature"
         );
-    }
-
-    #[test]
-    #[ignore = "run only with profiler if wanted"]
-    fn test_memory_usage() {
-        let secret_key =
-            SecretKey::parse_slice(DUMMY_SECRET_KEY).expect("to parse private key slice");
-        let public_key = PublicKey::from_secret_key(&secret_key);
-
-        // sign the message using the secret key
-        let digest = sha256hash(MESSAGE);
-        let message = Message::parse_slice(&digest).expect("to parse message");
-        let (signature, _) = sign(&message, &secret_key);
-
-        // verify signature with context
-        for _ in 0..1_000_000 {
-            let ok = verify(&message, &signature, &public_key);
-            assert!(ok);
-        }
     }
 }

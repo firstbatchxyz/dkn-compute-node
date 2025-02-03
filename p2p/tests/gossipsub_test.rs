@@ -19,7 +19,7 @@ async fn test_gossipsub() -> Result<()> {
         .filter_level(log::LevelFilter::Off)
         .filter_module("gossipsub_test", log::LevelFilter::Debug)
         .filter_module("dkn_p2p", log::LevelFilter::Debug)
-        .is_test(true)
+        // .is_test(true)
         .try_init();
 
     let listen_addr = "/ip4/0.0.0.0/tcp/4001".parse()?;

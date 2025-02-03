@@ -65,11 +65,6 @@ version:
 docs:
 		cargo doc --open --no-deps --document-private-items
 
-.PHONY: env #          | Print active environment
-env:
-		@echo "Wallet Secret: ${DKN_WALLET_SECRET_KEY}"
-		@echo "Admin Public: ${DKN_ADMIN_PUBLIC_KEY}"
-
 # https://stackoverflow.com/a/45843594
 .PHONY: help #         | List targets
 help:                                                                                                                    
