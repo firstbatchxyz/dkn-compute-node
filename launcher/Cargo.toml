@@ -1,0 +1,32 @@
+[package]
+name = "dkn-launcher"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+readme = "README.md"
+authors = ["Erhan Tezcan <erhan@firstbatch.xyz>"]
+
+[dependencies]
+clap = { version = "4.5.27", features = ["derive", "env"] }
+which = "6.0.3"
+inquire = { version = "0.7.5", features = ["editor"] }
+
+dotenvy.workspace = true
+env_logger.workspace = true
+log.workspace = true
+eyre.workspace = true
+
+hex = "0.4.3"
+
+dkn-workflows = { path = "../workflows" }
+
+tokio-util.workspace = true
+tokio = { version = "1", features = [
+  "macros",
+  "rt-multi-thread",
+  "signal",
+  "process",
+  "time",
+] }
+dotenv_config = "0.2.1"
+enum-iterator = "2.1.0"
