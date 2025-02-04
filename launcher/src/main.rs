@@ -10,6 +10,8 @@ mod settings;
 
 mod utils;
 
+mod environment;
+
 #[derive(Parser)]
 #[command(name = "dkn", version)]
 struct Cli {
@@ -56,6 +58,7 @@ async fn main() -> eyre::Result<()> {
 
     match &cli.command {
         Commands::Settings => commands::change_settings(&cli.env)?,
+        Commands::EnvEditor => commands::edit_environment_file(&cli.env)?,
         Commands::Compute => {
             todo!("todo")
         }

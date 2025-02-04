@@ -1,4 +1,4 @@
-use std::{collections::HashSet, path::Display};
+use std::collections::HashSet;
 
 use dkn_workflows::{Model, ModelProvider};
 use inquire::{MultiSelect, Select};

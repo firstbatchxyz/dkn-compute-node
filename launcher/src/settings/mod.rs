@@ -1,6 +1,4 @@
-mod env;
 use enum_iterator::Sequence;
-pub use env::edit_environment_file;
 
 mod models;
 pub use models::edit_models;
@@ -20,8 +18,6 @@ pub enum Settings {
     Models,
     /// Configure your API Keys.
     ApiKeys,
-    /// Edit the environment variables within your terminal's text editor.
-    Env,
     /// Quit settings menu.
     SaveExit,
 }
@@ -39,7 +35,6 @@ impl std::fmt::Display for Settings {
             Self::Wallet => write!(f, "Wallet"),
             Self::Models => write!(f, "Models"),
             Self::ApiKeys => write!(f, "API Keys"),
-            Self::Env => write!(f, "Environment Editor"),
             Self::SaveExit => write!(f, "Save & Exit"),
         }
     }

@@ -1,6 +1,5 @@
-use std::path::PathBuf;
-
 use inquire::Select;
+use std::path::PathBuf;
 
 use crate::settings::Settings;
 
@@ -26,9 +25,6 @@ pub fn change_settings(env_path: &PathBuf) -> eyre::Result<()> {
             }
             Settings::ApiKeys => {
                 crate::settings::edit_api_keys()?;
-            }
-            Settings::Env => {
-                crate::settings::edit_environment_file(env_path)?;
             }
             Settings::SaveExit => {
                 println!("Saving to {}", env_path.display());
