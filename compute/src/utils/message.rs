@@ -78,6 +78,14 @@ impl DriaMessage {
 
     /// Checks if the payload is signed by the owner of one of the given peer ids.
     pub(crate) fn is_signed(&self, authorized_peerids: &HashSet<PeerId>) -> Result<bool> {
+        let recovered_public_key = self.get_origin()?;
+        let recovered_peer_id = public_key_to_peer_id(&recovered_public_key);
+
+        Ok(authorized_peerids.contains(&recovered_peer_id))
+    }
+
+    /// Recovers the public key of the message origin, i.e. the owner of the signature.
+    pub(crate) fn get_origin(&self) -> Result<libsecp256k1::PublicKey> {
         let signature_bytes =
             hex::decode(&self.signature).wrap_err("could not decode signature hex")?;
         let signature = Signature::parse_standard_slice(&signature_bytes)
@@ -89,10 +97,7 @@ impl DriaMessage {
         // verify signature w.r.t the payload and the given public key
         let message = Message::parse(&sha256hash(&self.payload));
 
-        let recovered_public_key = recover(&message, &signature, &recovery_id)?;
-        let recovered_peer_id = public_key_to_peer_id(&recovered_public_key);
-
-        Ok(authorized_peerids.contains(&recovered_peer_id))
+        recover(&message, &signature, &recovery_id).wrap_err("could not recover public key")
     }
 
     /// Converts the message to bytes.

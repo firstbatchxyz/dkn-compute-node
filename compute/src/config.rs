@@ -4,7 +4,7 @@ use eyre::{eyre, Result};
 use libsecp256k1::{PublicKey, SecretKey};
 use std::{env, str::FromStr};
 
-use crate::utils::crypto::{secret_to_keypair, to_address};
+use crate::utils::crypto::{public_key_to_address, secret_to_keypair};
 
 const DEFAULT_TASK_BATCH_SIZE: usize = 5;
 const DEFAULT_P2P_LISTEN_ADDR: &str = "/ip4/0.0.0.0/tcp/4001";
@@ -64,7 +64,7 @@ impl DriaComputeNodeConfig {
             hex::encode(public_key.serialize_compressed())
         );
 
-        let address = to_address(&public_key);
+        let address = public_key_to_address(&public_key);
         log::info!("Node Address:     0x{}", hex::encode(address));
 
         // to this here to log the peer id at start

@@ -1,6 +1,4 @@
 use dkn_p2p::{libp2p::PeerId, libp2p_identity};
-use ecies::PublicKey;
-use libsecp256k1::SecretKey;
 use sha2::{Digest, Sha256};
 use sha3::Keccak256;
 
@@ -16,22 +14,10 @@ pub fn keccak256hash(data: impl AsRef<[u8]>) -> [u8; 32] {
     Keccak256::digest(data).into()
 }
 
-/// Given a secp256k1 public key, finds the corresponding Ethereum address.
-///
-/// Internally, the public key is serialized in uncompressed format at 65 bytes (0x04 || x || y),
-/// and then (x || y) is hashed using Keccak256. The last 20 bytes of this hash is taken as the address.
-#[inline]
-pub fn to_address(public_key: &PublicKey) -> [u8; 20] {
-    let public_key_xy = &public_key.serialize()[1..];
-    let mut addr = [0u8; 20];
-    addr.copy_from_slice(&keccak256hash(public_key_xy)[12..32]);
-    addr
-}
-
 /// Converts a `libsecp256k1::SecretKey` to a `libp2p_identity::secp256k1::Keypair`.
 /// To do this, we serialize the secret key and create a new keypair from it.
 #[inline]
-pub fn secret_to_keypair(secret_key: &SecretKey) -> libp2p_identity::Keypair {
+pub fn secret_to_keypair(secret_key: &libsecp256k1::SecretKey) -> libp2p_identity::Keypair {
     let bytes = secret_key.serialize();
 
     let secret_key = dkn_p2p::libp2p_identity::secp256k1::SecretKey::try_from_bytes(bytes)
@@ -39,10 +25,22 @@ pub fn secret_to_keypair(secret_key: &SecretKey) -> libp2p_identity::Keypair {
     libp2p_identity::secp256k1::Keypair::from(secret_key).into()
 }
 
+/// Given a secp256k1 public key, finds the corresponding Ethereum address.
+///
+/// Internally, the public key is serialized in uncompressed format at 65 bytes (0x04 || x || y),
+/// and then (x || y) is hashed using Keccak256. The last 20 bytes of this hash is taken as the address.
+#[inline]
+pub fn public_key_to_address(public_key: &libsecp256k1::PublicKey) -> [u8; 20] {
+    let public_key_xy = &public_key.serialize()[1..];
+    let mut addr = [0u8; 20];
+    addr.copy_from_slice(&keccak256hash(public_key_xy)[12..32]);
+    addr
+}
+
 /// Converts a `libsecp256k1::PublicKey` to a `libp2p_identity::PeerId`.
 /// To do this, we serialize the secret key and create a new keypair from it.
 #[inline]
-pub fn public_key_to_peer_id(public_key: &PublicKey) -> libp2p_identity::PeerId {
+pub fn public_key_to_peer_id(public_key: &libsecp256k1::PublicKey) -> libp2p_identity::PeerId {
     let bytes = public_key.serialize_compressed();
 
     let public_key = dkn_p2p::libp2p_identity::secp256k1::PublicKey::try_from_bytes(&bytes)
@@ -73,7 +71,7 @@ mod tests {
     fn test_address() {
         let sk = SecretKey::parse_slice(DUMMY_SECRET_KEY).expect("Should parse key.");
         let pk = PublicKey::from_secret_key(&sk);
-        let addr = to_address(&pk);
+        let addr = public_key_to_address(&pk);
         assert_eq!(
             "D79Fdf178547614CFdd0dF6397c53569716Bd596".to_lowercase(),
             hex::encode(addr)

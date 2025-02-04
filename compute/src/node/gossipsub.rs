@@ -1,4 +1,4 @@
-use dkn_p2p::libp2p::gossipsub::{Message, MessageAcceptance, MessageId};
+use dkn_p2p::libp2p::gossipsub::{Message, MessageAcceptance, MessageId, TopicSubscriptionFilter};
 use dkn_p2p::libp2p::PeerId;
 use eyre::Result;
 
@@ -53,7 +53,7 @@ impl DriaComputeNode {
     /// Handles a GossipSub message received from the network.
     pub(crate) async fn handle_message(
         &mut self,
-        (peer_id, message_id, gossipsub_message): (PeerId, &MessageId, Message),
+        (propagation_peer_id, message_id, gossipsub_message): (PeerId, &MessageId, Message),
     ) -> MessageAcceptance {
         // handle message with respect to its topic
         match gossipsub_message.topic.as_str() {
@@ -63,7 +63,7 @@ impl DriaComputeNode {
                     log::warn!(
                         "Received {} message from {} without source.",
                         gossipsub_message.topic,
-                        peer_id
+                        propagation_peer_id
                     );
                     return MessageAcceptance::Ignore;
                 };
@@ -98,7 +98,7 @@ impl DriaComputeNode {
                     "Received {} message ({}) from {}\n{}",
                     gossipsub_message.topic,
                     message_id,
-                    peer_id,
+                    propagation_peer_id,
                     message
                 );
 
