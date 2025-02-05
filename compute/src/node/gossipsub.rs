@@ -1,4 +1,4 @@
-use dkn_p2p::libp2p::gossipsub::{Message, MessageAcceptance, MessageId, TopicSubscriptionFilter};
+use dkn_p2p::libp2p::gossipsub::{Message, MessageAcceptance, MessageId};
 use dkn_p2p::libp2p::PeerId;
 use eyre::Result;
 

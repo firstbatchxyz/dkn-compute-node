@@ -160,7 +160,20 @@ fn create_gossipsub_behaviour(author: PeerId) -> Result<gossipsub::Behaviour> {
     /// Connection handler queue length
     ///
     /// This was added as a counter-measure for the backpressure problems, defaults to `5000`.
-    const CONNECTION_HANDLER_QUEUE_LEN: usize = 1000;
+    // const CONNECTION_HANDLER_QUEUE_LEN: usize = 1000; // FIXME: v0.55
+
+    /// Message capacity for the gossipsub cache
+    const MESSAGE_CAPACITY: usize = 100;
+
+    // -------- FORK STUFF --------
+    /// Gossip cache TTL in seconds
+    const GOSSIP_TTL_SECS: u64 = 100;
+    /// Message TTL in seconds
+    const MESSAGE_TTL_SECS: u64 = 100;
+    /// Max size of the send queue
+    /// This helps to avoid memory exhaustion during high load
+    const MAX_SEND_QUEUE_SIZE: usize = 400;
+    // ----------------------------
 
     // message id's are simply hashes of the message data, via SipHash13
     let message_id_fn = |message: &Message| {
@@ -176,11 +189,17 @@ fn create_gossipsub_behaviour(author: PeerId) -> Result<gossipsub::Behaviour> {
             .heartbeat_interval(Duration::from_secs(HEARTBEAT_INTERVAL_SECS))
             .max_transmit_size(MAX_TRANSMIT_SIZE)
             .message_id_fn(message_id_fn)
+            // -------- FORK STUFF --------
+            .message_capacity(MESSAGE_CAPACITY)
+            .message_ttl(Duration::from_secs(MESSAGE_TTL_SECS))
+            .gossip_ttl(Duration::from_secs(GOSSIP_TTL_SECS))
+            .send_queue_size(MAX_SEND_QUEUE_SIZE)
+            // ----------------------------
             .duplicate_cache_time(Duration::from_secs(DUPLICATE_CACHE_TIME_SECS))
             .max_ihave_length(MAX_IHAVE_LENGTH)
             .validation_mode(VALIDATION_MODE)
             .validate_messages()
-            .connection_handler_queue_len(CONNECTION_HANDLER_QUEUE_LEN)
+            // .connection_handler_queue_len(CONNECTION_HANDLER_QUEUE_LEN)
             .build()
             .wrap_err(eyre!("could not create Gossipsub config"))?,
     )

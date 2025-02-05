@@ -201,7 +201,8 @@ impl DriaP2PClient {
                     self.swarm
                         .behaviour_mut()
                         .gossipsub
-                        .unsubscribe(&gossipsub::IdentTopic::new(topic)),
+                        .unsubscribe(&gossipsub::IdentTopic::new(topic))
+                        .unwrap_or_default(), // FIXME: due to fork,
                 );
             }
             DriaP2PCommand::Publish {
@@ -251,7 +252,8 @@ impl DriaP2PClient {
                     self.swarm
                         .behaviour_mut()
                         .gossipsub
-                        .report_message_validation_result(&msg_id, &propagation_source, acceptance),
+                        .report_message_validation_result(&msg_id, &propagation_source, acceptance)
+                        .unwrap_or_default(), // FIXME: due to fork
                 );
             }
             DriaP2PCommand::Refresh { sender } => {
@@ -339,14 +341,14 @@ impl DriaP2PClient {
                 request_response::Event::ResponseSent {
                     peer,
                     request_id,
-                    connection_id,
+                    // connection_id,
                 },
             )) => {
                 log::debug!(
-                    "Request-Response: Response sent to peer {} with request_id {} (conn: {})",
+                    "Request-Response: Response sent to peer {} with request_id {}",
                     peer,
                     request_id,
-                    connection_id,
+                    // connection_id,
                 )
             }
             SwarmEvent::Behaviour(DriaBehaviourEvent::RequestResponse(
@@ -354,14 +356,14 @@ impl DriaP2PClient {
                     peer,
                     request_id,
                     error,
-                    connection_id,
+                    // connection_id,
                 },
             )) => {
                 log::error!(
-                    "Request-Response: Outbound failure to peer {} with request_id {} (conn: {}): {:?}",
+                    "Request-Response: Outbound failure to peer {} with request_id {}: {:?}",
                     peer,
                     request_id,
-                    connection_id,
+                    // connection_id,
                     error
                 );
             }
@@ -370,14 +372,14 @@ impl DriaP2PClient {
                     peer,
                     request_id,
                     error,
-                    connection_id,
+                    // connection_id,
                 },
             )) => {
                 log::error!(
-                    "Request-Response: Inbound failure to peer {} with request_id {} (conn: {}): {:?}",
+                    "Request-Response: Inbound failure to peer {} with request_id {}: {:?}",
                     peer,
                     request_id,
-                    connection_id,
+                    // connection_id,
                     error
                 );
             }
