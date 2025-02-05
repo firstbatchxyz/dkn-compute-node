@@ -1,4 +1,4 @@
-use inquire::{validator::Validation, Password, PasswordDisplayMode, Text};
+use inquire::{validator::Validation, Text};
 
 use crate::DriaEnv;
 

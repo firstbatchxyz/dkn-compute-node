@@ -9,6 +9,7 @@ pub fn change_settings(env_path: &PathBuf) -> eyre::Result<()> {
     let mut dria_env = DriaEnv::new();
 
     loop {
+        // prompt the user for which setting to change
         let Some(choice) = Select::new(
             &format!("Choose settings (for {})", env_path.display()),
             Settings::all(),
@@ -40,6 +41,9 @@ pub fn change_settings(env_path: &PathBuf) -> eyre::Result<()> {
             }
             Settings::Models => {
                 crate::settings::edit_models(&mut dria_env)?;
+            }
+            Settings::Ollama => {
+                crate::settings::edit_ollama(&mut dria_env)?;
             }
             Settings::ApiKeys => {
                 crate::settings::edit_api_keys(&mut dria_env)?;

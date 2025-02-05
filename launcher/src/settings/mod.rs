@@ -10,7 +10,8 @@ pub use wallet::edit_wallet;
 mod port;
 pub use port::edit_port;
 
-// TODO: Ollama
+mod ollama;
+pub use ollama::edit_ollama;
 
 /// Compute node setting commands.
 #[derive(Debug, Clone, enum_iterator::Sequence)]
@@ -21,6 +22,8 @@ pub enum Settings {
     Port,
     /// Configure the selected models.
     Models,
+    /// Configure Ollama settings.
+    Ollama,
     /// Configure your API Keys.
     ApiKeys,
     /// Quit settings menu.
@@ -40,6 +43,7 @@ impl std::fmt::Display for Settings {
             Self::Wallet => write!(f, "Wallet"),
             Self::Port => write!(f, "Port"),
             Self::Models => write!(f, "Models"),
+            Self::Ollama => write!(f, "Ollama"),
             Self::ApiKeys => write!(f, "API Keys"),
             Self::SaveExit => write!(f, "Save & Exit"),
         }
