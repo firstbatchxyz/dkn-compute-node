@@ -30,8 +30,8 @@ impl DriaEnv {
         self.is_changed
     }
 
-    pub fn get(&self, key: &str) -> Option<&String> {
-        self.kv.get(key)
+    pub fn get(&self, key: &str) -> Option<&str> {
+        self.kv.get(key).map(|s| s.as_str())
     }
 
     pub fn set(&mut self, key: &'static str, value: String) {

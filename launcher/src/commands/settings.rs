@@ -1,7 +1,7 @@
 use inquire::{Confirm, Select};
 use std::path::PathBuf;
 
-use crate::{settings::Settings, DriaEnv};
+use crate::{settings::*, DriaEnv};
 
 /// Starts the interactive settings editor for the given environment.
 pub fn change_settings(env_path: &PathBuf) -> eyre::Result<()> {
@@ -18,9 +18,10 @@ pub fn change_settings(env_path: &PathBuf) -> eyre::Result<()> {
         else {
             if dria_env.is_changed() {
                 // continue the loop if user returns `false` from confirmation
-                if let Some(false) = Confirm::new("You have unsaved changes, are you sure to quit?")
-                    .with_help_message("You will LOSE all unsaved changes if you confirm.")
-                    .prompt_skippable()?
+                if let Some(false) =
+                    Confirm::new("You have unsaved changes, are you sure you want to quit (y/n)?")
+                        .with_help_message("You will LOSE all unsaved changes if you confirm.")
+                        .prompt_skippable()?
                 {
                     continue;
                 }
@@ -34,6 +35,9 @@ pub fn change_settings(env_path: &PathBuf) -> eyre::Result<()> {
             Settings::Wallet => {
                 crate::settings::edit_wallet(&mut dria_env)?;
             }
+            Settings::Port => {
+                crate::settings::edit_port(&mut dria_env)?;
+            }
             Settings::Models => {
                 crate::settings::edit_models(&mut dria_env)?;
             }
@@ -41,7 +45,11 @@ pub fn change_settings(env_path: &PathBuf) -> eyre::Result<()> {
                 crate::settings::edit_api_keys(&mut dria_env)?;
             }
             Settings::SaveExit => {
-                dria_env.save_to_file(env_path)?;
+                if dria_env.is_changed() {
+                    dria_env.save_to_file(env_path)?;
+                } else {
+                    println!("No changes made.");
+                }
                 break;
             }
         }

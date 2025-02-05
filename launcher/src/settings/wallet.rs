@@ -3,6 +3,8 @@ use inquire::{validator::Validation, Password, PasswordDisplayMode};
 use crate::DriaEnv;
 
 pub fn edit_wallet(dria_env: &mut DriaEnv) -> eyre::Result<()> {
+    const WALLET_KEY: &str = "DKN_WALLET_SECRET_KEY";
+
     // masks a string "abcdefgh" to something like "ab****gh"
     let mask = |s: &str| {
         const LEFT: usize = 2;
@@ -34,11 +36,7 @@ pub fn edit_wallet(dria_env: &mut DriaEnv) -> eyre::Result<()> {
     let Some(new_key) = Password::new("Enter wallet secret key:")
         .with_help_message(&format!(
             "ESC to go back and keep using {}",
-            mask(
-                &dria_env
-                    .get("DKN_WALLET_SECRET_KEY")
-                    .unwrap_or(&"".to_string())
-            )
+            mask(&dria_env.get(WALLET_KEY).unwrap_or_default())
         ))
         .with_validator(validator)
         .with_display_mode(PasswordDisplayMode::Masked)
@@ -49,7 +47,7 @@ pub fn edit_wallet(dria_env: &mut DriaEnv) -> eyre::Result<()> {
     };
 
     println!("New key: {:?}", mask(&new_key));
-    dria_env.set("DKN_WALLET_SECRET_KEY", new_key);
+    dria_env.set(WALLET_KEY, new_key);
 
     Ok(())
 }

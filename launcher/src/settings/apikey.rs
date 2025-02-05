@@ -47,11 +47,7 @@ pub fn edit_api_keys(dria_env: &mut DriaEnv) -> eyre::Result<()> {
 
         // edit the API key
         let Some(new_value) = inquire::Text::new("Enter the new value:")
-            .with_default(
-                dria_env
-                    .get(chosen_api_key.name())
-                    .unwrap_or(&Default::default()),
-            )
+            .with_default(dria_env.get(chosen_api_key.name()).unwrap_or_default())
             .with_help_message("ESC to go back")
             .prompt_skippable()?
         else {

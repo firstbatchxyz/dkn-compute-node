@@ -7,11 +7,18 @@ pub use apikey::edit_api_keys;
 mod wallet;
 pub use wallet::edit_wallet;
 
+mod port;
+pub use port::edit_port;
+
+// TODO: Ollama
+
 /// Compute node setting commands.
 #[derive(Debug, Clone, enum_iterator::Sequence)]
 pub enum Settings {
     /// Configure your wallet (secret key).
     Wallet,
+    /// Configure the selected port.
+    Port,
     /// Configure the selected models.
     Models,
     /// Configure your API Keys.
@@ -31,6 +38,7 @@ impl std::fmt::Display for Settings {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Wallet => write!(f, "Wallet"),
+            Self::Port => write!(f, "Port"),
             Self::Models => write!(f, "Models"),
             Self::ApiKeys => write!(f, "API Keys"),
             Self::SaveExit => write!(f, "Save & Exit"),

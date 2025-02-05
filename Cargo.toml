@@ -6,6 +6,7 @@ members = ["compute", "p2p", "workflows", "utils", "launcher"]
 # compute node is the default member, until Oracle comes in
 # then, a Launcher will be the default member
 default-members = ["launcher"]
+# default-members = ["compute"]
 
 [workspace.package]
 edition = "2021"
