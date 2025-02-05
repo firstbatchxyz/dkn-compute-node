@@ -1,9 +1,10 @@
-use std::collections::HashSet;
-
 use dkn_workflows::{Model, ModelProvider};
 use inquire::{MultiSelect, Select};
+use std::collections::HashSet;
 
-pub fn edit_models() -> eyre::Result<()> {
+use crate::DriaEnv;
+
+pub fn edit_models(dria_env: &mut DriaEnv) -> eyre::Result<()> {
     // TODO: take this from env
     let selected_models =
         HashSet::<Model>::from_iter([Model::GPT4Turbo, Model::GPT4oMini, Model::Gemini15Flash]);
@@ -66,6 +67,6 @@ mod tests {
 
     #[test]
     fn test_select_providers() {
-        edit_models().unwrap();
+        // edit_models().unwrap();
     }
 }

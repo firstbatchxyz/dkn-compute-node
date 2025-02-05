@@ -1,5 +1,3 @@
-use enum_iterator::Sequence;
-
 mod models;
 pub use models::edit_models;
 
@@ -10,7 +8,7 @@ mod wallet;
 pub use wallet::edit_wallet;
 
 /// Compute node setting commands.
-#[derive(Debug, Clone, Sequence)]
+#[derive(Debug, Clone, enum_iterator::Sequence)]
 pub enum Settings {
     /// Configure your wallet (secret key).
     Wallet,
