@@ -9,7 +9,6 @@ const API_KEY_NAMES: [&'static str; 5] = [
 ];
 
 #[derive(Debug, Default, EnvConfig)]
-
 pub struct ApiKeys {
     #[env_config(name = "OPENAI_API_KEY")]
     pub openai_api_key: String,

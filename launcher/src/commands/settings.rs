@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use crate::settings::Settings;
 
+/// Starts the interactive settings editor for the given environment.
 pub fn change_settings(env_path: &PathBuf) -> eyre::Result<()> {
     loop {
         let Some(choice) = Select::new(

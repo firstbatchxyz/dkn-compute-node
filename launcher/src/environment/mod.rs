@@ -5,4 +5,5 @@
 //! such as `env_config(name = "BAZ")` in which case it will look for `BAZ`.
 
 mod apikeys;
+mod dkn;
 mod ollama;
