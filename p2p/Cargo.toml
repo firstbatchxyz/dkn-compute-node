@@ -10,7 +10,8 @@ authors = [
 ]
 
 [dependencies]
-libp2p = { version = "0.55.0", features = [
+# libp2p = { version = "0.55.0", features = [
+libp2p = { git = "https://github.com/anilaltuner/rust-libp2p.git", rev = "7ce9f9e", features = [
   "dcutr",
   "ping",
   "relay",
