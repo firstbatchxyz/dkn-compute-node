@@ -61,6 +61,7 @@ async fn main() -> eyre::Result<()> {
     match &cli.command {
         Commands::Settings => commands::change_settings(&cli.env)?,
         Commands::EnvEditor => commands::edit_environment_file(&cli.env)?,
+        Commands::Version => commands::change_version().await?,
         Commands::Compute => {
             todo!("todo")
         }

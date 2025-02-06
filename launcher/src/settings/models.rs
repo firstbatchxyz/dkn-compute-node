@@ -6,6 +6,8 @@ use crate::DriaEnv;
 pub fn edit_models(dria_env: &mut DriaEnv) -> eyre::Result<()> {
     const MODELS_KEY: &str = "DKN_MODELS";
 
+    // TODO: add "is_changed" here so that we can notify the user if there were no changes made
+    // and no print "Chosen models" string below
     // TODO: can remove models_config perhaps?
     let models_config = dkn_workflows::DriaWorkflowsConfig::new_from_csv(
         dria_env.get(MODELS_KEY).unwrap_or_default(),
@@ -76,6 +78,7 @@ pub fn edit_models(dria_env: &mut DriaEnv) -> eyre::Result<()> {
 
     new_models.sort();
 
+    // TODO: see `is_changed` above
     println!("Chosen models:\n - {}", new_models.join("\n - "));
     dria_env.set(MODELS_KEY, new_models.join(","));
 

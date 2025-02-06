@@ -30,3 +30,4 @@ hex = "0.4.3"
 enum-iterator = "2.1.0"
 
 dkn-workflows = { path = "../workflows" }
+self_update = "0.42.0"
