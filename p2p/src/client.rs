@@ -3,6 +3,7 @@ use libp2p::futures::StreamExt;
 use libp2p::gossipsub::{Message, MessageId};
 use libp2p::kad::{GetClosestPeersError, GetClosestPeersOk, QueryResult};
 use libp2p::request_response::{self, ResponseChannel};
+use libp2p::swarm::dial_opts::{DialOpts, PeerCondition};
 use libp2p::swarm::SwarmEvent;
 use libp2p::{autonat, gossipsub, identify, kad, multiaddr::Protocol, noise, tcp, yamux};
 use libp2p::{Multiaddr, PeerId, Swarm, SwarmBuilder};
@@ -182,8 +183,16 @@ impl DriaP2PClient {
     /// Handles a single command, which originates from `DriaP2PCommander`.
     pub async fn handle_command(&mut self, command: DriaP2PCommand) {
         match command {
-            DriaP2PCommand::Dial { peer_id, sender } => {
-                let _ = sender.send(self.swarm.dial(peer_id));
+            DriaP2PCommand::Dial {
+                peer_id,
+                address,
+                sender,
+            } => {
+                let opts = DialOpts::peer_id(peer_id)
+                    .addresses(vec![address])
+                    .condition(PeerCondition::Always)
+                    .build();
+                let _ = sender.send(self.swarm.dial(opts));
             }
             DriaP2PCommand::NetworkInfo { sender } => {
                 let _ = sender.send(self.swarm.network_info());

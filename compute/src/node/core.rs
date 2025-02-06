@@ -11,7 +11,7 @@ impl DriaComputeNode {
         /// Number of seconds between refreshing for diagnostic prints.
         const DIAGNOSTIC_REFRESH_INTERVAL_SECS: u64 = 30;
         /// Number of seconds between refreshing the available nodes.
-        const AVAILABLE_NODES_REFRESH_INTERVAL_SECS: u64 = 10 * 60; // 30 minutes
+        const AVAILABLE_NODES_REFRESH_INTERVAL_SECS: u64 = 10 * 60;
 
         // prepare durations for sleeps
         let mut diagnostic_refresh_interval =

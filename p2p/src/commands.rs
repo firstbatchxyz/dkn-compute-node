@@ -22,9 +22,10 @@ pub enum DriaP2PCommand {
     PeerCounts {
         sender: oneshot::Sender<(usize, usize)>,
     },
-    /// Dial a peer.
+    /// Dial a known peer.
     Dial {
-        peer_id: Multiaddr,
+        peer_id: PeerId,
+        address: Multiaddr,
         sender: oneshot::Sender<Result<(), swarm::DialError>>,
     },
     /// Subscribe to a topic.
@@ -206,11 +207,15 @@ impl DriaP2PCommander {
     }
 
     /// Dials a given peer.
-    pub async fn dial(&mut self, peer_id: Multiaddr) -> Result<()> {
+    pub async fn dial(&mut self, peer_id: PeerId, address: Multiaddr) -> Result<()> {
         let (sender, receiver) = oneshot::channel();
 
         self.sender
-            .send(DriaP2PCommand::Dial { peer_id, sender })
+            .send(DriaP2PCommand::Dial {
+                peer_id,
+                address,
+                sender,
+            })
             .await
             .wrap_err("could not send")?;
 

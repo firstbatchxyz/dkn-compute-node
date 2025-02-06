@@ -1,3 +1,4 @@
+use dkn_p2p::libp2p::multiaddr::Protocol;
 use std::time::Duration;
 use tokio::time::Instant;
 
@@ -86,23 +87,31 @@ impl DriaComputeNode {
         };
 
         // dial all rpc nodes
-        for rpc_addr in self.dria_nodes.rpc_nodes.iter() {
-            log::info!("Dialling RPC node: {}", rpc_addr);
+        for addr in self.dria_nodes.rpc_nodes.iter() {
+            log::info!("Dialling RPC node: {}", addr);
 
-            let fut = self.p2p.dial(rpc_addr.clone());
-            match tokio::time::timeout(Duration::from_secs(10), fut).await {
-                Err(timeout) => {
-                    log::error!("Timeout dialling RPC node: {:?}", timeout);
-                }
-                Ok(res) => match res {
-                    Err(e) => {
-                        log::warn!("Error dialling RPC node: {:?}", e);
+            // get peer id from rpc address
+            if let Some(peer_id) = addr.iter().find_map(|p| match p {
+                Protocol::P2p(peer_id) => Some(peer_id),
+                _ => None,
+            }) {
+                let fut = self.p2p.dial(peer_id, addr.clone());
+                match tokio::time::timeout(Duration::from_secs(10), fut).await {
+                    Err(timeout) => {
+                        log::error!("Timeout dialling RPC node: {:?}", timeout);
                     }
-                    Ok(_) => {
-                        log::info!("Successfully dialled RPC node: {}", rpc_addr);
-                    }
-                },
-            };
+                    Ok(res) => match res {
+                        Err(e) => {
+                            log::warn!("Error dialling RPC node: {:?}", e);
+                        }
+                        Ok(_) => {
+                            log::info!("Successfully dialled RPC node: {}", addr);
+                        }
+                    },
+                };
+            } else {
+                log::warn!("Missing peerID in address: {}", addr);
+            }
         }
 
         log::info!("Finished refreshing!");
