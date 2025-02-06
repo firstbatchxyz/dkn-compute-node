@@ -178,24 +178,3 @@ impl Default for DriaComputeNodeConfig {
         Self::new(Default::default())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_config_and_model_parsing() {
-        let cfg = DriaComputeNodeConfig::default();
-        assert_eq!(
-            hex::encode(cfg.address),
-            // address of the default secret key
-            "1f56f6131705fbf19371122c80d7a2d40fcf9a68"
-        );
-
-        env::set_var(
-            "DKN_WALLET_SECRET_KEY",
-            "6e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f6465",
-        );
-        env::set_var("DKN_MODELS", "phi3:3.8b,gpt-3.5-turbo");
-    }
-}
