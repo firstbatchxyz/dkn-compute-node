@@ -112,7 +112,7 @@ impl DriaP2PClient {
         }
 
         // do a random-walk on the DHT with a random peer
-        log::info!("Searching for random peers.");
+        log::info!("Bootstrapping Kademlia DHT.");
         let random_peer = PeerId::random();
         swarm
             .behaviour_mut()

@@ -1,4 +1,7 @@
-use dkn_p2p::{libp2p::Multiaddr, DriaNetworkType};
+use dkn_p2p::{
+    libp2p::{Multiaddr, PeerId},
+    DriaNetworkType,
+};
 use dkn_workflows::DriaWorkflowsConfig;
 use eyre::{eyre, Result};
 use libsecp256k1::{PublicKey, SecretKey};
@@ -15,8 +18,10 @@ pub struct DriaComputeNodeConfig {
     pub secret_key: SecretKey,
     /// Wallet public key, derived from the secret key.
     pub public_key: PublicKey,
-    /// Wallet address, derived from the public key.
-    pub address: [u8; 20],
+    /// Wallet address in hex, derived from the public key.
+    pub address: String,
+    /// Peer ID of the node.
+    pub peer_id: PeerId,
     /// P2P listen address, e.g. `/ip4/0.0.0.0/tcp/4001`.
     pub p2p_listen_addr: Multiaddr,
     /// Workflow configurations, e.g. models and providers.
@@ -64,14 +69,13 @@ impl DriaComputeNodeConfig {
             hex::encode(public_key.serialize_compressed())
         );
 
-        let address = public_key_to_address(&public_key);
-        log::info!("Node Address:     0x{}", hex::encode(address));
+        // print address
+        let address = hex::encode(public_key_to_address(&public_key));
+        log::info!("Node Address:     0x{}", address);
 
         // to this here to log the peer id at start
-        log::info!(
-            "Node PeerID:      {}",
-            secret_to_keypair(&secret_key).public().to_peer_id()
-        );
+        let peer_id = secret_to_keypair(&secret_key).public().to_peer_id();
+        log::info!("Node PeerID:      {}", peer_id);
 
         // parse listen address
         let p2p_listen_addr_str = env::var("DKN_P2P_LISTEN_ADDR")
@@ -94,6 +98,7 @@ impl DriaComputeNodeConfig {
             secret_key,
             public_key,
             address,
+            peer_id,
             workflows,
             p2p_listen_addr,
             network_type,

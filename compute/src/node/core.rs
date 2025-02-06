@@ -11,7 +11,7 @@ impl DriaComputeNode {
         /// Number of seconds between refreshing for diagnostic prints.
         const DIAGNOSTIC_REFRESH_INTERVAL_SECS: u64 = 30;
         /// Number of seconds between refreshing the available nodes.
-        const AVAILABLE_NODES_REFRESH_INTERVAL_SECS: u64 = 30 * 60; // 30 minutes
+        const AVAILABLE_NODES_REFRESH_INTERVAL_SECS: u64 = 10 * 60; // 30 minutes
 
         // prepare durations for sleeps
         let mut diagnostic_refresh_interval =
@@ -41,14 +41,14 @@ impl DriaComputeNode {
                 // a GossipSub message is received from the channel
                 // this is expected to be sent by the p2p client
                 gossipsub_msg_opt = self.gossip_message_rx.recv() => {
-                    let (peer_id, message_id, message) = gossipsub_msg_opt.ok_or(eyre!("message_rx channel closed unexpectedly."))?;
+                    let (propagation_peer_id, message_id, message) = gossipsub_msg_opt.ok_or(eyre!("message_rx channel closed unexpectedly"))?;
 
                     // handle the message, returning a message acceptance for the received one
-                    let acceptance = self.handle_message((peer_id, &message_id, message)).await;
+                    let acceptance = self.handle_message((propagation_peer_id, &message_id, message)).await;
 
                     // validate the message based on the acceptance
                     // cant do anything but log if this gives an error as well
-                    if let Err(e) = self.p2p.validate_message(&message_id, &peer_id, acceptance).await {
+                    if let Err(e) = self.p2p.validate_message(&message_id, &propagation_peer_id, acceptance).await {
                         log::error!("Error validating message {}: {:?}", message_id, e);
                     }
 
@@ -56,7 +56,7 @@ impl DriaComputeNode {
 
                 // a Request is received from the channel, sent by p2p client
                 request_msg_opt = self.request_rx.recv() => {
-                  let request = request_msg_opt.ok_or(eyre!("request_rx channel closed unexpectedly."))?;
+                  let request = request_msg_opt.ok_or(eyre!("request_rx channel closed unexpectedly"))?;
                   if let Err(e) = self.handle_request(request).await {
                       log::error!("Error handling request: {:?}", e);
                   }

@@ -43,6 +43,10 @@ impl DriaComputeNode {
             ));
         }
 
+        // print peer id and address
+        diagnostics.push(format!("Peer ID: {}", self.config.peer_id));
+        diagnostics.push(format!("Address: 0x{}", self.config.address));
+
         // print models
         diagnostics.push(format!(
             "Models: {}",
@@ -84,8 +88,20 @@ impl DriaComputeNode {
         // dial all rpc nodes
         for rpc_addr in self.dria_nodes.rpc_nodes.iter() {
             log::info!("Dialling RPC node: {}", rpc_addr);
-            if let Err(e) = self.p2p.dial(rpc_addr.clone()).await {
-                log::warn!("Error dialling RPC node: {:?}", e);
+
+            let fut = self.p2p.dial(rpc_addr.clone());
+            match tokio::time::timeout(Duration::from_secs(10), fut).await {
+                Err(timeout) => {
+                    log::error!("Timeout dialling RPC node: {:?}", timeout);
+                }
+                Ok(res) => match res {
+                    Err(e) => {
+                        log::warn!("Error dialling RPC node: {:?}", e);
+                    }
+                    Ok(_) => {
+                        log::info!("Successfully dialled RPC node: {}", rpc_addr);
+                    }
+                },
             };
         }
 
