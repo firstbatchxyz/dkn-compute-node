@@ -19,7 +19,6 @@ pub fn edit_port(dria_env: &mut DriaEnv) -> eyre::Result<()> {
     }
     let port = parts[4].parse::<u16>().unwrap();
 
-    // validates the secret key to be 64 characters hexadecimal, with or without 0x prefix
     let validator = |port_str: &str| match u16::from_str_radix(port_str, 10) {
         Ok(_) => Ok(Validation::Valid),
         Err(_) => Ok(Validation::Invalid(

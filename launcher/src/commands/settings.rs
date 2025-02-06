@@ -21,7 +21,7 @@ pub fn change_settings(env_path: &PathBuf) -> eyre::Result<()> {
                 // continue the loop if user returns `false` from confirmation
                 if let Some(false) =
                     Confirm::new("You have unsaved changes, are you sure you want to quit (y/n)?")
-                        .with_help_message("You will LOSE all unsaved changes if you confirm.")
+                        .with_help_message("You will lose all unsaved changes!")
                         .prompt_skippable()?
                 {
                     continue;
