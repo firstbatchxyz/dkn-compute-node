@@ -1,6 +1,7 @@
 use clap::Subcommand;
 
 mod compute;
+pub use compute::run_compute;
 
 mod editor;
 pub use editor::edit_environment_file;
