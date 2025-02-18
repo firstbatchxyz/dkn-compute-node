@@ -1,4 +1,4 @@
-name: Create Prod Image
+name: docker image
 on:
   release:
     types: [published]

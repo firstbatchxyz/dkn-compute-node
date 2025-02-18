@@ -1,4 +1,4 @@
-name: Build and Publish Compute Dev Releases
+name: releases
 
 on:
   release:
@@ -9,7 +9,6 @@ permissions:
 
 jobs:
   check_release:
-    if: "contains(github.event.release.tag_name, '-dev')" # continue if the tag ends with -dev
     runs-on: ubuntu-latest
     steps:
       - name: Echo tag
@@ -41,14 +40,14 @@ jobs:
               runner: ubuntu-latest,
               osname: linux,
               arch: amd64,
-              target: x86_64-unknown-linux-gnu,
+              target: x86_64-unknown-linux-musl,
               command: build,
             }
           - {
               runner: ubuntu-latest,
               osname: linux,
               arch: arm64,
-              target: aarch64-unknown-linux-gnu,
+              target: aarch64-unknown-linux-musl,
               command: build,
               build_args: --no-default-features,
             }
