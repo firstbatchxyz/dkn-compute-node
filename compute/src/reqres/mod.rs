@@ -26,7 +26,7 @@ mod tests {
 
     use super::*;
 
-    // TODO: remove this test
+    // TODO: remove this test when its done
     #[test]
     fn test_enum_serialization() {
         use serde::Deserialize;

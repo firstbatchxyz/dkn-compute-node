@@ -1,3 +1,4 @@
+use colored::Colorize;
 use dkn_p2p::libp2p::gossipsub::{Message, MessageAcceptance, MessageId};
 use dkn_p2p::libp2p::PeerId;
 use eyre::Result;
@@ -40,7 +41,11 @@ impl DriaComputeNode {
     pub async fn publish(&mut self, message: DriaMessage) -> Result<()> {
         let message_bytes = serde_json::to_vec(&message)?;
         let message_id = self.p2p.publish(&message.topic, message_bytes).await?;
-        log::info!("Published {} message ({})", message.topic, message_id);
+        log::info!(
+            "Published {} message ({})",
+            message.topic.blue(),
+            message_id
+        );
         Ok(())
     }
 
@@ -80,11 +85,10 @@ impl DriaComputeNode {
 
                 // parse the raw gossipsub message to a prepared DKN message
                 // the received message is expected to use IdentHash for the topic, so we can see the name of the topic immediately.
-                log::debug!("Parsing {} message.", gossipsub_message.topic.as_str());
                 let message: DriaMessage = match serde_json::from_slice(&gossipsub_message.data) {
                     Ok(message) => message,
                     Err(e) => {
-                        log::error!("Error parsing message: {:?}", e);
+                        log::error!("Error parsing {} message: {:?}", gossipsub_message.topic, e);
                         log::debug!(
                             "Message: {}",
                             String::from_utf8_lossy(&gossipsub_message.data)

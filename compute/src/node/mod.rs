@@ -13,7 +13,7 @@ use tokio::{sync::mpsc, time::Instant};
 use crate::{
     config::*,
     gossipsub::*,
-    utils::{crypto::secret_to_keypair, refresh_dria_nodes, SpecCollector},
+    utils::{crypto::secret_to_keypair, get_steps, refresh_dria_nodes, SpecCollector},
     workers::task::{TaskWorker, TaskWorkerInput, TaskWorkerMetadata, TaskWorkerOutput},
 };
 
@@ -56,6 +56,8 @@ pub struct DriaComputeNode {
     completed_tasks_batch: usize,
     /// Specifications collector.
     spec_collector: SpecCollector,
+    /// Initial steps count.
+    initial_steps: u64,
 }
 
 impl DriaComputeNode {
@@ -114,6 +116,12 @@ impl DriaComputeNode {
         };
 
         let model_names = config.workflows.get_model_names();
+
+        let initial_steps = get_steps(&config.address)
+            .await
+            .map(|s| s.score)
+            .unwrap_or_default();
+
         Ok((
             DriaComputeNode {
                 config,
@@ -132,6 +140,7 @@ impl DriaComputeNode {
                 completed_tasks_single: 0,
                 completed_tasks_batch: 0,
                 // others
+                initial_steps,
                 spec_collector: SpecCollector::new(model_names),
                 last_pinged_at: Instant::now(),
             },

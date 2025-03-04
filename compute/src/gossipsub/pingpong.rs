@@ -1,3 +1,4 @@
+use colored::Colorize;
 use dkn_p2p::libp2p::gossipsub::MessageAcceptance;
 use dkn_utils::get_current_time_nanos;
 use dkn_workflows::{Model, ModelProvider};
@@ -62,7 +63,7 @@ impl PingpongHandler {
             return Ok(MessageAcceptance::Ignore);
         }
 
-        log::info!("Received a ping for: {}", pingpong.uuid);
+        log::info!("Received a {} for: {}", "ping".blue(), pingpong.uuid);
 
         // record ping moment
         node.last_pinged_at = Instant::now();
