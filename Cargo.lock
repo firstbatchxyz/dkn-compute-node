@@ -567,6 +567,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "colored"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fde0e0ec90c9dfb3b4b1a0891a7dcd0e2bffde2f7efed5fe7c9bb00e5bfb915e"
+dependencies = [
+ "windows-sys 0.59.0",
+]
+
+[[package]]
 name = "concurrent-queue"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1009,6 +1018,7 @@ version = "0.3.8"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
+ "colored 3.0.0",
  "dkn-p2p",
  "dkn-utils",
  "dkn-workflows",
@@ -3530,7 +3540,7 @@ source = "git+https://github.com/andthattoo/ollama-workflows#4758d10a74bdfd05f5f
 dependencies = [
  "async-trait",
  "base64 0.22.1",
- "colored",
+ "colored 2.2.0",
  "dotenv",
  "enum-iterator",
  "env_logger 0.9.3",

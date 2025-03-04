@@ -1,3 +1,4 @@
+use colored::Colorize;
 use dkn_p2p::libp2p::multiaddr::Protocol;
 use std::time::Duration;
 use tokio::time::Instant;
@@ -21,11 +22,21 @@ impl DriaComputeNode {
     pub(crate) async fn handle_diagnostic_refresh(&self) {
         let mut diagnostics = vec![format!("Diagnostics (v{}):", DRIA_COMPUTE_NODE_VERSION)];
 
+        // if we have not received pings for a while, we are considered offline
+        let is_offline =
+            self.last_pinged_at < Instant::now() - Duration::from_secs(PING_LIVENESS_SECS);
+
         // print peer counts
         match self.p2p.peer_counts().await {
-            Ok((mesh, all)) => {
-                diagnostics.push(format!("Peer Count (mesh/all): {} / {}", mesh, all))
-            }
+            Ok((mesh, all)) => diagnostics.push(format!(
+                "Peer Count (mesh/all): {} / {}",
+                if mesh == 0 {
+                    "0".red()
+                } else {
+                    mesh.to_string().white()
+                },
+                all
+            )),
             Err(e) => log::error!("Error getting peer counts: {:?}", e),
         }
 
@@ -33,7 +44,7 @@ impl DriaComputeNode {
         if let Ok(steps) = get_steps(&self.config.address).await {
             let earned = steps.score - self.initial_steps;
             diagnostics.push(format!(
-                "Steps: {} total (+{} this run), within top {}%",
+                "Steps: {} total, {} earned in this run, within top {}%",
                 steps.score, earned, steps.percentile
             ));
         }
@@ -62,10 +73,20 @@ impl DriaComputeNode {
                 .join(", ")
         ));
 
+        // add network status as well
+        diagnostics.push(format!(
+            "Node Status: {}",
+            if is_offline {
+                "OFFLINE".bold().red()
+            } else {
+                "ONLINE".bold().green()
+            }
+        ));
+
         log::info!("{}", diagnostics.join("\n  "));
 
-        // check liveness of the node w.r.t last ping-pong time
-        if self.last_pinged_at < Instant::now() - Duration::from_secs(PING_LIVENESS_SECS) {
+        // if offline, print this error message as well
+        if is_offline {
             log::error!(
                 "Node has not received any pings for at least {} seconds & it may be unreachable!\nPlease restart your node!",
                 PING_LIVENESS_SECS
@@ -74,7 +95,7 @@ impl DriaComputeNode {
 
         // added rpc nodes check, sometimes this happens when API is down / bugs for some reason
         if self.dria_nodes.rpc_peerids.is_empty() {
-            log::error!("No RPC peerids were found to be available, please restart your node!",);
+            log::error!("No RPC peer IDs were found to be available, please restart your node!",);
         }
     }
 

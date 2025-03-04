@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+use colored::Colorize;
 use dkn_p2p::libp2p::request_response::ResponseChannel;
 use dkn_utils::get_current_time_nanos;
 use dkn_workflows::{Entry, Executor, ModelProvider, Workflow};
@@ -122,7 +123,11 @@ impl TaskResponder {
         let response = match task_output.result {
             Ok(result) => {
                 // prepare signed and encrypted payload
-                log::info!("Publishing result for task {}", task_output.task_id);
+                log::info!(
+                    "Publishing {} result for {}",
+                    "task".green(),
+                    task_output.task_id
+                );
                 let payload = TaskResponsePayload::new(
                     result,
                     &task_output.task_id,

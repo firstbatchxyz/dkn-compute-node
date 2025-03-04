@@ -1,3 +1,4 @@
+use colored::Colorize;
 use dkn_p2p::libp2p::{request_response::ResponseChannel, PeerId};
 use eyre::{eyre, Result};
 
@@ -46,7 +47,8 @@ impl DriaComputeNode {
         spec_request: <SpecResponder as IsResponder>::Request,
     ) -> Result<()> {
         log::info!(
-            "Got a spec request from peer {} with id {}",
+            "Got a {} request from peer {} with id {}",
+            "spec".green(),
             peer_id,
             spec_request.request_id
         );
@@ -55,7 +57,8 @@ impl DriaComputeNode {
         let response_data = serde_json::to_vec(&response)?;
 
         log::info!(
-            "Responding to spec request from peer {} with id {}",
+            "Responding to {} request from peer {} with id {}",
+            "spec".green(),
             peer_id,
             response.request_id
         );
@@ -75,7 +78,7 @@ impl DriaComputeNode {
         channel: ResponseChannel<Vec<u8>>,
         task_request: <TaskResponder as IsResponder>::Request,
     ) -> Result<()> {
-        log::info!("Received a task request from {}", peer_id);
+        log::info!("Received a {} request from {}", "task".yellow(), peer_id);
 
         let (task_input, task_metadata) =
             TaskResponder::prepare_worker_input(self, &task_request, channel).await?;

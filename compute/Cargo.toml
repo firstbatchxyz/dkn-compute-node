@@ -34,6 +34,7 @@ rand.workspace = true
 env_logger.workspace = true
 log.workspace = true
 eyre.workspace = true
+colored = "3.0.0"
 
 # encryption (ecies) & signatures (ecdsa) & hashing & bloom-filters
 ecies = { version = "0.2", default-features = false, features = ["pure"] }
