@@ -18,7 +18,7 @@ pub struct DriaComputeNodeConfig {
     pub secret_key: SecretKey,
     /// Wallet public key, derived from the secret key.
     pub public_key: PublicKey,
-    /// Wallet address in hex, derived from the public key.
+    /// Wallet address in hex without `0x` prefix, derived from the public key.
     pub address: String,
     /// Peer ID of the node.
     pub peer_id: PeerId,

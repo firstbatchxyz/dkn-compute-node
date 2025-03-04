@@ -2,7 +2,7 @@ use dkn_p2p::libp2p::multiaddr::Protocol;
 use std::time::Duration;
 use tokio::time::Instant;
 
-use crate::{refresh_dria_nodes, DriaComputeNode, DRIA_COMPUTE_NODE_VERSION};
+use crate::{refresh_dria_nodes, utils::get_steps, DriaComputeNode, DRIA_COMPUTE_NODE_VERSION};
 
 /// Number of seconds such that if the last ping is older than this, the node is considered unreachable.
 const PING_LIVENESS_SECS: u64 = 150;
@@ -29,12 +29,13 @@ impl DriaComputeNode {
             Err(e) => log::error!("Error getting peer counts: {:?}", e),
         }
 
-        // print tasks count
-        let [single, batch] = self.get_pending_task_count();
-        diagnostics.push(format!(
-            "Pending Tasks (single/batch): {} / {}",
-            single, batch
-        ));
+        // print steps
+        if let Ok(steps) = get_steps(&self.config.address).await {
+            diagnostics.push(format!(
+                "Steps: {} (top {}%)",
+                steps.score, steps.percentile
+            ));
+        }
 
         // completed tasks count is printed as well in debug
         if log::log_enabled!(log::Level::Debug) {
