@@ -1,14 +1,32 @@
 use eyre::Context;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 const STEPS_API_BASE_URL: &str = "https://dkn.dria.co/dashboard/supply/v0/leaderboard/steps";
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct StepsScore {
+    #[serde(deserialize_with = "deserialize_percentile")]
     /// Indicates in which top percentile your steps are.
-    pub percentile: String,
+    pub percentile: u64,
     /// The total number of steps you have accumulated.
     pub score: u64,
+}
+
+// the API returns a stringified number due to frontend issues, so we need to parse it
+fn deserialize_percentile<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s: String = String::deserialize(deserializer)?;
+    let parsed = s.parse().map_err(serde::de::Error::custom)?;
+
+    if parsed > 100 {
+        return Err(serde::de::Error::custom(
+            "percentile must be between 0 and 100",
+        ));
+    }
+
+    Ok(parsed)
 }
 
 /// Returns the steps for the given address.
