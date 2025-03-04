@@ -39,7 +39,7 @@ Compute nodes can technically do any arbitrary task, from computing the square r
 
 ### Running a Node
 
-Refer to [node guide](./docs/NODE_GUIDE.md) to quickly get started and run your own node!
+Use the [Dria Compute Launcher](https://github.com/firstbatchxyz/dkn-compute-launcher/) to run a compute node with many more features!
 
 ## Releases
 
