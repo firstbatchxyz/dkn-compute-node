@@ -44,7 +44,7 @@ impl DriaComputeNode {
         if let Ok(steps) = get_steps(&self.config.address).await {
             let earned = steps.score - self.initial_steps;
             diagnostics.push(format!(
-                "Steps: {} total, {} earned in this run, within top {}%",
+                "$DRIA Points: {} total, {} earned in this run, within top {}%",
                 steps.score, earned, steps.percentile
             ));
         }

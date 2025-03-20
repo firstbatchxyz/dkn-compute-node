@@ -73,6 +73,8 @@ impl OpenRouterConfig {
             .post("https://openrouter.ai/api/v1/chat/completions")
             .header("Authorization", format!("Bearer {}", api_key))
             .header("Content-Type", "application/json")
+            .header("HTTP_Referer", "https://dria.co/")
+            .header("X-Title", "dria")
             .body(
                 serde_json::json!({
                   "model": model.to_string(),
@@ -115,21 +117,21 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "requires OpenRouter API key"]
-    async fn test_openai_check() {
+    async fn test_openrouter_check() {
         let _ = dotenvy::dotenv(); // read api key
         assert!(env::var(ENV_VAR_NAME).is_ok(), "should have api key");
         env::set_var("RUST_LOG", "none,dkn_workflows=debug");
         let _ = env_logger::builder().is_test(true).try_init();
 
-        let models = vec![Model::GPT4Turbo, Model::GPT4o, Model::GPT4oMini];
+        let models = vec![Model::ORDeepSeek2_5, Model::ORLlama3_1_8B];
         let config = OpenRouterConfig::new();
-        let res = config.check(models.clone()).await;
-        assert_eq!(res.unwrap(), models);
+        let res = config.check(models.clone()).await.unwrap();
+        assert_eq!(res, models);
 
         env::set_var(ENV_VAR_NAME, "i-dont-work");
         let config = OpenRouterConfig::new();
-        let res = config.check(vec![]).await;
-        assert!(res.is_err());
+        let res = config.check(vec![]).await.unwrap();
+        assert!(res.is_empty()); // does not return an Err unlike others!
 
         env::remove_var(ENV_VAR_NAME);
         let config = OpenRouterConfig::new();
