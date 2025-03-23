@@ -7,7 +7,9 @@ use workers::task::TaskWorker;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let dotenv_result = dotenvy::dotenv();
+    // load a particular env, or `.env` by default
+    let env_path = env::var("DKN_COMPUTE_ENV").unwrap_or_else(|_| ".env".to_string());
+    let dotenv_result = dotenvy::from_path(&env_path);
 
     env_logger::builder()
         .format_timestamp(Some(env_logger::TimestampPrecision::Millis))
@@ -33,8 +35,8 @@ async fn main() -> Result<()> {
 
     // log about env usage
     match dotenv_result {
-        Ok(path) => log::info!("Loaded .env file at: {}", path.display()),
-        Err(e) => log::warn!("Could not load .env file: {}", e),
+        Ok(_) => log::info!("Loaded environment file from {}", env_path),
+        Err(e) => log::warn!("Could not load environment file from {}: {}", env_path, e),
     }
 
     // task tracker for multiple threads

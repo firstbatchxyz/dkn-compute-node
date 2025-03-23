@@ -147,15 +147,21 @@ impl OllamaConfig {
             }
         }
 
-        log::info!(
-            "Ollama checks are finished, using models: {:#?}",
-            good_models
-        );
+        if good_models.is_empty() {
+            log::warn!("No Ollama models passed the performance test! Try using a more powerful machine OR smaller models.");
+        } else {
+            log::info!(
+                "Ollama checks are finished, using models: {:#?}",
+                good_models
+            );
+        }
+
         Ok(good_models)
     }
 
     /// Pulls a model if `auto_pull` exists, otherwise returns an error.
     async fn try_pull(&self, ollama: &Ollama, model: String) -> Result<()> {
+        // TODO: add pull-bar here
         log::warn!("Model {} not found in Ollama", model);
         if self.auto_pull {
             // if auto-pull is enabled, pull the model

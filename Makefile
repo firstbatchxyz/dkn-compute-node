@@ -5,26 +5,9 @@ ifneq (,$(wildcard ./.env))
 endif
 
 ###############################################################################
-.PHONY: launch #       | Run with INFO logs in release mode
-launch:
-		cargo run --release --bin dkn-compute
-
-.PHONY: run #          | Run with INFO logs
-run:
-		cargo run --bin dkn-compute
-
-.PHONY: monitor #      | Run monitor node with INFO logs
-monitor:
-		cargo run --bin dkn-monitor
-
 .PHONY: debug #        | Run with DEBUG logs with INFO log-level workflows
 debug:
 		RUST_LOG=warn,dkn_compute=debug,dkn_workflows=debug,dkn_p2p=debug,ollama_workflows=info \
-		cargo run --bin dkn-compute
-
-.PHONY: trace #        | Run with TRACE logs
-trace:
-		RUST_LOG=warn,dkn_compute=trace,libp2p=debug \
 		cargo run --bin dkn-compute
 
 .PHONY: build #        | Build

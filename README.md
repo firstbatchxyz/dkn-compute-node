@@ -65,11 +65,13 @@ If you would like to run the node from source (which is really handy during deve
 make help
 ```
 
-You will need OpenSSL installed as well, see shorthand commands [here](https://github.com/sfackler/rust-openssl/issues/855#issuecomment-450057552). While running Ollama elsewhere (if you are using it) or with an OpenAI API key provided, you can run the compute node with:
+You will need OpenSSL installed, see shorthand commands [here](https://github.com/sfackler/rust-openssl/issues/855#issuecomment-450057552).
 
 ```sh
-make run      # info-level logs
-make debug    # debug-level logs
+cargo run
+
+# specify custom .env file
+DKN_COMPUTE_ENV=./path/to/.env cargo run
 ```
 
 If you have a valid `.env` file, you can run the latest Docker image via compose as well:
@@ -110,6 +112,28 @@ Lint and format with:
 ```sh
 make lint   # clippy
 make format # rustfmt
+```
+
+### Profiling
+
+We have scripts to profile both CPU and Memory usage. A special build is created for profiling, via a custom `profiling` feature, such that the output inherits `release` mode but also has debug symbols.
+
+Furthermore, the profiling build will exit automatically after a certain time, as if CTRL+C has been pressed. This is needed by the memory profiling tool in particular.
+
+**CPU Profiling**: To create a [flamegraph](https://crates.io/crates/flamegraph) of the application, the command below will create a profiling build that inherits `release` mode, except with debug information:
+
+```sh
+make profile-cpu
+```
+
+> [!NOTE]
+>
+> CPU profiling may require super-user access.
+
+**Memory Profiling**: To profile memory usage, we make use of [cargo-instruments](https://crates.io/crates/cargo-instruments):
+
+```sh
+make profile-mem
 ```
 
 ## License
