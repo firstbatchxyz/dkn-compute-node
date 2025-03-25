@@ -1,9 +1,5 @@
 use dkn_p2p::{
-    libp2p::{
-        gossipsub::{Message, MessageId},
-        request_response::ResponseChannel,
-        PeerId,
-    },
+    libp2p::{request_response::ResponseChannel, PeerId},
     DriaNodes, DriaP2PClient, DriaP2PCommander, DriaP2PProtocol,
 };
 use eyre::Result;
@@ -12,14 +8,12 @@ use tokio::{sync::mpsc, time::Instant};
 
 use crate::{
     config::*,
-    gossipsub::*,
     utils::{crypto::secret_to_keypair, get_steps, refresh_dria_nodes, SpecCollector},
     workers::task::{TaskWorker, TaskWorkerInput, TaskWorkerMetadata, TaskWorkerOutput},
 };
 
 mod core;
 mod diagnostic;
-mod gossipsub;
 mod reqres;
 
 /// Buffer size for message publishes.
@@ -31,17 +25,13 @@ pub struct DriaComputeNode {
     pub dria_nodes: DriaNodes,
     /// Peer-to-peer client commander to interact with the network.
     pub p2p: DriaP2PCommander,
-    /// The last time the node was pinged by the network.
+    /// The last time the node had an acknowledged heartbeat.
     /// If this is too much, we can say that the node is not reachable by RPC.
-    pub(crate) last_pinged_at: Instant,
+    pub(crate) last_heartbeat_at: Instant,
     /// Number of pings received.
-    pub(crate) num_pings: u64,
+    pub(crate) num_heartbeats: u64,
     /// The time the node was started.
     pub(crate) started_at: Instant,
-    /// Gossipsub message receiver, used by peer-to-peer client in a separate thread.
-    ///
-    /// It will publish messages sent to this channel to the network.
-    gossip_message_rx: mpsc::Receiver<(PeerId, MessageId, Message)>,
     /// Request-response request receiver.
     request_rx: mpsc::Receiver<(PeerId, Vec<u8>, ResponseChannel<Vec<u8>>)>,
     /// Task response receiver, will respond to the request-response channel with the given result.
@@ -80,9 +70,7 @@ impl DriaComputeNode {
         let keypair = secret_to_keypair(&config.secret_key);
 
         // get available nodes (bootstrap, relay, rpc) for p2p
-        let mut dria_nodes = DriaNodes::new(config.network_type)
-            .with_statics()
-            .with_envs();
+        let mut dria_nodes = DriaNodes::new(config.network_type).with_statics();
         if let Err(e) = refresh_dria_nodes(&mut dria_nodes).await {
             log::error!("Error populating available nodes: {:?}", e);
         };
@@ -93,7 +81,7 @@ impl DriaComputeNode {
         log::info!("Using identity: {}", protocol);
 
         // create p2p client
-        let (p2p_client, p2p_commander, message_rx, request_rx) = DriaP2PClient::new(
+        let (p2p_client, p2p_commander, request_rx) = DriaP2PClient::new(
             keypair,
             config.p2p_listen_addr.clone(),
             &dria_nodes,
@@ -133,7 +121,6 @@ impl DriaComputeNode {
                 dria_nodes,
                 // receivers
                 task_output_rx: publish_rx,
-                gossip_message_rx: message_rx,
                 request_rx,
                 // transmitters
                 task_request_batch_tx: task_batch_tx,
@@ -146,8 +133,8 @@ impl DriaComputeNode {
                 // others
                 initial_steps,
                 spec_collector: SpecCollector::new(model_names),
-                last_pinged_at: Instant::now(),
-                num_pings: 0,
+                last_heartbeat_at: Instant::now(),
+                num_heartbeats: 0,
                 started_at: Instant::now(),
             },
             p2p_client,

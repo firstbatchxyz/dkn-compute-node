@@ -6,8 +6,6 @@ use eyre::Result;
 pub async fn refresh_dria_nodes(nodes: &mut DriaNodes) -> Result<()> {
     #[derive(serde::Deserialize, Debug)]
     struct DriaNodesApiResponse {
-        pub bootstraps: Vec<String>,
-        pub relays: Vec<String>,
         pub rpcs: Vec<String>,
         #[serde(rename = "rpcAddrs")]
         pub rpc_addrs: Vec<String>,
@@ -23,18 +21,7 @@ pub async fn refresh_dria_nodes(nodes: &mut DriaNodes) -> Result<()> {
     // make the request
     let response = reqwest::get(url).await?;
     let response_body = response.json::<DriaNodesApiResponse>().await?;
-    nodes
-        .bootstrap_nodes
-        .extend(parse_vec(response_body.bootstraps).unwrap_or_else(|e| {
-            log::error!("Failed to parse bootstrap nodes: {}", e);
-            vec![]
-        }));
-    nodes
-        .relay_nodes
-        .extend(parse_vec(response_body.relays).unwrap_or_else(|e| {
-            log::error!("Failed to parse relay nodes: {}", e);
-            vec![]
-        }));
+
     nodes
         .rpc_nodes
         .extend(parse_vec(response_body.rpc_addrs).unwrap_or_else(|e| {
@@ -59,15 +46,11 @@ mod tests {
     async fn test_refresh_dria_nodes() {
         let mut nodes = DriaNodes::new(DriaNetworkType::Community);
         refresh_dria_nodes(&mut nodes).await.unwrap();
-        assert!(!nodes.bootstrap_nodes.is_empty());
-        assert!(!nodes.relay_nodes.is_empty());
         assert!(!nodes.rpc_nodes.is_empty());
         assert!(!nodes.rpc_peerids.is_empty());
 
         let mut nodes = DriaNodes::new(DriaNetworkType::Pro);
         refresh_dria_nodes(&mut nodes).await.unwrap();
-        assert!(!nodes.bootstrap_nodes.is_empty());
-        assert!(!nodes.relay_nodes.is_empty());
         assert!(!nodes.rpc_nodes.is_empty());
         assert!(!nodes.rpc_peerids.is_empty());
     }

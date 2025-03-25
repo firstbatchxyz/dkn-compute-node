@@ -2,7 +2,7 @@ use eyre::{eyre, Result};
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
-use crate::{node::PingpongHandler, utils::DriaMessage, DriaComputeNode};
+use crate::{utils::DriaMessage, DriaComputeNode};
 
 impl DriaComputeNode {
     /// Runs the main loop of the compute node.
@@ -21,10 +21,6 @@ impl DriaComputeNode {
             tokio::time::interval(Duration::from_secs(AVAILABLE_NODES_REFRESH_INTERVAL_SECS));
         available_node_refresh_interval.tick().await; // move one tick
 
-        // subscribe to topics
-        self.subscribe(PingpongHandler::LISTEN_TOPIC).await?;
-        self.subscribe(PingpongHandler::RESPONSE_TOPIC).await?;
-
         loop {
             tokio::select! {
                 // a task is completed by the worker & should be responded to the requesting peer
@@ -39,20 +35,20 @@ impl DriaComputeNode {
                 },
 
                 // a GossipSub message is received from the channel
-                // this is expected to be sent by the p2p client
-                gossipsub_msg_opt = self.gossip_message_rx.recv() => {
-                    let (propagation_peer_id, message_id, message) = gossipsub_msg_opt.ok_or(eyre!("message_rx channel closed unexpectedly"))?;
+                // // this is expected to be sent by the p2p client
+                // gossipsub_msg_opt = self.gossip_message_rx.recv() => {
+                //     let (propagation_peer_id, message_id, message) = gossipsub_msg_opt.ok_or(eyre!("message_rx channel closed unexpectedly"))?;
 
-                    // handle the message, returning a message acceptance for the received one
-                    let acceptance = self.handle_message((propagation_peer_id, &message_id, message)).await;
+                //     // handle the message, returning a message acceptance for the received one
+                //     let acceptance = self.handle_message((propagation_peer_id, &message_id, message)).await;
 
-                    // validate the message based on the acceptance
-                    // cant do anything but log if this gives an error as well
-                    if let Err(e) = self.p2p.validate_message(&message_id, &propagation_peer_id, acceptance).await {
-                        log::error!("Error validating message {}: {:?}", message_id, e);
-                    }
+                //     // validate the message based on the acceptance
+                //     // cant do anything but log if this gives an error as well
+                //     if let Err(e) = self.p2p.validate_message(&message_id, &propagation_peer_id, acceptance).await {
+                //         log::error!("Error validating message {}: {:?}", message_id, e);
+                //     }
 
-                },
+                // },
 
                 // a Request is received from the channel, sent by p2p client
                 request_msg_opt = self.request_rx.recv() => {
@@ -74,10 +70,6 @@ impl DriaComputeNode {
             }
         }
 
-        // unsubscribe from topics
-        self.unsubscribe(PingpongHandler::LISTEN_TOPIC).await?;
-        self.unsubscribe(PingpongHandler::RESPONSE_TOPIC).await?;
-
         // print one final diagnostic as a summary
         self.handle_diagnostic_refresh().await;
 
@@ -88,6 +80,8 @@ impl DriaComputeNode {
     }
 
     /// Shorthand method to create a signed message with the given data and topic.
+    ///
+    /// Topic was previously used for GossipSub, but kept for verbosity.
     #[inline(always)]
     pub fn new_message(&self, data: impl AsRef<[u8]>, topic: impl ToString) -> DriaMessage {
         DriaMessage::new(data, topic, self.p2p.protocol(), &self.config.secret_key)
@@ -100,9 +94,6 @@ impl DriaComputeNode {
     pub async fn shutdown(&mut self) -> Result<()> {
         log::debug!("Sending shutdown command to p2p client.");
         self.p2p.shutdown().await?;
-
-        log::debug!("Closing gossip message receipt channel.");
-        self.gossip_message_rx.close();
 
         log::debug!("Closing task response channel.");
         self.task_output_rx.close();

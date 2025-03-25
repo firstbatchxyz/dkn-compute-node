@@ -1,4 +1,3 @@
-use crate::utils::filter::TaskFilter;
 use serde::{Deserialize, Serialize};
 
 /// A generic task request, given by Dria.
@@ -11,8 +10,6 @@ pub struct TaskRequestPayload<T> {
     pub deadline: u128,
     /// The input to the compute function.
     pub input: T,
-    /// The Bloom filter of the task.
-    pub filter: TaskFilter,
     /// The public key of the requester, in hexadecimals.
     pub public_key: String,
 }

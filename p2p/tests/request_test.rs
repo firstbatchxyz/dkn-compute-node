@@ -26,12 +26,10 @@ async fn test_request_message() -> Result<()> {
     let listen_addr = "/ip4/0.0.0.0/tcp/4001".parse()?;
 
     // prepare nodes
-    let nodes = DriaNodes::new(Community)
-        .with_bootstrap_nodes(Community.get_static_bootstrap_nodes())
-        .with_relay_nodes(Community.get_static_relay_nodes());
+    let nodes = DriaNodes::new(Community).with_statics();
 
     // spawn P2P client in another task
-    let (client, mut commander, mut msg_rx, mut req_rx) = DriaP2PClient::new(
+    let (client, mut commander, mut req_rx) = DriaP2PClient::new(
         Keypair::generate_secp256k1(),
         listen_addr,
         &nodes,
@@ -59,7 +57,6 @@ async fn test_request_message() -> Result<()> {
     commander.shutdown().await.expect("could not shutdown");
 
     // close other channels
-    msg_rx.close();
     req_rx.close();
 
     log::info!("Waiting for p2p task to finish...");

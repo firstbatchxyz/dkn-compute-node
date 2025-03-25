@@ -1,5 +1,4 @@
 pub mod crypto;
-pub mod filter;
 
 mod message;
 pub use message::DriaMessage;

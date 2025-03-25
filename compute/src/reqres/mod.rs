@@ -9,6 +9,9 @@ pub use specs::SpecResponder;
 mod task;
 pub use task::TaskResponder;
 
+mod heartbeat;
+pub use heartbeat::HeartbeatResponder;
+
 /// A responder should implement a request & response type, both serializable.
 ///
 /// The `try_parse_request` is automatically implemented using `serde-json` for a byte slice.

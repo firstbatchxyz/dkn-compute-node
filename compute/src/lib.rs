@@ -1,5 +1,4 @@
 pub mod config;
-pub mod gossipsub;
 pub mod node;
 pub mod payloads;
 pub mod reqres;

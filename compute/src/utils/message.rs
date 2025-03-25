@@ -121,14 +121,6 @@ impl fmt::Display for DriaMessage {
     }
 }
 
-impl TryFrom<&dkn_p2p::libp2p::gossipsub::Message> for DriaMessage {
-    type Error = serde_json::Error;
-
-    fn try_from(value: &dkn_p2p::libp2p::gossipsub::Message) -> Result<Self, Self::Error> {
-        serde_json::from_slice(&value.data)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use libsecp256k1::PublicKey;
