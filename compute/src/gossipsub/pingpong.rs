@@ -65,8 +65,9 @@ impl PingpongHandler {
 
         log::info!("Received a {} for: {}", "ping".blue(), pingpong.uuid);
 
-        // record ping moment
+        // record ping
         node.last_pinged_at = Instant::now();
+        node.num_pings += 1;
 
         // respond
         let response_body = PingpongResponse {

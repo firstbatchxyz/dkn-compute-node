@@ -14,6 +14,11 @@ debug:
 build:
 		cargo build --workspace
 
+.PHONY: trace #        | Run with TRACE logs
+trace:
+		RUST_LOG=warn,dkn_compute=trace,libp2p=debug \
+		cargo run --bin dkn-compute
+
 .PHONY: profile-cpu #  | Profile CPU usage with flamegraph
 profile-cpu:
 	  DKN_EXIT_TIMEOUT=120 cargo flamegraph --root --profile=profiling --bin dkn-compute

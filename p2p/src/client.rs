@@ -48,6 +48,8 @@ impl DriaP2PClient {
     ///
     /// The `version` is used to create the protocol strings for the client, and its very important that
     /// they match with the clients existing within the network.
+    ///
+    /// If for any reason the given `listen_addr` is not available, it will try to listen on a random port on `localhost`.
     #[allow(clippy::type_complexity)]
     pub fn new(
         keypair: Keypair,
@@ -62,7 +64,6 @@ impl DriaP2PClient {
     )> {
         // this is our peerId
         let peer_id = keypair.public().to_peer_id();
-        log::info!("Compute node peer address: {}", peer_id);
 
         let mut swarm = SwarmBuilder::with_existing_identity(keypair)
             .with_tokio()
@@ -123,19 +124,23 @@ impl DriaP2PClient {
 
         // listen on all interfaces for incoming connections
         log::info!("Listening p2p network on: {}", listen_addr);
-        swarm.listen_on(listen_addr)?;
+        if let Err(e) = swarm.listen_on(listen_addr) {
+            log::error!("Could not listen on address: {:?}", e);
+            log::warn!("Trying fallback address with localhost random port");
+            swarm.listen_on("/ip4/127.0.0.1/tcp/0".parse().unwrap())?;
+        }
 
         // listen on relay addresses with p2p circuit
-        for addr in &nodes.relay_nodes {
+        for addr in nodes.relay_nodes.iter().cloned() {
             log::info!("Listening to relay: {}", addr);
-            swarm.listen_on(addr.clone().with(Protocol::P2pCircuit))?;
+            swarm.listen_on(addr.with(Protocol::P2pCircuit))?;
         }
 
         // dial rpc nodes
-        for rpc_addr in &nodes.rpc_nodes {
+        for rpc_addr in nodes.rpc_nodes.iter().cloned() {
             log::info!("Dialing RPC node: {}", rpc_addr);
-            if let Err(e) = swarm.dial(rpc_addr.clone()) {
-                log::error!("Error dialing RPC node: {:?}", e);
+            if let Err(e) = swarm.dial(rpc_addr) {
+                log::error!("Could not dial RPC node: {:?}", e);
             };
         }
 

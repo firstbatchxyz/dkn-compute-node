@@ -183,6 +183,7 @@ fn create_gossipsub_behaviour(author: PeerId) -> Result<gossipsub::Behaviour> {
         MessageId::from(digest.to_be_bytes())
     };
 
+    // TODO: make `flood_publish false?`
     Behaviour::new(
         MessageAuthenticity::Author(author),
         ConfigBuilder::default()

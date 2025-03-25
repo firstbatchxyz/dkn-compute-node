@@ -7,7 +7,7 @@ use workers::task::TaskWorker;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // load a particular env, or `.env` by default
+    // load a particular environment file specified by DKN_COMPUTE_ENV, or `.env` by default
     let env_path = env::var("DKN_COMPUTE_ENV").unwrap_or_else(|_| ".env".to_string());
     let dotenv_result = dotenvy::from_path(&env_path);
 
