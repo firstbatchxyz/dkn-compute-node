@@ -87,22 +87,29 @@ docker compose --profile=ollama-cuda up
 docker compose --profile=ollama-rocm up
 ```
 
+Note that we are very dependent on Ollama packages, and it is important to check their versions if relevant:
+
+```sh
+@cat Cargo.lock | grep "https://github.com/andthattoo/ollama-workflows"
+@cat Cargo.lock | grep "https://github.com/andthattoo/ollama-rs"
+```
+
 ### Testing
 
 You can the tests as follows:
 
 ```sh
-make test
+cargo test --workspace
 ```
 
 We also have some benchmarking and profiling scripts, see [node performance](./docs/NODE_PERFORMANCE.md) for more details.
 
 ### Documentation
 
-You can view the inline documentation with:
+You can view the entire crate-level documentation with:
 
 ```sh
-make docs
+cargo doc --open --no-deps --document-private-items
 ```
 
 ### Styling
@@ -110,8 +117,8 @@ make docs
 Lint and format with:
 
 ```sh
-make lint   # clippy
-make format # rustfmt
+cargo clippy --workspace
+cargo fmt -v
 ```
 
 ### Profiling

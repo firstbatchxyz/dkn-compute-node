@@ -19,32 +19,6 @@ trace:
 		RUST_LOG=warn,dkn_compute=trace,libp2p=debug \
 		cargo run --bin dkn-compute
 
-.PHONY: ollama-versions
-ollama-versions:
-	  @cat Cargo.lock | grep "https://github.com/andthattoo/ollama-workflows"
-		@cat Cargo.lock | grep "https://github.com/andthattoo/ollama-rs"
-
-.PHONY: test #         | Run tests
-test:
-		cargo test --workspace
-
-###############################################################################
-.PHONY: lint #         | Run linter (clippy)
-lint:
-		cargo clippy --workspace
-
-.PHONY: format #       | Run formatter (cargo fmt)
-format:
-		cargo fmt -v
-
-.PHONY: version #      | Print version
-version:
-	  @cargo pkgid | cut -d@ -f2
-
-.PHONY: docs #         | Generate & open documentation
-docs:
-		cargo doc --open --no-deps --document-private-items
-
 # https://stackoverflow.com/a/45843594
 .PHONY: help #         | List targets
 help:                                                                                                                    
