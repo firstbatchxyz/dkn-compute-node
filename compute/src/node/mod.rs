@@ -33,7 +33,11 @@ pub struct DriaComputeNode {
     pub p2p: DriaP2PCommander,
     /// The last time the node was pinged by the network.
     /// If this is too much, we can say that the node is not reachable by RPC.
-    pub last_pinged_at: Instant,
+    pub(crate) last_pinged_at: Instant,
+    /// Number of pings received.
+    pub(crate) num_pings: u64,
+    /// The time the node was started.
+    pub(crate) started_at: Instant,
     /// Gossipsub message receiver, used by peer-to-peer client in a separate thread.
     ///
     /// It will publish messages sent to this channel to the network.
@@ -143,6 +147,8 @@ impl DriaComputeNode {
                 initial_steps,
                 spec_collector: SpecCollector::new(model_names),
                 last_pinged_at: Instant::now(),
+                num_pings: 0,
+                started_at: Instant::now(),
             },
             p2p_client,
             task_batch_worker,

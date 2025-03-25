@@ -5,39 +5,19 @@ ifneq (,$(wildcard ./.env))
 endif
 
 ###############################################################################
-.PHONY: launch #       | Run with INFO logs in release mode
-launch:
-		cargo run --release --bin dkn-compute
-
-.PHONY: run #          | Run with INFO logs
-run:
-		cargo run --bin dkn-compute
-
-.PHONY: monitor #      | Run monitor node with INFO logs
-monitor:
-		cargo run --bin dkn-monitor
-
 .PHONY: debug #        | Run with DEBUG logs with INFO log-level workflows
 debug:
 		RUST_LOG=warn,dkn_compute=debug,dkn_workflows=debug,dkn_p2p=debug,ollama_workflows=info \
-		cargo run --bin dkn-compute
-
-.PHONY: trace #        | Run with TRACE logs
-trace:
-		RUST_LOG=warn,dkn_compute=trace,libp2p=debug \
 		cargo run --bin dkn-compute
 
 .PHONY: build #        | Build
 build:
 		cargo build --workspace
 
-.PHONY: profile-cpu #  | Profile CPU usage with flamegraph
-profile-cpu:
-	  DKN_EXIT_TIMEOUT=120 cargo flamegraph --root --profile=profiling --bin dkn-compute
-
-.PHONY: profile-mem #  | Profile memory usage with instruments
-profile-mem:
-	  DKN_EXIT_TIMEOUT=120 cargo instruments --profile=profiling -t Allocations --bin dkn-compute
+.PHONY: trace #        | Run with TRACE logs
+trace:
+		RUST_LOG=warn,dkn_compute=trace,libp2p=debug \
+		cargo run --bin dkn-compute
 
 .PHONY: ollama-versions
 ollama-versions:

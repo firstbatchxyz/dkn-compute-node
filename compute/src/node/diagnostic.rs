@@ -22,10 +22,6 @@ impl DriaComputeNode {
     pub(crate) async fn handle_diagnostic_refresh(&self) {
         let mut diagnostics = vec![format!("Diagnostics (v{}):", DRIA_COMPUTE_NODE_VERSION)];
 
-        // if we have not received pings for a while, we are considered offline
-        let is_offline =
-            self.last_pinged_at < Instant::now() - Duration::from_secs(PING_LIVENESS_SECS);
-
         // print peer counts
         match self.p2p.peer_counts().await {
             Ok((mesh, all)) => diagnostics.push(format!(
@@ -74,14 +70,27 @@ impl DriaComputeNode {
         ));
 
         // add network status as well
-        diagnostics.push(format!(
-            "Node Status: {}",
-            if is_offline {
-                "OFFLINE".bold().red()
-            } else {
-                "ONLINE".bold().green()
-            }
-        ));
+        // if we have not received pings for a while, we are considered offline
+        let is_offline = Instant::now().duration_since(self.last_pinged_at)
+            > Duration::from_secs(PING_LIVENESS_SECS);
+        if self.num_pings == 0 {
+            // if we didnt have any pings, we might still be connecting
+            diagnostics.push(format!("Node Status: {}", "CONNECTING".yellow()));
+        } else {
+            diagnostics.push(format!(
+                "Node Status: {}",
+                if is_offline {
+                    "OFFLINE".red()
+                } else {
+                    "ONLINE".green()
+                }
+            ));
+        }
+
+        // add pings per second
+        let elapsed = Instant::now().duration_since(self.started_at).as_secs_f64();
+        let pings_per_second = self.num_pings as f64 / elapsed; // elapsed is always > 0
+        diagnostics.push(format!("Pings/sec: {:.3}", pings_per_second));
 
         log::info!("{}", diagnostics.join("\n  "));
 
