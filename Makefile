@@ -19,14 +19,6 @@ trace:
 		RUST_LOG=warn,dkn_compute=trace,libp2p=debug \
 		cargo run --bin dkn-compute
 
-.PHONY: profile-cpu #  | Profile CPU usage with flamegraph
-profile-cpu:
-	  DKN_EXIT_TIMEOUT=120 cargo flamegraph --root --profile=profiling --bin dkn-compute
-
-.PHONY: profile-mem #  | Profile memory usage with instruments
-profile-mem:
-	  DKN_EXIT_TIMEOUT=120 cargo instruments --profile=profiling -t Allocations --bin dkn-compute
-
 .PHONY: ollama-versions
 ollama-versions:
 	  @cat Cargo.lock | grep "https://github.com/andthattoo/ollama-workflows"

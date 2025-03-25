@@ -123,7 +123,7 @@ Furthermore, the profiling build will exit automatically after a certain time, a
 **CPU Profiling**: To create a [flamegraph](https://crates.io/crates/flamegraph) of the application, the command below will create a profiling build that inherits `release` mode, except with debug information:
 
 ```sh
-make profile-cpu
+DKN_EXIT_TIMEOUT=120 cargo flamegraph --root --profile=profiling --bin dkn-compute
 ```
 
 > [!NOTE]
@@ -133,8 +133,12 @@ make profile-cpu
 **Memory Profiling**: To profile memory usage, we make use of [cargo-instruments](https://crates.io/crates/cargo-instruments):
 
 ```sh
-make profile-mem
+DKN_EXIT_TIMEOUT=120 cargo instruments --profile=profiling -t Allocations --bin dkn-compute
 ```
+
+> [!TIP]
+>
+> You can adjust the profiling duration via the `DKN_EXIT_TIMEOUT` variable, which takes a number of seconds until termination.
 
 ## License
 
