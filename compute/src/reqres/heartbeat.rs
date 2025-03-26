@@ -15,7 +15,7 @@ pub struct HeartbeatRequester;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct HeartbeatRequest {
     /// A unique ID for the heartbeat request.
-    pub(crate) uuid: Uuid,
+    pub(crate) heartbeat_id: Uuid,
     /// Deadline for the heartbeat request, in nanoseconds.
     pub(crate) deadline: chrono::DateTime<chrono::Utc>,
     /// Models available in the node.
@@ -31,7 +31,7 @@ pub struct HeartbeatRequest {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct HeartbeatResponse {
     /// UUID as given in the request.
-    pub(crate) uuid: Uuid,
+    pub(crate) heartbeat_id: Uuid,
     /// Acknowledgement of the heartbeat.
     pub(crate) ack: bool,
 }
@@ -53,7 +53,7 @@ impl HeartbeatRequester {
         let deadline = chrono::Utc::now() + HEARTBEAT_DEADLINE_SECS;
 
         let heartbeat_request = HeartbeatRequest {
-            uuid,
+            heartbeat_id: uuid,
             deadline,
             models: node.config.workflows.models.clone(),
             pending_tasks: node.get_pending_task_count(),
@@ -79,7 +79,7 @@ impl HeartbeatRequester {
         node: &mut DriaComputeNode,
         res: HeartbeatResponse,
     ) -> Result<()> {
-        if let Some(deadline) = node.heartbeats.remove(&res.uuid) {
+        if let Some(deadline) = node.heartbeats.remove(&res.heartbeat_id) {
             if !res.ack {
                 Err(eyre!("Heartbeat was not acknowledged."))
             } else if chrono::Utc::now() > deadline {
@@ -93,7 +93,7 @@ impl HeartbeatRequester {
         } else {
             Err(eyre!(
                 "Received an unknown heartbeat response with UUID {}.",
-                res.uuid
+                res.heartbeat_id
             ))
         }
     }
