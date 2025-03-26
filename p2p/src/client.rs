@@ -1,9 +1,10 @@
 use eyre::Result;
 use libp2p::futures::StreamExt;
-use libp2p::request_response::{self, ResponseChannel};
-use libp2p::swarm::dial_opts::{DialOpts, PeerCondition};
-use libp2p::swarm::SwarmEvent;
-use libp2p::{identify, noise, tcp, yamux};
+use libp2p::swarm::{
+    dial_opts::{DialOpts, PeerCondition},
+    SwarmEvent,
+};
+use libp2p::{identify, noise, request_response, tcp, yamux};
 use libp2p::{Multiaddr, PeerId, Swarm, SwarmBuilder};
 use libp2p_identity::Keypair;
 use std::time::Duration;
@@ -17,19 +18,17 @@ use super::DriaP2PCommander;
 
 /// Peer-to-peer client for Dria Knowledge Network.
 pub struct DriaP2PClient {
-    /// Your peer id.
     pub peer_id: PeerId,
     /// `Swarm` instance, everything p2p-related are accessed through this instace.
     swarm: Swarm<DriaBehaviour>,
     /// Dria protocol, used for identifying the client.
     protocol: DriaP2PProtocol,
-    /// Request-response protocol, request sender.
-    req_tx: mpsc::Sender<(PeerId, Vec<u8>, ResponseChannel<Vec<u8>>)>,
+    /// Request-response protocol messages.
+    reqres_tx: mpsc::Sender<(PeerId, request_response::Message<Vec<u8>, Vec<u8>>)>,
     /// Command receiver.
     cmd_rx: mpsc::Receiver<DriaP2PCommand>,
 }
 
-// TODO: make all these configurable
 /// Number of seconds before an idle connection is closed.
 const IDLE_CONNECTION_TIMEOUT_SECS: u64 = 60;
 /// Buffer size for command channel.
@@ -46,7 +45,6 @@ impl DriaP2PClient {
     /// they match with the clients existing within the network.
     ///
     /// If for any reason the given `listen_addr` is not available, it will try to listen on a random port on `localhost`.
-    #[allow(clippy::type_complexity)]
     pub fn new(
         keypair: Keypair,
         listen_addr: Multiaddr,
@@ -55,7 +53,7 @@ impl DriaP2PClient {
     ) -> Result<(
         DriaP2PClient,
         DriaP2PCommander,
-        mpsc::Receiver<(PeerId, Vec<u8>, ResponseChannel<Vec<u8>>)>,
+        mpsc::Receiver<(PeerId, request_response::Message<Vec<u8>, Vec<u8>>)>,
     )> {
         let peer_id = keypair.public().to_peer_id();
 
@@ -97,16 +95,16 @@ impl DriaP2PClient {
         let commander = DriaP2PCommander::new(cmd_tx, protocol.clone());
 
         // create p2p client itself
-        let (req_tx, req_rx) = mpsc::channel(MSG_CHANNEL_BUFSIZE);
+        let (reqres_tx, reqres_rx) = mpsc::channel(MSG_CHANNEL_BUFSIZE);
         let client = Self {
             peer_id,
             swarm,
             protocol,
-            req_tx,
+            reqres_tx,
             cmd_rx,
         };
 
-        Ok((client, commander, req_rx))
+        Ok((client, commander, reqres_rx))
     }
 
     /// Waits for swarm events and Node commands at the same time.
@@ -182,38 +180,18 @@ impl DriaP2PClient {
     /// Handles a single event from the `swarm` stream.
     pub async fn handle_event(&mut self, event: SwarmEvent<DriaBehaviourEvent>) {
         match event {
-            // request-response events
+            /*****************************************
+             * Request-response events               *
+             *****************************************/
             SwarmEvent::Behaviour(DriaBehaviourEvent::RequestResponse(
-                request_response::Event::Message { message, peer, .. },
-            )) => match message {
-                // a request has been made with us as the target, and we should respond
-                // using the created `channel`; we simply forward this to the request channel
-                request_response::Message::Request {
-                    request,
-                    channel,
-                    request_id,
-                } => {
-                    if let Err(e) = self.req_tx.send((peer, request, channel)).await {
-                        log::error!(
-                            "Could not send response for request_id {}: {:?}",
-                            request_id,
-                            e,
-                        );
-                    }
+                request_response::Event::Message { message, peer },
+            )) => {
+                // whether its a request or response, we forward it to the main thread
+                if let Err(err) = self.reqres_tx.send((peer, message)).await {
+                    log::error!("Could not transfer request {:?}", err);
                 }
+            }
 
-                request_response::Message::Response {
-                    request_id,
-                    response,
-                } => {
-                    // while we support the protocol, we dont really make any requests
-                    log::warn!(
-                        "Unexpected response message with request_id {}: {:?}",
-                        request_id,
-                        response
-                    );
-                }
-            },
             SwarmEvent::Behaviour(DriaBehaviourEvent::RequestResponse(
                 request_response::Event::ResponseSent {
                     peer, request_id, ..
@@ -256,20 +234,14 @@ impl DriaP2PClient {
                 );
             }
 
-            // identify events
+            /*****************************************
+             * Identify events                       *
+             *****************************************/
             SwarmEvent::Behaviour(DriaBehaviourEvent::Identify(identify::Event::Received {
                 peer_id,
                 info,
                 ..
             })) => self.handle_identify_event(peer_id, info),
-
-            // // autonat events
-            // SwarmEvent::Behaviour(DriaBehaviourEvent::Autonat(autonat::Event::StatusChanged {
-            //     old,
-            //     new,
-            // })) => {
-            //     log::warn!("AutoNAT status changed from {:?} to {:?}", old, new);
-            // }
 
             // log listen addreses
             SwarmEvent::NewListenAddr { address, .. } => {
@@ -290,41 +262,55 @@ impl DriaP2PClient {
                 log::info!("External address confirmed: {}", address);
             }
 
-            // SwarmEvent::IncomingConnectionError {
-            //     local_addr,
-            //     send_back_addr,
-            //     error,
-            //     connection_id,
-            // } => {
-            //     log::debug!(
-            //         "Incoming connection {} error: from {} to {} - {:?}",
-            //         connection_id,
-            //         local_addr,
-            //         send_back_addr,
-            //         error
-            //     );
-            // }
+            /*****************************************
+             * Connection events and errors handling *
+             *****************************************/
+            SwarmEvent::IncomingConnectionError {
+                local_addr,
+                send_back_addr,
+                error,
+                ..
+            } => {
+                log::debug!(
+                    "Incoming connection error: from {} to {} - {:?}",
+                    local_addr,
+                    send_back_addr,
+                    error
+                );
+            }
 
-            // SwarmEvent::IncomingConnection {
-            //     connection_id,
-            //     local_addr,
-            //     send_back_addr,
-            // } => {
-            //     log::debug!(
-            //         "Incoming connection {} attepmt: from {} to {}",
-            //         connection_id,
-            //         local_addr,
-            //         send_back_addr
-            //     );
-            // }
+            SwarmEvent::IncomingConnection {
+                local_addr,
+                send_back_addr,
+                ..
+            } => {
+                log::debug!(
+                    "Incoming connection  attempt: from {} to {}",
+                    local_addr,
+                    send_back_addr
+                );
+            }
 
-            // SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
-            //     if let Some(peer_id) = peer_id {
-            //         log::warn!("Could not connect to peer {}: {:?}", peer_id, error);
-            //     } else {
-            //         log::warn!("Outgoing connection error: {:?}", error);
-            //     }
-            // }
+            SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
+                if let Some(peer_id) = peer_id {
+                    log::warn!("Could not connect to peer {}: {:?}", peer_id, error);
+                } else {
+                    log::warn!("Outgoing connection error: {:?}", error);
+                }
+            }
+
+            SwarmEvent::ConnectionEstablished {
+                peer_id,
+                num_established,
+                ..
+            } => {
+                log::info!(
+                    "Connection established with peer {} ({} connections)",
+                    peer_id,
+                    num_established
+                );
+            }
+
             event => log::trace!("Unhandled Swarm Event: {:?}", event),
         }
     }

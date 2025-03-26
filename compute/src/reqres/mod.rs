@@ -10,7 +10,7 @@ mod task;
 pub use task::TaskResponder;
 
 mod heartbeat;
-pub use heartbeat::HeartbeatResponder;
+pub use heartbeat::HeartbeatRequester;
 
 /// A responder should implement a request & response type, both serializable.
 ///
@@ -22,6 +22,10 @@ pub trait IsResponder {
     fn try_parse_request(data: &[u8]) -> eyre::Result<Self::Request> {
         serde_json::from_slice(data).wrap_err("could not parse request")
     }
+
+    fn try_parse_response(data: &[u8]) -> eyre::Result<Self::Response> {
+        serde_json::from_slice(data).wrap_err("could not parse response")
+    }
 }
 
 #[cfg(test)]
@@ -29,7 +33,7 @@ mod tests {
 
     use super::*;
 
-    // TODO: remove this test when its done
+    // TODO: remove this test when we migrate to enum-based bodies
     #[test]
     fn test_enum_serialization() {
         use serde::Deserialize;

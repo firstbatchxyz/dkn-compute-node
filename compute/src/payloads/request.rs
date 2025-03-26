@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 pub struct TaskRequestPayload<T> {
     /// The unique identifier of the task.
     pub task_id: String,
-    /// The deadline of the task in nanoseconds.
-    pub deadline: u128,
+    /// The deadline of the task.
+    pub deadline: chrono::DateTime<chrono::Utc>,
     /// The input to the compute function.
     pub input: T,
     /// The public key of the requester, in hexadecimals.

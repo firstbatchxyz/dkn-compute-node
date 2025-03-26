@@ -1,14 +1,14 @@
 use dkn_p2p::{
-    libp2p::{request_response::ResponseChannel, PeerId},
+    libp2p::{request_response, PeerId},
     DriaNodes, DriaP2PClient, DriaP2PCommander, DriaP2PProtocol,
 };
 use eyre::Result;
 use std::collections::HashMap;
-use tokio::{sync::mpsc, time::Instant};
+use tokio::sync::mpsc;
 
 use crate::{
     config::*,
-    utils::{crypto::secret_to_keypair, get_steps, refresh_dria_nodes, SpecCollector},
+    utils::{crypto::secret_to_keypair, get_points, refresh_dria_nodes, SpecCollector},
     workers::task::{TaskWorker, TaskWorkerInput, TaskWorkerMetadata, TaskWorkerOutput},
 };
 
@@ -27,13 +27,14 @@ pub struct DriaComputeNode {
     pub p2p: DriaP2PCommander,
     /// The last time the node had an acknowledged heartbeat.
     /// If this is too much, we can say that the node is not reachable by RPC.
-    pub(crate) last_heartbeat_at: Instant,
+    pub(crate) last_heartbeat_at: chrono::DateTime<chrono::Utc>,
     /// Number of pings received.
     pub(crate) num_heartbeats: u64,
-    /// The time the node was started.
-    pub(crate) started_at: Instant,
-    /// Request-response request receiver.
-    request_rx: mpsc::Receiver<(PeerId, Vec<u8>, ResponseChannel<Vec<u8>>)>,
+    /// A mapping of heartbeat UUIDs to their deadlines.
+    /// This is used to track the heartbeats, and their acknowledgements.
+    pub(crate) heartbeats: HashMap<uuid::Uuid, chrono::DateTime<chrono::Utc>>,
+    /// Request-response message receiver, can have both a request or a response.
+    reqres_rx: mpsc::Receiver<(PeerId, request_response::Message<Vec<u8>, Vec<u8>>)>,
     /// Task response receiver, will respond to the request-response channel with the given result.
     task_output_rx: mpsc::Receiver<TaskWorkerOutput>,
     /// Task worker transmitter to send batchable tasks.
@@ -109,7 +110,7 @@ impl DriaComputeNode {
 
         let model_names = config.workflows.get_model_names();
 
-        let initial_steps = get_steps(&config.address)
+        let initial_steps = get_points(&config.address)
             .await
             .map(|s| s.score)
             .unwrap_or_default();
@@ -121,7 +122,7 @@ impl DriaComputeNode {
                 dria_nodes,
                 // receivers
                 task_output_rx: publish_rx,
-                request_rx,
+                reqres_rx: request_rx,
                 // transmitters
                 task_request_batch_tx: task_batch_tx,
                 task_request_single_tx: task_single_tx,
@@ -130,12 +131,13 @@ impl DriaComputeNode {
                 pending_tasks_batch: HashMap::new(),
                 completed_tasks_single: 0,
                 completed_tasks_batch: 0,
-                // others
+                // heartbeats
+                heartbeats: HashMap::new(),
+                last_heartbeat_at: chrono::Utc::now(),
+                num_heartbeats: 0,
+                // misc
                 initial_steps,
                 spec_collector: SpecCollector::new(model_names),
-                last_heartbeat_at: Instant::now(),
-                num_heartbeats: 0,
-                started_at: Instant::now(),
             },
             p2p_client,
             task_batch_worker,

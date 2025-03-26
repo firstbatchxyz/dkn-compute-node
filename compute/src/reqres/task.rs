@@ -2,7 +2,6 @@
 
 use colored::Colorize;
 use dkn_p2p::libp2p::request_response::ResponseChannel;
-use dkn_utils::get_current_time_nanos;
 use dkn_workflows::{Entry, Executor, ModelProvider, Workflow};
 use eyre::{eyre, Context, Result};
 use libsecp256k1::PublicKey;
@@ -51,8 +50,8 @@ impl TaskResponder {
         let stats = TaskStats::new().record_received_at();
 
         // check if deadline is past or not
-        // FIXME: with request-response, we dont expect this to happen much
-        if get_current_time_nanos() >= task.deadline {
+        // with request-response, we dont expect this to happen much
+        if chrono::Utc::now() >= task.deadline {
             return Err(eyre!(
                 "Task {} is past the deadline, ignoring",
                 task.task_id
@@ -115,7 +114,7 @@ impl TaskResponder {
     }
 
     /// Handles the result of a workflow task.
-    pub(crate) async fn handle_respond(
+    pub(crate) async fn send_output(
         node: &mut DriaComputeNode,
         task_output: TaskWorkerOutput,
         task_metadata: TaskWorkerMetadata,

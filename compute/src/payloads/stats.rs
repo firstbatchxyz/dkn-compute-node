@@ -1,4 +1,3 @@
-use dkn_utils::get_current_time_nanos;
 use serde::{Deserialize, Serialize};
 
 /// Task stats for diagnostics.
@@ -7,13 +6,13 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub struct TaskStats {
     /// Timestamp at which the task was received from network & parsed.
-    pub received_at: u128,
+    pub received_at: chrono::DateTime<chrono::Utc>,
     /// Timestamp at which the task was published back to network.
-    pub published_at: u128,
+    pub published_at: chrono::DateTime<chrono::Utc>,
     /// Timestamp at which the task execution had started.
-    pub execution_started_at: u128,
+    pub execution_started_at: chrono::DateTime<chrono::Utc>,
     /// Timestamp at which the task execution had finished.
-    pub execution_ended_at: u128,
+    pub execution_ended_at: chrono::DateTime<chrono::Utc>,
 }
 
 impl TaskStats {
@@ -23,26 +22,25 @@ impl TaskStats {
 
     /// Records the current timestamp within `received_at`.
     pub fn record_received_at(mut self) -> Self {
-        // can unwrap safely here as UNIX_EPOCH is always smaller than now
-        self.received_at = get_current_time_nanos();
+        self.received_at = chrono::Utc::now();
         self
     }
 
     /// Records the current timestamp within `published_at`.
     pub fn record_published_at(mut self) -> Self {
-        self.published_at = get_current_time_nanos();
+        self.published_at = chrono::Utc::now();
         self
     }
 
     /// Records the execution start time within `execution_started_at`.
     pub fn record_execution_started_at(mut self) -> Self {
-        self.execution_started_at = get_current_time_nanos();
+        self.execution_started_at = chrono::Utc::now();
         self
     }
 
     /// Records the execution end time within `execution_ended_time`.
     pub fn record_execution_ended_at(mut self) -> Self {
-        self.execution_ended_at = get_current_time_nanos();
+        self.execution_ended_at = chrono::Utc::now();
         self
     }
 }
@@ -55,12 +53,26 @@ mod tests {
     fn test_stats() {
         let mut stats = TaskStats::default();
 
-        assert_eq!(stats.received_at, 0);
+        assert_eq!(
+            stats.received_at,
+            chrono::DateTime::<chrono::Utc>::default()
+        );
         stats = stats.record_received_at();
-        assert_ne!(stats.received_at, 0);
+        assert_ne!(
+            stats.received_at,
+            chrono::DateTime::<chrono::Utc>::default()
+        );
 
-        assert_eq!(stats.published_at, 0);
+        assert_eq!(
+            stats.published_at,
+            chrono::DateTime::<chrono::Utc>::default()
+        );
         stats = stats.record_published_at();
-        assert_ne!(stats.published_at, 0);
+        assert_ne!(
+            stats.published_at,
+            chrono::DateTime::<chrono::Utc>::default()
+        );
+
+        println!("{:?}", stats);
     }
 }

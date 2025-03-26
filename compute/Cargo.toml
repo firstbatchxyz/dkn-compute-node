@@ -27,7 +27,7 @@ dotenvy.workspace = true
 base64 = "0.22.0"
 hex = "0.4.3"
 hex-literal = "0.4.1"
-uuid = { version = "1.8.0", features = ["v4"] }
+uuid = { version = "1.8.0", features = ["v4", "serde"] }
 rand.workspace = true
 
 # logging & errors
@@ -59,6 +59,7 @@ public-ip-address = "0.3.2"
 dkn-p2p = { path = "../p2p" }
 dkn-utils = { path = "../utils" }
 dkn-workflows = { path = "../workflows" }
+chrono = { version = "0.4.40", features = ["serde"] }
 
 
 # vendor OpenSSL so that its easier to build cross-platform packages

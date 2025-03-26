@@ -1,12 +1,11 @@
 use colored::Colorize;
 use dkn_p2p::libp2p::multiaddr::Protocol;
 use std::time::Duration;
-use tokio::time::Instant;
 
-use crate::{refresh_dria_nodes, utils::get_steps, DriaComputeNode, DRIA_COMPUTE_NODE_VERSION};
+use crate::{refresh_dria_nodes, utils::get_points, DriaComputeNode, DRIA_COMPUTE_NODE_VERSION};
 
-/// Number of seconds such that if the last ping is older than this, the node is considered unreachable.
-const PING_LIVENESS_SECS: u64 = 150;
+/// Number of seconds such that if the last heartbeat ACK is older than this, the node is considered unreachable.
+const HEARTBEAT_LIVENESS_SECS: Duration = Duration::from_secs(150);
 
 impl DriaComputeNode {
     /// Returns the task count within the channels, `single` and `batch`.
@@ -23,7 +22,7 @@ impl DriaComputeNode {
         let mut diagnostics = vec![format!("Diagnostics (v{}):", DRIA_COMPUTE_NODE_VERSION)];
 
         // print steps
-        if let Ok(steps) = get_steps(&self.config.address).await {
+        if let Ok(steps) = get_points(&self.config.address).await {
             let earned = steps.score - self.initial_steps;
             diagnostics.push(format!(
                 "$DRIA Points: {} total, {} earned in this run, within top {}%",
@@ -55,10 +54,10 @@ impl DriaComputeNode {
                 .join(", ")
         ));
 
-        // add network status as well
         // if we have not received pings for a while, we are considered offline
-        let is_offline = Instant::now().duration_since(self.last_heartbeat_at)
-            > Duration::from_secs(PING_LIVENESS_SECS);
+        let is_offline = chrono::Utc::now() > self.last_heartbeat_at + HEARTBEAT_LIVENESS_SECS;
+
+        // if we have not yet received a heartbeat response, we are still connecting
         if self.num_heartbeats == 0 {
             // if we didnt have any pings, we might still be connecting
             diagnostics.push(format!("Node Status: {}", "CONNECTING".yellow()));
@@ -73,18 +72,13 @@ impl DriaComputeNode {
             ));
         }
 
-        // add pings per second
-        let elapsed = Instant::now().duration_since(self.started_at).as_secs_f64();
-        let pings_per_second = self.num_heartbeats as f64 / elapsed; // elapsed is always > 0
-        diagnostics.push(format!("Pings/sec: {:.3}", pings_per_second));
-
         log::info!("{}", diagnostics.join("\n  "));
 
         // if offline, print this error message as well
         if is_offline {
             log::error!(
                 "Node has not received any pings for at least {} seconds & it may be unreachable!\nPlease restart your node!",
-                PING_LIVENESS_SECS
+                HEARTBEAT_LIVENESS_SECS.as_secs()
             );
         }
 

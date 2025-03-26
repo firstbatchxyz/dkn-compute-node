@@ -322,12 +322,7 @@ mod tests {
         for i in 0..num_tasks {
             log::info!("Waiting for result {}", i + 1);
             let result = publish_rx.recv().await.unwrap();
-            log::info!(
-                "Got result {} (exeuction time: {})",
-                i + 1,
-                (result.stats.execution_ended_at - result.stats.execution_started_at) as f64
-                    / 1_000_000_000f64
-            );
+            log::info!("Got result {}", i + 1,);
             if result.result.is_err() {
                 println!("Error: {:?}", result.result);
             }
