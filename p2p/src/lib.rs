@@ -12,9 +12,6 @@ pub use protocol::DriaP2PProtocol;
 mod network;
 pub use network::DriaNetworkType;
 
-mod nodes;
-pub use nodes::DriaNodes;
-
 // re-exports
 pub use libp2p;
 pub use libp2p_identity;

@@ -1,8 +1,7 @@
 use colored::Colorize;
-use dkn_p2p::libp2p::multiaddr::Protocol;
 use std::time::Duration;
 
-use crate::{refresh_dria_nodes, utils::get_points, DriaComputeNode, DRIA_COMPUTE_NODE_VERSION};
+use crate::{utils::get_points, DriaComputeNode, DRIA_COMPUTE_NODE_VERSION};
 
 /// Number of seconds such that if the last heartbeat ACK is older than this, the node is considered unreachable.
 const HEARTBEAT_LIVENESS_SECS: Duration = Duration::from_secs(150);
@@ -81,11 +80,6 @@ impl DriaComputeNode {
                 HEARTBEAT_LIVENESS_SECS.as_secs()
             );
         }
-
-        // added rpc nodes check, sometimes this happens when API is down / bugs for some reason
-        if self.dria_nodes.rpc_peerids.is_empty() {
-            log::error!("No RPC peer IDs were found to be available, please restart your node!",);
-        }
     }
 
     /// Updates the local list of available nodes by refreshing it.
@@ -93,39 +87,24 @@ impl DriaComputeNode {
     pub(crate) async fn handle_available_nodes_refresh(&mut self) {
         log::info!("Refreshing available Dria nodes.");
 
-        // refresh available nodes
-        if let Err(e) = refresh_dria_nodes(&mut self.dria_nodes).await {
-            log::error!("Error refreshing available nodes: {:?}", e);
+        // FIXME: what to do for refreshing nodes
+        // if let Err(e) = refresh_dria_nodes(&mut self.dria_nodes).await {
+        //     log::error!("Error refreshing available nodes: {:?}", e);
+        // };
+
+        // TODO: check if we are connected to the node, and dial again if not
+
+        // dial the RPC
+        log::info!("Dialling RPC at: {}", self.dria_nodes.addr);
+        let fut = self
+            .p2p
+            .dial(self.dria_nodes.peer_id, self.dria_nodes.addr.clone());
+        match tokio::time::timeout(Duration::from_secs(10), fut).await {
+            Err(timeout) => log::error!("Timeout dialling RPC node: {:?}", timeout),
+            Ok(res) => match res {
+                Err(e) => log::warn!("Error dialling RPC node: {:?}", e),
+                Ok(_) => log::info!("Successfully dialled RPC!"),
+            },
         };
-
-        // dial all rpc nodes
-        for addr in self.dria_nodes.rpc_addrs.iter() {
-            log::info!("Dialling RPC node: {}", addr);
-
-            // get peer id from rpc address
-            if let Some(peer_id) = addr.iter().find_map(|p| match p {
-                Protocol::P2p(peer_id) => Some(peer_id),
-                _ => None,
-            }) {
-                let fut = self.p2p.dial(peer_id, addr.clone());
-                match tokio::time::timeout(Duration::from_secs(10), fut).await {
-                    Err(timeout) => {
-                        log::error!("Timeout dialling RPC node: {:?}", timeout);
-                    }
-                    Ok(res) => match res {
-                        Err(e) => {
-                            log::warn!("Error dialling RPC node: {:?}", e);
-                        }
-                        Ok(_) => {
-                            log::info!("Successfully dialled RPC node: {}", addr);
-                        }
-                    },
-                };
-            } else {
-                log::warn!("Missing peerID in address: {}", addr);
-            }
-        }
-
-        log::info!("Finished refreshing!");
     }
 }

@@ -1,6 +1,6 @@
 use dkn_p2p::{
     libp2p::{request_response, PeerId},
-    DriaNodes, DriaP2PClient, DriaP2PCommander, DriaP2PProtocol,
+    DriaP2PClient, DriaP2PCommander, DriaP2PProtocol,
 };
 use eyre::Result;
 use std::collections::HashMap;
@@ -8,7 +8,7 @@ use tokio::sync::mpsc;
 
 use crate::{
     config::*,
-    utils::{crypto::secret_to_keypair, get_points, refresh_dria_nodes, SpecCollector},
+    utils::{crypto::secret_to_keypair, get_points, DriaRPC, SpecCollector},
     workers::task::{TaskWorker, TaskWorkerInput, TaskWorkerMetadata, TaskWorkerOutput},
 };
 
@@ -22,7 +22,7 @@ const PUBLISH_CHANNEL_BUFSIZE: usize = 1024;
 pub struct DriaComputeNode {
     pub config: DriaComputeNodeConfig,
     /// Pre-defined nodes that belong to Dria, e.g. bootstraps, relays and RPCs.
-    pub dria_nodes: DriaNodes,
+    pub dria_nodes: DriaRPC,
     /// Peer-to-peer client commander to interact with the network.
     pub p2p: DriaP2PCommander,
     /// The last time the node had an acknowledged heartbeat.
@@ -70,11 +70,8 @@ impl DriaComputeNode {
         // create the keypair from secret key
         let keypair = secret_to_keypair(&config.secret_key);
 
-        // get available nodes (bootstrap, relay, rpc) for p2p
-        let mut dria_nodes = DriaNodes::new(config.network_type).with_statics();
-        if let Err(e) = refresh_dria_nodes(&mut dria_nodes).await {
-            log::error!("Error populating available nodes: {:?}", e);
-        };
+        // get available rpc node
+        let dria_nodes = DriaRPC::new(config.network_type).await;
 
         // we are using the major.minor version as the P2P version
         // so that patch versions do not interfere with the protocol
@@ -85,7 +82,7 @@ impl DriaComputeNode {
         let (p2p_client, p2p_commander, request_rx) = DriaP2PClient::new(
             keypair,
             config.p2p_listen_addr.clone(),
-            &dria_nodes,
+            &dria_nodes.addr,
             protocol,
         )?;
 

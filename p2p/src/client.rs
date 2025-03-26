@@ -11,7 +11,7 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 
 use crate::behaviour::{DriaBehaviour, DriaBehaviourEvent};
-use crate::{DriaNodes, DriaP2PProtocol};
+use crate::DriaP2PProtocol;
 
 use super::commands::DriaP2PCommand;
 use super::DriaP2PCommander;
@@ -48,7 +48,7 @@ impl DriaP2PClient {
     pub fn new(
         keypair: Keypair,
         listen_addr: Multiaddr,
-        nodes: &DriaNodes,
+        rpc_addr: &Multiaddr,
         protocol: DriaP2PProtocol,
     ) -> Result<(
         DriaP2PClient,
@@ -81,14 +81,11 @@ impl DriaP2PClient {
             swarm.listen_on("/ip4/127.0.0.1/tcp/0".parse().unwrap())?;
         }
 
-        // dial rpc nodes
-        // this will cause `identify` event to be called on their side
-        for rpc_addr in nodes.rpc_addrs.iter().cloned() {
-            log::info!("Dialing RPC node: {}", rpc_addr);
-            if let Err(e) = swarm.dial(rpc_addr) {
-                log::error!("Could not dial RPC node: {:?}", e);
-            };
-        }
+        // dial rpc node, this will cause `identify` event to be called on their side
+        log::info!("Dialing RPC node: {}", rpc_addr);
+        if let Err(e) = swarm.dial(rpc_addr.clone()) {
+            log::error!("Could not dial RPC node: {:?}", e);
+        };
 
         // create commander
         let (cmd_tx, cmd_rx) = mpsc::channel(COMMAND_CHANNEL_BUFSIZE);
