@@ -11,17 +11,13 @@ pub struct DriaBehaviour {
 }
 
 impl DriaBehaviour {
-    pub fn new(
-        key: &Keypair,
-        identity_protocol: String,
-        reqres_protocol: StreamProtocol,
-    ) -> Result<Self> {
+    pub fn new(key: &Keypair, identity_protocol: String, reqres_protocol: StreamProtocol) -> Self {
         let public_key = key.public();
 
-        Ok(Self {
+        Self {
             identify: create_identify_behaviour(public_key, identity_protocol),
             request_response: create_request_response_behaviour(reqres_protocol),
-        })
+        }
     }
 }
 

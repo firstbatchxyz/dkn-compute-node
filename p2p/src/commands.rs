@@ -10,6 +10,11 @@ pub enum DriaP2PCommand {
     NetworkInfo {
         sender: oneshot::Sender<swarm::NetworkInfo>,
     },
+    /// Check if there is an active connection to the given peer.
+    IsConnected {
+        peer_id: PeerId,
+        sender: oneshot::Sender<bool>,
+    },
     /// Dial a known peer.
     Dial {
         peer_id: PeerId,
@@ -120,6 +125,18 @@ impl DriaP2PCommander {
             .await
             .wrap_err("could not receive")?
             .wrap_err("could not dial")
+    }
+
+    /// Checks if there is an active connection to the given peer.
+    pub async fn is_connected(&mut self, peer_id: PeerId) -> Result<bool> {
+        let (sender, receiver) = oneshot::channel();
+
+        self.sender
+            .send(DriaP2PCommand::IsConnected { peer_id, sender })
+            .await
+            .wrap_err("could not send")?;
+
+        receiver.await.wrap_err("could not receive")
     }
 
     /// Sends a shutdown signal to the client.

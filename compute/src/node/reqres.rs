@@ -30,9 +30,9 @@ impl DriaComputeNode {
                 log::info!("Received a request ({}) from {}", request_id, peer_id);
 
                 // ensure that message is from the known RPCs
-                if self.dria_nodes.peer_id != peer_id {
+                if self.dria_rpc.peer_id != peer_id {
                     log::warn!("Received request from unauthorized source: {}", peer_id);
-                    log::debug!("Allowed source: {}", self.dria_nodes.peer_id);
+                    log::debug!("Allowed source: {}", self.dria_rpc.peer_id);
                 } else if let Err(e) = self.handle_request(peer_id, request, channel).await {
                     log::error!("Error handling request: {:?}", e);
                 }
@@ -194,7 +194,7 @@ impl DriaComputeNode {
     /// Sends a heartbeat request to the configured RPC node.
     #[inline]
     pub(crate) async fn send_heartbeat(&mut self) -> Result<()> {
-        let peer_id = self.dria_nodes.peer_id;
+        let peer_id = self.dria_rpc.peer_id;
         let request_id = HeartbeatRequester::send_heartbeat(self, peer_id).await?;
         log::info!("Sent heartbeat request ({}) to {}", request_id, peer_id);
 

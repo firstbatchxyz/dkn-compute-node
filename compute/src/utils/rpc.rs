@@ -3,6 +3,7 @@ use dkn_p2p::DriaNetworkType;
 use eyre::Result;
 use std::fmt::Debug;
 
+/// The connected RPC node, as per the Star network topology.
 #[derive(Debug, Clone)]
 pub struct DriaRPC {
     pub addr: Multiaddr,
@@ -13,14 +14,16 @@ pub struct DriaRPC {
 impl DriaRPC {
     /// Creates a new `AvailableNodes` struct for the given network type.
     pub async fn new(network: DriaNetworkType) -> Self {
-        let addr = refresh_rpc_addr(&network).await.expect("TODO: !!!");
+        let addr = refresh_rpc_addr(&network)
+            .await
+            .expect("could not get RPC address");
         let peer_id = addr
             .iter()
             .find_map(|p| match p {
                 Protocol::P2p(peer_id) => Some(peer_id),
                 _ => None,
             })
-            .expect("TODO: !!!");
+            .expect("returned address does not contain a peer id");
 
         Self {
             addr,
@@ -62,23 +65,5 @@ mod tests {
     async fn test_dria_nodes() {
         let node = DriaRPC::new(DriaNetworkType::Community).await;
         println!("{:?}", node);
-    }
-
-    #[tokio::test]
-    async fn test_extract_peer_id() {
-        let addr: Multiaddr =
-            "/ip4/98.85.74.179/tcp/4001/p2p/16Uiu2HAmH4YGRWuJSvo5bxdShozKSve1WaZMGzAr3GiNNzadsdaN"
-                .parse()
-                .unwrap();
-        let expected_peer_id: PeerId = "16Uiu2HAmH4YGRWuJSvo5bxdShozKSve1WaZMGzAr3GiNNzadsdaN"
-            .parse()
-            .unwrap();
-
-        let peer_id = addr.iter().find_map(|p| match p {
-            Protocol::P2p(peer_id) => Some(peer_id),
-            _ => None,
-        });
-
-        assert_eq!(Some(expected_peer_id), peer_id);
     }
 }

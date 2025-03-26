@@ -21,8 +21,8 @@ const PUBLISH_CHANNEL_BUFSIZE: usize = 1024;
 
 pub struct DriaComputeNode {
     pub config: DriaComputeNodeConfig,
-    /// Pre-defined nodes that belong to Dria, e.g. bootstraps, relays and RPCs.
-    pub dria_nodes: DriaRPC,
+    /// Chosen RPC node.
+    pub dria_rpc: DriaRPC,
     /// Peer-to-peer client commander to interact with the network.
     pub p2p: DriaP2PCommander,
     /// The last time the node had an acknowledged heartbeat.
@@ -116,7 +116,7 @@ impl DriaComputeNode {
             DriaComputeNode {
                 config,
                 p2p: p2p_commander,
-                dria_nodes,
+                dria_rpc: dria_nodes,
                 // receivers
                 task_output_rx: publish_rx,
                 reqres_rx: request_rx,

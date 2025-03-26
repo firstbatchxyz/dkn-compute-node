@@ -39,8 +39,6 @@ const MSG_CHANNEL_BUFSIZE: usize = 1024;
 impl DriaP2PClient {
     /// Creates a new P2P client with the given keypair and listen address.
     ///
-    /// Can provide a list of bootstrap and relay nodes to connect to as well at the start, and RPC addresses to dial preemptively.
-    ///
     /// The `version` is used to create the protocol strings for the client, and its very important that
     /// they match with the clients existing within the network.
     ///
@@ -66,7 +64,6 @@ impl DriaP2PClient {
             )?
             .with_behaviour(|key| {
                 DriaBehaviour::new(key, protocol.identity(), protocol.request_response())
-                    .expect("TODO: !!!")
             })?
             .with_swarm_config(|c| {
                 c.with_idle_connection_timeout(Duration::from_secs(IDLE_CONNECTION_TIMEOUT_SECS))
@@ -136,6 +133,9 @@ impl DriaP2PClient {
                     .condition(PeerCondition::Always)
                     .build();
                 let _ = sender.send(self.swarm.dial(opts));
+            }
+            DriaP2PCommand::IsConnected { peer_id, sender } => {
+                let _ = sender.send(self.swarm.is_connected(&peer_id));
             }
             DriaP2PCommand::NetworkInfo { sender } => {
                 let _ = sender.send(self.swarm.network_info());
@@ -240,12 +240,9 @@ impl DriaP2PClient {
                 ..
             })) => self.handle_identify_event(peer_id, info),
 
-            // log listen addreses
             SwarmEvent::NewListenAddr { address, .. } => {
                 log::warn!("Local node is listening on {}", address);
             }
-
-            // add external address of peers to Kademlia routing table
             SwarmEvent::NewExternalAddrOfPeer { peer_id, address } => {
                 log::info!(
                     "External address of peer {} confirmed: {}",
@@ -253,9 +250,7 @@ impl DriaP2PClient {
                     address
                 );
             }
-            // add your own peer_id to kademlia as well
             SwarmEvent::ExternalAddrConfirmed { address } => {
-                // this is usually the external address via relay
                 log::info!("External address confirmed: {}", address);
             }
 

@@ -1,7 +1,10 @@
 use colored::Colorize;
 use std::time::Duration;
 
-use crate::{utils::get_points, DriaComputeNode, DRIA_COMPUTE_NODE_VERSION};
+use crate::{
+    utils::{get_points, DriaRPC},
+    DriaComputeNode, DRIA_COMPUTE_NODE_VERSION,
+};
 
 /// Number of seconds such that if the last heartbeat ACK is older than this, the node is considered unreachable.
 const HEARTBEAT_LIVENESS_SECS: Duration = Duration::from_secs(150);
@@ -82,29 +85,47 @@ impl DriaComputeNode {
         }
     }
 
-    /// Updates the local list of available nodes by refreshing it.
-    /// Dials the RPC nodes again for better connectivity.
+    /// Dials the existing RPC node if we are not connected to it.
+    ///
+    /// If there is an error while doing that,
+    /// it will try to get a new RPC node and dial it.
     pub(crate) async fn handle_available_nodes_refresh(&mut self) {
-        log::info!("Refreshing available Dria nodes.");
+        log::debug!("Checking RPC connections for diagnostics.");
 
-        // FIXME: what to do for refreshing nodes
-        // if let Err(e) = refresh_dria_nodes(&mut self.dria_nodes).await {
-        //     log::error!("Error refreshing available nodes: {:?}", e);
-        // };
-
-        // TODO: check if we are connected to the node, and dial again if not
-
-        // dial the RPC
-        log::info!("Dialling RPC at: {}", self.dria_nodes.addr);
-        let fut = self
+        // check if we are connected
+        let is_connected = self
             .p2p
-            .dial(self.dria_nodes.peer_id, self.dria_nodes.addr.clone());
-        match tokio::time::timeout(Duration::from_secs(10), fut).await {
-            Err(timeout) => log::error!("Timeout dialling RPC node: {:?}", timeout),
-            Ok(res) => match res {
-                Err(e) => log::warn!("Error dialling RPC node: {:?}", e),
-                Ok(_) => log::info!("Successfully dialled RPC!"),
-            },
-        };
+            .is_connected(self.dria_rpc.peer_id)
+            .await
+            .unwrap_or(false);
+
+        // if we are not connected, try to dial it again
+        if !is_connected {
+            log::info!("Dialling RPC at: {}", self.dria_rpc.addr);
+            if let Err(err) = self
+                .dial_with_timeout(self.dria_rpc.peer_id, self.dria_rpc.addr.clone())
+                .await
+            {
+                // if we also cannot dial it, get a new RPC node
+                log::warn!(
+                    "Could not dial to RPC at: {}: {err:?}\nWill get a new RPC node.",
+                    self.dria_rpc.addr,
+                );
+                self.dria_rpc = DriaRPC::new(self.dria_rpc.network).await;
+
+                // now dial this new RPC again
+                if let Err(err) = self
+                    .dial_with_timeout(self.dria_rpc.peer_id, self.dria_rpc.addr.clone())
+                    .await
+                {
+                    // worst-case we cant dial this one too, just leave it for the next diagnostic
+                    log::error!("Could not dial the new RPC: {err:?}\nWill try again in the next diagnostic refresh.");
+                }
+            } else {
+                log::info!("Successfully dialled to RPC at: {}", self.dria_rpc.addr);
+            }
+        } else {
+            log::debug!("Connection with {} is intact.", self.dria_rpc.peer_id);
+        }
     }
 }

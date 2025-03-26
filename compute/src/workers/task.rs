@@ -332,7 +332,7 @@ mod tests {
         log::info!("Got all results, closing channel.");
         publish_rx.close();
 
-        // TODO: this bugs out
+        // FIXME: this bugs out
         worker_handle.await.unwrap();
         log::info!("Done.");
     }

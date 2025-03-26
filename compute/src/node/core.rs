@@ -1,4 +1,5 @@
-use eyre::Result;
+use dkn_p2p::libp2p::{Multiaddr, PeerId};
+use eyre::{eyre, Result};
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
@@ -88,6 +89,18 @@ impl DriaComputeNode {
     #[inline(always)]
     pub fn new_message(&self, data: impl AsRef<[u8]>, topic: impl ToString) -> DriaMessage {
         DriaMessage::new(data, topic, self.p2p.protocol(), &self.config.secret_key)
+    }
+
+    /// Dial the given peer at the given address.
+    pub async fn dial_with_timeout(&mut self, peer_id: PeerId, addr: Multiaddr) -> Result<()> {
+        // while not yet known, some people get stuck during the dialling step,
+        // this timeout prevents that.
+        const DIAL_TIMEOUT: Duration = Duration::from_secs(10);
+
+        match tokio::time::timeout(DIAL_TIMEOUT, self.p2p.dial(peer_id, addr)).await {
+            Err(timeout) => Err(eyre!("Timeout dialling RPC node: {}", timeout)),
+            Ok(result) => result, // this is also a `Result` enum
+        }
     }
 
     /// Shutdown channels between p2p, worker and yourself.

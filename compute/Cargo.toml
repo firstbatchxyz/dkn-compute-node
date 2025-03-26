@@ -46,7 +46,7 @@ fastbloom-rs = "0.5.9"
 # machine diagnostics
 # system info
 sysinfo = "0.33.1"
-# gpu info TODO: this gives a build error on Windows
+# gpu info FIXME: this gives a build error on Windows
 # wgpu = { version = "23.0.1", features = [
 #     "serde",
 #     "dx12",

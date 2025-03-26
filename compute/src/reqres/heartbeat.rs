@@ -32,8 +32,7 @@ pub struct HeartbeatRequest {
 pub struct HeartbeatResponse {
     /// UUID as given in the request.
     pub(crate) heartbeat_id: Uuid,
-    /// An associated error with the response,
-    ///
+    /// An associated error with the response:
     /// - `None` means that the heartbeat was acknowledged.
     /// - `Some` means that the heartbeat was not acknowledged for the given reason.
     pub(crate) error: Option<String>,
@@ -66,10 +65,9 @@ impl HeartbeatRequester {
             .p2p
             .request(
                 peer_id,
-                serde_json::to_vec(&heartbeat_request).expect("TODO: !!!"),
+                serde_json::to_vec(&heartbeat_request).expect("should be serializable"),
             )
-            .await
-            .expect("TODO: !!!");
+            .await?;
 
         // add it to local heartbeats set
         node.heartbeats.insert(uuid, deadline);
