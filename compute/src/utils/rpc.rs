@@ -1,6 +1,6 @@
 use dkn_p2p::libp2p::{multiaddr::Protocol, Multiaddr, PeerId};
 use dkn_p2p::DriaNetworkType;
-use eyre::Result;
+use eyre::{Context, OptionExt, Result};
 use std::fmt::Debug;
 
 /// The connected RPC node, as per the Star network topology.
@@ -13,23 +13,23 @@ pub struct DriaRPC {
 
 impl DriaRPC {
     /// Creates a new `AvailableNodes` struct for the given network type.
-    pub async fn new(network: DriaNetworkType) -> Self {
-        let addr = refresh_rpc_addr(&network)
-            .await
-            .expect("could not get RPC address");
+    ///
+    /// Will panic if anything goes wrong.
+    pub async fn new(network: DriaNetworkType) -> Result<Self> {
+        let addr = refresh_rpc_addr(&network).await?;
         let peer_id = addr
             .iter()
             .find_map(|p| match p {
                 Protocol::P2p(peer_id) => Some(peer_id),
                 _ => None,
             })
-            .expect("returned address does not contain a peer id");
+            .ok_or_eyre("did not find peer ID within the returned RPC address")?;
 
-        Self {
+        Ok(Self {
             addr,
             peer_id,
             network,
-        }
+        })
     }
 }
 
@@ -51,7 +51,10 @@ async fn refresh_rpc_addr(network: &DriaNetworkType) -> Result<Multiaddr> {
 
     // make the request
     let response = reqwest::get(url).await?;
-    let response_body = response.json::<DriaNodesApiResponse>().await?;
+    let response_body = response
+        .json::<DriaNodesApiResponse>()
+        .await
+        .wrap_err("could not parse API response")?;
 
     Ok(response_body.rpc)
 }

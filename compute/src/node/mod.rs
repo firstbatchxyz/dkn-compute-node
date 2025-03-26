@@ -71,7 +71,9 @@ impl DriaComputeNode {
         let keypair = secret_to_keypair(&config.secret_key);
 
         // get available rpc node
-        let dria_nodes = DriaRPC::new(config.network_type).await;
+        let dria_nodes = DriaRPC::new(config.network_type)
+            .await
+            .expect("could not get RPC to connect to");
 
         // we are using the major.minor version as the P2P version
         // so that patch versions do not interfere with the protocol

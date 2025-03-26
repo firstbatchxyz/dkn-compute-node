@@ -111,15 +111,19 @@ impl DriaComputeNode {
                     "Could not dial to RPC at: {}: {err:?}\nWill get a new RPC node.",
                     self.dria_rpc.addr,
                 );
-                self.dria_rpc = DriaRPC::new(self.dria_rpc.network).await;
+                if let Ok(new_rpc) = DriaRPC::new(self.dria_rpc.network).await {
+                    self.dria_rpc = new_rpc;
 
-                // now dial this new RPC again
-                if let Err(err) = self
-                    .dial_with_timeout(self.dria_rpc.peer_id, self.dria_rpc.addr.clone())
-                    .await
-                {
-                    // worst-case we cant dial this one too, just leave it for the next diagnostic
-                    log::error!("Could not dial the new RPC: {err:?}\nWill try again in the next diagnostic refresh.");
+                    // now dial this new RPC again
+                    if let Err(err) = self
+                        .dial_with_timeout(self.dria_rpc.peer_id, self.dria_rpc.addr.clone())
+                        .await
+                    {
+                        // worst-case we cant dial this one too, just leave it for the next diagnostic
+                        log::error!("Could not dial the new RPC: {err:?}\nWill try again in the next diagnostic refresh.");
+                    }
+                } else {
+                    log::error!("Could not get a new RPC node!\nWill try again in the next diagnostic refresh.");
                 }
             } else {
                 log::info!("Successfully dialled to RPC at: {}", self.dria_rpc.addr);
