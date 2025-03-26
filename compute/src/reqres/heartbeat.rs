@@ -32,8 +32,11 @@ pub struct HeartbeatRequest {
 pub struct HeartbeatResponse {
     /// UUID as given in the request.
     pub(crate) heartbeat_id: Uuid,
-    /// Acknowledgement of the heartbeat.
-    pub(crate) ack: bool,
+    /// An associated error with the response,
+    ///
+    /// - `None` means that the heartbeat was acknowledged.
+    /// - `Some` means that the heartbeat was not acknowledged for the given reason.
+    pub(crate) error: Option<String>,
 }
 
 impl IsResponder for HeartbeatRequester {
@@ -80,13 +83,17 @@ impl HeartbeatRequester {
         res: HeartbeatResponse,
     ) -> Result<()> {
         if let Some(deadline) = node.heartbeats.remove(&res.heartbeat_id) {
-            if !res.ack {
-                Err(eyre!("Heartbeat was not acknowledged."))
-            } else if chrono::Utc::now() > deadline {
-                Err(eyre!("Acknowledged heartbeat was past the deadline."))
+            if let Some(err) = res.error {
+                Err(eyre!("Heartbeat was not acknowledged: {}", err))
             } else {
+                // acknowledge heartbeat
                 node.last_heartbeat_at = chrono::Utc::now();
                 node.num_heartbeats += 1;
+
+                // for diagnostics, we can check if the heartbeat was past its deadline as well
+                if chrono::Utc::now() > deadline {
+                    log::warn!("Acknowledged heartbeat was past its deadline.")
+                }
 
                 Ok(())
             }

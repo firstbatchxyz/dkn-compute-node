@@ -99,7 +99,7 @@ impl DriaComputeNode {
         };
 
         // dial all rpc nodes
-        for addr in self.dria_nodes.rpc_nodes.iter() {
+        for addr in self.dria_nodes.rpc_addrs.iter() {
             log::info!("Dialling RPC node: {}", addr);
 
             // get peer id from rpc address

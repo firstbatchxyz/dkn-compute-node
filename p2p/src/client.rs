@@ -83,7 +83,7 @@ impl DriaP2PClient {
 
         // dial rpc nodes
         // this will cause `identify` event to be called on their side
-        for rpc_addr in nodes.rpc_nodes.iter().cloned() {
+        for rpc_addr in nodes.rpc_addrs.iter().cloned() {
             log::info!("Dialing RPC node: {}", rpc_addr);
             if let Err(e) = swarm.dial(rpc_addr) {
                 log::error!("Could not dial RPC node: {:?}", e);
