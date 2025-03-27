@@ -88,13 +88,7 @@ async fn main() -> Result<()> {
     }?;
     log::warn!(
         "Using models: {}",
-        config
-            .workflows
-            .models
-            .iter()
-            .map(|(p, m)| format!("{}/{}", p, m))
-            .collect::<Vec<_>>()
-            .join(", ")
+        config.workflows.get_model_names().join(", ")
     );
 
     // check network-specific configurations

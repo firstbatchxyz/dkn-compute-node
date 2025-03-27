@@ -65,7 +65,7 @@ impl TaskResponder {
         let task_public_key = PublicKey::parse_slice(&task_public_key_bytes, None)?;
 
         // read model / provider from the task
-        let (model_provider, model) = node
+        let model = node
             .config
             .workflows
             .get_any_matching_model(task.input.model)?;
@@ -73,7 +73,7 @@ impl TaskResponder {
         log::info!("Using model {} for task {}", model_name, task.task_id);
 
         // prepare workflow executor
-        let (executor, batchable) = if model_provider == ModelProvider::Ollama {
+        let (executor, batchable) = if model.provider() == ModelProvider::Ollama {
             (
                 Executor::new_at(
                     model,

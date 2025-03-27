@@ -47,13 +47,7 @@ impl DriaComputeNode {
         // print models
         diagnostics.push(format!(
             "Models: {}",
-            self.config
-                .workflows
-                .models
-                .iter()
-                .map(|(p, m)| format!("{}/{}", p, m))
-                .collect::<Vec<String>>()
-                .join(", ")
+            self.config.workflows.get_model_names().join(", ")
         ));
 
         // if we have not received pings for a while, we are considered offline
