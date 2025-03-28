@@ -10,7 +10,6 @@ authors = ["Erhan Tezcan <erhan@firstbatch.xyz>"]
 # async stuff
 tokio-util.workspace = true
 tokio.workspace = true
-async-trait.workspace = true
 
 # serialize & deserialize
 serde.workspace = true

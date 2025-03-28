@@ -12,12 +12,6 @@ pub struct DriaP2PProtocol {
     ///
     /// This is usually `{name}/{version}`.
     pub identity: String,
-    /// Kademlia protocol, must match with other peers in the network.
-    ///
-    /// This is usually `/{name}/kad/{version}`, notice the `/` at the start
-    /// which is mandatory for a `StreamProtocol`.
-    ///
-    pub kademlia: StreamProtocol,
     /// Request-response protocol, must match with other peers in the network.
     ///
     /// This is usually `/{name}/rr/{version}`, notice the `/` at the start
@@ -46,8 +40,6 @@ impl DriaP2PProtocol {
         let version = version.to_string();
 
         let identity = format!("{}/{}", name, version);
-        let kademlia =
-            StreamProtocol::try_from_owned(format!("/{}/kad/{}", name, version)).unwrap();
         let request_response =
             StreamProtocol::try_from_owned(format!("/{}/rr/{}", name, version)).unwrap();
 
@@ -55,7 +47,6 @@ impl DriaP2PProtocol {
             name,
             version,
             identity,
-            kademlia,
             request_response,
         }
     }
@@ -77,28 +68,15 @@ impl DriaP2PProtocol {
         self.identity.clone()
     }
 
-    /// Returns the kademlia protocol, e.g. `/dria/kad/0.2`.
-    pub fn kademlia(&self) -> StreamProtocol {
-        self.kademlia.clone()
-    }
-
     /// Returns the request-response protocol, e.g. `/dria/rr/0.2`.
     pub fn request_response(&self) -> StreamProtocol {
         self.request_response.clone()
-    }
-
-    /// Returns `true` if the given protocol has a matching prefix with out Kademlia protocol.
-    /// Otherwise, returns `false`.
-    pub fn is_common_kademlia(&self, protocol: &StreamProtocol) -> bool {
-        let kad_prefix = format!("/{}/kad/", self.name);
-        protocol.to_string().starts_with(&kad_prefix)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use libp2p::StreamProtocol;
 
     #[test]
     fn test_new() {
@@ -106,7 +84,7 @@ mod tests {
         assert_eq!(protocol.name, "test");
         assert_eq!(protocol.version, "1.0");
         assert_eq!(protocol.identity, "test/1.0");
-        assert_eq!(protocol.kademlia.to_string(), "/test/kad/1.0");
+        assert_eq!(protocol.request_response.to_string(), "/test/rr/1.0");
     }
 
     #[test]
@@ -122,19 +100,5 @@ mod tests {
             )
         );
         assert_eq!(protocol.identity, format!("test/{}", protocol.version));
-        assert_eq!(
-            protocol.kademlia.to_string(),
-            format!("/test/kad/{}", protocol.version)
-        );
-    }
-
-    #[test]
-    fn test_is_common_kademlia() {
-        let protocol = DriaP2PProtocol::new("test", "1.0");
-        let matching_protocol = StreamProtocol::new("/test/kad/1.0");
-        let non_matching_protocol = StreamProtocol::new("/other/kad/1.0");
-
-        assert!(protocol.is_common_kademlia(&matching_protocol));
-        assert!(!protocol.is_common_kademlia(&non_matching_protocol));
     }
 }

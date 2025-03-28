@@ -1,3 +1,4 @@
+use colored::Colorize;
 use dkn_p2p::libp2p::request_response::ResponseChannel;
 use dkn_workflows::{Entry, ExecutionError, Executor, Workflow};
 use libsecp256k1::PublicKey;
@@ -76,7 +77,7 @@ impl TaskWorker {
             let task = self.task_rx.recv().await;
 
             if let Some(task) = task {
-                log::info!("Processing task {} (single)", task.task_id);
+                log::info!("Processing {} {} (single)", "task".yellow(), task.task_id);
                 TaskWorker::execute((task, &self.publish_tx)).await
             } else {
                 return self.shutdown();
@@ -322,14 +323,9 @@ mod tests {
         for i in 0..num_tasks {
             log::info!("Waiting for result {}", i + 1);
             let result = publish_rx.recv().await.unwrap();
-            log::info!(
-                "Got result {} (exeuction time: {})",
-                i + 1,
-                (result.stats.execution_ended_at - result.stats.execution_started_at) as f64
-                    / 1_000_000_000f64
-            );
+            log::info!("Got result {}", i + 1,);
             if result.result.is_err() {
-                println!("Error: {:?}", result.result);
+                log::error!("Error: {:?}", result.result);
             }
             results.push(result);
         }
@@ -337,7 +333,7 @@ mod tests {
         log::info!("Got all results, closing channel.");
         publish_rx.close();
 
-        // TODO: this bugs out
+        // FIXME: this bugs out
         worker_handle.await.unwrap();
         log::info!("Done.");
     }

@@ -1,18 +1,13 @@
 use base64::{prelude::BASE64_STANDARD, Engine};
 use core::fmt;
-use dkn_p2p::libp2p::PeerId;
 use dkn_p2p::DriaP2PProtocol;
-use dkn_utils::get_current_time_nanos;
 use eyre::{Context, Result};
-use libsecp256k1::{recover, Message, RecoveryId, SecretKey, Signature};
+use libsecp256k1::{Message, SecretKey};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 
 use crate::utils::crypto::sha256hash;
 use crate::DRIA_COMPUTE_NODE_VERSION;
-
-use super::crypto::public_key_to_peer_id;
 
 /// A message within Dria Knowledge Network.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -25,8 +20,8 @@ pub struct DriaMessage {
     pub version: String,
     /// Protocol name of the Dria Compute Node, e.g. `dria`.
     pub protocol: String,
-    /// The timestamp of the message, in nanoseconds
-    pub timestamp: u128,
+    /// The timestamp of the message
+    pub timestamp: chrono::DateTime<chrono::Utc>,
     /// The 64 byte signature of the message, in `hex`.
     pub signature: String,
     /// The recovery id for the signature.
@@ -57,7 +52,7 @@ impl DriaMessage {
             payload,
             topic: topic.to_string(),
             protocol: protocol.name.to_string(),
-            timestamp: get_current_time_nanos(),
+            timestamp: chrono::Utc::now(),
             version: DRIA_COMPUTE_NODE_VERSION.to_string(),
             signature: hex::encode(signature.serialize()),
             recovery_id: recovery_id.serialize(),
@@ -74,30 +69,6 @@ impl DriaMessage {
     pub fn parse_payload<T: DeserializeOwned>(&self) -> Result<T> {
         let parsed = serde_json::from_slice::<T>(&self.decode_payload()?)?;
         Ok(parsed)
-    }
-
-    /// Checks if the payload is signed by the owner of one of the given peer ids.
-    pub(crate) fn is_signed(&self, authorized_peerids: &HashSet<PeerId>) -> Result<bool> {
-        let recovered_public_key = self.get_origin()?;
-        let recovered_peer_id = public_key_to_peer_id(&recovered_public_key);
-
-        Ok(authorized_peerids.contains(&recovered_peer_id))
-    }
-
-    /// Recovers the public key of the message origin, i.e. the owner of the signature.
-    pub(crate) fn get_origin(&self) -> Result<libsecp256k1::PublicKey> {
-        let signature_bytes =
-            hex::decode(&self.signature).wrap_err("could not decode signature hex")?;
-        let signature = Signature::parse_standard_slice(&signature_bytes)
-            .wrap_err("could not parse signature bytes")?;
-
-        let recovery_id =
-            RecoveryId::parse(self.recovery_id).wrap_err("could not decode recovery id")?;
-
-        // verify signature w.r.t the payload and the given public key
-        let message = Message::parse(&sha256hash(&self.payload));
-
-        recover(&message, &signature, &recovery_id).wrap_err("could not recover public key")
     }
 
     /// Converts the message to bytes.
@@ -121,17 +92,8 @@ impl fmt::Display for DriaMessage {
     }
 }
 
-impl TryFrom<&dkn_p2p::libp2p::gossipsub::Message> for DriaMessage {
-    type Error = serde_json::Error;
-
-    fn try_from(value: &dkn_p2p::libp2p::gossipsub::Message) -> Result<Self, Self::Error> {
-        serde_json::from_slice(&value.data)
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use libsecp256k1::PublicKey;
     use rand::thread_rng;
 
     use super::*;
@@ -155,8 +117,6 @@ mod tests {
     fn test_signed_message() {
         let mut rng = thread_rng();
         let sk = SecretKey::random(&mut rng);
-        let pk = PublicKey::from_secret_key(&sk);
-        let peer_id = public_key_to_peer_id(&pk);
 
         // create payload & message with signature & body
         let body = TestStruct::default();
@@ -178,16 +138,7 @@ mod tests {
         );
         assert_eq!(message.topic, TOPIC);
         assert_eq!(message.version, DRIA_COMPUTE_NODE_VERSION);
-        assert!(message.timestamp > 0);
-
-        let mut peer_ids = HashSet::new();
-        peer_ids.insert(peer_id);
-        assert!(
-            message
-                .is_signed(&peer_ids)
-                .expect("Should verify signature"),
-            "invalid signature"
-        );
+        assert!(message.timestamp != chrono::DateTime::<chrono::Utc>::default());
 
         let parsed_body = message.parse_payload().expect("Should decode");
         assert_eq!(body, parsed_body);

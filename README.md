@@ -90,8 +90,8 @@ docker compose --profile=ollama-rocm up
 Note that we are very dependent on Ollama packages, and it is important to check their versions if relevant:
 
 ```sh
-@cat Cargo.lock | grep "https://github.com/andthattoo/ollama-workflows"
-@cat Cargo.lock | grep "https://github.com/andthattoo/ollama-rs"
+cat Cargo.lock | grep "https://github.com/andthattoo/ollama-workflows"
+cat Cargo.lock | grep "https://github.com/andthattoo/ollama-rs"
 ```
 
 ### Testing

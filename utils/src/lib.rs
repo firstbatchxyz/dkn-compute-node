@@ -1,4 +1,4 @@
-use std::{fmt::Debug, str::FromStr, time::SystemTime};
+use std::{fmt::Debug, str::FromStr};
 
 /// Utility to parse comma-separated string value line.
 ///
@@ -39,17 +39,6 @@ where
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(parsed)
-}
-
-/// Returns the current time in nanoseconds since the Unix epoch.
-///
-/// If a `SystemTimeError` occurs, will return 0 just to keep things running.
-#[inline]
-pub fn get_current_time_nanos() -> u128 {
-    SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos()
 }
 
 #[cfg(test)]

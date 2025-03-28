@@ -88,13 +88,7 @@ async fn main() -> Result<()> {
     }?;
     log::warn!(
         "Using models: {}",
-        config
-            .workflows
-            .models
-            .iter()
-            .map(|(p, m)| format!("{}/{}", p, m))
-            .collect::<Vec<_>>()
-            .join(", ")
+        config.workflows.get_model_names().join(", ")
     );
 
     // check network-specific configurations
@@ -131,11 +125,7 @@ async fn main() -> Result<()> {
     log::info!("Spawning compute node thread.");
     let node_token = cancellation.clone();
     task_tracker.spawn(async move {
-        if let Err(err) = node.run(node_token).await {
-            log::error!("Error within main node loop: {}", err);
-            log::error!("Shutting down node.");
-            node.shutdown().await.expect("could not shutdown node");
-        };
+        node.run(node_token).await;
         log::info!("Closing node.")
     });
 

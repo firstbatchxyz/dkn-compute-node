@@ -162,19 +162,3 @@ impl DriaComputeNodeConfig {
         Ok(())
     }
 }
-
-#[cfg(test)]
-impl Default for DriaComputeNodeConfig {
-    /// Creates a new config with dummy values.
-    ///
-    /// Should only be used for testing purposes.
-    fn default() -> Self {
-        env::set_var(
-            "DKN_WALLET_SECRET_KEY",
-            "6e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f64656e6f6465",
-        );
-        env::set_var("DKN_MODELS", "gpt-3.5-turbo");
-
-        Self::new(Default::default())
-    }
-}
