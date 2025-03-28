@@ -124,7 +124,7 @@ impl TaskResponder {
                 // prepare signed and encrypted payload
                 log::info!(
                     "Publishing {} result for {}",
-                    "task".green(),
+                    "task".yellow(),
                     task_output.task_id
                 );
                 let payload = TaskResponsePayload::new(

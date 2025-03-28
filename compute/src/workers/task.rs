@@ -1,3 +1,4 @@
+use colored::Colorize;
 use dkn_p2p::libp2p::request_response::ResponseChannel;
 use dkn_workflows::{Entry, ExecutionError, Executor, Workflow};
 use libsecp256k1::PublicKey;
@@ -76,7 +77,7 @@ impl TaskWorker {
             let task = self.task_rx.recv().await;
 
             if let Some(task) = task {
-                log::info!("Processing task {} (single)", task.task_id);
+                log::info!("Processing {} {} (single)", "task".yellow(), task.task_id);
                 TaskWorker::execute((task, &self.publish_tx)).await
             } else {
                 return self.shutdown();

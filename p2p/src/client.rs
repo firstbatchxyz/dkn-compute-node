@@ -288,7 +288,7 @@ impl DriaP2PClient {
                 ..
             } => {
                 log::info!(
-                    "Connection (id: {connection_id}) established with peer {peer_id} ({} connections) at {:?}",
+                    "Connection ({connection_id}) established with peer {peer_id} ({} connections) at {:?}",
                     num_established,
                     endpoint
                 );
@@ -302,9 +302,11 @@ impl DriaP2PClient {
                 cause,
             } => {
                 log::warn!(
-                    "Connection (id: {connection_id}) closed for {peer_id} ({} connections)\nCause: {}",
+                    "Connection ({connection_id}) closed for {peer_id} ({} connections)\nCause: {}",
                     num_established,
-                    cause.map(|c| c.to_string()).unwrap_or("Unknown".to_string())
+                    cause
+                        .map(|c| c.to_string())
+                        .unwrap_or("Unknown".to_string())
                 );
 
                 if endpoint.is_dialer() {
@@ -325,11 +327,11 @@ impl DriaP2PClient {
                 address,
                 listener_id,
             } => {
-                log::warn!("Listener {listener_id} expired: {address}");
+                log::warn!("Listener ({listener_id}) expired: {address}");
             }
 
             SwarmEvent::ListenerError { listener_id, error } => {
-                log::error!("Listener {listener_id} error: {error}");
+                log::error!("Listener ({listener_id}) failed: {error}");
             }
 
             event => log::debug!("Unhandled Swarm Event: {:?}", event),

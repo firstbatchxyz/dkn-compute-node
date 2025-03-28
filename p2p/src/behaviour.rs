@@ -1,6 +1,6 @@
 use eyre::Result;
 use libp2p::identity::{Keypair, PublicKey};
-use libp2p::{identify, request_response, PeerId, StreamProtocol};
+use libp2p::{identify, request_response, StreamProtocol};
 use std::time::Duration;
 
 #[derive(libp2p::swarm::NetworkBehaviour)]
