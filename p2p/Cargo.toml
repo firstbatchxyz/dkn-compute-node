@@ -15,6 +15,7 @@ libp2p = { git = "https://github.com/anilaltuner/rust-libp2p.git", rev = "7ce9f9
   "identify",
   "tokio",
   "noise",
+  "autonat",
   "macros",
   "request-response",
   "cbor",

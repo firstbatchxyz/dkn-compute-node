@@ -27,7 +27,7 @@ impl DriaComputeNode {
                 request_id,
                 channel,
             } => {
-                log::info!("Received a request ({}) from {}", request_id, peer_id);
+                log::debug!("Received a request ({}) from {}", request_id, peer_id);
 
                 // ensure that message is from the known RPCs
                 if self.dria_rpc.peer_id != peer_id {
@@ -42,7 +42,7 @@ impl DriaComputeNode {
                 response,
                 request_id,
             } => {
-                log::info!("Received a response ({}) from {}", request_id, peer_id);
+                log::debug!("Received a response ({}) from {}", request_id, peer_id);
                 if let Err(e) = self.handle_response(peer_id, response).await {
                     log::error!("Error handling response: {:?}", e);
                 }
@@ -57,6 +57,11 @@ impl DriaComputeNode {
     #[inline]
     async fn handle_response(&mut self, peer_id: PeerId, data: Vec<u8>) -> Result<()> {
         if let Ok(heartbeat_response) = HeartbeatRequester::try_parse_response(&data) {
+            log::info!(
+                "Received a {} response from {}",
+                "heartbeat".blue(),
+                peer_id
+            );
             HeartbeatRequester::handle_ack(self, heartbeat_response).await
         } else {
             Err(eyre::eyre!("Received unhandled request from {}", peer_id))
@@ -196,7 +201,12 @@ impl DriaComputeNode {
     pub(crate) async fn send_heartbeat(&mut self) -> Result<()> {
         let peer_id = self.dria_rpc.peer_id;
         let request_id = HeartbeatRequester::send_heartbeat(self, peer_id).await?;
-        log::info!("Sent heartbeat request ({}) to {}", request_id, peer_id);
+        log::info!(
+            "Sent {} request ({}) to {}",
+            "heartbeat".blue(),
+            request_id,
+            peer_id
+        );
 
         Ok(())
     }

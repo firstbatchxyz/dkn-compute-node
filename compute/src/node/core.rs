@@ -19,15 +19,12 @@ impl DriaComputeNode {
         // prepare durations for sleeps
         let mut diagnostic_refresh_interval =
             tokio::time::interval(Duration::from_secs(DIAGNOSTIC_REFRESH_INTERVAL_SECS));
+        diagnostic_refresh_interval.tick().await; // move each one tick
         let mut available_node_refresh_interval =
             tokio::time::interval(Duration::from_secs(AVAILABLE_NODES_REFRESH_INTERVAL_SECS));
+        available_node_refresh_interval.tick().await; // move each one tick
         let mut heartbeat_interval =
             tokio::time::interval(Duration::from_secs(HEARTBEAT_INTERVAL_SECS));
-
-        // move each one tick
-        available_node_refresh_interval.tick().await;
-        diagnostic_refresh_interval.tick().await;
-        heartbeat_interval.tick().await;
 
         loop {
             tokio::select! {

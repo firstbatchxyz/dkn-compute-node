@@ -4,7 +4,7 @@ use libp2p::swarm::{
     dial_opts::{DialOpts, PeerCondition},
     SwarmEvent,
 };
-use libp2p::{identify, noise, request_response, tcp, yamux};
+use libp2p::{autonat, identify, noise, request_response, tcp, yamux};
 use libp2p::{Multiaddr, PeerId, Swarm, SwarmBuilder};
 use libp2p_identity::Keypair;
 use std::time::Duration;
@@ -90,6 +90,7 @@ impl DriaP2PClient {
 
         // create p2p client itself
         let (reqres_tx, reqres_rx) = mpsc::channel(MSG_CHANNEL_BUFSIZE);
+
         let client = Self {
             peer_id,
             swarm,
@@ -241,17 +242,23 @@ impl DriaP2PClient {
             })) => self.handle_identify_event(peer_id, info),
 
             SwarmEvent::NewListenAddr { address, .. } => {
-                log::warn!("Local node is listening on {}", address);
+                log::warn!("Local node is listening on {address}");
             }
             SwarmEvent::NewExternalAddrOfPeer { peer_id, address } => {
-                log::info!(
-                    "External address of peer {} confirmed: {}",
-                    peer_id,
-                    address
-                );
+                log::info!("External address of peer {peer_id} confirmed: {address}");
             }
             SwarmEvent::ExternalAddrConfirmed { address } => {
-                log::info!("External address confirmed: {}", address);
+                log::info!("External address confirmed: {address}");
+            }
+
+            /*****************************************
+             * AutoNAT stuff                         *
+             *****************************************/
+            SwarmEvent::Behaviour(DriaBehaviourEvent::Autonat(autonat::Event::StatusChanged {
+                old,
+                new,
+            })) => {
+                log::info!("AutoNAT status changed from {old:?} to {new:?}");
             }
 
             /*****************************************
@@ -303,7 +310,18 @@ impl DriaP2PClient {
                 );
             }
 
-            event => log::trace!("Unhandled Swarm Event: {:?}", event),
+            SwarmEvent::ExpiredListenAddr {
+                address,
+                listener_id,
+            } => {
+                log::warn!("Listener {listener_id} expired: {address}");
+            }
+
+            SwarmEvent::ListenerError { listener_id, error } => {
+                log::error!("Listener {listener_id} error: {error}");
+            }
+
+            event => log::debug!("Unhandled Swarm Event: {:?}", event),
         }
     }
 
@@ -313,6 +331,7 @@ impl DriaP2PClient {
     ///
     /// - For Kademlia, we check the kademlia protocol and then add the address to the Kademlia routing table.
     fn handle_identify_event(&mut self, peer_id: PeerId, info: identify::Info) {
+        println!("{}: {:?}", peer_id, info.protocols);
         // check identify protocol string
         if info.protocol_version != self.protocol.identity {
             log::warn!(

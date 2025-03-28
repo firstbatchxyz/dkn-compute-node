@@ -38,7 +38,7 @@ pub struct HeartbeatResponse {
 
 impl IsResponder for HeartbeatRequester {
     type Request = DriaMessage; // TODO: HeartbeatRequest;
-    type Response = DriaMessage; // TODO: HeartbeatResponse;
+    type Response = HeartbeatResponse;
 }
 
 /// Any acknowledged heartbeat that is older than this duration is considered dead.
@@ -80,10 +80,8 @@ impl HeartbeatRequester {
     /// Handles the heartbeat request received from the network.
     pub(crate) async fn handle_ack(
         node: &mut DriaComputeNode,
-        ack_message: DriaMessage,
+        res: HeartbeatResponse,
     ) -> Result<()> {
-        let res = ack_message.parse_payload::<HeartbeatResponse>()?;
-
         if let Some(deadline) = node.heartbeats.remove(&res.heartbeat_id) {
             if let Some(err) = res.error {
                 Err(eyre!("Heartbeat was not acknowledged: {}", err))
