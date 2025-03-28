@@ -56,6 +56,6 @@ mod tests {
         let steps = get_points("0xa43536a6032a3907ccf60e8109429ee1047b207c")
             .await
             .unwrap();
-        println!("{:?}", steps);
+        assert!(steps.score != 0);
     }
 }

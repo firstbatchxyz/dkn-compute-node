@@ -1,6 +1,6 @@
 use colored::Colorize;
 use dkn_p2p::libp2p::{
-    request_response::{self, ResponseChannel},
+    request_response::{self, OutboundRequestId, ResponseChannel},
     PeerId,
 };
 use eyre::{eyre, Result};
@@ -43,7 +43,7 @@ impl DriaComputeNode {
                 request_id,
             } => {
                 log::debug!("Received a response ({}) from {}", request_id, peer_id);
-                if let Err(e) = self.handle_response(peer_id, response).await {
+                if let Err(e) = self.handle_response(peer_id, request_id, response).await {
                     log::error!("Error handling response: {:?}", e);
                 }
             }
@@ -55,12 +55,16 @@ impl DriaComputeNode {
     /// - Internally, the data is expected to be some JSON serialized data that is expected to be parsed and handled.
     /// - Can be inlined because it is only called by [`DriaComputeNode::handle_reqres`].
     #[inline]
-    async fn handle_response(&mut self, peer_id: PeerId, data: Vec<u8>) -> Result<()> {
+    async fn handle_response(
+        &mut self,
+        peer_id: PeerId,
+        request_id: OutboundRequestId,
+        data: Vec<u8>,
+    ) -> Result<()> {
         if let Ok(heartbeat_response) = HeartbeatRequester::try_parse_response(&data) {
             log::info!(
-                "Received a {} response from {}",
+                "Received a {} response ({request_id}) from {peer_id}",
                 "heartbeat".blue(),
-                peer_id
             );
             HeartbeatRequester::handle_ack(self, heartbeat_response).await
         } else {
@@ -97,9 +101,8 @@ impl DriaComputeNode {
         channel: ResponseChannel<Vec<u8>>,
     ) -> Result<()> {
         log::info!(
-            "Got a {} request from peer {} with id {}",
+            "Got a {} request from peer {peer_id} with id {}",
             "spec".green(),
-            peer_id,
             spec_request.request_id
         );
 
@@ -107,9 +110,8 @@ impl DriaComputeNode {
         let response_data = serde_json::to_vec(&response)?;
 
         log::info!(
-            "Responding to {} request from peer {} with id {}",
+            "Responding to {} request from peer {peer_id} with id {}",
             "spec".green(),
-            peer_id,
             response.request_id
         );
         self.p2p.respond(response_data, channel).await?;

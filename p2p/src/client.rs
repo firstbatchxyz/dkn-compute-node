@@ -4,7 +4,7 @@ use libp2p::swarm::{
     dial_opts::{DialOpts, PeerCondition},
     SwarmEvent,
 };
-use libp2p::{autonat, identify, noise, request_response, tcp, yamux};
+use libp2p::{identify, noise, request_response, tcp, yamux};
 use libp2p::{Multiaddr, PeerId, Swarm, SwarmBuilder};
 use libp2p_identity::Keypair;
 use std::time::Duration;
@@ -30,7 +30,7 @@ pub struct DriaP2PClient {
 }
 
 /// Number of seconds before an idle connection is closed.
-const IDLE_CONNECTION_TIMEOUT_SECS: u64 = 60;
+const IDLE_CONNECTION_TIMEOUT_SECS: u64 = 240;
 /// Buffer size for command channel.
 const COMMAND_CHANNEL_BUFSIZE: usize = 1024;
 /// Buffer size for events channel.
@@ -195,11 +195,7 @@ impl DriaP2PClient {
                     peer, request_id, ..
                 },
             )) => {
-                log::debug!(
-                    "Request-Response: Response sent to peer {} with request_id {}",
-                    peer,
-                    request_id,
-                )
+                log::debug!("Request-Response: response ({request_id}) sent to peer {peer} with",)
             }
             SwarmEvent::Behaviour(DriaBehaviourEvent::RequestResponse(
                 request_response::Event::OutboundFailure {
@@ -210,10 +206,7 @@ impl DriaP2PClient {
                 },
             )) => {
                 log::error!(
-                    "Request-Response: Outbound failure to peer {} with request_id {}: {:?}",
-                    peer,
-                    request_id,
-                    error
+                    "Request-Response: Outbound failure to peer {peer} with request_id {request_id}: {error:?}",
                 );
             }
             SwarmEvent::Behaviour(DriaBehaviourEvent::RequestResponse(
@@ -241,6 +234,9 @@ impl DriaP2PClient {
                 ..
             })) => self.handle_identify_event(peer_id, info),
 
+            /*****************************************
+             * Connection events and errors handling *
+             *****************************************/
             SwarmEvent::NewListenAddr { address, .. } => {
                 log::warn!("Local node is listening on {address}");
             }
@@ -251,19 +247,6 @@ impl DriaP2PClient {
                 log::info!("External address confirmed: {address}");
             }
 
-            /*****************************************
-             * AutoNAT stuff                         *
-             *****************************************/
-            SwarmEvent::Behaviour(DriaBehaviourEvent::Autonat(autonat::Event::StatusChanged {
-                old,
-                new,
-            })) => {
-                log::info!("AutoNAT status changed from {old:?} to {new:?}");
-            }
-
-            /*****************************************
-             * Connection events and errors handling *
-             *****************************************/
             SwarmEvent::IncomingConnectionError {
                 local_addr,
                 send_back_addr,
@@ -277,7 +260,6 @@ impl DriaP2PClient {
                     error
                 );
             }
-
             SwarmEvent::IncomingConnection {
                 local_addr,
                 send_back_addr,
@@ -301,13 +283,42 @@ impl DriaP2PClient {
             SwarmEvent::ConnectionEstablished {
                 peer_id,
                 num_established,
+                connection_id,
+                endpoint,
                 ..
             } => {
                 log::info!(
-                    "Connection established with peer {} ({} connections)",
-                    peer_id,
-                    num_established
+                    "Connection (id: {connection_id}) established with peer {peer_id} ({} connections) at {:?}",
+                    num_established,
+                    endpoint
                 );
+            }
+
+            SwarmEvent::ConnectionClosed {
+                peer_id,
+                connection_id,
+                endpoint,
+                num_established,
+                cause,
+            } => {
+                log::warn!(
+                    "Connection (id: {connection_id}) closed for {peer_id} ({} connections)\nCause: {}",
+                    num_established,
+                    cause.map(|c| c.to_string()).unwrap_or("Unknown".to_string())
+                );
+
+                if endpoint.is_dialer() {
+                    let addr = endpoint.get_remote_address();
+                    log::info!("Dialing {} again at {}", peer_id, addr);
+                    if let Err(e) = self.swarm.dial(
+                        DialOpts::peer_id(peer_id)
+                            .addresses(vec![addr.clone()])
+                            .condition(PeerCondition::DisconnectedAndNotDialing)
+                            .build(),
+                    ) {
+                        log::error!("Could not dial peer {}: {:?}", peer_id, e);
+                    }
+                }
             }
 
             SwarmEvent::ExpiredListenAddr {
@@ -331,8 +342,6 @@ impl DriaP2PClient {
     ///
     /// - For Kademlia, we check the kademlia protocol and then add the address to the Kademlia routing table.
     fn handle_identify_event(&mut self, peer_id: PeerId, info: identify::Info) {
-        println!("{}: {:?}", peer_id, info.protocols);
-        // check identify protocol string
         if info.protocol_version != self.protocol.identity {
             log::warn!(
                 "Identify: Peer {} has different Identify protocol: (them {}, you {})",

@@ -20,7 +20,7 @@ impl DriaComputeNode {
     }
 
     /// Peer refresh simply reports the peer count to the user.
-    pub(crate) async fn handle_diagnostic_refresh(&self) {
+    pub(crate) async fn handle_diagnostic_refresh(&mut self) {
         let mut diagnostics = vec![format!("Diagnostics (v{}):", DRIA_COMPUTE_NODE_VERSION)];
 
         // print steps
@@ -37,6 +37,21 @@ impl DriaComputeNode {
             diagnostics.push(format!(
                 "Completed Tasks (single/batch): {} / {}",
                 self.completed_tasks_single, self.completed_tasks_batch
+            ));
+
+            diagnostics.push(format!(
+                "RPC {}: {}",
+                self.dria_rpc.peer_id,
+                if self
+                    .p2p
+                    .is_connected(self.dria_rpc.peer_id)
+                    .await
+                    .unwrap_or(false)
+                {
+                    "Connected".green()
+                } else {
+                    "Disconnected".red()
+                }
             ));
         }
 

@@ -94,8 +94,5 @@ mod tests {
         assert!(!specs.os.is_empty());
         assert!(!specs.arch.is_empty());
         assert!(specs.lookup.is_some());
-
-        // print optionally:
-        // println!("{}", serde_json::to_string_pretty(&specs).unwrap());
     }
 }

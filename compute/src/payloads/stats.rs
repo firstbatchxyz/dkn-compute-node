@@ -52,27 +52,14 @@ mod tests {
     #[test]
     fn test_stats() {
         let mut stats = TaskStats::default();
+        let unix_epoch = chrono::DateTime::<chrono::Utc>::default();
 
-        assert_eq!(
-            stats.received_at,
-            chrono::DateTime::<chrono::Utc>::default()
-        );
+        assert_eq!(stats.received_at, unix_epoch);
         stats = stats.record_received_at();
-        assert_ne!(
-            stats.received_at,
-            chrono::DateTime::<chrono::Utc>::default()
-        );
+        assert_ne!(stats.received_at, unix_epoch);
 
-        assert_eq!(
-            stats.published_at,
-            chrono::DateTime::<chrono::Utc>::default()
-        );
+        assert_eq!(stats.published_at, unix_epoch);
         stats = stats.record_published_at();
-        assert_ne!(
-            stats.published_at,
-            chrono::DateTime::<chrono::Utc>::default()
-        );
-
-        println!("{:?}", stats);
+        assert_ne!(stats.published_at, unix_epoch);
     }
 }

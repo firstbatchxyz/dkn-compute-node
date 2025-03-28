@@ -67,6 +67,6 @@ mod tests {
     #[tokio::test]
     async fn test_dria_nodes() {
         let node = DriaRPC::new(DriaNetworkType::Community).await;
-        println!("{:?}", node);
+        assert!(node.is_ok());
     }
 }

@@ -324,7 +324,7 @@ mod tests {
             let result = publish_rx.recv().await.unwrap();
             log::info!("Got result {}", i + 1,);
             if result.result.is_err() {
-                println!("Error: {:?}", result.result);
+                log::error!("Error: {:?}", result.result);
             }
             results.push(result);
         }
