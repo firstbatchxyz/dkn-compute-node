@@ -16,6 +16,18 @@ use crate::DriaP2PProtocol;
 use super::commands::DriaP2PCommand;
 use super::DriaP2PCommander;
 
+/// Number of seconds before an idle connection is closed.
+const IDLE_CONNECTION_TIMEOUT_SECS: u64 = 240;
+/// Buffer size for command channel.
+const COMMAND_CHANNEL_BUFSIZE: usize = 1024;
+/// Buffer size for events channel.
+const MSG_CHANNEL_BUFSIZE: usize = 1024;
+
+/// Request-response message type for Dria protocol, accepts bytes as both request and response.
+///
+/// The additional parsing must be done by the application itself (for now).
+pub type DriaReqResMessage = request_response::Message<Vec<u8>, Vec<u8>>;
+
 /// Peer-to-peer client for Dria Knowledge Network.
 pub struct DriaP2PClient {
     pub peer_id: PeerId,
@@ -24,17 +36,10 @@ pub struct DriaP2PClient {
     /// Dria protocol, used for identifying the client.
     protocol: DriaP2PProtocol,
     /// Request-response protocol messages.
-    reqres_tx: mpsc::Sender<(PeerId, request_response::Message<Vec<u8>, Vec<u8>>)>,
+    reqres_tx: mpsc::Sender<(PeerId, DriaReqResMessage)>,
     /// Command receiver.
     cmd_rx: mpsc::Receiver<DriaP2PCommand>,
 }
-
-/// Number of seconds before an idle connection is closed.
-const IDLE_CONNECTION_TIMEOUT_SECS: u64 = 240;
-/// Buffer size for command channel.
-const COMMAND_CHANNEL_BUFSIZE: usize = 1024;
-/// Buffer size for events channel.
-const MSG_CHANNEL_BUFSIZE: usize = 1024;
 
 impl DriaP2PClient {
     /// Creates a new P2P client with the given keypair and listen address.
@@ -43,6 +48,7 @@ impl DriaP2PClient {
     /// they match with the clients existing within the network.
     ///
     /// If for any reason the given `listen_addr` is not available, it will try to listen on a random port on `localhost`.
+    #[allow(clippy::type_complexity)]
     pub fn new(
         keypair: Keypair,
         listen_addr: Multiaddr,
@@ -51,7 +57,7 @@ impl DriaP2PClient {
     ) -> Result<(
         DriaP2PClient,
         DriaP2PCommander,
-        mpsc::Receiver<(PeerId, request_response::Message<Vec<u8>, Vec<u8>>)>,
+        mpsc::Receiver<(PeerId, DriaReqResMessage)>,
     )> {
         let peer_id = keypair.public().to_peer_id();
 

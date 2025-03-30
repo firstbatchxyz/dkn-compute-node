@@ -1,6 +1,5 @@
 use dkn_p2p::{
-    libp2p::{request_response, PeerId},
-    DriaP2PClient, DriaP2PCommander, DriaP2PProtocol,
+    libp2p::PeerId, DriaP2PClient, DriaP2PCommander, DriaP2PProtocol, DriaReqResMessage,
 };
 use eyre::Result;
 use std::collections::HashMap;
@@ -34,7 +33,7 @@ pub struct DriaComputeNode {
     /// This is used to track the heartbeats, and their acknowledgements.
     pub(crate) heartbeats: HashMap<uuid::Uuid, chrono::DateTime<chrono::Utc>>,
     /// Request-response message receiver, can have both a request or a response.
-    reqres_rx: mpsc::Receiver<(PeerId, request_response::Message<Vec<u8>, Vec<u8>>)>,
+    reqres_rx: mpsc::Receiver<(PeerId, DriaReqResMessage)>,
     /// Task response receiver, will respond to the request-response channel with the given result.
     task_output_rx: mpsc::Receiver<TaskWorkerOutput>,
     /// Task worker transmitter to send batchable tasks.

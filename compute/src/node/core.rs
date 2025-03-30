@@ -59,8 +59,8 @@ impl DriaComputeNode {
                 _ = heartbeat_interval.tick() => {
                   if let Err(e) = self.send_heartbeat().await {
                     log::error!("Error making heartbeat: {:?}", e);
-                }
-              },
+                  }
+                },
 
                 // check if the cancellation token is cancelled
                 // this is expected to be cancelled by the main thread with signal handling

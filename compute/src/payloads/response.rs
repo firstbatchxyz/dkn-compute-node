@@ -5,10 +5,6 @@ use serde::{Deserialize, Serialize};
 use super::TaskStats;
 
 /// A computation task is the task of computing a result from a given input. The result is encrypted with the public key of the requester.
-/// Plain result is signed by the compute node's private key, and a commitment is computed from the signature and plain result.
-///
-/// To check the commitment, one must decrypt the ciphertext and parse plaintext from it,
-/// and compute the digest using SHA256. That digest will then be used for the signature check.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskResponsePayload {
@@ -23,10 +19,7 @@ pub struct TaskResponsePayload {
 }
 
 impl TaskResponsePayload {
-    /// Creates the payload of a computation result.
-    ///
-    /// - Sign `task_id || payload` with node `self.secret_key`
-    /// - Encrypt `result` with `task_public_key`
+    /// Creates the payload of a computation with its (encrypted) result.
     pub fn new(
         result: impl AsRef<[u8]>,
         task_id: impl ToString,

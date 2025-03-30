@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Task stats for diagnostics.
+///
 /// Returning this as the payload helps to debug the errors received at client side, and latencies.
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

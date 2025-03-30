@@ -1,8 +1,9 @@
 use colored::Colorize;
 use dkn_p2p::libp2p::{
-    request_response::{self, OutboundRequestId, ResponseChannel},
+    request_response::{OutboundRequestId, ResponseChannel},
     PeerId,
 };
+use dkn_p2p::DriaReqResMessage;
 use eyre::{eyre, Result};
 
 use crate::{reqres::*, workers::task::TaskWorkerOutput};
@@ -16,13 +17,9 @@ impl DriaComputeNode {
     /// - Response is forwarded to [`handle_response`](DriaComputeNode::handle_response) method.
     ///
     /// Does not return an error, but simply logs it to [`log::error`].
-    pub(crate) async fn handle_reqres(
-        &mut self,
-        peer_id: PeerId,
-        message: request_response::Message<Vec<u8>, Vec<u8>>,
-    ) {
+    pub(crate) async fn handle_reqres(&mut self, peer_id: PeerId, message: DriaReqResMessage) {
         match message {
-            request_response::Message::Request {
+            DriaReqResMessage::Request {
                 request,
                 request_id,
                 channel,
@@ -38,7 +35,7 @@ impl DriaComputeNode {
                 }
             }
 
-            request_response::Message::Response {
+            DriaReqResMessage::Response {
                 response,
                 request_id,
             } => {
