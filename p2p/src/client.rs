@@ -232,7 +232,19 @@ impl DriaP2PClient {
                 peer_id,
                 info,
                 ..
-            })) => self.handle_identify_event(peer_id, info),
+            })) => {
+                if info.protocol_version != self.protocol.identity {
+                    log::warn!(
+                        "Identify: Peer {} has different Identify protocol: (them {}, you {})",
+                        peer_id,
+                        info.protocol_version,
+                        self.protocol.identity
+                    );
+
+                    // disconnect them
+                    let _ = self.swarm.disconnect_peer_id(peer_id);
+                }
+            }
 
             /*****************************************
              * Connection events and errors handling *
@@ -335,25 +347,6 @@ impl DriaP2PClient {
             }
 
             event => log::debug!("Unhandled Swarm Event: {:?}", event),
-        }
-    }
-
-    /// Handles identify events.
-    ///
-    /// At the top level, we check the protocol string.
-    ///
-    /// - For Kademlia, we check the kademlia protocol and then add the address to the Kademlia routing table.
-    fn handle_identify_event(&mut self, peer_id: PeerId, info: identify::Info) {
-        if info.protocol_version != self.protocol.identity {
-            log::warn!(
-                "Identify: Peer {} has different Identify protocol: (them {}, you {})",
-                peer_id,
-                info.protocol_version,
-                self.protocol.identity
-            );
-
-            // disconnect them
-            let _ = self.swarm.disconnect_peer_id(peer_id);
         }
     }
 }
