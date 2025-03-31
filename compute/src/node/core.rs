@@ -9,22 +9,21 @@ impl DriaComputeNode {
     /// Runs the main loop of the compute node.
     /// This method is not expected to return until cancellation occurs for the given token.
     pub async fn run(&mut self, cancellation: CancellationToken) {
-        /// Number of seconds between refreshing for diagnostic prints.
-        const DIAGNOSTIC_REFRESH_INTERVAL_SECS: u64 = 30;
-        /// Number of seconds between refreshing the available nodes.
-        const AVAILABLE_NODES_REFRESH_INTERVAL_SECS: u64 = 10 * 60;
-        /// Number of seconds between each heartbeat sent to the RPC.
-        const HEARTBEAT_INTERVAL_SECS: u64 = 60;
+        /// Duration between refreshing for diagnostic prints.
+        const DIAGNOSTIC_REFRESH_INTERVAL_SECS: Duration = Duration::from_secs(30);
+        /// Duration between refreshing the available nodes.
+        const AVAILABLE_NODES_REFRESH_INTERVAL_SECS: Duration = Duration::from_secs(2 * 60);
+        /// Duration between each heartbeat sent to the RPC.
+        const HEARTBEAT_INTERVAL_SECS: Duration = Duration::from_secs(60);
 
-        // prepare durations for sleeps
         let mut diagnostic_refresh_interval =
-            tokio::time::interval(Duration::from_secs(DIAGNOSTIC_REFRESH_INTERVAL_SECS));
+            tokio::time::interval(DIAGNOSTIC_REFRESH_INTERVAL_SECS);
         diagnostic_refresh_interval.tick().await; // move each one tick
         let mut available_node_refresh_interval =
-            tokio::time::interval(Duration::from_secs(AVAILABLE_NODES_REFRESH_INTERVAL_SECS));
+            tokio::time::interval(AVAILABLE_NODES_REFRESH_INTERVAL_SECS);
         available_node_refresh_interval.tick().await; // move each one tick
-        let mut heartbeat_interval =
-            tokio::time::interval(Duration::from_secs(HEARTBEAT_INTERVAL_SECS));
+
+        let mut heartbeat_interval = tokio::time::interval(HEARTBEAT_INTERVAL_SECS);
 
         loop {
             tokio::select! {
