@@ -7,7 +7,8 @@ use crate::{
 };
 
 /// Number of seconds such that if the last heartbeat ACK is older than this, the node is considered unreachable.
-const HEARTBEAT_LIVENESS_SECS: Duration = Duration::from_secs(150);
+/// This must be at least greated than the heartbeat interval duration, and the liveness check duration.
+const HEARTBEAT_LIVENESS_SECS: Duration = Duration::from_secs(4 * 60);
 
 impl DriaComputeNode {
     /// Returns the task count within the channels, `single` and `batch`.
