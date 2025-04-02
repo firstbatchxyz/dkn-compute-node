@@ -41,6 +41,3 @@ profiling = ["sysinfo", "prettytable"]
 # only used for tests
 dotenvy.workspace = true
 
-[[bin]]
-name = "tps"
-path = "src/bin/tps.rs"
