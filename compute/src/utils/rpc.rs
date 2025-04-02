@@ -12,11 +12,8 @@ pub struct DriaRPC {
 }
 
 impl DriaRPC {
-    /// Creates a new `AvailableNodes` struct for the given network type.
-    ///
-    /// Will panic if anything goes wrong.
-    pub async fn new(network: DriaNetworkType) -> Result<Self> {
-        let addr = refresh_rpc_addr(&network).await?;
+    /// Creates a new RPC target at the given type, along with a network type for refreshing the RPC address.
+    pub fn new(addr: Multiaddr, network: DriaNetworkType) -> Result<Self> {
         let peer_id = addr
             .iter()
             .find_map(|p| match p {
@@ -31,12 +28,18 @@ impl DriaRPC {
             network,
         })
     }
+
+    /// Creates a new RPC target for the given network type.
+    pub async fn new_for_network(network: DriaNetworkType) -> Result<Self> {
+        let addr = get_rpc_for_network(&network).await?;
+        Self::new(addr, network)
+    }
 }
 
 /// Calls the DKN API to get an RPC address for the given network type.
 ///
 /// The peer id is expected to be within the multi-address.
-async fn refresh_rpc_addr(network: &DriaNetworkType) -> Result<Multiaddr> {
+async fn get_rpc_for_network(network: &DriaNetworkType) -> Result<Multiaddr> {
     #[derive(serde::Deserialize, Debug)]
     struct DriaNodesApiResponse {
         pub rpc: Multiaddr,
@@ -66,7 +69,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_dria_nodes() {
-        let node = DriaRPC::new(DriaNetworkType::Community).await;
+        let node = DriaRPC::new_for_network(DriaNetworkType::Community).await;
         assert!(node.is_ok());
     }
 }

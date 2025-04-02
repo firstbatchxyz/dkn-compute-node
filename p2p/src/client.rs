@@ -16,8 +16,8 @@ use crate::DriaP2PProtocol;
 use super::commands::DriaP2PCommand;
 use super::DriaP2PCommander;
 
-/// Number of seconds before an idle connection is closed.
-const IDLE_CONNECTION_TIMEOUT_SECS: u64 = 240;
+/// Duration before an idle connection is closed.
+const IDLE_CONNECTION_TIMEOUT: Duration = Duration::from_secs(4 * 60);
 /// Buffer size for command channel.
 const COMMAND_CHANNEL_BUFSIZE: usize = 1024;
 /// Buffer size for events channel.
@@ -71,9 +71,7 @@ impl DriaP2PClient {
             .with_behaviour(|key| {
                 DriaBehaviour::new(key, protocol.identity(), protocol.request_response())
             })?
-            .with_swarm_config(|c| {
-                c.with_idle_connection_timeout(Duration::from_secs(IDLE_CONNECTION_TIMEOUT_SECS))
-            })
+            .with_swarm_config(|c| c.with_idle_connection_timeout(IDLE_CONNECTION_TIMEOUT))
             .build();
 
         // listen on all interfaces for incoming connections

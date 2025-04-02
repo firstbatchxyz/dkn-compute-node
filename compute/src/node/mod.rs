@@ -70,7 +70,7 @@ impl DriaComputeNode {
         let keypair = secret_to_keypair(&config.secret_key);
 
         // get available rpc node
-        let dria_nodes = DriaRPC::new(config.network_type)
+        let dria_nodes = DriaRPC::new_for_network(config.network_type)
             .await
             .expect("could not get RPC to connect to");
 

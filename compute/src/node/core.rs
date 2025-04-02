@@ -10,18 +10,18 @@ impl DriaComputeNode {
     /// This method is not expected to return until cancellation occurs for the given token.
     pub async fn run(&mut self, cancellation: CancellationToken) {
         /// Duration between refreshing for diagnostic prints.
-        const DIAGNOSTIC_REFRESH_INTERVAL_SECS: Duration = Duration::from_secs(30);
+        const DIAGNOSTIC_REFRESH_INTERVAL_SECS: Duration = Duration::from_secs(45);
         /// Duration between refreshing the available nodes.
-        const AVAILABLE_NODES_REFRESH_INTERVAL_SECS: Duration = Duration::from_secs(2 * 60);
+        const RPC_LIVENESS_REFRESH_INTERVAL_SECS: Duration = Duration::from_secs(2 * 60);
         /// Duration between each heartbeat sent to the RPC.
         const HEARTBEAT_INTERVAL_SECS: Duration = Duration::from_secs(60);
 
         let mut diagnostic_refresh_interval =
             tokio::time::interval(DIAGNOSTIC_REFRESH_INTERVAL_SECS);
         diagnostic_refresh_interval.tick().await; // move each one tick
-        let mut available_node_refresh_interval =
-            tokio::time::interval(AVAILABLE_NODES_REFRESH_INTERVAL_SECS);
-        available_node_refresh_interval.tick().await; // move each one tick
+        let mut rpc_liveness_refresh_interval =
+            tokio::time::interval(RPC_LIVENESS_REFRESH_INTERVAL_SECS);
+        rpc_liveness_refresh_interval.tick().await; // move each one tick
 
         let mut heartbeat_interval = tokio::time::interval(HEARTBEAT_INTERVAL_SECS);
 
@@ -52,8 +52,8 @@ impl DriaComputeNode {
                 // check peer count every now and then
                 _ = diagnostic_refresh_interval.tick() => self.handle_diagnostic_refresh().await,
 
-                // available nodes are refreshed every now and then
-                _ = available_node_refresh_interval.tick() => self.handle_available_nodes_refresh().await,
+                // check RPC, and get a new one if we are disconnected
+                _ = rpc_liveness_refresh_interval.tick() => self.handle_rpc_liveness_check().await,
 
                 _ = heartbeat_interval.tick() => {
                   if let Err(e) = self.send_heartbeat().await {

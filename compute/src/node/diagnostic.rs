@@ -98,7 +98,7 @@ impl DriaComputeNode {
     ///
     /// If there is an error while doing that,
     /// it will try to get a new RPC node and dial it.
-    pub(crate) async fn handle_available_nodes_refresh(&mut self) {
+    pub(crate) async fn handle_rpc_liveness_check(&mut self) {
         log::debug!("Checking RPC connections for diagnostics.");
 
         // check if we are connected
@@ -108,19 +108,15 @@ impl DriaComputeNode {
             .await
             .unwrap_or(false);
 
-        // if we are not connected, try to dial it again
+        // if we are not connected, get a new RPC and dial it again
         if !is_connected {
-            log::info!("Dialling RPC at: {}", self.dria_rpc.addr);
-            if let Err(err) = self
-                .dial_with_timeout(self.dria_rpc.peer_id, self.dria_rpc.addr.clone())
-                .await
-            {
-                // if we also cannot dial it, get a new RPC node
-                log::warn!(
-                    "Could not dial to RPC at: {}: {err:?}\nWill get a new RPC node.",
-                    self.dria_rpc.addr,
-                );
-                if let Ok(new_rpc) = DriaRPC::new(self.dria_rpc.network).await {
+            // if we also cannot dial it, get a new RPC node
+            log::warn!(
+                "Connection to RPC {} is lost, geting a new one!",
+                self.dria_rpc.addr,
+            );
+            match DriaRPC::new_for_network(self.dria_rpc.network).await {
+                Ok(new_rpc) => {
                     self.dria_rpc = new_rpc;
 
                     // now dial this new RPC again
@@ -129,14 +125,13 @@ impl DriaComputeNode {
                         .await
                     {
                         // worst-case we cant dial this one too, just leave it for the next diagnostic
-                        log::error!("Could not dial the new RPC: {err:?}\nWill try again in the next diagnostic refresh.");
+                        log::error!("Could not dial the new RPC: {err:?}");
                     }
-                } else {
-                    log::error!("Could not get a new RPC node!\nWill try again in the next diagnostic refresh.");
                 }
-            } else {
-                log::info!("Successfully dialled to RPC at: {}", self.dria_rpc.addr);
-            }
+                Err(err) => {
+                    log::error!("Could not get a new RPC node: {err:?}");
+                }
+            };
         } else {
             log::debug!("Connection with {} is intact.", self.dria_rpc.peer_id);
         }
