@@ -201,10 +201,8 @@ impl DriaComputeNode {
         let peer_id = self.dria_rpc.peer_id;
         let request_id = HeartbeatRequester::send_heartbeat(self, peer_id).await?;
         log::info!(
-            "Sent {} request ({}) to {}",
-            "heartbeat".blue(),
-            request_id,
-            peer_id
+            "Sending {} request ({request_id}) to {peer_id}",
+            "heartbeat".blue()
         );
 
         Ok(())
