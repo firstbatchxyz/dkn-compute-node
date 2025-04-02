@@ -10,7 +10,6 @@ authors = ["Erhan Tezcan <erhan@firstbatch.xyz>"]
 # async stuff
 tokio-util.workspace = true
 tokio.workspace = true
-async-trait.workspace = true
 
 # serialize & deserialize
 serde.workspace = true
@@ -27,7 +26,7 @@ dotenvy.workspace = true
 base64 = "0.22.0"
 hex = "0.4.3"
 hex-literal = "0.4.1"
-uuid = { version = "1.8.0", features = ["v4"] }
+uuid = { version = "1.8.0", features = ["v4", "serde"] }
 rand.workspace = true
 
 # logging & errors
@@ -46,7 +45,7 @@ fastbloom-rs = "0.5.9"
 # machine diagnostics
 # system info
 sysinfo = "0.33.1"
-# gpu info TODO: this gives a build error on Windows
+# gpu info FIXME: this gives a build error on Windows
 # wgpu = { version = "23.0.1", features = [
 #     "serde",
 #     "dx12",
@@ -59,6 +58,7 @@ public-ip-address = "0.3.2"
 dkn-p2p = { path = "../p2p" }
 dkn-utils = { path = "../utils" }
 dkn-workflows = { path = "../workflows" }
+chrono = { version = "0.4.40", features = ["serde"] }
 
 
 # vendor OpenSSL so that its easier to build cross-platform packages

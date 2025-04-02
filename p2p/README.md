@@ -25,24 +25,10 @@ Here is an example where we create the said entities:
 ```rs
 use dkn_p2p::{DriaP2PClient, DriaP2PProtocol};
 
-// your wallet, or something random maybe
-let keypair = Keypair::generate_secp256k1();
-
-// your listen address
-let addr = Multiaddr::from_str("/ip4/0.0.0.0/tcp/4001")?;
-
-// static bootstrap & relay & rpc addresses
-let bootstraps = vec![Multiaddr::from_str(
-    "some-multiaddrs-here"
-)?];
-let relays = vec![Multiaddr::from_str(
-    "some-multiaddrs-here"
-)?];
-let rpcs = vec![Multiaddr::from_str(
-    "some-multiaddrs-here"
-)?];
-
-let protocol = "0.2";
+let keypair = Keypair::generate_secp256k1(); // or your wallet
+let listen_addr = Multiaddr::from_str("/ip4/0.0.0.0/tcp/4001")?;
+let rpc_addr = Multiaddr::from_str("some-multiaddr-here")?;
+let protocol = "0.4"; // DKN protocol version
 
 // `new` returns 3 things:
 // - p2p client itself, to be given to a thread
@@ -50,10 +36,8 @@ let protocol = "0.2";
 // - `msg_rx`, the channel to listen for gossipsub messages
 let (client, mut commander, mut msg_rx) = DriaP2PClient::new(
   keypair,
-  addr,
-  bootstraps,
-  relays,
-  rpc,
+  listen_addr,
+  rpc_addr,
   protocol
 )?;
 ```

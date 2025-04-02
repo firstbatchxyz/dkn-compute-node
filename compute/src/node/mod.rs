@@ -1,25 +1,18 @@
 use dkn_p2p::{
-    libp2p::{
-        gossipsub::{Message, MessageId},
-        request_response::ResponseChannel,
-        PeerId,
-    },
-    DriaNodes, DriaP2PClient, DriaP2PCommander, DriaP2PProtocol,
+    libp2p::PeerId, DriaP2PClient, DriaP2PCommander, DriaP2PProtocol, DriaReqResMessage,
 };
 use eyre::Result;
 use std::collections::HashMap;
-use tokio::{sync::mpsc, time::Instant};
+use tokio::sync::mpsc;
 
 use crate::{
     config::*,
-    gossipsub::*,
-    utils::{crypto::secret_to_keypair, get_steps, refresh_dria_nodes, SpecCollector},
+    utils::{crypto::secret_to_keypair, get_points, DriaRPC, SpecCollector},
     workers::task::{TaskWorker, TaskWorkerInput, TaskWorkerMetadata, TaskWorkerOutput},
 };
 
 mod core;
 mod diagnostic;
-mod gossipsub;
 mod reqres;
 
 /// Buffer size for message publishes.
@@ -27,23 +20,20 @@ const PUBLISH_CHANNEL_BUFSIZE: usize = 1024;
 
 pub struct DriaComputeNode {
     pub config: DriaComputeNodeConfig,
-    /// Pre-defined nodes that belong to Dria, e.g. bootstraps, relays and RPCs.
-    pub dria_nodes: DriaNodes,
+    /// Chosen RPC node.
+    pub dria_rpc: DriaRPC,
     /// Peer-to-peer client commander to interact with the network.
     pub p2p: DriaP2PCommander,
-    /// The last time the node was pinged by the network.
+    /// The last time the node had an acknowledged heartbeat.
     /// If this is too much, we can say that the node is not reachable by RPC.
-    pub(crate) last_pinged_at: Instant,
+    pub(crate) last_heartbeat_at: chrono::DateTime<chrono::Utc>,
     /// Number of pings received.
-    pub(crate) num_pings: u64,
-    /// The time the node was started.
-    pub(crate) started_at: Instant,
-    /// Gossipsub message receiver, used by peer-to-peer client in a separate thread.
-    ///
-    /// It will publish messages sent to this channel to the network.
-    gossip_message_rx: mpsc::Receiver<(PeerId, MessageId, Message)>,
-    /// Request-response request receiver.
-    request_rx: mpsc::Receiver<(PeerId, Vec<u8>, ResponseChannel<Vec<u8>>)>,
+    pub(crate) num_heartbeats: u64,
+    /// A mapping of heartbeat UUIDs to their deadlines.
+    /// This is used to track the heartbeats, and their acknowledgements.
+    pub(crate) heartbeats: HashMap<uuid::Uuid, chrono::DateTime<chrono::Utc>>,
+    /// Request-response message receiver, can have both a request or a response.
+    reqres_rx: mpsc::Receiver<(PeerId, DriaReqResMessage)>,
     /// Task response receiver, will respond to the request-response channel with the given result.
     task_output_rx: mpsc::Receiver<TaskWorkerOutput>,
     /// Task worker transmitter to send batchable tasks.
@@ -79,13 +69,10 @@ impl DriaComputeNode {
         // create the keypair from secret key
         let keypair = secret_to_keypair(&config.secret_key);
 
-        // get available nodes (bootstrap, relay, rpc) for p2p
-        let mut dria_nodes = DriaNodes::new(config.network_type)
-            .with_statics()
-            .with_envs();
-        if let Err(e) = refresh_dria_nodes(&mut dria_nodes).await {
-            log::error!("Error populating available nodes: {:?}", e);
-        };
+        // get available rpc node
+        let dria_nodes = DriaRPC::new(config.network_type)
+            .await
+            .expect("could not get RPC to connect to");
 
         // we are using the major.minor version as the P2P version
         // so that patch versions do not interfere with the protocol
@@ -93,10 +80,10 @@ impl DriaComputeNode {
         log::info!("Using identity: {}", protocol);
 
         // create p2p client
-        let (p2p_client, p2p_commander, message_rx, request_rx) = DriaP2PClient::new(
+        let (p2p_client, p2p_commander, request_rx) = DriaP2PClient::new(
             keypair,
             config.p2p_listen_addr.clone(),
-            &dria_nodes,
+            &dria_nodes.addr,
             protocol,
         )?;
 
@@ -121,7 +108,7 @@ impl DriaComputeNode {
 
         let model_names = config.workflows.get_model_names();
 
-        let initial_steps = get_steps(&config.address)
+        let initial_steps = get_points(&config.address)
             .await
             .map(|s| s.score)
             .unwrap_or_default();
@@ -130,11 +117,10 @@ impl DriaComputeNode {
             DriaComputeNode {
                 config,
                 p2p: p2p_commander,
-                dria_nodes,
+                dria_rpc: dria_nodes,
                 // receivers
                 task_output_rx: publish_rx,
-                gossip_message_rx: message_rx,
-                request_rx,
+                reqres_rx: request_rx,
                 // transmitters
                 task_request_batch_tx: task_batch_tx,
                 task_request_single_tx: task_single_tx,
@@ -143,12 +129,13 @@ impl DriaComputeNode {
                 pending_tasks_batch: HashMap::new(),
                 completed_tasks_single: 0,
                 completed_tasks_batch: 0,
-                // others
+                // heartbeats
+                heartbeats: HashMap::new(),
+                last_heartbeat_at: chrono::Utc::now(),
+                num_heartbeats: 0,
+                // misc
                 initial_steps,
                 spec_collector: SpecCollector::new(model_names),
-                last_pinged_at: Instant::now(),
-                num_pings: 0,
-                started_at: Instant::now(),
             },
             p2p_client,
             task_batch_worker,

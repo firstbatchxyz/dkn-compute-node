@@ -1,5 +1,9 @@
 use colored::Colorize;
-use dkn_p2p::libp2p::{request_response::ResponseChannel, PeerId};
+use dkn_p2p::libp2p::{
+    request_response::{OutboundRequestId, ResponseChannel},
+    PeerId,
+};
+use dkn_p2p::DriaReqResMessage;
 use eyre::{eyre, Result};
 
 use crate::{reqres::*, workers::task::TaskWorkerOutput};
@@ -7,49 +11,95 @@ use crate::{reqres::*, workers::task::TaskWorkerOutput};
 use super::DriaComputeNode;
 
 impl DriaComputeNode {
-    /// Handles a request-response request received from the network.
+    /// Handles a generic request-response message received from the network.
     ///
-    /// Internally, the data is expected to be some JSON serialized data that is expected to be parsed and handled.
-    pub(crate) async fn handle_request(
-        &mut self,
-        (peer_id, data, channel): (PeerId, Vec<u8>, ResponseChannel<Vec<u8>>),
-    ) -> Result<()> {
-        // ensure that message is from the known RPCs
-        if !self.dria_nodes.rpc_peerids.contains(&peer_id) {
-            log::warn!("Received request from unauthorized source: {}", peer_id);
-            log::debug!("Allowed sources: {:#?}", self.dria_nodes.rpc_peerids);
-            return Err(eyre!("Received unauthorized request from {}", peer_id));
-        }
+    /// - Request is forwarded to [`handle_request`](DriaComputeNode::handle_request) method.
+    /// - Response is forwarded to [`handle_response`](DriaComputeNode::handle_response) method.
+    ///
+    /// Does not return an error, but simply logs it to [`log::error`].
+    pub(crate) async fn handle_reqres(&mut self, peer_id: PeerId, message: DriaReqResMessage) {
+        match message {
+            DriaReqResMessage::Request {
+                request,
+                request_id,
+                channel,
+            } => {
+                log::debug!("Received a request ({}) from {}", request_id, peer_id);
 
-        // try and parse the request
-        if let Ok(spec_request) = SpecResponder::try_parse_request(&data) {
-            self.handle_spec_request(peer_id, channel, spec_request)
-                .await?;
-        } else if let Ok(task_request) = TaskResponder::try_parse_request(&data) {
-            self.handle_task_request(peer_id, channel, task_request)
-                .await?;
-        } else {
-            return Err(eyre::eyre!(
-                "Received unknown request from {}: {:?}",
-                peer_id,
-                data,
-            ));
+                // ensure that message is from the known RPCs
+                if self.dria_rpc.peer_id != peer_id {
+                    log::warn!("Received request from unauthorized source: {}", peer_id);
+                    log::debug!("Allowed source: {}", self.dria_rpc.peer_id);
+                } else if let Err(e) = self.handle_request(peer_id, request, channel).await {
+                    log::error!("Error handling request: {:?}", e);
+                }
+            }
+
+            DriaReqResMessage::Response {
+                response,
+                request_id,
+            } => {
+                log::debug!("Received a response ({}) from {}", request_id, peer_id);
+                if let Err(e) = self.handle_response(peer_id, request_id, response).await {
+                    log::error!("Error handling response: {:?}", e);
+                }
+            }
         };
-
-        Ok(())
     }
 
-    /// Handles a Specifications request received from the network.
+    /// Handles a [`request_response`] response received from the network.
+    ///
+    /// - Internally, the data is expected to be some JSON serialized data that is expected to be parsed and handled.
+    /// - Can be inlined because it is only called by [`DriaComputeNode::handle_reqres`].
+    #[inline]
+    async fn handle_response(
+        &mut self,
+        peer_id: PeerId,
+        request_id: OutboundRequestId,
+        data: Vec<u8>,
+    ) -> Result<()> {
+        if let Ok(heartbeat_response) = HeartbeatRequester::try_parse_response(&data) {
+            log::info!(
+                "Received a {} response ({request_id}) from {peer_id}",
+                "heartbeat".blue(),
+            );
+            HeartbeatRequester::handle_ack(self, heartbeat_response).await
+        } else {
+            Err(eyre::eyre!("Received unhandled request from {}", peer_id))
+        }
+    }
+
+    /// Handles a [`request_response`] request received from the network.
+    ///
+    /// - Internally, the data is expected to be some JSON serialized data that is expected to be parsed and handled.
+    /// - Can be inlined because it is only called by [`DriaComputeNode::handle_reqres`].
+    async fn handle_request(
+        &mut self,
+        peer_id: PeerId,
+        data: Vec<u8>,
+        channel: ResponseChannel<Vec<u8>>,
+    ) -> Result<()> {
+        if let Ok(spec_request) = SpecResponder::try_parse_request(&data) {
+            self.handle_spec_request(peer_id, spec_request, channel)
+                .await
+        } else if let Ok(task_request) = TaskResponder::try_parse_request(&data) {
+            self.handle_task_request(peer_id, task_request, channel)
+                .await
+        } else {
+            Err(eyre::eyre!("Received unhandled request from {}", peer_id,))
+        }
+    }
+
+    /// Handles a specifications request received from the network.
     async fn handle_spec_request(
         &mut self,
         peer_id: PeerId,
-        channel: ResponseChannel<Vec<u8>>,
         spec_request: <SpecResponder as IsResponder>::Request,
+        channel: ResponseChannel<Vec<u8>>,
     ) -> Result<()> {
         log::info!(
-            "Got a {} request from peer {} with id {}",
+            "Got a {} request from peer {peer_id} with id {}",
             "spec".green(),
-            peer_id,
             spec_request.request_id
         );
 
@@ -57,9 +107,8 @@ impl DriaComputeNode {
         let response_data = serde_json::to_vec(&response)?;
 
         log::info!(
-            "Responding to {} request from peer {} with id {}",
+            "Responding to {} request from peer {peer_id} with id {}",
             "spec".green(),
-            peer_id,
             response.request_id
         );
         self.p2p.respond(response_data, channel).await?;
@@ -75,8 +124,8 @@ impl DriaComputeNode {
     async fn handle_task_request(
         &mut self,
         peer_id: PeerId,
-        channel: ResponseChannel<Vec<u8>>,
         task_request: <TaskResponder as IsResponder>::Request,
+        channel: ResponseChannel<Vec<u8>>,
     ) -> Result<()> {
         log::info!("Received a {} request from {}", "task".yellow(), peer_id);
 
@@ -117,10 +166,7 @@ impl DriaComputeNode {
         Ok(())
     }
 
-    pub(crate) async fn handle_task_response(
-        &mut self,
-        task_response: TaskWorkerOutput,
-    ) -> Result<()> {
+    pub(crate) async fn send_task_output(&mut self, task_response: TaskWorkerOutput) -> Result<()> {
         // remove the task from pending tasks, and get its metadata
         let task_metadata = match task_response.batchable {
             true => {
@@ -136,7 +182,7 @@ impl DriaComputeNode {
         // respond to the response channel with the result
         match task_metadata {
             Some(channel) => {
-                TaskResponder::handle_respond(self, task_response, channel).await?;
+                TaskResponder::send_output(self, task_response, channel).await?;
             }
             None => {
                 return Err(eyre!(
@@ -145,6 +191,19 @@ impl DriaComputeNode {
                 ))
             }
         };
+
+        Ok(())
+    }
+
+    /// Sends a heartbeat request to the configured RPC node.
+    #[inline]
+    pub(crate) async fn send_heartbeat(&mut self) -> Result<()> {
+        let peer_id = self.dria_rpc.peer_id;
+        let request_id = HeartbeatRequester::send_heartbeat(self, peer_id).await?;
+        log::info!(
+            "Sending {} request ({request_id}) to {peer_id}",
+            "heartbeat".blue()
+        );
 
         Ok(())
     }

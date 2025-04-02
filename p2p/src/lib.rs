@@ -1,9 +1,7 @@
-mod transform;
-
 mod behaviour;
 
 mod client;
-pub use client::DriaP2PClient;
+pub use client::{DriaP2PClient, DriaReqResMessage};
 
 mod commands;
 pub use commands::{DriaP2PCommand, DriaP2PCommander};
@@ -13,9 +11,6 @@ pub use protocol::DriaP2PProtocol;
 
 mod network;
 pub use network::DriaNetworkType;
-
-mod nodes;
-pub use nodes::DriaNodes;
 
 // re-exports
 pub use libp2p;

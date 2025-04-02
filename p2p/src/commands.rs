@@ -1,5 +1,5 @@
 use eyre::{Context, Result};
-use libp2p::{gossipsub, kad, request_response, swarm, Multiaddr, PeerId};
+use libp2p::{request_response, swarm, Multiaddr, PeerId};
 use tokio::sync::{mpsc, oneshot};
 
 use crate::DriaP2PProtocol;
@@ -10,39 +10,16 @@ pub enum DriaP2PCommand {
     NetworkInfo {
         sender: oneshot::Sender<swarm::NetworkInfo>,
     },
-    /// Make a Kademlia closest-peers query.
-    Refresh {
-        sender: oneshot::Sender<kad::QueryId>,
-    },
-    /// Get peers (mesh & all) of the GossipSub pool.
-    Peers {
-        sender: oneshot::Sender<(Vec<PeerId>, Vec<PeerId>)>,
-    },
-    /// Get peers counts (mesh & all) of the GossipSub pool.
-    PeerCounts {
-        sender: oneshot::Sender<(usize, usize)>,
+    /// Check if there is an active connection to the given peer.
+    IsConnected {
+        peer_id: PeerId,
+        sender: oneshot::Sender<bool>,
     },
     /// Dial a known peer.
     Dial {
         peer_id: PeerId,
         address: Multiaddr,
         sender: oneshot::Sender<Result<(), swarm::DialError>>,
-    },
-    /// Subscribe to a topic.
-    Subscribe {
-        topic: String,
-        sender: oneshot::Sender<Result<bool, gossipsub::SubscriptionError>>,
-    },
-    /// Unsubscribe from a topic.
-    Unsubscribe {
-        topic: String,
-        sender: oneshot::Sender<bool>,
-    },
-    /// Publishes a message to a topic, returns the message ID.
-    Publish {
-        topic: String,
-        data: Vec<u8>,
-        sender: oneshot::Sender<Result<gossipsub::MessageId, gossipsub::PublishError>>,
     },
     /// Respond to a request-response message.
     Respond {
@@ -57,20 +34,6 @@ pub enum DriaP2PCommand {
         peer_id: PeerId,
         data: Vec<u8>,
         sender: oneshot::Sender<request_response::OutboundRequestId>,
-    },
-    /// Validates a GossipSub message for propagation, returns whether the message existed in cache.
-    ///
-    /// - `Accept`: Accept the message and propagate it.
-    /// - `Reject`: Reject the message and do not propagate it, with penalty to `propagation_source`.
-    /// - `Ignore`: Ignore the message and do not propagate it, without any penalties.
-    ///
-    /// See [`validate_messages`](https://docs.rs/libp2p-gossipsub/latest/libp2p_gossipsub/struct.Config.html#method.validate_messages)
-    /// and [`report_message_validation_result`](https://docs.rs/libp2p-gossipsub/latest/libp2p_gossipsub/struct.Behaviour.html#method.report_message_validation_result) for more details.
-    ValidateMessage {
-        msg_id: gossipsub::MessageId,
-        propagation_source: PeerId,
-        acceptance: gossipsub::MessageAcceptance,
-        sender: oneshot::Sender<bool>,
     },
     /// Shutsdown the client, closes the command channel.
     Shutdown { sender: oneshot::Sender<()> },
@@ -102,67 +65,6 @@ impl DriaP2PCommander {
             .wrap_err("could not send")?;
 
         receiver.await.wrap_err("could not receive")
-    }
-
-    /// Subscribe to a topic.
-    pub async fn subscribe(&self, topic_name: &str) -> Result<bool> {
-        let (sender, receiver) = oneshot::channel();
-
-        log::debug!("Subscribing to {}", topic_name);
-        self.sender
-            .send(DriaP2PCommand::Subscribe {
-                topic: topic_name.to_string(),
-                sender,
-            })
-            .await
-            .wrap_err("could not send")?;
-
-        receiver
-            .await
-            .wrap_err("could not receive")?
-            .wrap_err("could not subscribe")
-    }
-
-    /// Unsubscribe from a topic.
-    pub async fn unsubscribe(&self, topic_name: &str) -> Result<bool> {
-        let (sender, receiver) = oneshot::channel();
-
-        log::debug!("Unsubscribing from {}", topic_name);
-        self.sender
-            .send(DriaP2PCommand::Unsubscribe {
-                topic: topic_name.to_string(),
-                sender,
-            })
-            .await
-            .wrap_err("could not send")?;
-
-        receiver.await.wrap_err("could not receive")
-    }
-
-    /// Publish a message to a topic.
-    ///
-    /// Returns the message ID.
-    pub async fn publish(
-        &mut self,
-        topic_name: &str,
-        data: Vec<u8>,
-    ) -> Result<gossipsub::MessageId> {
-        let (sender, receiver) = oneshot::channel();
-
-        log::debug!("Publishing message to topic: {}", topic_name);
-        self.sender
-            .send(DriaP2PCommand::Publish {
-                topic: topic_name.to_string(),
-                data,
-                sender,
-            })
-            .await
-            .wrap_err("could not send")?;
-
-        receiver
-            .await
-            .wrap_err("could not receive")?
-            .wrap_err("could not publish")
     }
 
     pub async fn respond(
@@ -225,74 +127,12 @@ impl DriaP2PCommander {
             .wrap_err("could not dial")
     }
 
-    /// Validates a GossipSub message for propagation.
-    ///
-    /// - `Accept`: Accept the message and propagate it.
-    /// - `Reject`: Reject the message and do not propagate it, with penalty to `propagation_source`.
-    /// - `Ignore`: Ignore the message and do not propagate it, without any penalties.
-    ///
-    /// See [`validate_messages`](https://docs.rs/libp2p-gossipsub/latest/libp2p_gossipsub/struct.Config.html#method.validate_messages)
-    /// and [`report_message_validation_result`](https://docs.rs/libp2p-gossipsub/latest/libp2p_gossipsub/struct.Behaviour.html#method.report_message_validation_result) for more details.
-    pub async fn validate_message(
-        &mut self,
-        msg_id: &gossipsub::MessageId,
-        propagation_source: &PeerId,
-        acceptance: gossipsub::MessageAcceptance,
-    ) -> Result<()> {
-        let (sender, receiver) = oneshot::channel();
-
-        log::trace!("Validating message ({}): {:?}", msg_id, acceptance);
-        self.sender
-            .send(DriaP2PCommand::ValidateMessage {
-                msg_id: msg_id.clone(),
-                propagation_source: *propagation_source,
-                acceptance,
-                sender,
-            })
-            .await
-            .wrap_err("could not send")?;
-
-        let msg_was_in_cache = receiver.await.wrap_err("could not receive")?;
-
-        if !msg_was_in_cache {
-            log::debug!("Validated message was not in cache.");
-        }
-
-        Ok(())
-    }
-
-    /// Refreshes the Kademlia DHT using a closest peer query over a random peer.
-    pub async fn refresh(&mut self) -> Result<kad::QueryId> {
+    /// Checks if there is an active connection to the given peer.
+    pub async fn is_connected(&mut self, peer_id: PeerId) -> Result<bool> {
         let (sender, receiver) = oneshot::channel();
 
         self.sender
-            .send(DriaP2PCommand::Refresh { sender })
-            .await
-            .wrap_err("could not send")?;
-
-        receiver.await.wrap_err("could not receive")
-    }
-
-    /// Get peers (mesh & all) of the GossipSub pool.
-    /// Returns a tuple of the mesh peers and all peers.
-    pub async fn peers(&self) -> Result<(Vec<PeerId>, Vec<PeerId>)> {
-        let (sender, receiver) = oneshot::channel();
-
-        self.sender
-            .send(DriaP2PCommand::Peers { sender })
-            .await
-            .wrap_err("could not send")?;
-
-        receiver.await.wrap_err("could not receive")
-    }
-
-    /// Get peers counts (mesh & all) of the GossipSub pool.
-    /// Returns a tuple of the mesh peers count and all peers count.
-    pub async fn peer_counts(&self) -> Result<(usize, usize)> {
-        let (sender, receiver) = oneshot::channel();
-
-        self.sender
-            .send(DriaP2PCommand::PeerCounts { sender })
+            .send(DriaP2PCommand::IsConnected { peer_id, sender })
             .await
             .wrap_err("could not send")?;
 

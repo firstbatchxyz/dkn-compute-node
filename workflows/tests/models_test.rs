@@ -1,4 +1,4 @@
-use dkn_workflows::{DriaWorkflowsConfig, Model, ModelProvider};
+use dkn_workflows::{DriaWorkflowsConfig, Model};
 use eyre::Result;
 
 #[inline(always)]
@@ -24,10 +24,7 @@ async fn test_ollama_check() -> Result<()> {
     let mut model_config = DriaWorkflowsConfig::new(models);
     model_config.check_services().await?;
 
-    assert_eq!(
-        model_config.models[0],
-        (ModelProvider::Ollama, Model::Phi3_5Mini)
-    );
+    assert_eq!(model_config.models[0], Model::Phi3_5Mini);
 
     Ok(())
 }
@@ -41,10 +38,7 @@ async fn test_openai_check() -> Result<()> {
     let mut model_config = DriaWorkflowsConfig::new(models);
     model_config.check_services().await?;
 
-    assert_eq!(
-        model_config.models[0],
-        (ModelProvider::OpenAI, Model::GPT4Turbo)
-    );
+    assert_eq!(model_config.models[0], Model::GPT4Turbo);
     Ok(())
 }
 
@@ -57,10 +51,7 @@ async fn test_gemini_check() -> Result<()> {
     let mut model_config = DriaWorkflowsConfig::new(models);
     model_config.check_services().await?;
 
-    assert_eq!(
-        model_config.models[0],
-        (ModelProvider::Gemini, Model::Gemini15Flash)
-    );
+    assert_eq!(model_config.models[0], Model::Gemini15Flash);
     Ok(())
 }
 
@@ -73,10 +64,7 @@ async fn test_openrouter_check() -> Result<()> {
     let mut model_config = DriaWorkflowsConfig::new(models);
     model_config.check_services().await?;
 
-    assert_eq!(
-        model_config.models[0],
-        (ModelProvider::OpenRouter, Model::ORDeepSeek2_5)
-    );
+    assert_eq!(model_config.models[0], Model::ORDeepSeek2_5);
     Ok(())
 }
 

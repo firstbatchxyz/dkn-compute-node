@@ -1,14 +1,15 @@
 use eyre::Context;
 use serde::Deserialize;
 
-const STEPS_API_BASE_URL: &str = "https://dkn.dria.co/dashboard/supply/v0/leaderboard/steps";
+/// Points URL, use with an `address` query parameter.
+const POINTS_API_BASE_URL: &str = "https://dkn.dria.co/dashboard/supply/v0/leaderboard/steps";
 
 #[derive(Debug, Deserialize)]
-pub struct StepsScore {
+pub struct DriaPoints {
     #[serde(deserialize_with = "deserialize_percentile")]
-    /// Indicates in which top percentile your steps are.
+    /// Indicates in which top percentile your points are.
     pub percentile: u64,
-    /// The total number of steps you have accumulated.
+    /// The total number of points you have accumulated.
     pub score: u64,
 }
 
@@ -29,21 +30,21 @@ where
     Ok(parsed)
 }
 
-/// Returns the steps for the given address.
-pub async fn get_steps(address: &str) -> eyre::Result<StepsScore> {
+/// Returns the points for the given address.
+pub async fn get_points(address: &str) -> eyre::Result<DriaPoints> {
     // the address can have 0x or not, we add it ourselves here
     let url = format!(
         "{}?address=0x{}",
-        STEPS_API_BASE_URL,
+        POINTS_API_BASE_URL,
         address.trim_start_matches("0x")
     );
 
     reqwest::get(&url)
         .await
         .wrap_err("could not make request")?
-        .json::<StepsScore>()
+        .json::<DriaPoints>()
         .await
-        .wrap_err("could not parse steps body")
+        .wrap_err("could not parse body")
 }
 
 #[cfg(test)]
@@ -51,10 +52,10 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_get_steps() {
-        let steps = get_steps("0xa43536a6032a3907ccf60e8109429ee1047b207c")
+    async fn test_get_points() {
+        let steps = get_points("0xa43536a6032a3907ccf60e8109429ee1047b207c")
             .await
             .unwrap();
-        println!("{:?}", steps);
+        assert!(steps.score != 0);
     }
 }

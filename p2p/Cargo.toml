@@ -12,24 +12,17 @@ authors = [
 [dependencies]
 # libp2p = { version = "0.55.0", features = [
 libp2p = { git = "https://github.com/anilaltuner/rust-libp2p.git", rev = "7ce9f9e", features = [
-  "dcutr",
-  "ping",
-  "relay",
-  "autonat",
   "identify",
   "tokio",
-  "gossipsub",
-  "mdns",
   "noise",
   "macros",
   "request-response",
   "cbor",
   "tcp",
   "yamux",
-  "quic",
-  "kad",
 ] }
 libp2p-identity = { version = "0.2.10", features = ["secp256k1"] }
+
 log.workspace = true
 eyre.workspace = true
 serde.workspace = true

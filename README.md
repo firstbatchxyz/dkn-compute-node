@@ -18,7 +18,7 @@
     <a href="./.github/workflows/test.yml" target="_blank">
         <img alt="Workflow: Tests" src="https://github.com/firstbatchxyz/dkn-compute-node/actions/workflows/tests.yml/badge.svg?branch=master">
     </a>
-    <a href="./" target="_blank">
+    <a href="https://github.com/firstbatchxyz/dkn-compute-node/releases" target="_blank">
         <img alt="Downloads" src="https://img.shields.io/github/downloads/firstbatchxyz/dkn-compute-node/total?logo=github&logoColor=%23F2FFEE&color=%2332C754">
     </a>
     <a href="https://hub.docker.com/repository/docker/firstbatch/dkn-compute-node/general" target="_blank">
@@ -65,7 +65,7 @@ If you would like to run the node from source (which is really handy during deve
 make help
 ```
 
-You will need OpenSSL installed, see shorthand commands [here](https://github.com/sfackler/rust-openssl/issues/855#issuecomment-450057552).
+You probably have already but in case you don't, you will need OpenSSL installed, see shorthand commands [here](https://github.com/sfackler/rust-openssl/issues/855#issuecomment-450057552).
 
 ```sh
 cargo run
@@ -90,8 +90,8 @@ docker compose --profile=ollama-rocm up
 Note that we are very dependent on Ollama packages, and it is important to check their versions if relevant:
 
 ```sh
-@cat Cargo.lock | grep "https://github.com/andthattoo/ollama-workflows"
-@cat Cargo.lock | grep "https://github.com/andthattoo/ollama-rs"
+cat Cargo.lock | grep "https://github.com/andthattoo/ollama-workflows"
+cat Cargo.lock | grep "https://github.com/andthattoo/ollama-rs"
 ```
 
 ### Testing
