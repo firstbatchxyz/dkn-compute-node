@@ -298,44 +298,52 @@ impl DriaP2PClient {
 
             SwarmEvent::ConnectionEstablished {
                 peer_id,
-                num_established,
                 connection_id,
                 endpoint,
                 ..
             } => {
-                log::info!(
-                    "Connection ({connection_id}) established with peer {peer_id} ({} connections) at {:?}",
-                    num_established,
-                    endpoint
-                );
+                if endpoint.is_dialer() {
+                    // we only care about logs about the ones that we have dialed
+                    log::info!(
+                        "Connection ({connection_id}) established with {peer_id} at {}",
+                        endpoint.get_remote_address()
+                    );
+                } else {
+                    log::debug!(
+                        "Connection ({connection_id}) established with {peer_id} from {}",
+                        endpoint.get_remote_address()
+                    );
+                }
             }
 
             SwarmEvent::ConnectionClosed {
                 peer_id,
                 connection_id,
                 endpoint,
-                num_established,
                 cause,
+                ..
             } => {
-                log::warn!(
-                    "Connection ({connection_id}) closed for {peer_id} ({} connections)\nCause: {}",
-                    num_established,
-                    cause
-                        .map(|c| c.to_string())
-                        .unwrap_or("Unknown".to_string())
-                );
-
+                let cause = cause
+                    .map(|c| c.to_string())
+                    .unwrap_or("Unknown".to_string());
                 if endpoint.is_dialer() {
+                    // we only care about logs about the ones that we have dialed
+                    log::warn!("Connection ({connection_id}) closed for {peer_id}\nCause: {cause}");
+
                     let addr = endpoint.get_remote_address();
                     log::info!("Dialing {} again at {}", peer_id, addr);
-                    if let Err(e) = self.swarm.dial(
+                    if let Err(err) = self.swarm.dial(
                         DialOpts::peer_id(peer_id)
                             .addresses(vec![addr.clone()])
                             .condition(PeerCondition::DisconnectedAndNotDialing)
                             .build(),
                     ) {
-                        log::error!("Could not dial peer {}: {:?}", peer_id, e);
+                        log::error!("Could not dial peer {peer_id}: {err:?}");
                     }
+                } else {
+                    log::debug!(
+                        "Connection ({connection_id}) closed for {peer_id}\nCause: {cause}"
+                    );
                 }
             }
 
@@ -343,6 +351,7 @@ impl DriaP2PClient {
                 address,
                 listener_id,
             } => {
+                // this may happen when your connection is lost, e.g. you turn off your machine / internet
                 log::warn!("Listener ({listener_id}) expired: {address}");
             }
 

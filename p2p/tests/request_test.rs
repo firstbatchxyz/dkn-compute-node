@@ -25,7 +25,7 @@ async fn test_request_message() -> Result<()> {
         .try_init();
 
     // prepare nodes
-    let rpc_addr = "TODO: !!!".parse().unwrap();
+    let rpc_addr = "your-rpc-here".parse().unwrap();
 
     // spawn P2P client in another task
     let (client, mut commander, mut req_rx) = DriaP2PClient::new(
