@@ -10,7 +10,7 @@ pub struct DriaPoints {
     /// Indicates in which top percentile your points are.
     pub percentile: u64,
     /// The total number of points you have accumulated.
-    pub score: u64,
+    pub score: f64,
 }
 
 // the API returns a stringified number due to frontend issues, so we need to parse it
@@ -56,6 +56,6 @@ mod tests {
         let steps = get_points("0xa43536a6032a3907ccf60e8109429ee1047b207c")
             .await
             .unwrap();
-        assert!(steps.score != 0);
+        assert!(steps.score != 0.0);
     }
 }

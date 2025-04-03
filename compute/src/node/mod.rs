@@ -51,7 +51,7 @@ pub struct DriaComputeNode {
     /// Specifications collector.
     spec_collector: SpecCollector,
     /// Initial steps count.
-    initial_steps: u64,
+    initial_steps: f64,
 }
 
 impl DriaComputeNode {
