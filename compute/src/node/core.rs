@@ -24,6 +24,9 @@ impl DriaComputeNode {
         rpc_liveness_refresh_interval.tick().await; // move each one tick
 
         let mut heartbeat_interval = tokio::time::interval(HEARTBEAT_INTERVAL_SECS);
+        // move one tick, and wait at least a third of the diagnostics
+        heartbeat_interval.tick().await;
+        heartbeat_interval.reset_after(DIAGNOSTIC_REFRESH_INTERVAL_SECS / 3);
 
         loop {
             tokio::select! {
@@ -55,6 +58,7 @@ impl DriaComputeNode {
                 // check RPC, and get a new one if we are disconnected
                 _ = rpc_liveness_refresh_interval.tick() => self.handle_rpc_liveness_check().await,
 
+                // send a heartbeat request to publish liveness info
                 _ = heartbeat_interval.tick() => {
                   if let Err(e) = self.send_heartbeat().await {
                     log::error!("Error making heartbeat: {:?}", e);
