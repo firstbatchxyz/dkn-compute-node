@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 use colored::Colorize;
 use dkn_p2p::libp2p::request_response::ResponseChannel;
 use dkn_utils::payloads::{

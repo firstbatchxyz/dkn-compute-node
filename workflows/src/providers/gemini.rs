@@ -87,17 +87,12 @@ impl GeminiConfig {
     async fn fetch_models(&self, api_key: &str) -> Result<Vec<String>> {
         /// [Model](https://ai.google.dev/api/models#Model) API object, fields omitted.
         #[derive(Debug, Clone, Deserialize)]
-        #[allow(non_snake_case)]
-        #[allow(unused)]
         struct GeminiModel {
             name: String,
-            version: String,
             // other fields are ignored from API response
         }
 
         #[derive(Debug, Clone, Deserialize)]
-        #[allow(non_snake_case)]
-        #[allow(unused)]
         struct GeminiModelsResponse {
             models: Vec<GeminiModel>,
         }

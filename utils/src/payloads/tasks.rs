@@ -9,6 +9,8 @@ pub const TASK_RESULT_TOPIC: &str = "results";
 #[serde(rename_all = "camelCase")]
 pub struct TaskResponsePayload {
     /// The unique identifier of the task.
+    ///
+    /// It is formed of two parts: the task id and the RPC auth id, splitted by `--`.
     pub task_id: String,
     /// Result encrypted with the public key of the task, Hexadecimally encoded.
     pub ciphertext: String,

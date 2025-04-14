@@ -80,7 +80,7 @@ impl DriaMessage {
         version: SemanticVersion,
     ) -> Result<DriaMessage, DriaMessageError> {
         let message: DriaMessage =
-            serde_json::from_slice(data).map_err(|e| DriaMessageError::ParseError(e))?;
+            serde_json::from_slice(data).map_err(DriaMessageError::ParseError)?;
 
         // ensure that protocol names match
         if protocol != message.protocol {
