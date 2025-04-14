@@ -1,4 +1,4 @@
-use dkn_p2p::{libp2p::PeerId, libp2p_identity};
+use libp2p_identity;
 use sha2::{Digest, Sha256};
 use sha3::Keccak256;
 
@@ -20,7 +20,7 @@ pub fn keccak256hash(data: impl AsRef<[u8]>) -> [u8; 32] {
 pub fn secret_to_keypair(secret_key: &libsecp256k1::SecretKey) -> libp2p_identity::Keypair {
     let bytes = secret_key.serialize();
 
-    let secret_key = dkn_p2p::libp2p_identity::secp256k1::SecretKey::try_from_bytes(bytes)
+    let secret_key = libp2p_identity::secp256k1::SecretKey::try_from_bytes(bytes)
         .expect("Failed to create secret key");
     libp2p_identity::secp256k1::Keypair::from(secret_key).into()
 }
@@ -43,10 +43,10 @@ pub fn public_key_to_address(public_key: &libsecp256k1::PublicKey) -> [u8; 20] {
 pub fn public_key_to_peer_id(public_key: &libsecp256k1::PublicKey) -> libp2p_identity::PeerId {
     let bytes = public_key.serialize_compressed();
 
-    let public_key = dkn_p2p::libp2p_identity::secp256k1::PublicKey::try_from_bytes(&bytes)
+    let public_key = libp2p_identity::secp256k1::PublicKey::try_from_bytes(&bytes)
         .expect("Failed to create secret key");
 
-    PeerId::from_public_key(&public_key.into())
+    libp2p_identity::PeerId::from_public_key(&public_key.into())
 }
 
 #[cfg(test)]

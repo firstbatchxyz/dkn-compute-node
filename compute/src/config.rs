@@ -7,7 +7,10 @@ use eyre::{eyre, Result};
 use libsecp256k1::{PublicKey, SecretKey};
 use std::{env, str::FromStr};
 
-use crate::utils::crypto::{public_key_to_address, secret_to_keypair};
+use dkn_utils::{
+    crypto::{public_key_to_address, secret_to_keypair},
+    SemanticVersion,
+};
 
 const DEFAULT_TASK_BATCH_SIZE: usize = 5;
 const DEFAULT_P2P_LISTEN_ADDR: &str = "/ip4/0.0.0.0/tcp/4001";
@@ -22,6 +25,8 @@ pub struct DriaComputeNodeConfig {
     pub address: String,
     /// Peer ID of the node.
     pub peer_id: PeerId,
+    /// Compute node version.
+    pub version: SemanticVersion,
     /// P2P listen address, e.g. `/ip4/0.0.0.0/tcp/4001`.
     pub p2p_listen_addr: Multiaddr,
     /// Workflow configurations, e.g. models and providers.
@@ -94,11 +99,17 @@ impl DriaComputeNodeConfig {
             .map(|s| s.parse::<usize>().unwrap_or(DEFAULT_TASK_BATCH_SIZE))
             .unwrap_or(DEFAULT_TASK_BATCH_SIZE);
 
+        // parse version
+        let version = env!("CARGO_PKG_VERSION")
+            .parse()
+            .expect("could not parse version");
+
         Self {
             secret_key,
             public_key,
             address,
             peer_id,
+            version,
             workflows,
             p2p_listen_addr,
             network_type,

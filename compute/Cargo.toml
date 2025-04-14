@@ -38,9 +38,6 @@ colored = "3.0.0"
 # encryption (ecies) & signatures (ecdsa) & hashing & bloom-filters
 ecies = { version = "0.2", default-features = false, features = ["pure"] }
 libsecp256k1 = "0.7.1"
-sha2 = "0.10.8"
-sha3 = "0.10.8"
-fastbloom-rs = "0.5.9"
 
 # machine diagnostics
 # system info

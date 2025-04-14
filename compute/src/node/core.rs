@@ -1,9 +1,10 @@
 use dkn_p2p::libp2p::{Multiaddr, PeerId};
+use dkn_utils::DriaMessage;
 use eyre::{eyre, Result};
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
-use crate::{utils::DriaMessage, DriaComputeNode};
+use crate::DriaComputeNode;
 
 impl DriaComputeNode {
     /// Runs the main loop of the compute node.
@@ -88,7 +89,13 @@ impl DriaComputeNode {
     /// Topic was previously used for GossipSub, but kept for verbosity.
     #[inline(always)]
     pub fn new_message(&self, data: impl AsRef<[u8]>, topic: impl ToString) -> DriaMessage {
-        DriaMessage::new(data, topic, self.p2p.protocol(), &self.config.secret_key)
+        DriaMessage::new_signed(
+            data,
+            topic,
+            self.p2p.protocol().name.clone(),
+            &self.config.secret_key,
+            self.config.version,
+        )
     }
 
     /// Dial the given peer at the given address.

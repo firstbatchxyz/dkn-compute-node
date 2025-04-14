@@ -1,19 +1,22 @@
 use dkn_p2p::{
     libp2p::PeerId, DriaP2PClient, DriaP2PCommander, DriaP2PProtocol, DriaReqResMessage,
 };
+use dkn_utils::crypto::secret_to_keypair;
 use eyre::Result;
 use std::collections::HashMap;
 use tokio::sync::mpsc;
 
 use crate::{
     config::*,
-    utils::{crypto::secret_to_keypair, get_points, DriaRPC, SpecCollector},
+    utils::{get_points, SpecCollector},
     workers::task::{TaskWorker, TaskWorkerInput, TaskWorkerMetadata, TaskWorkerOutput},
 };
 
 mod core;
 mod diagnostic;
 mod reqres;
+mod rpc;
+use rpc::DriaRPC;
 
 /// Buffer size for message publishes.
 const PUBLISH_CHANNEL_BUFSIZE: usize = 1024;
