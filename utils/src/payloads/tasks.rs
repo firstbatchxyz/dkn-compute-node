@@ -1,6 +1,9 @@
 use libsecp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
 
+/// Topic used within [`crate::DriaMessage`] for task result messages.
+pub const TASK_RESULT_TOPIC: &str = "results";
+
 /// A computation task is the task of computing a result from a given input. The result is encrypted with the public key of the requester.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

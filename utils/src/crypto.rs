@@ -44,7 +44,7 @@ pub fn public_key_to_peer_id(public_key: &libsecp256k1::PublicKey) -> libp2p_ide
     let bytes = public_key.serialize_compressed();
 
     let public_key = libp2p_identity::secp256k1::PublicKey::try_from_bytes(&bytes)
-        .expect("Failed to create secret key");
+        .expect("failed to create secret key");
 
     libp2p_identity::PeerId::from_public_key(&public_key.into())
 }

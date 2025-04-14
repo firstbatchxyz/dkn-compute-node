@@ -2,7 +2,9 @@
 
 use colored::Colorize;
 use dkn_p2p::libp2p::request_response::ResponseChannel;
-use dkn_utils::payloads::{TaskErrorPayload, TaskRequestPayload, TaskResponsePayload, TaskStats};
+use dkn_utils::payloads::{
+    TaskErrorPayload, TaskRequestPayload, TaskResponsePayload, TaskStats, TASK_RESULT_TOPIC,
+};
 use dkn_utils::DriaMessage;
 use dkn_workflows::{Entry, Executor, ModelProvider, Workflow};
 use eyre::{eyre, Context, Result};
@@ -12,11 +14,9 @@ use serde::Deserialize;
 use crate::workers::task::*;
 use crate::DriaComputeNode;
 
-use super::IsResponder;
-
 pub struct TaskResponder;
 
-impl IsResponder for TaskResponder {
+impl super::IsResponder for TaskResponder {
     type Request = DriaMessage; // TODO: TaskRequestPayload<WorkflowPayload>;
     type Response = DriaMessage; // TODO: TaskResponsePayload;
 }
@@ -120,8 +120,6 @@ impl TaskResponder {
         task_output: TaskWorkerOutput,
         task_metadata: TaskWorkerMetadata,
     ) -> Result<()> {
-        const TOPIC: &str = "results";
-
         let response = match task_output.result {
             Ok(result) => {
                 // prepare signed and encrypted payload
@@ -141,7 +139,7 @@ impl TaskResponder {
                 // convert payload to message
                 let payload_str = serde_json::json!(payload).to_string();
 
-                node.new_message(payload_str, TOPIC)
+                node.new_message(payload_str, TASK_RESULT_TOPIC)
             }
             Err(err) => {
                 // use pretty display string for error logging with causes
@@ -157,13 +155,13 @@ impl TaskResponder {
                 };
                 let error_payload_str = serde_json::json!(error_payload).to_string();
 
-                node.new_message(error_payload_str, TOPIC)
+                node.new_message(error_payload_str, TASK_RESULT_TOPIC)
             }
         };
 
         // respond through the channel
         node.p2p
-            .respond(response.to_bytes(), task_metadata.channel)
+            .respond(response.into(), task_metadata.channel)
             .await?;
 
         Ok(())

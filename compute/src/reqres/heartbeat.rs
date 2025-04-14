@@ -43,10 +43,7 @@ impl HeartbeatRequester {
             serde_json::to_vec(&heartbeat_request).expect("should be serializable"),
             HEARTBEAT_TOPIC,
         );
-        let request_id = node
-            .p2p
-            .request(peer_id, heartbeat_message.to_bytes())
-            .await?;
+        let request_id = node.p2p.request(peer_id, heartbeat_message).await?;
 
         // add it to local heartbeats set
         node.heartbeats.insert(uuid, deadline);

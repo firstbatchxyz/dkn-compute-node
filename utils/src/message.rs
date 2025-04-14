@@ -113,11 +113,17 @@ impl DriaMessage {
     pub fn parse_payload<T: DeserializeOwned>(&self) -> Result<T, DriaMessageError> {
         serde_json::from_slice::<T>(&self.decode_payload()?).map_err(DriaMessageError::ParseError)
     }
+}
 
-    /// Converts the message to bytes.
-    #[inline(always)]
-    pub fn to_bytes(&self) -> Vec<u8> {
-        serde_json::to_vec(self).expect("should not fail")
+impl From<&DriaMessage> for Vec<u8> {
+    fn from(message: &DriaMessage) -> Self {
+        serde_json::to_vec(message).expect("should not fail")
+    }
+}
+
+impl From<DriaMessage> for Vec<u8> {
+    fn from(message: DriaMessage) -> Self {
+        (&message).into()
     }
 }
 

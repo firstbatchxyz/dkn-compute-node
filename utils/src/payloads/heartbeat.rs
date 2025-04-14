@@ -1,7 +1,8 @@
-// TODO: with each successfull heartbeat
-
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+/// Topic used within [`crate::DriaMessage`] for heartbeat messages.
+pub const HEARTBEAT_TOPIC: &str = "heartbeat";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct HeartbeatRequest {

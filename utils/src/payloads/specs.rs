@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+/// Topic used within [`crate::DriaMessage`] for specs messages.
+pub const SPEC_TOPIC: &str = "spec";
+
 #[derive(Serialize, Deserialize)]
 pub struct SpecRequest {
     /// UUID of the specs request, prevents replays.
@@ -11,7 +14,7 @@ pub struct SpecRequest {
 pub struct SpecResponse {
     /// UUID of the specs request, prevents replays.
     pub request_id: Uuid,
-    /// Node specs, will be flattened during serialization.
+    /// Node specs, flattened during serialization.
     #[serde(flatten)]
     pub specs: Specs,
 }
