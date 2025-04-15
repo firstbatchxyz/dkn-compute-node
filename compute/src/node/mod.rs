@@ -62,7 +62,7 @@ impl DriaComputeNode {
     ///
     /// Returns the node instance and p2p client together. P2p MUST be run in a separate task before this node is used at all.
     pub async fn new(
-        config: DriaComputeNodeConfig,
+        mut config: DriaComputeNodeConfig,
     ) -> Result<(
         DriaComputeNode,
         DriaP2PClient,
@@ -72,10 +72,15 @@ impl DriaComputeNode {
         // create the keypair from secret key
         let keypair = secret_to_keypair(&config.secret_key);
 
-        // get available rpc node
-        let dria_nodes = DriaRPC::new_for_network(config.network_type)
-            .await
-            .expect("could not get RPC to connect to");
+        // dial the RPC node
+        let dria_nodes = if let Some(addr) = config.initial_rpc_addr.take() {
+            log::info!("Using initial RPC address: {}", addr);
+            DriaRPC::new(addr, config.network_type).expect("could not get RPC to connect to")
+        } else {
+            DriaRPC::new_for_network(config.network_type)
+                .await
+                .expect("could not get RPC to connect to")
+        };
 
         // we are using the major.minor version as the P2P version
         // so that patch versions do not interfere with the protocol

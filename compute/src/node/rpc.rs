@@ -47,9 +47,9 @@ async fn get_rpc_for_network(network: &DriaNetworkType) -> Result<Multiaddr> {
 
     // url to be used is determined by the network type
     let url = match network {
-        DriaNetworkType::Community => "https://dkn.dria.co/v4/available-nodes",
-        DriaNetworkType::Pro => "https://dkn.dria.co/v4/sdk/available-nodes",
-        DriaNetworkType::Test => "https://dkn.dria.co/v4/test/available-nodes",
+        DriaNetworkType::Community => "https://dkn.dria.co/v5/available-nodes",
+        DriaNetworkType::Pro => "https://dkn.dria.co/v5/sdk/available-nodes",
+        DriaNetworkType::Test => "https://dkn.dria.co/v5/test/available-nodes",
     };
 
     // make the request

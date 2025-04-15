@@ -56,6 +56,12 @@ impl SemanticVersion {
         self
     }
 
+    /// Returns a string representation of the version in the format `{major}.{minor}`.
+    #[inline]
+    pub fn as_major_minor(&self) -> String {
+        format!("{}.{}", self.major, self.minor)
+    }
+
     /// Parses the Crate version field into `SemanticVersion`.
     ///
     /// Will panic if for any reason the version format is wrong.
