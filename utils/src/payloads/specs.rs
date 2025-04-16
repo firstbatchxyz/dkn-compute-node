@@ -7,7 +7,7 @@ pub const SPECS_TOPIC: &str = "specs";
 #[derive(Serialize, Deserialize)]
 pub struct SpecsRequest {
     /// UUID of the specs request, prevents replays.
-    pub id: Uuid,
+    pub specs_id: Uuid,
     /// Node specs, flattened during serialization.
     #[serde(flatten)]
     pub specs: Specs,
@@ -16,7 +16,7 @@ pub struct SpecsRequest {
 #[derive(Serialize, Deserialize)]
 pub struct SpecsResponse {
     /// UUID of the specs request, prevents replays.
-    pub id: Uuid,
+    pub specs_id: Uuid,
 }
 
 /// Machine info & location.

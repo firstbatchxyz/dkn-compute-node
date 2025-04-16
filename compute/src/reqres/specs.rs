@@ -24,7 +24,10 @@ impl SpecRequester {
         specs: Specs,
     ) -> Result<OutboundRequestId> {
         let uuid = Uuid::new_v4();
-        let specs_request = SpecsRequest { id: uuid, specs };
+        let specs_request = SpecsRequest {
+            specs_id: uuid,
+            specs,
+        };
 
         let specs_message = node.new_message(
             serde_json::to_vec(&specs_request).expect("should be serializable"),
@@ -40,14 +43,13 @@ impl SpecRequester {
 
     /// Handles the specs request received from the network.
     pub(crate) async fn handle_ack(node: &mut DriaComputeNode, res: SpecsResponse) -> Result<()> {
-        if node.specs_reqs.remove(&res.id) {
-            log::info!("{} request {} acknowledged.", SPECS_TOPIC.green(), res.id);
+        if node.specs_reqs.remove(&res.specs_id) {
             Ok(())
         } else {
             Err(eyre!(
                 "Received an unknown {} response with id {}.",
                 SPECS_TOPIC.green(),
-                res.id
+                res.specs_id
             ))
         }
     }

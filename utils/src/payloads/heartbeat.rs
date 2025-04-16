@@ -7,7 +7,7 @@ pub const HEARTBEAT_TOPIC: &str = "heartbeat";
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct HeartbeatRequest {
     /// A unique ID for the heartbeat request.
-    pub id: Uuid,
+    pub heartbeat_id: Uuid,
     /// Deadline for the heartbeat request, in nanoseconds.
     pub deadline: chrono::DateTime<chrono::Utc>,
     /// Model names available in the node.
@@ -23,7 +23,7 @@ pub struct HeartbeatRequest {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct HeartbeatResponse {
     /// UUID as given in the request.
-    pub id: Uuid,
+    pub heartbeat_id: Uuid,
     /// An associated error with the response:
     /// - `None` means that the heartbeat was acknowledged.
     /// - `Some` means that the heartbeat was not acknowledged for the given reason.

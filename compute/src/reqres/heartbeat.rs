@@ -31,7 +31,7 @@ impl HeartbeatRequester {
         let deadline = chrono::Utc::now() + HEARTBEAT_DEADLINE_SECS;
 
         let heartbeat_request = HeartbeatRequest {
-            id: uuid,
+            heartbeat_id: uuid,
             deadline,
             models: node.config.workflows.get_model_names(),
             pending_tasks: node.get_pending_task_count(),
@@ -54,7 +54,7 @@ impl HeartbeatRequester {
         node: &mut DriaComputeNode,
         res: HeartbeatResponse,
     ) -> Result<()> {
-        if let Some(deadline) = node.heartbeats_reqs.remove(&res.id) {
+        if let Some(deadline) = node.heartbeats_reqs.remove(&res.heartbeat_id) {
             if let Some(err) = res.error {
                 Err(eyre!(
                     "{} was not acknowledged: {}",
@@ -80,7 +80,7 @@ impl HeartbeatRequester {
             Err(eyre!(
                 "Received an unknown {} response with id {}.",
                 HEARTBEAT_TOPIC.blue(),
-                res.id
+                res.heartbeat_id
             ))
         }
     }
