@@ -2,21 +2,21 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// Topic used within [`crate::DriaMessage`] for specs messages.
-pub const SPEC_TOPIC: &str = "spec";
+pub const SPECS_TOPIC: &str = "specs";
 
 #[derive(Serialize, Deserialize)]
-pub struct SpecRequest {
+pub struct SpecsRequest {
     /// UUID of the specs request, prevents replays.
-    pub request_id: Uuid,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct SpecResponse {
-    /// UUID of the specs request, prevents replays.
-    pub request_id: Uuid,
+    pub id: Uuid,
     /// Node specs, flattened during serialization.
     #[serde(flatten)]
     pub specs: Specs,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct SpecsResponse {
+    /// UUID of the specs request, prevents replays.
+    pub id: Uuid,
 }
 
 /// Machine info & location.

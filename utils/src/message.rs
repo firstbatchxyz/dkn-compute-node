@@ -108,7 +108,7 @@ impl DriaMessage {
             .map_err(DriaMessageError::DecodeError)
     }
 
-    /// Decodes and parses the `base64` payload into JSON for the provided type `T`.
+    /// Decodes with [`Self::decode_payload`] and parses the decoded payload into JSON for the provided type `T`.
     #[inline(always)]
     pub fn parse_payload<T: DeserializeOwned>(&self) -> Result<T, DriaMessageError> {
         serde_json::from_slice::<T>(&self.decode_payload()?).map_err(DriaMessageError::ParseError)

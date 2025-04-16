@@ -3,7 +3,7 @@ use dkn_p2p::{
 };
 use dkn_utils::crypto::secret_to_keypair;
 use eyre::Result;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use tokio::sync::mpsc;
 
 use crate::{
@@ -34,7 +34,10 @@ pub struct DriaComputeNode {
     pub(crate) num_heartbeats: u64,
     /// A mapping of heartbeat UUIDs to their deadlines.
     /// This is used to track the heartbeats, and their acknowledgements.
-    pub(crate) heartbeats: HashMap<uuid::Uuid, chrono::DateTime<chrono::Utc>>,
+    pub(crate) heartbeats_reqs: HashMap<uuid::Uuid, chrono::DateTime<chrono::Utc>>,
+    /// A mapping of specs UUIDs to their deadlines.
+    /// This is used to track the specs, and their acknowledgements.
+    pub(crate) specs_reqs: HashSet<uuid::Uuid>,
     /// Request-response message receiver, can have both a request or a response.
     reqres_rx: mpsc::Receiver<(PeerId, DriaReqResMessage)>,
     /// Task response receiver, will respond to the request-response channel with the given result.
@@ -126,6 +129,7 @@ impl DriaComputeNode {
                 config,
                 p2p: p2p_commander,
                 dria_rpc: dria_nodes,
+                initial_steps,
                 // receivers
                 task_output_rx: publish_rx,
                 reqres_rx: request_rx,
@@ -138,11 +142,11 @@ impl DriaComputeNode {
                 completed_tasks_single: 0,
                 completed_tasks_batch: 0,
                 // heartbeats
-                heartbeats: HashMap::new(),
+                heartbeats_reqs: HashMap::new(),
                 last_heartbeat_at: chrono::Utc::now(),
                 num_heartbeats: 0,
-                // misc
-                initial_steps,
+                // specs
+                specs_reqs: HashSet::new(),
                 spec_collector: SpecCollector::new(model_names),
             },
             p2p_client,

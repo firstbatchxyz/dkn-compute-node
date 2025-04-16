@@ -1,6 +1,9 @@
 use libsecp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
 
+/// Topic used within [`crate::DriaMessage`] for task request messages.
+pub const TASK_REQUEST_TOPIC: &str = "task";
+
 /// Topic used within [`crate::DriaMessage`] for task result messages.
 pub const TASK_RESULT_TOPIC: &str = "results";
 

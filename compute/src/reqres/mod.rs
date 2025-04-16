@@ -4,7 +4,7 @@ use eyre::Context;
 use serde::{de::DeserializeOwned, Serialize};
 
 mod specs;
-pub use specs::SpecResponder;
+pub use specs::SpecRequester;
 
 mod task;
 pub use task::TaskResponder;
