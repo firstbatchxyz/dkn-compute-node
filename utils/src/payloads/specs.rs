@@ -9,8 +9,9 @@ pub struct SpecsRequest {
     /// UUID of the specs request, prevents replays.
     pub specs_id: Uuid,
     /// Node specs, flattened during serialization.
-    #[serde(flatten)]
     pub specs: Specs,
+    /// Model names available in the node.
+    pub models: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize)]

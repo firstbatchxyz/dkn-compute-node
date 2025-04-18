@@ -15,27 +15,18 @@ pub struct TaskResponsePayload {
     ///
     /// It is formed of two parts: the task id and the RPC auth id, splitted by `--`.
     pub task_id: String,
-    /// Result encrypted with the public key of the task, Hexadecimally encoded.
-    pub ciphertext: String,
     /// Name of the model used for this task.
     pub model: String,
     /// Stats about the task execution.
     pub stats: TaskStats,
-}
-
-/// A task error response.
-/// Returning this as the payload helps to debug the errors received at client side.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TaskErrorPayload {
-    /// The unique identifier of the task.
-    pub task_id: String,
-    /// The stringified error object
-    pub error: String,
-    /// Name of the model that caused the error.
-    pub model: String,
-    /// Task statistics.
-    pub stats: TaskStats,
+    /// Result encrypted with the public key of the task, Hexadecimally encoded.
+    ///
+    /// If this is `None`, the task failed, and you should check the `error` field.
+    pub ciphertext: Option<String>,
+    /// An error message, if any.
+    ///
+    /// If this is `Some`, you can ignore the `ciphertext` field.
+    pub error: Option<String>,
 }
 
 impl TaskResponsePayload {
@@ -47,14 +38,27 @@ impl TaskResponsePayload {
         model: String,
         stats: TaskStats,
     ) -> Result<Self, libsecp256k1::Error> {
-        let ciphertext = ecies::encrypt(&task_pk.serialize(), result.as_ref())?;
+        let ciphertext_bytes = ecies::encrypt(&task_pk.serialize(), result.as_ref())?;
+        let ciphertext_hex = hex::encode(ciphertext_bytes);
 
         Ok(TaskResponsePayload {
             task_id: task_id.to_string(),
-            ciphertext: hex::encode(ciphertext),
+            ciphertext: Some(ciphertext_hex),
             model,
             stats,
+            error: None,
         })
+    }
+
+    /// Creates the payload of a computation with an error message.
+    pub fn new_error(error: String, task_id: String, model: String, stats: TaskStats) -> Self {
+        TaskResponsePayload {
+            task_id,
+            ciphertext: None,
+            model,
+            stats,
+            error: Some(error),
+        }
     }
 }
 
@@ -147,7 +151,7 @@ mod tests {
         .expect("to create payload");
 
         // decrypt result and compare it to plaintext
-        let ciphertext_bytes = hex::decode(payload.ciphertext).unwrap();
+        let ciphertext_bytes = hex::decode(payload.ciphertext.unwrap()).unwrap();
         let result = decrypt(&task_sk.serialize(), &ciphertext_bytes).expect("to decrypt");
         assert_eq!(result, RESULT, "Result mismatch");
     }

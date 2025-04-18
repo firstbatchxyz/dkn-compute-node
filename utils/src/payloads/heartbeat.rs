@@ -10,8 +10,6 @@ pub struct HeartbeatRequest {
     pub heartbeat_id: Uuid,
     /// Deadline for the heartbeat request, in nanoseconds.
     pub deadline: chrono::DateTime<chrono::Utc>,
-    /// Model names available in the node.
-    pub models: Vec<String>,
     /// Number of tasks in the channel currently, `single` and `batch`.
     pub pending_tasks: [usize; 2],
 }

@@ -27,6 +27,7 @@ impl SpecRequester {
         let specs_request = SpecsRequest {
             specs_id: uuid,
             specs,
+            models: node.config.workflows.get_model_names(),
         };
 
         let specs_message = node.new_message(

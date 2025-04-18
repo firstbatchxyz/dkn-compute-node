@@ -33,7 +33,6 @@ impl HeartbeatRequester {
         let heartbeat_request = HeartbeatRequest {
             heartbeat_id: uuid,
             deadline,
-            models: node.config.workflows.get_model_names(),
             pending_tasks: node.get_pending_task_count(),
         };
 

@@ -1,5 +1,5 @@
 mod tasks;
-pub use tasks::{TaskErrorPayload, TaskRequestPayload, TaskResponsePayload, TaskStats};
+pub use tasks::{TaskRequestPayload, TaskResponsePayload, TaskStats};
 pub use tasks::{TASK_REQUEST_TOPIC, TASK_RESULT_TOPIC};
 
 mod heartbeat;
