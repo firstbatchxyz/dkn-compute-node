@@ -110,8 +110,7 @@ impl DriaComputeNodeConfig {
 
         // parse initial rpc address, if any
         let initial_rpc_addr = env::var("DKN_INITIAL_RPC_ADDR").ok().map(|addr| {
-            Multiaddr::from_str(&addr.trim_matches('"'))
-                .expect("could not parse the given initial RPC address.")
+            Multiaddr::from_str(&addr).expect("could not parse the given initial RPC address.")
         });
 
         Self {
