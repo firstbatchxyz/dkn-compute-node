@@ -7,13 +7,18 @@ pub const TASK_REQUEST_TOPIC: &str = "task";
 /// Topic used within [`crate::DriaMessage`] for task result messages.
 pub const TASK_RESULT_TOPIC: &str = "results";
 
-/// A computation task is the task of computing a result from a given input. The result is encrypted with the public key of the requester.
+/// A computation task is the task of computing a result from a given input.
+///
+/// `ciphertext` and `error` are mutually-exclusive, only one of them can be `Some`:
+/// - if `ciphertext` is `Some`, then it contains the result,
+/// encrypted with the public key of the requester.
+/// - if `error` is `Some`, then it contains the error message.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskResponsePayload {
     /// The unique identifier of the task.
     ///
-    /// It is formed of two parts: the task id and the RPC auth id, splitted by `--`.
+    /// It is actually formed of two parts: the `task_id` and the `rpc_auth_id`, splitted by `--`.
     pub task_id: String,
     /// Name of the model used for this task.
     pub model: String,

@@ -33,7 +33,9 @@ impl HeartbeatRequester {
         let heartbeat_request = HeartbeatRequest {
             heartbeat_id: uuid,
             deadline,
-            pending_tasks: node.get_pending_task_count(),
+            pending_batch: node.pending_tasks_batch.len(),
+            pending_single: node.pending_tasks_single.len(),
+            batch_size: node.config.batch_size,
         };
 
         let heartbeat_message = node.new_message(

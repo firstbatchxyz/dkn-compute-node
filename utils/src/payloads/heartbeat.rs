@@ -10,8 +10,15 @@ pub struct HeartbeatRequest {
     pub heartbeat_id: Uuid,
     /// Deadline for the heartbeat request, in nanoseconds.
     pub deadline: chrono::DateTime<chrono::Utc>,
+    /// Number of "single" tasks in the channel.
+    pub pending_single: usize,
     /// Number of tasks in the channel currently, `single` and `batch`.
-    pub pending_tasks: [usize; 2],
+    pub pending_batch: usize,
+    /// Number of batchable tasks at once.
+    ///
+    /// If `pending_batch` is greater than this value, the node will not be able to process them
+    /// and will stall until the channel is free to do more.
+    pub batch_size: usize,
 }
 
 /// The response is an object with UUID along with an ACK (acknowledgement).

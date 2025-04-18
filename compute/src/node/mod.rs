@@ -22,6 +22,7 @@ use rpc::DriaRPC;
 const PUBLISH_CHANNEL_BUFSIZE: usize = 1024;
 
 pub struct DriaComputeNode {
+    /// Compute node configuration.
     pub config: DriaComputeNodeConfig,
     /// Chosen RPC node.
     pub dria_rpc: DriaRPC,
@@ -47,9 +48,9 @@ pub struct DriaComputeNode {
     /// Task worker transmitter to send single tasks.
     task_request_single_tx: Option<mpsc::Sender<TaskWorkerInput>>,
     // Single tasks
-    pending_tasks_single: HashMap<String, TaskWorkerMetadata>,
+    pub pending_tasks_single: HashMap<String, TaskWorkerMetadata>,
     // Batchable tasks
-    pending_tasks_batch: HashMap<String, TaskWorkerMetadata>,
+    pub pending_tasks_batch: HashMap<String, TaskWorkerMetadata>,
     /// Completed single tasks count
     completed_tasks_single: usize,
     /// Completed batch tasks count
