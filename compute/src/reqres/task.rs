@@ -1,26 +1,23 @@
-#![allow(unused)]
-
 use colored::Colorize;
 use dkn_p2p::libp2p::request_response::ResponseChannel;
+use dkn_utils::payloads::{TaskRequestPayload, TaskResponsePayload, TaskStats, TASK_RESULT_TOPIC};
+use dkn_utils::DriaMessage;
 use dkn_workflows::{Entry, Executor, ModelProvider, Workflow};
 use eyre::{eyre, Context, Result};
 use libsecp256k1::PublicKey;
 use serde::Deserialize;
 
-use crate::payloads::*;
-use crate::utils::DriaMessage;
 use crate::workers::task::*;
 use crate::DriaComputeNode;
 
-use super::IsResponder;
-
 pub struct TaskResponder;
 
-impl IsResponder for TaskResponder {
+impl super::IsResponder for TaskResponder {
     type Request = DriaMessage; // TODO: TaskRequestPayload<WorkflowPayload>;
     type Response = DriaMessage; // TODO: TaskResponsePayload;
 }
 
+/// The body of a task request.
 #[derive(Debug, Deserialize)]
 pub struct TaskPayload {
     /// [Workflow](https://github.com/andthattoo/ollama-workflows/blob/main/src/program/workflow.rs) object to be parsed.
@@ -138,7 +135,7 @@ impl TaskResponder {
                 // convert payload to message
                 let payload_str = serde_json::json!(payload).to_string();
 
-                node.new_message(payload_str, "response")
+                node.new_message(payload_str, TASK_RESULT_TOPIC)
             }
             Err(err) => {
                 // use pretty display string for error logging with causes
@@ -146,21 +143,22 @@ impl TaskResponder {
                 log::error!("Task {} failed: {}", task_output.task_id, err_string);
 
                 // prepare error payload
-                let error_payload = TaskErrorPayload {
-                    task_id: task_output.task_id,
-                    error: err_string,
-                    model: task_metadata.model_name,
-                    stats: task_output.stats.record_published_at(),
-                };
+                let error_payload = TaskResponsePayload::new_error(
+                    err_string,
+                    task_output.task_id,
+                    task_metadata.model_name,
+                    task_output.stats.record_published_at(),
+                );
                 let error_payload_str = serde_json::json!(error_payload).to_string();
 
-                node.new_message(error_payload_str, "response")
+                node.new_message(error_payload_str, TASK_RESULT_TOPIC)
             }
         };
 
         // respond through the channel
-        let data = response.to_bytes()?;
-        node.p2p.respond(data, task_metadata.channel).await?;
+        node.p2p
+            .respond(response.into(), task_metadata.channel)
+            .await?;
 
         Ok(())
     }

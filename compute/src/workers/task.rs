@@ -1,10 +1,9 @@
 use colored::Colorize;
 use dkn_p2p::libp2p::request_response::ResponseChannel;
+use dkn_utils::payloads::TaskStats;
 use dkn_workflows::{Entry, ExecutionError, Executor, Workflow};
 use libsecp256k1::PublicKey;
 use tokio::sync::mpsc;
-
-use crate::payloads::TaskStats;
 
 pub struct TaskWorkerMetadata {
     pub public_key: PublicKey,
@@ -243,7 +242,6 @@ mod tests {
     use dkn_workflows::{Executor, Model};
 
     use super::*;
-    use crate::payloads::TaskStats;
 
     /// Tests the workflows worker with a single task sent within a batch.
     ///

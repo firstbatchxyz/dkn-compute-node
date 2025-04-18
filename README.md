@@ -94,6 +94,10 @@ cat Cargo.lock | grep "https://github.com/andthattoo/ollama-workflows"
 cat Cargo.lock | grep "https://github.com/andthattoo/ollama-rs"
 ```
 
+> [!TIP]
+>
+> You can specify a custom initial RPC address with `DKN_INITIAL_RPC_ADDR`.
+
 ### Testing
 
 You can the tests as follows:

@@ -7,7 +7,10 @@ use eyre::{eyre, Result};
 use libsecp256k1::{PublicKey, SecretKey};
 use std::{env, str::FromStr};
 
-use crate::utils::crypto::{public_key_to_address, secret_to_keypair};
+use dkn_utils::{
+    crypto::{public_key_to_address, secret_to_keypair},
+    SemanticVersion,
+};
 
 const DEFAULT_TASK_BATCH_SIZE: usize = 5;
 const DEFAULT_P2P_LISTEN_ADDR: &str = "/ip4/0.0.0.0/tcp/4001";
@@ -22,6 +25,8 @@ pub struct DriaComputeNodeConfig {
     pub address: String,
     /// Peer ID of the node.
     pub peer_id: PeerId,
+    /// Compute node version.
+    pub version: SemanticVersion,
     /// P2P listen address, e.g. `/ip4/0.0.0.0/tcp/4001`.
     pub p2p_listen_addr: Multiaddr,
     /// Workflow configurations, e.g. models and providers.
@@ -33,6 +38,10 @@ pub struct DriaComputeNodeConfig {
     /// A higher value will help execute more tasks concurrently,
     /// at the risk of hitting rate-limits.
     pub batch_size: usize,
+    /// An optional first-attempt RPC address, will be dialled at startup.
+    ///
+    /// TODO: this is `None` after startup due to `Option::take`, can we do any better?
+    pub initial_rpc_addr: Option<Multiaddr>,
 }
 
 #[allow(clippy::new_without_default)]
@@ -94,15 +103,27 @@ impl DriaComputeNodeConfig {
             .map(|s| s.parse::<usize>().unwrap_or(DEFAULT_TASK_BATCH_SIZE))
             .unwrap_or(DEFAULT_TASK_BATCH_SIZE);
 
+        // parse version
+        let version = env!("CARGO_PKG_VERSION")
+            .parse()
+            .expect("could not parse version");
+
+        // parse initial rpc address, if any
+        let initial_rpc_addr = env::var("DKN_INITIAL_RPC_ADDR").ok().map(|addr| {
+            Multiaddr::from_str(&addr).expect("could not parse the given initial RPC address.")
+        });
+
         Self {
             secret_key,
             public_key,
             address,
             peer_id,
+            version,
             workflows,
             p2p_listen_addr,
             network_type,
             batch_size,
+            initial_rpc_addr,
         }
     }
 

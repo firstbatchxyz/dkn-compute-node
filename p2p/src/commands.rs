@@ -92,8 +92,9 @@ impl DriaP2PCommander {
     pub async fn request(
         &mut self,
         peer_id: PeerId,
-        data: Vec<u8>,
+        data: impl Into<Vec<u8>>,
     ) -> Result<request_response::OutboundRequestId> {
+        let data = data.into();
         let (sender, receiver) = oneshot::channel();
 
         self.sender

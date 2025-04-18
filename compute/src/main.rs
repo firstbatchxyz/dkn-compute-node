@@ -16,6 +16,7 @@ async fn main() -> Result<()> {
         .filter(None, log::LevelFilter::Off)
         .filter_module("dkn_compute", log::LevelFilter::Info)
         .filter_module("dkn_p2p", log::LevelFilter::Info)
+        .filter_module("dkn_utils", log::LevelFilter::Info)
         .filter_module("dkn_workflows", log::LevelFilter::Info)
         .filter_module("libp2p", log::LevelFilter::Error)
         .parse_default_env() // reads RUST_LOG variable
@@ -46,7 +47,7 @@ async fn main() -> Result<()> {
     // spawn the background task to wait for termination signals
     let task_tracker_to_close = task_tracker.clone();
     let cancellation_token = cancellation.clone();
-    tokio::spawn(async move {
+    task_tracker.spawn(async move {
         if let Ok(Ok(duration_secs)) =
             env::var("DKN_EXIT_TIMEOUT").map(|s| s.to_string().parse::<u64>())
         {

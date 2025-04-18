@@ -1,29 +1,5 @@
-use public_ip_address::response::LookupResponse;
-use serde::{Deserialize, Serialize};
+use dkn_utils::payloads::Specs;
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind};
-
-/// Machine info & location.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Specs {
-    /// Total memory in bytes
-    total_mem: u64,
-    /// Free memory in bytes
-    free_mem: u64,
-    /// Number of physical CPU cores.
-    num_cpus: Option<usize>,
-    /// Global CPU usage, in percentage.
-    cpu_usage: f32,
-    /// Operating system name, e.g. `linux`, `macos`, `windows`.
-    os: String,
-    /// CPU architecture, e.g. `x86_64`, `aarch64`.
-    arch: String,
-    /// Public IP lookup response.
-    lookup: Option<LookupResponse>,
-    /// Used models.
-    models: Vec<String>,
-    // GPU adapter infos, showing information about the available GPUs.
-    // gpus: Vec<wgpu::AdapterInfo>,
-}
 
 pub struct SpecCollector {
     /// System information object, this is expected to be created only once

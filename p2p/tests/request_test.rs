@@ -45,9 +45,7 @@ async fn test_request_message() -> Result<()> {
     let peer_id =
         PeerId::from_str("16Uiu2HAmB5HGdwLNHX81u7ey1fvDx5Mr4ofa2PdSSVxFKrrcErAN").unwrap();
     log::info!("Making a request to peer: {}", peer_id);
-    commander
-        .request(peer_id, b"here is some data".into())
-        .await?;
+    commander.request(peer_id, b"here is some data").await?;
 
     log::info!("Waiting for response logs for a few moments...");
     sleep(Duration::from_secs(5));
