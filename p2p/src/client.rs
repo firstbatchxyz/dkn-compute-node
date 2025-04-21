@@ -186,7 +186,7 @@ impl DriaP2PClient {
              * Request-response events               *
              *****************************************/
             SwarmEvent::Behaviour(DriaBehaviourEvent::RequestResponse(
-                request_response::Event::Message { message, peer },
+                request_response::Event::Message { message, peer, .. },
             )) => {
                 // whether its a request or response, we forward it to the main thread
                 if let Err(err) = self.reqres_tx.send((peer, message)).await {
