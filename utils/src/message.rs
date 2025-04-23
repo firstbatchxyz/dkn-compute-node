@@ -37,6 +37,8 @@ pub enum DriaMessageError {
         expected: SemanticVersion,
         found: SemanticVersion,
     },
+    #[error("Invalid signature ({0})")]
+    InvalidSignature(libsecp256k1::Error),
 }
 
 impl DriaMessage {
@@ -112,6 +114,25 @@ impl DriaMessage {
     #[inline(always)]
     pub fn parse_payload<T: DeserializeOwned>(&self) -> Result<T, DriaMessageError> {
         serde_json::from_slice::<T>(&self.decode_payload()?).map_err(DriaMessageError::ParseError)
+    }
+
+    /// Recovers the signature from the message payload.
+    ///
+    /// This may be costly to do in a hot loop.
+    #[inline(always)]
+    pub fn recover_signature(&self) -> Result<libsecp256k1::PublicKey, DriaMessageError> {
+        let message = libsecp256k1::Message::parse(&sha256hash(&self.payload));
+
+        // parse the signature and recovery ID
+        let signature =
+            libsecp256k1::Signature::parse_standard_slice(&hex::decode(&self.signature).unwrap())
+                .map_err(DriaMessageError::InvalidSignature)?;
+        let recovery_id = libsecp256k1::RecoveryId::parse(self.recovery_id)
+            .map_err(DriaMessageError::InvalidSignature)?;
+
+        // recover the public key from the signature
+        libsecp256k1::recover(&message, &signature, &recovery_id)
+            .map_err(DriaMessageError::InvalidSignature)
     }
 }
 

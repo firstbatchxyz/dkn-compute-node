@@ -35,10 +35,10 @@ impl DriaComputeNode {
         heartbeat_interval.tick().await;
         heartbeat_interval.reset_after(DIAGNOSTIC_REFRESH_INTERVAL_SECS / 3);
 
-        // move one tick, and wait at least a third of the diagnostics
+        // move one tick, and wait a little bit
         let mut specs_interval = tokio::time::interval(SPECS_INTERVAL_SECS);
         specs_interval.tick().await;
-        specs_interval.reset_after(DIAGNOSTIC_REFRESH_INTERVAL_SECS / 3);
+        specs_interval.reset_after(DIAGNOSTIC_REFRESH_INTERVAL_SECS / 6);
 
         loop {
             tokio::select! {
