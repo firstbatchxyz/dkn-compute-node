@@ -9,6 +9,9 @@ use thiserror::Error;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriaMessage {
     /// `base64` encoded message payload, can be decoded with [`Self::decode_payload`].
+    ///
+    /// This payload is signed by the sender, and the public key can be recovered from the signature
+    /// using [`Self::recover_public_key`].
     pub payload: String,
     // Topic identifier derived from TopicHash
     pub topic: String,
@@ -120,7 +123,7 @@ impl DriaMessage {
     ///
     /// This may be costly to do in a hot loop.
     #[inline(always)]
-    pub fn recover_signature(&self) -> Result<libsecp256k1::PublicKey, DriaMessageError> {
+    pub fn recover_public_key(&self) -> Result<libsecp256k1::PublicKey, DriaMessageError> {
         let message = libsecp256k1::Message::parse(&sha256hash(&self.payload));
 
         // parse the signature and recovery ID
@@ -154,7 +157,7 @@ impl std::fmt::Display for DriaMessage {
             .decode_payload()
             .unwrap_or(self.payload.as_bytes().to_vec());
 
-        let payload_str = String::from_utf8(payload_decoded).unwrap_or(self.payload.clone());
+        let payload_str = String::from_utf8_lossy(&payload_decoded);
         write!(
             f,
             "{}/{} message at {}\n{}",
@@ -165,9 +168,8 @@ impl std::fmt::Display for DriaMessage {
 
 #[cfg(test)]
 mod tests {
-    use ecies::SecretKey;
-
     use super::*;
+    use ecies::SecretKey;
 
     #[derive(Serialize, Deserialize, PartialEq, Debug)]
     struct TestStruct {
