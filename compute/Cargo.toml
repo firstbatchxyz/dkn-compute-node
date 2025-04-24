@@ -42,7 +42,7 @@ libsecp256k1 = "0.7.1"
 # machine diagnostics
 # system info
 sysinfo = "0.33.1"
-# gpu info FIXME: this gives a build error on Windows
+# gpu info TODO: this gives a build error on Windows
 # wgpu = { version = "23.0.1", features = [
 #     "serde",
 #     "dx12",

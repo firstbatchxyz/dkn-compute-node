@@ -117,8 +117,6 @@ impl DriaMessage {
     #[inline(always)]
     pub fn parse_payload<T: DeserializeOwned>(&self) -> Result<T, DriaMessageError> {
         let decoded = self.decode_payload()?;
-        // FIXME: remove this
-        println!("Decoded payload: {:?}", String::from_utf8_lossy(&decoded));
         serde_json::from_slice::<T>(&decoded).map_err(DriaMessageError::ParseError)
     }
 

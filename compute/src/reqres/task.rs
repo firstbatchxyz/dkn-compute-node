@@ -135,18 +135,3 @@ impl TaskResponder {
         Ok(())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use dkn_utils::payloads::TaskRequestPayload;
-    use dkn_workflows::TaskWorkflow;
-
-    #[test]
-    fn test_serialize() {
-        // FIXME: remove this
-        let buf = "{\"taskId\":\"123456789--abcdef\",\"deadline\":\"2026-04-24 13:04:13.317444 UTC\",\"publicKey\":\"02e881b263932ad70f6082be1169894925d867b75af6a336daa3ed106f3d53621b\",\"input\":{\"model\":[\"gemini-1.5-flash\"],\"workflow\":{\"config\":{\"max_steps\":10,\"max_time\":250,\"tools\":[\"\"]},\"tasks\":[{\"id\":\"A\",\"name\":\"\",\"description\":\"\",\"operator\":\"generation\",\"messages\":[{\"role\":\"user\",\"content\":\"Write a 4 paragraph poem about Julius Caesar.\"}],\"outputs\":[{\"type\":\"write\",\"key\":\"result\",\"value\":\"__result\"}]},{\"id\":\"__end\",\"name\":\"end\",\"description\":\"End of the task\",\"operator\":\"end\",\"messages\":[{\"role\":\"user\",\"content\":\"End of the task\"}]}],\"steps\":[{\"source\":\"A\",\"target\":\"__end\"}],\"return_value\":{\"input\":{\"type\":\"read\",\"key\":\"result\"}}}}}";
-        println!("buf: {}", chrono::Utc::now());
-        let _payload: TaskRequestPayload<TaskWorkflow> =
-            serde_json::from_str(buf).expect("should be deserializable");
-    }
-}
