@@ -145,7 +145,7 @@ impl DriaComputeNode {
             true => match self.task_request_batch_tx {
                 Some(ref mut tx) => {
                     self.pending_tasks_batch
-                        .insert(task_input.task_id.clone(), task_metadata);
+                        .insert(task_input.row_id, task_metadata);
                     tx.send(task_input).await
                 }
                 None => {
@@ -160,7 +160,7 @@ impl DriaComputeNode {
             false => match self.task_request_single_tx {
                 Some(ref mut tx) => {
                     self.pending_tasks_single
-                        .insert(task_input.task_id.clone(), task_metadata);
+                        .insert(task_input.row_id, task_metadata);
                     tx.send(task_input).await
                 }
                 None => {
@@ -179,11 +179,11 @@ impl DriaComputeNode {
         let task_metadata = match task_response.batchable {
             true => {
                 self.completed_tasks_batch += 1; // TODO: this should be done in success
-                self.pending_tasks_batch.remove(&task_response.task_id)
+                self.pending_tasks_batch.remove(&task_response.row_id)
             }
             false => {
                 self.completed_tasks_single += 1; // TODO: this should be done in success
-                self.pending_tasks_single.remove(&task_response.task_id)
+                self.pending_tasks_single.remove(&task_response.row_id)
             }
         };
 
@@ -194,8 +194,8 @@ impl DriaComputeNode {
             }
             None => {
                 return Err(eyre!(
-                    "Channel not found for task id: {}",
-                    task_response.task_id
+                    "Channel not found during row id: {}",
+                    task_response.row_id
                 ))
             }
         };

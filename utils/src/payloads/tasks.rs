@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 /// Topic used within [`crate::DriaMessage`] for task request messages.
 pub const TASK_REQUEST_TOPIC: &str = "task";
@@ -14,10 +15,10 @@ pub const TASK_RESULT_TOPIC: &str = "results";
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskResponsePayload {
+    /// The uprimary key of the row in the database for this task.
+    pub row_id: Uuid,
     /// The unique identifier of the task.
-    ///
-    /// It is actually formed of two parts: the `task_id` and the `rpc_auth_id`, splitted by `--`.
-    pub task_id: String,
+    pub task_id: Uuid,
     /// Name of the model used for this task.
     pub model: String,
     /// Stats about the task execution.
@@ -36,12 +37,14 @@ impl TaskResponsePayload {
     /// Creates the payload of a computation with its result.
     pub fn new(
         result: String,
-        task_id: impl ToString,
+        row_id: Uuid,
+        task_id: Uuid,
         model: String,
         stats: TaskStats,
     ) -> Result<Self, libsecp256k1::Error> {
         Ok(TaskResponsePayload {
-            task_id: task_id.to_string(),
+            row_id,
+            task_id,
             result: Some(result),
             model,
             stats,
@@ -50,8 +53,15 @@ impl TaskResponsePayload {
     }
 
     /// Creates the payload of a computation with an error message.
-    pub fn new_error(error: String, task_id: String, model: String, stats: TaskStats) -> Self {
+    pub fn new_error(
+        error: String,
+        row_id: Uuid,
+        task_id: Uuid,
+        model: String,
+        stats: TaskStats,
+    ) -> Self {
         TaskResponsePayload {
+            row_id,
             task_id,
             result: None,
             model,
@@ -65,8 +75,10 @@ impl TaskResponsePayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskRequestPayload<T> {
+    /// The uprimary key of the row in the database for this task.
+    pub row_id: Uuid,
     /// The unique identifier of the task.
-    pub task_id: String,
+    pub task_id: Uuid,
     /// The deadline of the task.
     pub deadline: chrono::DateTime<chrono::Utc>,
     /// The input to the compute function.

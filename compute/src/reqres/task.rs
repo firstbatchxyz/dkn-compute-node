@@ -68,6 +68,7 @@ impl TaskResponder {
             executor,
             workflow,
             task_id: task.task_id,
+            row_id: task.row_id,
             stats,
             batchable,
         };
@@ -96,7 +97,8 @@ impl TaskResponder {
                 );
                 let payload = TaskResponsePayload::new(
                     result,
-                    &task_output.task_id,
+                    task_output.row_id,
+                    task_output.task_id,
                     task_metadata.model_name,
                     task_output.stats.record_published_at(),
                 )?;
@@ -114,6 +116,7 @@ impl TaskResponder {
                 // prepare error payload
                 let error_payload = TaskResponsePayload::new_error(
                     err_string,
+                    task_output.row_id,
                     task_output.task_id,
                     task_metadata.model_name,
                     task_output.stats.record_published_at(),

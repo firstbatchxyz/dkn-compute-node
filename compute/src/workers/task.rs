@@ -3,6 +3,7 @@ use dkn_p2p::libp2p::request_response::ResponseChannel;
 use dkn_utils::payloads::TaskStats;
 use dkn_workflows::{ExecutionError, Executor, Workflow};
 use tokio::sync::mpsc;
+use uuid::Uuid;
 
 pub struct TaskWorkerMetadata {
     pub model_name: String,
@@ -12,14 +13,16 @@ pub struct TaskWorkerMetadata {
 pub struct TaskWorkerInput {
     pub executor: Executor,
     pub workflow: Workflow,
-    pub task_id: String,
+    pub task_id: Uuid,
+    pub row_id: Uuid,
     pub stats: TaskStats,
     pub batchable: bool,
 }
 
 pub struct TaskWorkerOutput {
     pub result: Result<String, ExecutionError>,
-    pub task_id: String,
+    pub task_id: Uuid,
+    pub row_id: Uuid,
     pub stats: TaskStats,
     pub batchable: bool,
 }
@@ -221,6 +224,7 @@ impl TaskWorker {
         let output = TaskWorkerOutput {
             result,
             task_id: input.task_id,
+            row_id: input.row_id,
             batchable: input.batchable,
             stats: input.stats,
         };
@@ -299,7 +303,8 @@ mod tests {
             let task_input = TaskWorkerInput {
                 executor,
                 workflow,
-                task_id: format!("task-{}", i + 1),
+                task_id: Uuid::new_v4(),
+                row_id: Uuid::new_v4(),
                 stats: TaskStats::default(),
                 batchable: true,
             };

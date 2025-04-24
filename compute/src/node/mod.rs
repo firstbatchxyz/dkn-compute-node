@@ -5,6 +5,7 @@ use dkn_utils::crypto::secret_to_keypair;
 use eyre::Result;
 use std::collections::{HashMap, HashSet};
 use tokio::sync::mpsc;
+use uuid::Uuid;
 
 use crate::{
     config::*,
@@ -35,10 +36,10 @@ pub struct DriaComputeNode {
     pub(crate) num_heartbeats: u64,
     /// A mapping of heartbeat UUIDs to their deadlines.
     /// This is used to track the heartbeats, and their acknowledgements.
-    pub(crate) heartbeats_reqs: HashMap<uuid::Uuid, chrono::DateTime<chrono::Utc>>,
+    pub(crate) heartbeats_reqs: HashMap<Uuid, chrono::DateTime<chrono::Utc>>,
     /// A mapping of specs UUIDs to their deadlines.
     /// This is used to track the specs, and their acknowledgements.
-    pub(crate) specs_reqs: HashSet<uuid::Uuid>,
+    pub(crate) specs_reqs: HashSet<Uuid>,
     /// Request-response message receiver, can have both a request or a response.
     reqres_rx: mpsc::Receiver<(PeerId, DriaReqResMessage)>,
     /// Task response receiver, will respond to the request-response channel with the given result.
@@ -48,9 +49,9 @@ pub struct DriaComputeNode {
     /// Task worker transmitter to send single tasks.
     task_request_single_tx: Option<mpsc::Sender<TaskWorkerInput>>,
     // Single tasks
-    pub pending_tasks_single: HashMap<String, TaskWorkerMetadata>,
+    pub pending_tasks_single: HashMap<Uuid, TaskWorkerMetadata>,
     // Batchable tasks
-    pub pending_tasks_batch: HashMap<String, TaskWorkerMetadata>,
+    pub pending_tasks_batch: HashMap<Uuid, TaskWorkerMetadata>,
     /// Completed single tasks count
     completed_tasks_single: usize,
     /// Completed batch tasks count
