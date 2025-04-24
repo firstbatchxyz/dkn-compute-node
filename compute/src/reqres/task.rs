@@ -4,7 +4,6 @@ use dkn_utils::payloads::{TaskRequestPayload, TaskResponsePayload, TaskStats, TA
 use dkn_utils::DriaMessage;
 use dkn_workflows::{Executor, ModelProvider, TaskWorkflow};
 use eyre::{eyre, Context, Result};
-use libsecp256k1::PublicKey;
 
 use crate::workers::task::*;
 use crate::DriaComputeNode;
@@ -40,17 +39,11 @@ impl TaskResponder {
             ));
         }
 
-        // obtain public key from the payload
-        // do this early to avoid unnecessary processing
-        let task_public_key_bytes =
-            hex::decode(&task.public_key).wrap_err("could not decode public key")?;
-        let task_public_key = PublicKey::parse_slice(&task_public_key_bytes, None)?;
-
         // read model / provider from the task
         let model = node
             .config
             .workflows
-            .get_any_matching_model(task.input.model)?;
+            .get_any_matching_model(vec![task.input.model])?; // FIXME: dont use vector here
         let model_name = model.to_string(); // get model name, we will pass it in payload
         log::info!("Using model {} for task {}", model_name, task.task_id);
 
@@ -81,7 +74,6 @@ impl TaskResponder {
 
         let task_metadata = TaskWorkerMetadata {
             model_name,
-            public_key: task_public_key,
             channel,
         };
 
@@ -105,7 +97,6 @@ impl TaskResponder {
                 let payload = TaskResponsePayload::new(
                     result,
                     &task_output.task_id,
-                    &task_metadata.public_key,
                     task_metadata.model_name,
                     task_output.stats.record_published_at(),
                 )?;
@@ -139,5 +130,20 @@ impl TaskResponder {
             .await?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use dkn_utils::payloads::TaskRequestPayload;
+    use dkn_workflows::TaskWorkflow;
+
+    #[test]
+    fn test_serialize() {
+        // FIXME: remove this
+        let buf = "{\"taskId\":\"123456789--abcdef\",\"deadline\":\"2026-04-24 13:04:13.317444 UTC\",\"publicKey\":\"02e881b263932ad70f6082be1169894925d867b75af6a336daa3ed106f3d53621b\",\"input\":{\"model\":[\"gemini-1.5-flash\"],\"workflow\":{\"config\":{\"max_steps\":10,\"max_time\":250,\"tools\":[\"\"]},\"tasks\":[{\"id\":\"A\",\"name\":\"\",\"description\":\"\",\"operator\":\"generation\",\"messages\":[{\"role\":\"user\",\"content\":\"Write a 4 paragraph poem about Julius Caesar.\"}],\"outputs\":[{\"type\":\"write\",\"key\":\"result\",\"value\":\"__result\"}]},{\"id\":\"__end\",\"name\":\"end\",\"description\":\"End of the task\",\"operator\":\"end\",\"messages\":[{\"role\":\"user\",\"content\":\"End of the task\"}]}],\"steps\":[{\"source\":\"A\",\"target\":\"__end\"}],\"return_value\":{\"input\":{\"type\":\"read\",\"key\":\"result\"}}}}}";
+        println!("buf: {}", chrono::Utc::now());
+        let _payload: TaskRequestPayload<TaskWorkflow> =
+            serde_json::from_str(buf).expect("should be deserializable");
     }
 }

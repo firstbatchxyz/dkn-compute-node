@@ -116,7 +116,10 @@ impl DriaMessage {
     /// Decodes with [`Self::decode_payload`] and parses the decoded payload into JSON for the provided type `T`.
     #[inline(always)]
     pub fn parse_payload<T: DeserializeOwned>(&self) -> Result<T, DriaMessageError> {
-        serde_json::from_slice::<T>(&self.decode_payload()?).map_err(DriaMessageError::ParseError)
+        let decoded = self.decode_payload()?;
+        // FIXME: remove this
+        println!("Decoded payload: {:?}", String::from_utf8_lossy(&decoded));
+        serde_json::from_slice::<T>(&decoded).map_err(DriaMessageError::ParseError)
     }
 
     /// Recovers the signature from the message payload.

@@ -16,7 +16,7 @@ pub struct TaskWorkflow {
     /// A lıst of model (that can be parsed into `Model`) or model provider names.
     /// If model provider is given, the first matching model in the node config is used for that.
     /// From the given list, a random choice will be made for the task.
-    pub model: Vec<String>,
+    pub model: String,
 }
 
 // re-export Ollama Workflows

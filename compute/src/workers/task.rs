@@ -2,11 +2,9 @@ use colored::Colorize;
 use dkn_p2p::libp2p::request_response::ResponseChannel;
 use dkn_utils::payloads::TaskStats;
 use dkn_workflows::{ExecutionError, Executor, Workflow};
-use libsecp256k1::PublicKey;
 use tokio::sync::mpsc;
 
 pub struct TaskWorkerMetadata {
-    pub public_key: PublicKey,
     pub model_name: String,
     pub channel: ResponseChannel<Vec<u8>>,
 }

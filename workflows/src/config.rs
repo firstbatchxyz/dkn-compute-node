@@ -147,6 +147,8 @@ impl DriaWorkflowsConfig {
     }
 
     /// From a list of model or provider names, return a random matching model & provider.
+    ///
+    /// FIXME: refactor this
     pub fn get_any_matching_model(&self, list_model_or_provider: Vec<String>) -> Result<Model> {
         // filter models w.r.t supported ones
         let matching_models = list_model_or_provider
