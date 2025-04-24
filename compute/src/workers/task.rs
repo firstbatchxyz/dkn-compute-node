@@ -1,7 +1,7 @@
 use colored::Colorize;
 use dkn_p2p::libp2p::request_response::ResponseChannel;
 use dkn_utils::payloads::TaskStats;
-use dkn_workflows::{Entry, ExecutionError, Executor, Workflow};
+use dkn_workflows::{ExecutionError, Executor, Workflow};
 use libsecp256k1::PublicKey;
 use tokio::sync::mpsc;
 
@@ -12,7 +12,6 @@ pub struct TaskWorkerMetadata {
 }
 
 pub struct TaskWorkerInput {
-    pub entry: Option<Entry>,
     pub executor: Executor,
     pub workflow: Workflow,
     pub task_id: String,
@@ -216,11 +215,8 @@ impl TaskWorker {
         input.stats = input.stats.record_execution_started_at();
         let result = input
             .executor
-            .execute(
-                input.entry.as_ref(),
-                &input.workflow,
-                &mut Default::default(),
-            )
+            // takes no explicit prompt input, everything is in the workflow
+            .execute(None, &input.workflow, &mut Default::default())
             .await;
         input.stats = input.stats.record_execution_ended_at();
 
@@ -239,9 +235,8 @@ impl TaskWorker {
 
 #[cfg(test)]
 mod tests {
-    use dkn_workflows::{Executor, Model};
-
     use super::*;
+    use dkn_workflows::{Executor, Model};
 
     /// Tests the workflows worker with a single task sent within a batch.
     ///
@@ -304,7 +299,6 @@ mod tests {
 
             let executor = Executor::new(model.clone());
             let task_input = TaskWorkerInput {
-                entry: None,
                 executor,
                 workflow,
                 task_id: format!("task-{}", i + 1),

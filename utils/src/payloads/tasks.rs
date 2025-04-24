@@ -11,7 +11,7 @@ pub const TASK_RESULT_TOPIC: &str = "results";
 ///
 /// `ciphertext` and `error` are mutually-exclusive, only one of them can be `Some`:
 /// - if `ciphertext` is `Some`, then it contains the result,
-/// encrypted with the public key of the requester.
+///   encrypted with the public key of the requester.
 /// - if `error` is `Some`, then it contains the error message.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

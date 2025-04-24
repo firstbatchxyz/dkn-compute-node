@@ -2,10 +2,9 @@ use colored::Colorize;
 use dkn_p2p::libp2p::request_response::ResponseChannel;
 use dkn_utils::payloads::{TaskRequestPayload, TaskResponsePayload, TaskStats, TASK_RESULT_TOPIC};
 use dkn_utils::DriaMessage;
-use dkn_workflows::{Entry, Executor, ModelProvider, Workflow};
+use dkn_workflows::{Executor, ModelProvider, TaskWorkflow};
 use eyre::{eyre, Context, Result};
 use libsecp256k1::PublicKey;
-use serde::Deserialize;
 
 use crate::workers::task::*;
 use crate::DriaComputeNode;
@@ -13,22 +12,8 @@ use crate::DriaComputeNode;
 pub struct TaskResponder;
 
 impl super::IsResponder for TaskResponder {
-    type Request = DriaMessage; // TODO: TaskRequestPayload<WorkflowPayload>;
+    type Request = DriaMessage; // TODO: TaskRequestPayload<TaskWorkflow>;
     type Response = DriaMessage; // TODO: TaskResponsePayload;
-}
-
-/// The body of a task request.
-#[derive(Debug, Deserialize)]
-pub struct TaskPayload {
-    /// [Workflow](https://github.com/andthattoo/ollama-workflows/blob/main/src/program/workflow.rs) object to be parsed.
-    pub(crate) workflow: Workflow,
-    /// A lıst of model (that can be parsed into `Model`) or model provider names.
-    /// If model provider is given, the first matching model in the node config is used for that.
-    /// From the given list, a random choice will be made for the task.
-    pub(crate) model: Vec<String>,
-    /// Prompts can be provided within the workflow itself, in which case this is `None`.
-    /// Otherwise, the prompt is expected to be `Some` here.
-    pub(crate) prompt: Option<String>,
 }
 
 impl TaskResponder {
@@ -40,7 +25,7 @@ impl TaskResponder {
     ) -> Result<(TaskWorkerInput, TaskWorkerMetadata)> {
         // parse payload
         let task = compute_message
-            .parse_payload::<TaskRequestPayload<TaskPayload>>()
+            .parse_payload::<TaskRequestPayload<TaskWorkflow>>()
             .wrap_err("could not parse workflow task")?;
         log::info!("Handling task {}", task.task_id);
 
@@ -83,17 +68,10 @@ impl TaskResponder {
             (Executor::new(model), true)
         };
 
-        // prepare entry from prompt
-        let entry: Option<Entry> = task
-            .input
-            .prompt
-            .map(|prompt| Entry::try_value_or_str(&prompt));
-
         // get workflow as well
         let workflow = task.input.workflow;
 
         let task_input = TaskWorkerInput {
-            entry,
             executor,
             workflow,
             task_id: task.task_id,
