@@ -303,8 +303,8 @@ mod tests {
             let task_input = TaskWorkerInput {
                 executor,
                 workflow,
-                task_id: Uuid::new_v4(),
-                row_id: Uuid::new_v4(),
+                task_id: Uuid::now_v7(),
+                row_id: Uuid::now_v7(),
                 stats: TaskStats::default(),
                 batchable: true,
             };

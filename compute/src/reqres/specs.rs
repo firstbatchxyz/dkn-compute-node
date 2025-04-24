@@ -23,7 +23,7 @@ impl SpecRequester {
         peer_id: PeerId,
         specs: Specs,
     ) -> Result<OutboundRequestId> {
-        let uuid = Uuid::new_v4();
+        let uuid = Uuid::now_v7();
         let specs_request = SpecsRequest {
             specs_id: uuid,
             specs,

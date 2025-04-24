@@ -27,7 +27,7 @@ impl HeartbeatRequester {
         node: &mut DriaComputeNode,
         peer_id: PeerId,
     ) -> Result<OutboundRequestId> {
-        let uuid = Uuid::new_v4();
+        let uuid = Uuid::now_v7();
         let deadline = chrono::Utc::now() + HEARTBEAT_DEADLINE_SECS;
 
         let heartbeat_request = HeartbeatRequest {
