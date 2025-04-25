@@ -2,6 +2,7 @@ use dkn_p2p::{
     libp2p::PeerId, DriaP2PClient, DriaP2PCommander, DriaP2PProtocol, DriaReqResMessage,
 };
 use dkn_utils::crypto::secret_to_keypair;
+use dkn_workflows::DriaWorkflowsConfig;
 use eyre::Result;
 use std::collections::{HashMap, HashSet};
 use tokio::sync::mpsc;
@@ -68,6 +69,7 @@ impl DriaComputeNode {
     /// Returns the node instance and p2p client together. P2p MUST be run in a separate task before this node is used at all.
     pub async fn new(
         mut config: DriaComputeNodeConfig,
+        workflows: DriaWorkflowsConfig,
     ) -> Result<(
         DriaComputeNode,
         DriaP2PClient,
@@ -104,22 +106,22 @@ impl DriaComputeNode {
         let (publish_tx, publish_rx) = mpsc::channel(PUBLISH_CHANNEL_BUFSIZE);
 
         // check if we should create a worker for batchable workflows
-        let (task_batch_worker, task_batch_tx) = if config.workflows.has_batchable_models() {
-            let (worker, sender) = TaskWorker::new(publish_tx.clone());
+        let (task_batch_worker, task_batch_tx) = if workflows.has_batchable_models() {
+            let (worker, sender) = TaskWorker::new(publish_tx.clone(), workflows.clone());
             (Some(worker), Some(sender))
         } else {
             (None, None)
         };
 
         // check if we should create a worker for single workflows
-        let (task_single_worker, task_single_tx) = if config.workflows.has_non_batchable_models() {
-            let (worker, sender) = TaskWorker::new(publish_tx);
+        let (task_single_worker, task_single_tx) = if workflows.has_non_batchable_models() {
+            let (worker, sender) = TaskWorker::new(publish_tx, workflows.clone());
             (Some(worker), Some(sender))
         } else {
             (None, None)
         };
 
-        let model_names = config.workflows.get_model_names();
+        let model_names = workflows.get_model_names();
 
         let initial_steps = get_points(&config.address)
             .await

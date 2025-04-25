@@ -2,7 +2,7 @@ use colored::Colorize;
 use dkn_p2p::libp2p::request_response::ResponseChannel;
 use dkn_utils::payloads::{TaskRequestPayload, TaskResponsePayload, TaskStats, TASK_RESULT_TOPIC};
 use dkn_utils::DriaMessage;
-use dkn_workflows::{Executor, ModelProvider, TaskWorkflow};
+use dkn_workflows::TaskBody;
 use eyre::{Context, Result};
 
 use crate::workers::task::*;
@@ -18,13 +18,12 @@ impl super::IsResponder for TaskResponder {
 impl TaskResponder {
     /// Handles the compute message for workflows.
     pub(crate) async fn prepare_worker_input(
-        node: &mut DriaComputeNode,
         compute_message: &DriaMessage,
         channel: ResponseChannel<Vec<u8>>,
     ) -> Result<(TaskWorkerInput, TaskWorkerMetadata)> {
         // parse payload
         let task = compute_message
-            .parse_payload::<TaskRequestPayload<TaskWorkflow>>()
+            .parse_payload::<TaskRequestPayload<TaskBody>>()
             .wrap_err("could not parse workflow task")?;
         log::info!("Handling task {}", task.task_id);
 
@@ -32,33 +31,13 @@ impl TaskResponder {
         let stats = TaskStats::new().record_received_at();
 
         // read model / provider from the task
-        let model = node
-            .config
-            .workflows
-            .get_any_matching_model(vec![task.input.model])?; // FIXME: dont use vector here
-        let model_name = model.to_string(); // get model name, we will pass it in payload
+        let model_name = task.input.model.to_string(); // get model name, we will pass it in payload
         log::info!("Using model {} for task {}", model_name, task.task_id);
 
-        // prepare workflow executor
-        let (executor, batchable) = if model.provider() == ModelProvider::Ollama {
-            (
-                Executor::new_at(
-                    model,
-                    &node.config.workflows.ollama.host,
-                    node.config.workflows.ollama.port,
-                ),
-                false,
-            )
-        } else {
-            (Executor::new(model), true)
-        };
-
-        // get workflow as well
-        let workflow = task.input.workflow;
+        let batchable = task.input.is_batchable();
 
         let task_input = TaskWorkerInput {
-            executor,
-            workflow,
+            body: task.input,
             task_id: task.task_id,
             row_id: task.row_id,
             stats,

@@ -1,11 +1,11 @@
 mod ollama;
-pub use ollama::OllamaConfig;
+pub use ollama::OllamaProvider;
 
 mod openai;
-pub use openai::OpenAIConfig;
+pub use openai::OpenAIProvider;
 
 mod gemini;
-pub use gemini::GeminiConfig;
+pub use gemini::GeminiProvider;
 
 mod openrouter;
-pub use openrouter::OpenRouterConfig;
+pub use openrouter::OpenRouterProvider;

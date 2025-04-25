@@ -58,6 +58,7 @@ dkn-workflows = { path = "../workflows" }
 chrono = { version = "0.4.40", features = ["serde"] }
 
 
+
 # vendor OpenSSL so that its easier to build cross-platform packages
 [dependencies.openssl]
 version = "*"

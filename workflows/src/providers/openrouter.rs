@@ -1,46 +1,48 @@
-use dkn_utils::safe_read_env;
-use eyre::{eyre, Context, Result};
-use ollama_workflows::Model;
-use reqwest::Client;
-use std::env;
+use eyre::Result;
+use rig::completion::{Chat, PromptError};
+use rig::providers::openrouter;
 
-const ENV_VAR_NAME: &str = "OPENROUTER_API_KEY";
+use crate::{Model, TaskBody};
 
 /// OpenRouter-specific configurations.
-#[derive(Debug, Clone, Default)]
-pub struct OpenRouterConfig {
-    /// API key, if available.
-    api_key: Option<String>,
+#[derive(Clone)]
+pub struct OpenRouterProvider {
+    client: openrouter::Client,
 }
 
-impl OpenRouterConfig {
+impl OpenRouterProvider {
+    pub const ENV_VAR_NAME: &str = "OPENROUTER_API_KEY";
+
     /// Looks at the environment variables for OpenRouter API key.
-    pub fn new() -> Self {
+    pub fn new(api_key: &str) -> Self {
         Self {
-            api_key: safe_read_env(env::var(ENV_VAR_NAME)),
+            client: openrouter::Client::new(api_key),
         }
     }
 
-    /// Sets the API key for OpenRouter.
-    pub fn with_api_key(mut self, api_key: String) -> Self {
-        self.api_key = Some(api_key);
-        self
+    pub async fn execute(&self, task: TaskBody) -> Result<String, PromptError> {
+        let mut model = self.client.agent(&task.model.to_string());
+        if let Some(preamble) = task.preamble {
+            model = model.preamble(&preamble);
+        }
+
+        let agent = model.build();
+
+        agent.chat(task.prompt, task.chat_history).await
     }
 
     /// Checks if the API key exists.
-    pub async fn check(&self, external_models: Vec<Model>) -> Result<Vec<Model>> {
+    pub async fn check(&self, external_models: Vec<Model>) -> Vec<Model> {
         log::info!("Checking OpenRouter API key");
-
-        // check API key
-        let Some(api_key) = &self.api_key else {
-            return Err(eyre!("OpenRouter API key not found"));
-        };
 
         // make a dummy request with existing models
         let mut available_models = Vec::new();
         for requested_model in external_models {
             // make a dummy request
-            if let Err(err) = self.dummy_request(api_key.as_str(), &requested_model).await {
+            if let Err(err) = self
+                .execute(TaskBody::new_prompt("What is 2 + 2?", requested_model))
+                .await
+            {
                 log::warn!(
                     "Model {} failed dummy request, ignoring it: {}",
                     requested_model,
@@ -62,80 +64,31 @@ impl OpenRouterConfig {
             );
         }
 
-        Ok(available_models)
-    }
-
-    /// Makes a dummy request to the OpenRouter API to check if the model is available & has credits.
-    async fn dummy_request(&self, api_key: &str, model: &Model) -> Result<()> {
-        log::debug!("Making a dummy request with: {}", model);
-        let client = Client::new();
-        let request = client
-            .post("https://openrouter.ai/api/v1/chat/completions")
-            .header("Authorization", format!("Bearer {}", api_key))
-            .header("Content-Type", "application/json")
-            .header("HTTP_Referer", "https://dria.co/")
-            .header("X-Title", "dria")
-            .body(
-                serde_json::json!({
-                  "model": model.to_string(),
-                  "messages": [
-                    {
-                      "role": "user",
-                      "content": "What is 2+2?"
-                    }
-                  ]
-                })
-                .to_string(),
-            )
-            .build()
-            .wrap_err("failed to build request")?;
-
-        let response = client
-            .execute(request)
-            .await
-            .wrap_err("failed to send request")?;
-
-        // ensure response is ok
-        if !response.status().is_success() {
-            return Err(eyre!(
-                "Failed to make OpenRouter chat request:\n{}",
-                response
-                    .text()
-                    .await
-                    .unwrap_or("could not get error text as well".to_string())
-            ));
-        }
-        log::debug!("Dummy request successful for model {}", model);
-
-        Ok(())
+        available_models
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::env;
 
     #[tokio::test]
     #[ignore = "requires OpenRouter API key"]
     async fn test_openrouter_check() {
         let _ = dotenvy::dotenv(); // read api key
-        assert!(env::var(ENV_VAR_NAME).is_ok(), "should have api key");
+        let api_key = env::var(OpenRouterProvider::ENV_VAR_NAME).unwrap();
         env::set_var("RUST_LOG", "none,dkn_workflows=debug");
         let _ = env_logger::builder().is_test(true).try_init();
 
         let models = vec![Model::ORDeepSeek2_5, Model::ORLlama3_1_8B];
-        let config = OpenRouterConfig::new();
-        let res = config.check(models.clone()).await.unwrap();
+        let config = OpenRouterProvider::new(&api_key);
+        let res = config.check(models.clone()).await;
         assert_eq!(res, models);
 
-        env::set_var(ENV_VAR_NAME, "i-dont-work");
-        let config = OpenRouterConfig::new();
-        let res = config.check(vec![]).await.unwrap();
-        assert!(res.is_empty()); // does not return an Err unlike others!
-
-        env::remove_var(ENV_VAR_NAME);
-        let config = OpenRouterConfig::new();
+        // create with a bad api key
+        let config = OpenRouterProvider::new("i-dont-work");
         let res = config.check(vec![]).await;
-        assert!(res.is_err());
+        assert!(res.is_empty()); // does not return an Err unlike others!
     }
 }

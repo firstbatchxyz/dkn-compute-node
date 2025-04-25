@@ -58,10 +58,7 @@ impl DriaComputeNode {
         diagnostics.push(format!("Address: 0x{}", self.config.address));
 
         // print models
-        diagnostics.push(format!(
-            "Models: {}",
-            self.config.workflows.get_model_names().join(", ")
-        ));
+        diagnostics.push(format!("Models: {}", self.config.model_names.join(", ")));
 
         // if we have not received pings for a while, we are considered offline
         let is_offline = chrono::Utc::now() > self.last_heartbeat_at + HEARTBEAT_LIVENESS_SECS;

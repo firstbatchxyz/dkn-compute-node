@@ -69,32 +69,30 @@ async fn main() -> Result<()> {
     });
 
     // create configurations & check required services & address in use
-    let workflows_config =
+    let mut workflows =
         DriaWorkflowsConfig::new_from_csv(&env::var("DKN_MODELS").unwrap_or_default());
-    if workflows_config.models.is_empty() {
+    if workflows.models.is_empty() {
         return Err(eyre::eyre!("No models were provided, make sure to restart with at least one model provided within DKN_MODELS."));
     }
 
-    log::info!("Configured models: {:?}", workflows_config.models);
-    let mut config = DriaComputeNodeConfig::new(workflows_config);
+    log::info!("Configured models: {:?}", workflows.models);
+    let config = DriaComputeNodeConfig::new(workflows.get_model_names());
     config.assert_address_not_in_use()?;
     // check services & models, will exit if there is an error
     // since service check can take time, we allow early-exit here as well
     tokio::select! {
-        result = config.workflows.check_services() => result,
+        result = workflows.check_services() => result,
         _ = cancellation.cancelled() => {
             log::info!("Service check cancelled, exiting.");
             return Ok(());
         }
     }?;
-    log::warn!(
-        "Using models: {}",
-        config.workflows.get_model_names().join(", ")
-    );
+    log::warn!("Using models: {}", workflows.get_model_names().join(", "));
 
     // create the node
     let batch_size = config.batch_size;
-    let (mut node, p2p, worker_batch, worker_single) = DriaComputeNode::new(config).await?;
+    let (mut node, p2p, worker_batch, worker_single) =
+        DriaComputeNode::new(config, workflows).await?;
 
     // spawn p2p client first
     log::info!("Spawning peer-to-peer client thread.");

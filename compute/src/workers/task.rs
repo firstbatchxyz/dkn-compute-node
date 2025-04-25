@@ -1,7 +1,7 @@
 use colored::Colorize;
 use dkn_p2p::libp2p::request_response::ResponseChannel;
 use dkn_utils::payloads::TaskStats;
-use dkn_workflows::{ExecutionError, Executor, Workflow};
+use dkn_workflows::{DriaWorkflowsConfig, TaskBody, TaskResult};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
@@ -11,8 +11,7 @@ pub struct TaskWorkerMetadata {
 }
 
 pub struct TaskWorkerInput {
-    pub executor: Executor,
-    pub workflow: Workflow,
+    pub body: TaskBody,
     pub task_id: Uuid,
     pub row_id: Uuid,
     pub stats: TaskStats,
@@ -20,7 +19,7 @@ pub struct TaskWorkerInput {
 }
 
 pub struct TaskWorkerOutput {
-    pub result: Result<String, ExecutionError>,
+    pub result: TaskResult,
     pub task_id: Uuid,
     pub row_id: Uuid,
     pub stats: TaskStats,
@@ -35,6 +34,8 @@ pub struct TaskWorker {
     task_rx: mpsc::Receiver<TaskWorkerInput>,
     /// Publish message channel sender, the receiver is most likely the compute node itself.
     publish_tx: mpsc::Sender<TaskWorkerOutput>,
+    /// Workflows configuration.
+    workflows: DriaWorkflowsConfig,
 }
 
 /// Buffer size for workflow tasks (per worker).
@@ -50,10 +51,12 @@ impl TaskWorker {
     /// Creates a worker and returns the sender and receiver for the worker.
     pub fn new(
         publish_tx: mpsc::Sender<TaskWorkerOutput>,
+        workflows: DriaWorkflowsConfig,
     ) -> (TaskWorker, mpsc::Sender<TaskWorkerInput>) {
         let (task_tx, task_rx) = mpsc::channel(TASK_RX_CHANNEL_BUFSIZE);
 
         let worker = TaskWorker {
+            workflows,
             task_rx,
             publish_tx,
         };
@@ -77,7 +80,7 @@ impl TaskWorker {
 
             if let Some(task) = task {
                 log::info!("Processing {} {} (single)", "task".yellow(), task.task_id);
-                TaskWorker::execute((task, &self.publish_tx)).await
+                self.execute((task, &self.publish_tx)).await
             } else {
                 return self.shutdown();
             };
@@ -133,69 +136,69 @@ impl TaskWorker {
             let mut batch = tasks.into_iter().map(|b| (b, &self.publish_tx));
             match num_tasks {
                 1 => {
-                    TaskWorker::execute(batch.next().unwrap()).await;
+                    self.execute(batch.next().unwrap()).await;
                 }
                 2 => {
                     tokio::join!(
-                        TaskWorker::execute(batch.next().unwrap()),
-                        TaskWorker::execute(batch.next().unwrap())
+                        self.execute(batch.next().unwrap()),
+                        self.execute(batch.next().unwrap())
                     );
                 }
                 3 => {
                     tokio::join!(
-                        TaskWorker::execute(batch.next().unwrap()),
-                        TaskWorker::execute(batch.next().unwrap()),
-                        TaskWorker::execute(batch.next().unwrap())
+                        self.execute(batch.next().unwrap()),
+                        self.execute(batch.next().unwrap()),
+                        self.execute(batch.next().unwrap())
                     );
                 }
                 4 => {
                     tokio::join!(
-                        TaskWorker::execute(batch.next().unwrap()),
-                        TaskWorker::execute(batch.next().unwrap()),
-                        TaskWorker::execute(batch.next().unwrap()),
-                        TaskWorker::execute(batch.next().unwrap())
+                        self.execute(batch.next().unwrap()),
+                        self.execute(batch.next().unwrap()),
+                        self.execute(batch.next().unwrap()),
+                        self.execute(batch.next().unwrap())
                     );
                 }
                 5 => {
                     tokio::join!(
-                        TaskWorker::execute(batch.next().unwrap()),
-                        TaskWorker::execute(batch.next().unwrap()),
-                        TaskWorker::execute(batch.next().unwrap()),
-                        TaskWorker::execute(batch.next().unwrap()),
-                        TaskWorker::execute(batch.next().unwrap())
+                        self.execute(batch.next().unwrap()),
+                        self.execute(batch.next().unwrap()),
+                        self.execute(batch.next().unwrap()),
+                        self.execute(batch.next().unwrap()),
+                        self.execute(batch.next().unwrap())
                     );
                 }
                 6 => {
                     tokio::join!(
-                        TaskWorker::execute(batch.next().unwrap()),
-                        TaskWorker::execute(batch.next().unwrap()),
-                        TaskWorker::execute(batch.next().unwrap()),
-                        TaskWorker::execute(batch.next().unwrap()),
-                        TaskWorker::execute(batch.next().unwrap()),
-                        TaskWorker::execute(batch.next().unwrap())
+                        self.execute(batch.next().unwrap()),
+                        self.execute(batch.next().unwrap()),
+                        self.execute(batch.next().unwrap()),
+                        self.execute(batch.next().unwrap()),
+                        self.execute(batch.next().unwrap()),
+                        self.execute(batch.next().unwrap())
                     );
                 }
                 7 => {
                     tokio::join!(
-                        TaskWorker::execute(batch.next().unwrap()),
-                        TaskWorker::execute(batch.next().unwrap()),
-                        TaskWorker::execute(batch.next().unwrap()),
-                        TaskWorker::execute(batch.next().unwrap()),
-                        TaskWorker::execute(batch.next().unwrap()),
-                        TaskWorker::execute(batch.next().unwrap()),
-                        TaskWorker::execute(batch.next().unwrap())
+                        self.execute(batch.next().unwrap()),
+                        self.execute(batch.next().unwrap()),
+                        self.execute(batch.next().unwrap()),
+                        self.execute(batch.next().unwrap()),
+                        self.execute(batch.next().unwrap()),
+                        self.execute(batch.next().unwrap()),
+                        self.execute(batch.next().unwrap())
                     );
                 }
                 8 => {
                     tokio::join!(
-                        TaskWorker::execute(batch.next().unwrap()),
-                        TaskWorker::execute(batch.next().unwrap()),
-                        TaskWorker::execute(batch.next().unwrap()),
-                        TaskWorker::execute(batch.next().unwrap()),
-                        TaskWorker::execute(batch.next().unwrap()),
-                        TaskWorker::execute(batch.next().unwrap()),
-                        TaskWorker::execute(batch.next().unwrap()),
-                        TaskWorker::execute(batch.next().unwrap())
+                        self.execute(batch.next().unwrap()),
+                        self.execute(batch.next().unwrap()),
+                        self.execute(batch.next().unwrap()),
+                        self.execute(batch.next().unwrap()),
+                        self.execute(batch.next().unwrap()),
+                        self.execute(batch.next().unwrap()),
+                        self.execute(batch.next().unwrap()),
+                        self.execute(batch.next().unwrap())
                     );
                 }
                 _ => {
@@ -211,14 +214,11 @@ impl TaskWorker {
 
     /// Executes a single task, and publishes the output.
     pub async fn execute(
+        &self,
         (mut input, publish_tx): (TaskWorkerInput, &mpsc::Sender<TaskWorkerOutput>),
     ) {
         input.stats = input.stats.record_execution_started_at();
-        let result = input
-            .executor
-            // takes no explicit prompt input, everything is in the workflow
-            .execute(None, &input.workflow, &mut Default::default())
-            .await;
+        let result = self.workflows.execute(input.body).await;
         input.stats = input.stats.record_execution_ended_at();
 
         let output = TaskWorkerOutput {
@@ -232,104 +232,5 @@ impl TaskWorker {
         if let Err(e) = publish_tx.send(output).await {
             log::error!("Error sending workflow result: {}", e);
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use dkn_workflows::{Executor, Model};
-
-    /// Tests the workflows worker with a single task sent within a batch.
-    ///
-    /// ## Run command
-    ///
-    /// ```sh
-    /// cargo test --package dkn-compute --lib --all-features -- workers::workflow::tests::test_workflows_worker --exact --show-output --nocapture --ignored
-    /// ```
-    #[tokio::test]
-    #[ignore = "run manually"]
-    async fn test_workflows_worker() {
-        let _ = env_logger::builder()
-            .filter_level(log::LevelFilter::Off)
-            .filter_module("dkn_compute", log::LevelFilter::Debug)
-            .is_test(true)
-            .try_init();
-
-        let (publish_tx, mut publish_rx) = mpsc::channel(1024);
-        let (mut worker, task_tx) = TaskWorker::new(publish_tx);
-
-        // create batch workflow worker
-        let worker_handle = tokio::spawn(async move {
-            worker.run_batch(4).await;
-        });
-
-        let num_tasks = 4;
-        let model = Model::O1Preview;
-        let workflow = serde_json::json!({
-            "config": {
-                "max_steps": 10,
-                "max_time": 250,
-                "tools": [""]
-            },
-            "tasks": [
-                {
-                    "id": "A",
-                    "name": "",
-                    "description": "",
-                    "operator": "generation",
-                    "messages": [{ "role": "user", "content": "Write a 4 paragraph poem about Julius Caesar." }],
-                    "outputs": [ { "type": "write", "key": "result", "value": "__result" } ]
-                },
-                {
-                    "id": "__end",
-                    "name": "end",
-                    "description": "End of the task",
-                    "operator": "end",
-                    "messages": [{ "role": "user", "content": "End of the task" }],
-                }
-            ],
-            "steps": [ { "source": "A", "target": "__end" } ],
-            "return_value": { "input": { "type": "read", "key": "result" }
-            }
-        });
-
-        for i in 0..num_tasks {
-            log::info!("Sending task {}", i + 1);
-
-            let workflow = serde_json::from_value(workflow.clone()).unwrap();
-
-            let executor = Executor::new(model.clone());
-            let task_input = TaskWorkerInput {
-                executor,
-                workflow,
-                task_id: Uuid::now_v7(),
-                row_id: Uuid::now_v7(),
-                stats: TaskStats::default(),
-                batchable: true,
-            };
-
-            // send workflow to worker
-            task_tx.send(task_input).await.unwrap();
-        }
-
-        // now wait for all results
-        let mut results = Vec::new();
-        for i in 0..num_tasks {
-            log::info!("Waiting for result {}", i + 1);
-            let result = publish_rx.recv().await.unwrap();
-            log::info!("Got result {}", i + 1,);
-            if result.result.is_err() {
-                log::error!("Error: {:?}", result.result);
-            }
-            results.push(result);
-        }
-
-        log::info!("Got all results, closing channel.");
-        publish_rx.close();
-
-        // FIXME: this bugs out
-        worker_handle.await.unwrap();
-        log::info!("Done.");
     }
 }

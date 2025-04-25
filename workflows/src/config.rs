@@ -1,12 +1,12 @@
 use crate::{
-    providers::{GeminiConfig, OllamaConfig, OpenAIConfig, OpenRouterConfig},
-    Model, ModelProvider,
+    providers::{GeminiProvider, OllamaProvider, OpenAIProvider, OpenRouterProvider},
+    Model, ModelProvider, TaskBody,
 };
 use dkn_utils::split_csv_line;
 use eyre::{eyre, OptionExt, Result};
-use rand::seq::IteratorRandom; // provides Vec<_>.choose
+use rand::seq::IteratorRandom;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct DriaWorkflowsConfig {
     /// List of models.
     ///
@@ -14,16 +14,16 @@ pub struct DriaWorkflowsConfig {
     pub models: Vec<Model>,
     /// Ollama configurations, in case Ollama is used.
     /// Otherwise, can be ignored.
-    pub ollama: OllamaConfig,
+    pub ollama: OllamaProvider,
     /// OpenAI configurations, e.g. API key, in case OpenAI is used.
     /// Otherwise, can be ignored.
-    pub openai: OpenAIConfig,
+    pub openai: OpenAIProvider,
     /// Gemini configurations, e.g. API key, in case Gemini is used.
     /// Otherwise, can be ignored.
-    pub gemini: GeminiConfig,
+    pub gemini: GeminiProvider,
     /// OpenRouter configurations, e.g. API key, in case OpenRouter is used.
     /// Otherwise, can be ignored.
-    pub openrouter: OpenRouterConfig,
+    pub openrouter: OpenRouterProvider,
 }
 
 impl Default for DriaWorkflowsConfig {
@@ -36,22 +36,33 @@ impl DriaWorkflowsConfig {
     /// Creates a new config with the given models.
     pub fn new(models: Vec<Model>) -> Self {
         Self {
+            // models: HashSet::from_iter(models.into_iter()),
+            // FIXME: !!!
             models,
-            ollama: OllamaConfig::new(),
-            openai: OpenAIConfig::new(),
-            openrouter: OpenRouterConfig::new(),
-            gemini: GeminiConfig::new(),
+            ollama: OllamaProvider::new(),
+            openai: OpenAIProvider::new("aaa"),
+            openrouter: OpenRouterProvider::new("aa"),
+            gemini: GeminiProvider::new("aaa"),
+        }
+    }
+
+    pub async fn execute(&self, task: TaskBody) -> Result<String, rig::completion::PromptError> {
+        match task.model.provider() {
+            ModelProvider::Ollama => self.ollama.execute(task).await,
+            ModelProvider::OpenAI => self.openai.execute(task).await,
+            ModelProvider::Gemini => self.gemini.execute(task).await,
+            ModelProvider::OpenRouter => self.openrouter.execute(task).await,
         }
     }
 
     /// Sets the Ollama configuration for the Workflows config.
-    pub fn with_ollama_config(mut self, ollama: OllamaConfig) -> Self {
+    pub fn with_ollama_config(mut self, ollama: OllamaProvider) -> Self {
         self.ollama = ollama;
         self
     }
 
     /// Sets the OpenAI configuration for the Workflows config.
-    pub fn with_openai_config(mut self, openai: OpenAIConfig) -> Self {
+    pub fn with_openai_config(mut self, openai: OpenAIProvider) -> Self {
         self.openai = openai;
         self
     }
@@ -94,7 +105,6 @@ impl DriaWorkflowsConfig {
     /// Given a raw model name or provider (as a string), returns the first matching model & provider.
     ///
     /// - If input is `*` or `all`, a random model is returned.
-    /// - if input is `!` the first model is returned.
     /// - If input is a model and is supported by this node, it is returned directly.
     /// - If input is a provider, the first matching model in the node config is returned.
     ///
@@ -104,14 +114,8 @@ impl DriaWorkflowsConfig {
             // return a random model
             self.models
                 .iter()
-                .choose(&mut rand::thread_rng())
+                .next() // HashSet iterates randomly, so we just pick the first
                 .ok_or_eyre("could not find models to randomly pick for '*'")
-                .cloned()
-        } else if model_or_provider == "!" {
-            // return the first model
-            self.models
-                .first()
-                .ok_or_eyre("could not find models to choose first for '!'")
                 .cloned()
         } else if let Ok(provider) = ModelProvider::try_from(model_or_provider.clone()) {
             // this is a valid provider, return the first matching model in the config
@@ -195,37 +199,37 @@ impl DriaWorkflowsConfig {
         log::info!("Checking configured services.");
         let unique_providers = self.get_providers();
 
-        let mut good_models = Vec::new();
+        let mut good_models: Vec<Model> = Vec::new();
 
-        // if Ollama is a provider, check that it is running & Ollama models are pulled (or pull them)
-        if unique_providers.contains(&ModelProvider::Ollama) {
-            let provider_models = self.get_models_for_provider(ModelProvider::Ollama);
-            good_models.extend(self.ollama.check(provider_models).await?);
-        }
+        // // if Ollama is a provider, check that it is running & Ollama models are pulled (or pull them)
+        // if unique_providers.contains(&ModelProvider::Ollama) {
+        //     let provider_models = self.get_models_for_provider(ModelProvider::Ollama);
+        //     good_models.extend(self.ollama.check(provider_models).await?);
+        // }
 
-        // if OpenAI is a provider, check that the API key is set & models are available
-        if unique_providers.contains(&ModelProvider::OpenAI) {
-            let provider_models = self.get_models_for_provider(ModelProvider::OpenAI);
-            good_models.extend(self.openai.check(provider_models).await?);
-        }
+        // // if OpenAI is a provider, check that the API key is set & models are available
+        // if unique_providers.contains(&ModelProvider::OpenAI) {
+        //     let provider_models = self.get_models_for_provider(ModelProvider::OpenAI);
+        //     good_models.extend(self.openai.check(provider_models).await?);
+        // }
 
-        // if Gemini is a provider, check that the API key is set & models are available
-        if unique_providers.contains(&ModelProvider::Gemini) {
-            let provider_models = self.get_models_for_provider(ModelProvider::Gemini);
-            good_models.extend(self.gemini.check(provider_models).await?);
-        }
+        // // if Gemini is a provider, check that the API key is set & models are available
+        // if unique_providers.contains(&ModelProvider::Gemini) {
+        //     let provider_models = self.get_models_for_provider(ModelProvider::Gemini);
+        //     good_models.extend(self.gemini.check(provider_models).await?);
+        // }
 
-        // if OpenRouter is a provider, check that the API key is set
-        if unique_providers.contains(&ModelProvider::OpenRouter) {
-            let provider_models = self.get_models_for_provider(ModelProvider::OpenRouter);
-            good_models.extend(self.openrouter.check(provider_models).await?);
-        }
+        // // if OpenRouter is a provider, check that the API key is set
+        // if unique_providers.contains(&ModelProvider::OpenRouter) {
+        //     let provider_models = self.get_models_for_provider(ModelProvider::OpenRouter);
+        //     good_models.extend(self.openrouter.check(provider_models).await?);
+        // }
 
         // update good models
         if good_models.is_empty() {
             Err(eyre!("No good models found, please check logs for errors."))
         } else {
-            self.models = good_models;
+            // self.models = good_models;
             Ok(())
         }
     }

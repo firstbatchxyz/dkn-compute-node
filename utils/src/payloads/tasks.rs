@@ -74,7 +74,7 @@ impl TaskResponsePayload {
 /// A generic task request, given by Dria.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TaskRequestPayload<T> {
+pub struct TaskRequestPayload<T: Clone> {
     /// The uprimary key of the row in the database for this task.
     pub row_id: Uuid,
     /// The unique identifier of the task.

@@ -1,44 +1,48 @@
-use dkn_utils::safe_read_env;
 use eyre::{eyre, Context, Result};
-use ollama_workflows::Model;
 use reqwest::Client;
+use rig::{
+    completion::{Chat, PromptError},
+    providers::gemini,
+};
 use serde::Deserialize;
-use std::env;
 
-const ENV_VAR_NAME: &str = "GEMINI_API_KEY";
+use crate::{Model, TaskBody};
 
 /// OpenAI-specific configurations.
-#[derive(Debug, Clone, Default)]
-pub struct GeminiConfig {
-    /// API key, if available.
-    api_key: Option<String>,
+#[derive(Clone)]
+pub struct GeminiProvider {
+    api_key: String,
+    client: gemini::Client,
 }
 
-impl GeminiConfig {
+impl GeminiProvider {
+    pub const ENV_VAR_NAME: &str = "GEMINI_API_KEY";
+
     /// Looks at the environment variables for Gemini API key.
-    pub fn new() -> Self {
+    pub fn new(api_key: &str) -> Self {
         Self {
-            api_key: safe_read_env(env::var(ENV_VAR_NAME)),
+            api_key: api_key.to_string(),
+            client: gemini::Client::new(api_key),
         }
     }
 
-    /// Sets the API key for Gemini.
-    pub fn with_api_key(mut self, api_key: String) -> Self {
-        self.api_key = Some(api_key);
-        self
+    pub async fn execute(&self, task: TaskBody) -> Result<String, PromptError> {
+        let mut model = self.client.agent(&task.model.to_string());
+        if let Some(preamble) = task.preamble {
+            model = model.preamble(&preamble);
+        }
+
+        let agent = model.build();
+
+        agent.chat(task.prompt, task.chat_history).await
     }
 
     /// Check if requested models exist & are available in the OpenAI account.
     pub async fn check(&self, models: Vec<Model>) -> Result<Vec<Model>> {
         log::info!("Checking Gemini requirements");
 
-        // check API key
-        let Some(api_key) = &self.api_key else {
-            return Err(eyre!("Gemini API key not found"));
-        };
-
         // check if models exist and select those that are available
-        let gemini_models_names = self.fetch_models(api_key).await?;
+        let gemini_models_names = self.fetch_models().await?;
         let mut available_models = Vec::new();
         for requested_model in models {
             // check if model exists
@@ -54,7 +58,10 @@ impl GeminiConfig {
             }
 
             // make a dummy request
-            if let Err(err) = self.dummy_request(api_key, &requested_model).await {
+            if let Err(err) = self
+                .execute(TaskBody::new_prompt("What is 2 + 2?", requested_model))
+                .await
+            {
                 log::warn!(
                     "Model {} failed dummy request, ignoring it: {}",
                     requested_model,
@@ -84,7 +91,7 @@ impl GeminiConfig {
     /// A gemini model name in API response is given as `models/{baseModelId}-{version}`
     /// the model name in Workflows can include the version as well, so best bet is to check prefix
     /// ignoring the `models/` part.
-    async fn fetch_models(&self, api_key: &str) -> Result<Vec<String>> {
+    async fn fetch_models(&self) -> Result<Vec<String>> {
         /// [Model](https://ai.google.dev/api/models#Model) API object, fields omitted.
         #[derive(Debug, Clone, Deserialize)]
         struct GeminiModel {
@@ -102,7 +109,7 @@ impl GeminiConfig {
         let request = client
             // [`models.list`](https://ai.google.dev/api/models#method:-models.list) endpoint
             .get("https://generativelanguage.googleapis.com/v1beta/models")
-            .query(&[("key", api_key)])
+            .query(&[("key", &self.api_key)])
             .build()
             .wrap_err("failed to build request")?;
 
@@ -126,58 +133,20 @@ impl GeminiConfig {
             .map(|model| model.name.trim_start_matches("models/").to_string())
             .collect())
     }
-
-    async fn dummy_request(&self, api_key: &str, model: &Model) -> Result<()> {
-        log::debug!("Making a dummy request with: {}", model);
-        let client = Client::new();
-        let request = client
-            .post(format!(
-                "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent",
-                model
-            ))
-            .query(&[("key", api_key)])
-            .header("Content-Type", "application/json")
-            .body(
-                serde_json::json!({
-                 "contents": [{
-                   "parts":[{"text": "What is 2+2?"}]
-                  }]
-                })
-                .to_string(),
-            )
-            .build()
-            .wrap_err("failed to build request")?;
-
-        let response = client
-            .execute(request)
-            .await
-            .wrap_err("failed to send request")?;
-
-        // ensure response is ok
-        if !response.status().is_success() {
-            return Err(eyre!(
-                "Failed to make OpenAI chat request:\n{}",
-                response
-                    .text()
-                    .await
-                    .unwrap_or("could not get error text as well".to_string())
-            ));
-        }
-        log::debug!("Dummy request successful for model {}", model);
-
-        Ok(())
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::env;
 
     #[tokio::test]
     #[ignore = "requires Gemini API key"]
     async fn test_gemini_check() {
         let _ = dotenvy::dotenv(); // read api key
-        assert!(env::var(ENV_VAR_NAME).is_ok(), "should have api key");
+        let api_key = env::var(GeminiProvider::ENV_VAR_NAME).unwrap();
+
+        // TODO: fix this
         env::set_var("RUST_LOG", "none,dkn_workflows=debug");
         let _ = env_logger::builder().is_test(true).try_init();
 
@@ -187,15 +156,10 @@ mod tests {
             Model::Gemini15Flash,
             Model::Gemini15Pro,
         ];
-        let res = GeminiConfig::new().check(models.clone()).await;
+        let res = GeminiProvider::new(&api_key).check(models.clone()).await;
         assert_eq!(res.unwrap(), models);
 
-        env::set_var(ENV_VAR_NAME, "i-dont-work");
-        let res = GeminiConfig::new().check(vec![]).await;
-        assert!(res.is_err());
-
-        env::remove_var(ENV_VAR_NAME);
-        let res = GeminiConfig::new().check(vec![]).await;
+        let res = GeminiProvider::new("i-dont-work").check(vec![]).await;
         assert!(res.is_err());
     }
 }
