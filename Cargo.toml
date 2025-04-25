@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["compute", "p2p", "workflows", "utils"]
+members = ["compute", "p2p", "workflows", "utils", "workflows-v2"]
 
 # removing this breaks the workflows
 default-members = ["compute"]

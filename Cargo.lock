@@ -1069,6 +1069,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "dkn-workflows-v2"
+version = "0.5.0"
+dependencies = [
+ "dkn-utils",
+ "dotenvy",
+ "enum-iterator",
+ "env_logger 0.11.7",
+ "eyre",
+ "log",
+ "ollama-rs 0.3.0",
+ "rand 0.8.5",
+ "reqwest 0.12.15",
+ "rig-core",
+ "serde",
+ "serde_json",
+ "tokio 1.44.1",
+ "tokio-util 0.7.14",
+]
+
+[[package]]
 name = "dotenv"
 version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2280,6 +2300,7 @@ checksum = "bd070e393353796e801d209ad339e89596eb4c8d430d18ede6a1cced8fafbd99"
 dependencies = [
  "autocfg",
  "hashbrown 0.12.3",
+ "serde",
 ]
 
 [[package]]
@@ -3336,6 +3357,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "ollama-rs"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a4b4750770584c8b4a643d0329e7bedacc4ecf68b7c7ac3e1fec2bafd6312f7"
+dependencies = [
+ "async-stream",
+ "log",
+ "reqwest 0.12.15",
+ "schemars",
+ "serde",
+ "serde_json",
+ "static_assertions",
+ "thiserror 2.0.12",
+ "tokio 1.44.1",
+ "url",
+]
+
+[[package]]
 name = "ollama-workflows"
 version = "0.1.0"
 source = "git+https://github.com/andthattoo/ollama-workflows#fe923ff6c18098ea86995a8ee0936a5ae89bc97a"
@@ -3349,7 +3388,7 @@ dependencies = [
  "gem-rs",
  "html2text",
  "log",
- "ollama-rs",
+ "ollama-rs 0.2.1",
  "openai_dive",
  "parking_lot",
  "rand 0.8.5",
@@ -4477,6 +4516,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3fbf2ae1b8bc8e02df939598064d22402220cd5bbcca1c76f7d6a310974d5615"
 dependencies = [
  "dyn-clone",
+ "indexmap 1.9.3",
  "schemars_derive",
  "serde",
  "serde_json",
