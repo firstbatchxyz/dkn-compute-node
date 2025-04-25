@@ -167,19 +167,4 @@ impl DriaComputeNodeConfig {
 
         Ok(())
     }
-
-    /// Checks the network specific configurations.
-    pub fn check_network_specific(&self) -> Result<()> {
-        // if network is `pro`, we require Jina and Serper to be present.
-        if self.network_type == DriaNetworkType::Pro {
-            if !self.workflows.jina.has_api_key() {
-                return Err(eyre!("Jina is required for the Pro network."));
-            }
-            if !self.workflows.serper.has_api_key() {
-                return Err(eyre!("Serper is required for the Pro network."));
-            }
-        }
-
-        Ok(())
-    }
 }

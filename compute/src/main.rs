@@ -92,9 +92,6 @@ async fn main() -> Result<()> {
         config.workflows.get_model_names().join(", ")
     );
 
-    // check network-specific configurations
-    config.check_network_specific()?;
-
     // create the node
     let batch_size = config.batch_size;
     let (mut node, p2p, worker_batch, worker_single) = DriaComputeNode::new(config).await?;

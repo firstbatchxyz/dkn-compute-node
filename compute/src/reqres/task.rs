@@ -3,7 +3,7 @@ use dkn_p2p::libp2p::request_response::ResponseChannel;
 use dkn_utils::payloads::{TaskRequestPayload, TaskResponsePayload, TaskStats, TASK_RESULT_TOPIC};
 use dkn_utils::DriaMessage;
 use dkn_workflows::{Executor, ModelProvider, TaskWorkflow};
-use eyre::{eyre, Context, Result};
+use eyre::{Context, Result};
 
 use crate::workers::task::*;
 use crate::DriaComputeNode;
@@ -28,16 +28,8 @@ impl TaskResponder {
             .wrap_err("could not parse workflow task")?;
         log::info!("Handling task {}", task.task_id);
 
+        // record received time
         let stats = TaskStats::new().record_received_at();
-
-        // check if deadline is past or not
-        // with request-response, we dont expect this to happen much
-        if chrono::Utc::now() >= task.deadline {
-            return Err(eyre!(
-                "Task {} is past the deadline, ignoring",
-                task.task_id
-            ));
-        }
 
         // read model / provider from the task
         let model = node

@@ -1,8 +1,6 @@
 mod providers;
 pub use providers::OllamaConfig;
 
-mod apis;
-
 mod config;
 pub use config::DriaWorkflowsConfig;
 

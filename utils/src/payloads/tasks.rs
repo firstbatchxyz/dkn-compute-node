@@ -79,8 +79,6 @@ pub struct TaskRequestPayload<T> {
     pub row_id: Uuid,
     /// The unique identifier of the task.
     pub task_id: Uuid,
-    /// The deadline of the task.
-    pub deadline: chrono::DateTime<chrono::Utc>,
     /// The input to the compute function.
     pub input: T,
 }

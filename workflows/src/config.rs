@@ -1,5 +1,4 @@
 use crate::{
-    apis::{JinaConfig, SerperConfig},
     providers::{GeminiConfig, OllamaConfig, OpenAIConfig, OpenRouterConfig},
     Model, ModelProvider,
 };
@@ -25,12 +24,6 @@ pub struct DriaWorkflowsConfig {
     /// OpenRouter configurations, e.g. API key, in case OpenRouter is used.
     /// Otherwise, can be ignored.
     pub openrouter: OpenRouterConfig,
-    /// Serper configurations, e.g. API key, in case Serper is given in environment.
-    /// Otherwise, can be ignored.
-    pub serper: SerperConfig,
-    /// Jina configurations, e.g. API key, in case Jina is used.
-    /// Otherwise, can be ignored.
-    pub jina: JinaConfig,
 }
 
 impl Default for DriaWorkflowsConfig {
@@ -48,8 +41,6 @@ impl DriaWorkflowsConfig {
             openai: OpenAIConfig::new(),
             openrouter: OpenRouterConfig::new(),
             gemini: GeminiConfig::new(),
-            serper: SerperConfig::new(),
-            jina: JinaConfig::new(),
         }
     }
 
@@ -202,14 +193,6 @@ impl DriaWorkflowsConfig {
     /// If there are no models left in the end, an error is thrown.
     pub async fn check_services(&mut self) -> Result<()> {
         log::info!("Checking configured services.");
-
-        // check Serper
-        self.serper.check_optional().await?;
-
-        // check Jina
-        self.jina.check_optional().await?;
-
-        // TODO: can refactor (provider, model) logic here
         let unique_providers = self.get_providers();
 
         let mut good_models = Vec::new();
