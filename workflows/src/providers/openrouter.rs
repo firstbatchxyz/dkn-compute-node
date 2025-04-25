@@ -11,13 +11,17 @@ pub struct OpenRouterProvider {
 }
 
 impl OpenRouterProvider {
-    pub const ENV_VAR_NAME: &str = "OPENROUTER_API_KEY";
-
     /// Looks at the environment variables for OpenRouter API key.
     pub fn new(api_key: &str) -> Self {
         Self {
             client: openrouter::Client::new(api_key),
         }
+    }
+
+    /// Creates a new client using the API key in `OPENROUTER_API_KEY` environment variable.
+    pub fn from_env() -> Result<Self, std::env::VarError> {
+        let api_key = std::env::var("OPENROUTER_API_KEY")?;
+        Ok(Self::new(&api_key))
     }
 
     pub async fn execute(&self, task: TaskBody) -> Result<String, PromptError> {
@@ -71,18 +75,19 @@ impl OpenRouterProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env;
 
     #[tokio::test]
     #[ignore = "requires OpenRouter API key"]
     async fn test_openrouter_check() {
+        let _ = env_logger::builder()
+            .filter_level(log::LevelFilter::Off)
+            .filter_module("dkn_workflows", log::LevelFilter::Debug)
+            .is_test(true)
+            .try_init();
         let _ = dotenvy::dotenv(); // read api key
-        let api_key = env::var(OpenRouterProvider::ENV_VAR_NAME).unwrap();
-        env::set_var("RUST_LOG", "none,dkn_workflows=debug");
-        let _ = env_logger::builder().is_test(true).try_init();
 
         let models = vec![Model::ORDeepSeek2_5, Model::ORLlama3_1_8B];
-        let config = OpenRouterProvider::new(&api_key);
+        let config = OpenRouterProvider::from_env().unwrap();
         let res = config.check(models.clone()).await;
         assert_eq!(res, models);
 

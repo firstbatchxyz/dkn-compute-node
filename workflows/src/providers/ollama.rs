@@ -36,10 +36,19 @@ pub struct OllamaProvider {
 }
 
 impl OllamaProvider {
+    /// Creates a new Ollama client using the host and port.
+    pub fn new(host: &str, port: u16, auto_pull: bool) -> Self {
+        Self {
+            auto_pull,
+            ollama_rs_client: ollama_rs::Ollama::new(host, port),
+            client: ollama::Client::from_url(&format!("{host}:{port}",)),
+        }
+    }
+
     /// Looks at the environment variables for Ollama host and port.
     ///
     /// If not found, defaults to `DEFAULT_OLLAMA_HOST` and `DEFAULT_OLLAMA_PORT`.
-    pub fn new() -> Self {
+    pub fn from_env() -> Self {
         let host = env::var("OLLAMA_HOST")
             .map(|h| h.trim_matches('"').to_string())
             .unwrap_or(DEFAULT_OLLAMA_HOST.to_string());
@@ -52,14 +61,7 @@ impl OllamaProvider {
             .map(|s| s == "true")
             .unwrap_or(true);
 
-        Self {
-            auto_pull,
-            ollama_rs_client: ollama_rs::Ollama::new(host, port),
-            client: ollama::Client::from_url(&format!(
-                "{}:{}",
-                DEFAULT_OLLAMA_HOST, DEFAULT_OLLAMA_PORT
-            )),
-        }
+        Self::new(&host, port, auto_pull)
     }
 
     /// Sets the auto-pull flag for Ollama models.
@@ -213,7 +215,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires Ollama"]
     async fn test_ollama_prompt() {
-        let client = OllamaProvider::new();
+        let client = OllamaProvider::from_env();
         let model = Model::TinyAgent05;
         // let ollama = Ollama::default();
 

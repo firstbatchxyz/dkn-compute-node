@@ -153,9 +153,6 @@ pub enum Model {
     /// Gemini 1.5 Flash model
     #[serde(rename = "gemini-1.5-flash")]
     Gemini15Flash,
-    /// Gemini 1.0 Pro model
-    #[serde(rename = "gemini-1.0-pro")]
-    Gemini10Pro,
 
     /// Gemma 2 2B IT model
     #[serde(rename = "gemma-2-2b-it")]
@@ -352,7 +349,6 @@ impl From<&Model> for ModelProvider {
             Model::O1 => ModelProvider::OpenAI,
             Model::O3Mini => ModelProvider::OpenAI,
             // gemini
-            Model::Gemini10Pro => ModelProvider::Gemini,
             Model::Gemini20Flash => ModelProvider::Gemini,
             Model::Gemini20Pro => ModelProvider::Gemini,
             Model::Gemini15Flash => ModelProvider::Gemini,

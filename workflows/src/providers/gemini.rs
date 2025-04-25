@@ -16,14 +16,18 @@ pub struct GeminiProvider {
 }
 
 impl GeminiProvider {
-    pub const ENV_VAR_NAME: &str = "GEMINI_API_KEY";
-
     /// Looks at the environment variables for Gemini API key.
     pub fn new(api_key: &str) -> Self {
         Self {
             api_key: api_key.to_string(),
             client: gemini::Client::new(api_key),
         }
+    }
+
+    /// Creates a new client using the API key in `GEMINI_API_KEY` environment variable.
+    pub fn from_env() -> Result<Self, std::env::VarError> {
+        let api_key = std::env::var("GEMINI_API_KEY")?;
+        Ok(Self::new(&api_key))
     }
 
     pub async fn execute(&self, task: TaskBody) -> Result<String, PromptError> {
@@ -138,25 +142,22 @@ impl GeminiProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env;
 
     #[tokio::test]
     #[ignore = "requires Gemini API key"]
     async fn test_gemini_check() {
+        let _ = env_logger::builder()
+            .filter_level(log::LevelFilter::Off)
+            .filter_module("dkn_workflows", log::LevelFilter::Debug)
+            .is_test(true)
+            .try_init();
         let _ = dotenvy::dotenv(); // read api key
-        let api_key = env::var(GeminiProvider::ENV_VAR_NAME).unwrap();
 
-        // TODO: fix this
-        env::set_var("RUST_LOG", "none,dkn_workflows=debug");
-        let _ = env_logger::builder().is_test(true).try_init();
-
-        let models = vec![
-            Model::Gemini10Pro,
-            Model::Gemini15ProExp0827,
-            Model::Gemini15Flash,
-            Model::Gemini15Pro,
-        ];
-        let res = GeminiProvider::new(&api_key).check(models.clone()).await;
+        let models = vec![Model::Gemini15Flash, Model::Gemini15Pro];
+        let res = GeminiProvider::from_env()
+            .unwrap()
+            .check(models.clone())
+            .await;
         assert_eq!(res.unwrap(), models);
 
         let res = GeminiProvider::new("i-dont-work").check(vec![]).await;

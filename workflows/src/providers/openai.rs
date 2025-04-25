@@ -18,13 +18,18 @@ pub struct OpenAIProvider {
 }
 
 impl OpenAIProvider {
-    pub const ENV_VAR_NAME: &str = "OPENAI_API_KEY";
     /// Looks at the environment variables for OpenAI API key.
     pub fn new(api_key: &str) -> Self {
         Self {
             api_key: api_key.to_string(),
             client: openai::Client::new(api_key),
         }
+    }
+
+    /// Creates a new OpenAI client using the API key in `OPENAI_API_KEY` environment variable.
+    pub fn from_env() -> Result<Self, std::env::VarError> {
+        let api_key = std::env::var("OPENAI_API_KEY")?;
+        Ok(Self::new(&api_key))
     }
 
     pub async fn execute(&self, task: TaskBody) -> Result<String, PromptError> {
@@ -129,24 +134,25 @@ impl OpenAIProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env;
 
     #[tokio::test]
     #[ignore = "requires OpenAI API key"]
     async fn test_openai_check() {
+        let _ = env_logger::builder()
+            .filter_level(log::LevelFilter::Off)
+            .filter_module("dkn_workflows", log::LevelFilter::Debug)
+            .is_test(true)
+            .try_init();
         let _ = dotenvy::dotenv(); // read api key
-        let api_key = env::var(OpenAIProvider::ENV_VAR_NAME).unwrap();
-
-        env::set_var("RUST_LOG", "none,dkn_workflows=debug");
-        let _ = env_logger::builder().is_test(true).try_init();
 
         let models = vec![Model::GPT4Turbo, Model::GPT4o, Model::GPT4oMini];
-        let config = OpenAIProvider::new(&api_key);
-        let res = config.check(models.clone()).await;
+        let res = OpenAIProvider::from_env()
+            .unwrap()
+            .check(models.clone())
+            .await;
         assert_eq!(res.unwrap(), models);
 
-        let config = OpenAIProvider::new("i-dont-work");
-        let res = config.check(vec![]).await;
+        let res = OpenAIProvider::new("i-dont-work").check(vec![]).await;
         assert!(res.is_err());
     }
 }
