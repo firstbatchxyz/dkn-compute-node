@@ -19,6 +19,8 @@ pub struct TaskResponsePayload {
     pub row_id: Uuid,
     /// The unique identifier of the task.
     pub task_id: Uuid,
+    /// The file that this task is associated with.
+    pub file_id: Uuid,
     /// Name of the model used for this task.
     pub model: String,
     /// Stats about the task execution.
@@ -39,12 +41,14 @@ impl TaskResponsePayload {
         result: String,
         row_id: Uuid,
         task_id: Uuid,
+        file_id: Uuid,
         model: String,
         stats: TaskStats,
     ) -> Result<Self, libsecp256k1::Error> {
         Ok(TaskResponsePayload {
             row_id,
             task_id,
+            file_id,
             result: Some(result),
             model,
             stats,
@@ -57,12 +61,14 @@ impl TaskResponsePayload {
         error: String,
         row_id: Uuid,
         task_id: Uuid,
+        file_id: Uuid,
         model: String,
         stats: TaskStats,
     ) -> Self {
         TaskResponsePayload {
             row_id,
             task_id,
+            file_id,
             result: None,
             model,
             stats,
@@ -73,17 +79,14 @@ impl TaskResponsePayload {
 
 /// A generic task request, given by Dria.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TaskRequestPayload<T> {
     /// The uprimary key of the row in the database for this task.
-    ///
-    /// Can be both snake case or camel case.
-    #[serde(alias = "rowId")]
     pub row_id: Uuid,
     /// The unique identifier of the task.
-    ///
-    /// Can be both snake case or camel case.
-    #[serde(alias = "taskId")]
     pub task_id: Uuid,
+    /// The file that this task is associated with.
+    pub file_id: Uuid,
     /// The input to the compute function.
     pub input: T,
 }

@@ -5,15 +5,19 @@ use dkn_workflows::{ExecutionError, Executor, Workflow};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
+/// A metadata object that is kept aside while the worker is doing its job.
+///
+/// This is put into a map before execution, and then removed after the task is done.
 pub struct TaskWorkerMetadata {
     pub model_name: String,
+    pub task_id: Uuid,
+    pub file_id: Uuid,
     pub channel: ResponseChannel<Vec<u8>>,
 }
 
 pub struct TaskWorkerInput {
     pub executor: Executor,
     pub workflow: Workflow,
-    pub task_id: Uuid,
     pub row_id: Uuid,
     pub stats: TaskStats,
     pub batchable: bool,
@@ -21,7 +25,6 @@ pub struct TaskWorkerInput {
 
 pub struct TaskWorkerOutput {
     pub result: Result<String, ExecutionError>,
-    pub task_id: Uuid,
     pub row_id: Uuid,
     pub stats: TaskStats,
     pub batchable: bool,
@@ -76,7 +79,11 @@ impl TaskWorker {
             let task = self.task_rx.recv().await;
 
             if let Some(task) = task {
-                log::info!("Processing {} {} (single)", "task".yellow(), task.task_id);
+                log::info!(
+                    "Processing {} row {} (single)",
+                    "task".yellow(),
+                    task.row_id
+                );
                 TaskWorker::execute((task, &self.publish_tx)).await
             } else {
                 return self.shutdown();
@@ -223,7 +230,6 @@ impl TaskWorker {
 
         let output = TaskWorkerOutput {
             result,
-            task_id: input.task_id,
             row_id: input.row_id,
             batchable: input.batchable,
             stats: input.stats,
@@ -303,7 +309,6 @@ mod tests {
             let task_input = TaskWorkerInput {
                 executor,
                 workflow,
-                task_id: Uuid::now_v7(),
                 row_id: Uuid::now_v7(),
                 stats: TaskStats::default(),
                 batchable: true,

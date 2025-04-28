@@ -195,7 +195,7 @@ impl DriaComputeNode {
             None => {
                 return Err(eyre!(
                     "Channel not found during task {}",
-                    task_response.task_id
+                    task_response.row_id
                 ))
             }
         };
