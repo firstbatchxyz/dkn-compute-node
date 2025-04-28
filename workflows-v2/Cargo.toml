@@ -13,6 +13,7 @@ env_logger.workspace = true
 # async stuff
 tokio-util.workspace = true
 tokio.workspace = true
+async-trait = "0.1.88"
 
 # serialize & deserialize
 serde.workspace = true

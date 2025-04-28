@@ -73,11 +73,16 @@ impl TaskResponsePayload {
 
 /// A generic task request, given by Dria.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct TaskRequestPayload<T> {
     /// The uprimary key of the row in the database for this task.
+    ///
+    /// Can be both snake case or camel case.
+    #[serde(alias = "rowId")]
     pub row_id: Uuid,
     /// The unique identifier of the task.
+    ///
+    /// Can be both snake case or camel case.
+    #[serde(alias = "taskId")]
     pub task_id: Uuid,
     /// The input to the compute function.
     pub input: T,

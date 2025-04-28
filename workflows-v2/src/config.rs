@@ -1,5 +1,9 @@
+use std::collections::HashMap;
+
 use crate::{
-    providers::{GeminiProvider, OllamaProvider, OpenAIProvider, OpenRouterProvider},
+    providers::{
+        DriaWorkflowProvider, GeminiProvider, OllamaProvider, OpenAIProvider, OpenRouterProvider,
+    },
     Model, ModelProvider, TaskBody,
 };
 use dkn_utils::split_csv_line;
