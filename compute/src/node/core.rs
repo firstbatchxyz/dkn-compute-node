@@ -21,7 +21,7 @@ impl DriaComputeNode {
         /// Duration between each heartbeat sent to the RPC.
         const HEARTBEAT_INTERVAL_SECS: Duration = Duration::from_secs(60);
         /// Duration between each specs update sent to the RPC.
-        const SPECS_INTERVAL_SECS: Duration = Duration::from_secs(60);
+        const SPECS_INTERVAL_SECS: Duration = Duration::from_secs(60 * 5);
 
         let mut diagnostic_refresh_interval =
             tokio::time::interval(DIAGNOSTIC_REFRESH_INTERVAL_SECS);
