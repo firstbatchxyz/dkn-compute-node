@@ -101,7 +101,7 @@ impl TaskResponder {
                         .stats
                         .record_published_at()
                         .record_token_count(token_count),
-                )?;
+                );
                 let payload_str =
                     serde_json::to_string(&payload).wrap_err("could not serialize payload")?;
 

@@ -1,4 +1,5 @@
 /// Cryptography-related utilities.
+#[cfg(feature = "crypto")]
 pub mod crypto;
 
 /// Payload-related utilities.
@@ -14,10 +15,16 @@ pub use env::safe_read_env;
 mod version;
 pub use version::SemanticVersion;
 
+#[cfg(feature = "crypto")]
 mod message;
+#[cfg(feature = "crypto")]
 pub use message::DriaMessage;
 
 // re-exports
 pub use chrono;
+
+#[cfg(feature = "crypto")]
 pub use libp2p_identity;
+
+#[cfg(feature = "crypto")]
 pub use libsecp256k1;

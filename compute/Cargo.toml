@@ -53,10 +53,9 @@ public-ip-address = "0.3.2"
 
 # dria subcrates
 dkn-p2p = { path = "../p2p" }
-dkn-utils = { path = "../utils" }
+dkn-utils = { path = "../utils", features = ["crypto"] }
 dkn-workflows = { path = "../workflows" }
-chrono = { version = "0.4.40", features = ["serde"] }
-
+chrono.workspace = true
 
 
 # vendor OpenSSL so that its easier to build cross-platform packages

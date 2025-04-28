@@ -44,8 +44,8 @@ impl TaskResponsePayload {
         file_id: Uuid,
         model: String,
         stats: TaskStats,
-    ) -> Result<Self, libsecp256k1::Error> {
-        Ok(TaskResponsePayload {
+    ) -> Self {
+        TaskResponsePayload {
             row_id,
             task_id,
             file_id,
@@ -53,7 +53,7 @@ impl TaskResponsePayload {
             model,
             stats,
             error: None,
-        })
+        }
     }
 
     /// Creates the payload of a computation with an error message.
