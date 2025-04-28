@@ -87,16 +87,21 @@ impl TaskResponder {
                     "task".yellow(),
                     task_output.task_id
                 );
+
+                // TODO: will get better token count from `TaskWorkerOutput`
+                let token_count = result.len();
                 let payload = TaskResponsePayload::new(
                     result,
                     task_output.row_id,
                     task_output.task_id,
                     task_metadata.model_name,
-                    task_output.stats.record_published_at(),
+                    task_output
+                        .stats
+                        .record_published_at()
+                        .record_token_count(token_count),
                 )?;
-
-                // convert payload to message
-                let payload_str = serde_json::json!(payload).to_string();
+                let payload_str =
+                    serde_json::to_string(&payload).wrap_err("could not serialize payload")?;
 
                 node.new_message(payload_str, TASK_RESULT_TOPIC)
             }
@@ -113,7 +118,8 @@ impl TaskResponder {
                     task_metadata.model_name,
                     task_output.stats.record_published_at(),
                 );
-                let error_payload_str = serde_json::json!(error_payload).to_string();
+                let error_payload_str = serde_json::to_string(&error_payload)
+                    .wrap_err("could not serialize payload")?;
 
                 node.new_message(error_payload_str, TASK_RESULT_TOPIC)
             }

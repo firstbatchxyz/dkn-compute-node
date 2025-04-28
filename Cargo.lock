@@ -1072,7 +1072,6 @@ dependencies = [
 name = "dkn-workflows-v2"
 version = "0.5.0"
 dependencies = [
- "async-trait",
  "dkn-utils",
  "dotenvy",
  "enum-iterator",

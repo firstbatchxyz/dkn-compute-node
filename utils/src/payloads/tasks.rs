@@ -102,6 +102,8 @@ pub struct TaskStats {
     pub execution_started_at: chrono::DateTime<chrono::Utc>,
     /// Timestamp at which the task execution had finished.
     pub execution_ended_at: chrono::DateTime<chrono::Utc>,
+    /// Number of tokens of the result.
+    pub token_count: usize,
 }
 
 impl TaskStats {
@@ -130,6 +132,12 @@ impl TaskStats {
     /// Records the execution end time within `execution_ended_time`.
     pub fn record_execution_ended_at(mut self) -> Self {
         self.execution_ended_at = chrono::Utc::now();
+        self
+    }
+
+    /// Records the token count within `token_count`.
+    pub fn record_token_count(mut self, token_count: usize) -> Self {
+        self.token_count = token_count;
         self
     }
 }
