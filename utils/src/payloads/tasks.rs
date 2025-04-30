@@ -40,8 +40,8 @@ impl TaskResponsePayload {
     /// Creates the payload of a computation with its result.
     pub fn new(
         result: String,
-        task_id: Uuid,
         file_id: Uuid,
+        task_id: Uuid,
         model: String,
         stats: TaskStats,
     ) -> Self {
