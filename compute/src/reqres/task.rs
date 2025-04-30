@@ -37,7 +37,12 @@ impl TaskResponder {
             .workflows
             .get_any_matching_model(vec![task.input.model])?; // FIXME: dont use vector here
         let model_name = model.to_string(); // get model name, we will pass it in payload
-        log::info!("Using model {} for task {}", model_name, task.task_id);
+        log::info!(
+            "Using model {} for task {}/{}",
+            model_name,
+            task.file_id,
+            task.task_id
+        );
 
         // prepare workflow executor
         let (executor, batchable) = if model.provider() == ModelProvider::Ollama {
@@ -61,6 +66,7 @@ impl TaskResponder {
             workflow,
             task_id: task.task_id,
             file_id: task.file_id,
+            row_id: task.row_id,
             stats,
             batchable,
         };
@@ -91,16 +97,18 @@ impl TaskResponder {
 
                 // TODO: will get better token count from `TaskWorkerOutput`
                 let token_count = result.len();
-                let payload = TaskResponsePayload::new(
-                    result,
-                    task_output.file_id,
-                    task_output.task_id,
-                    task_metadata.model_name,
-                    task_output
+                let payload = TaskResponsePayload {
+                    result: Some(result),
+                    error: None,
+                    row_id: task_output.row_id,
+                    file_id: task_output.file_id,
+                    task_id: task_output.task_id,
+                    model: task_metadata.model_name,
+                    stats: task_output
                         .stats
                         .record_published_at()
                         .record_token_count(token_count),
-                );
+                };
                 let payload_str =
                     serde_json::to_string(&payload).wrap_err("could not serialize payload")?;
 
@@ -117,13 +125,18 @@ impl TaskResponder {
                 );
 
                 // prepare error payload
-                let error_payload = TaskResponsePayload::new_error(
-                    err_string,
-                    task_output.file_id,
-                    task_output.task_id,
-                    task_metadata.model_name,
-                    task_output.stats.record_published_at(),
-                );
+                let error_payload = TaskResponsePayload {
+                    result: None,
+                    error: Some(err_string),
+                    row_id: task_output.row_id,
+                    file_id: task_output.file_id,
+                    task_id: task_output.task_id,
+                    model: task_metadata.model_name,
+                    stats: task_output
+                        .stats
+                        .record_published_at()
+                        .record_token_count(0),
+                };
                 let error_payload_str = serde_json::to_string(&error_payload)
                     .wrap_err("could not serialize payload")?;
 

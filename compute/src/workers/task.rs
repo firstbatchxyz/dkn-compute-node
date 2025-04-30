@@ -17,6 +17,7 @@ pub struct TaskWorkerInput {
     // used as identifier for metadata
     pub task_id: Uuid,
     pub file_id: Uuid,
+    pub row_id: Uuid,
     // actual consumed input
     pub executor: Executor,
     pub workflow: Workflow,
@@ -29,6 +30,7 @@ pub struct TaskWorkerOutput {
     // used as identifier for metadata
     pub task_id: Uuid,
     pub file_id: Uuid,
+    pub row_id: Uuid,
     // actual produced output
     pub result: Result<String, ExecutionError>,
     // piggybacked metadata
@@ -86,8 +88,9 @@ impl TaskWorker {
 
             if let Some(task) = task {
                 log::info!(
-                    "Processing {} task {} (single)",
+                    "Processing {} task {}/{} (single)",
                     "task".yellow(),
+                    task.file_id,
                     task.task_id
                 );
                 TaskWorker::execute((task, &self.publish_tx)).await
@@ -238,6 +241,7 @@ impl TaskWorker {
             result,
             task_id: input.task_id,
             file_id: input.file_id,
+            row_id: input.row_id,
             batchable: input.batchable,
             stats: input.stats,
         };
@@ -318,6 +322,7 @@ mod tests {
                 workflow,
                 task_id: Uuid::now_v7(),
                 file_id: Uuid::now_v7(),
+                row_id: Uuid::now_v7(),
                 stats: TaskStats::default(),
                 batchable: true,
             };

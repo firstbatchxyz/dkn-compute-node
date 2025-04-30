@@ -16,7 +16,6 @@ pub const TASK_RESULT_TOPIC: &str = "results";
 #[serde(rename_all = "camelCase")]
 pub struct TaskResponsePayload {
     /// The unique identifier of the task.
-    /// FIXME: remove this field, it's not used.
     pub row_id: Uuid,
     /// The unique identifier of the task.
     pub task_id: Uuid,
@@ -36,50 +35,12 @@ pub struct TaskResponsePayload {
     pub error: Option<String>,
 }
 
-impl TaskResponsePayload {
-    /// Creates the payload of a computation with its result.
-    pub fn new(
-        result: String,
-        file_id: Uuid,
-        task_id: Uuid,
-        model: String,
-        stats: TaskStats,
-    ) -> Self {
-        TaskResponsePayload {
-            task_id,
-            file_id,
-            row_id: Uuid::now_v7(), // FIXME: remove
-            result: Some(result),
-            model,
-            stats,
-            error: None,
-        }
-    }
-
-    /// Creates the payload of a computation with an error message.
-    pub fn new_error(
-        error: String,
-        file_id: Uuid,
-        task_id: Uuid,
-        model: String,
-        stats: TaskStats,
-    ) -> Self {
-        TaskResponsePayload {
-            task_id,
-            file_id,
-            row_id: Uuid::now_v7(), // FIXME: remove
-            result: None,
-            model,
-            stats,
-            error: Some(error),
-        }
-    }
-}
-
 /// A generic task request, given by Dria.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskRequestPayload<T> {
+    /// The unique identifier of the task.
+    pub row_id: Uuid,
     /// The unique identifier of the task.
     pub task_id: Uuid,
     /// The file that this task is associated with.
