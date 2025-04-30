@@ -28,10 +28,12 @@ pub struct TaskResponsePayload {
     /// Result from the LLM, as-is.
     ///
     /// If this is `None`, the task failed, and you should check the `error` field.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<String>,
     /// An error message, if any.
     ///
     /// If this is `Some`, you can ignore the `result` field.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
 
