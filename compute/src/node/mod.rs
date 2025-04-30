@@ -48,10 +48,10 @@ pub struct DriaComputeNode {
     task_request_batch_tx: Option<mpsc::Sender<TaskWorkerInput>>,
     /// Task worker transmitter to send single tasks.
     task_request_single_tx: Option<mpsc::Sender<TaskWorkerInput>>,
-    // Single tasks
-    pub pending_tasks_single: HashMap<Uuid, TaskWorkerMetadata>,
-    // Batchable tasks
-    pub pending_tasks_batch: HashMap<Uuid, TaskWorkerMetadata>,
+    // Single tasks, key is `(file_id, task_id)`
+    pub pending_tasks_single: HashMap<(Uuid, Uuid), TaskWorkerMetadata>,
+    // Batchable tasks, key is `(file_id, task_id)`
+    pub pending_tasks_batch: HashMap<(Uuid, Uuid), TaskWorkerMetadata>,
     /// Completed single tasks count
     completed_tasks_single: usize,
     /// Completed batch tasks count

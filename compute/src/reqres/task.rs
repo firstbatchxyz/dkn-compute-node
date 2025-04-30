@@ -59,14 +59,13 @@ impl TaskResponder {
         let task_input = TaskWorkerInput {
             executor,
             workflow,
-            row_id: task.row_id,
+            task_id: task.task_id,
+            file_id: task.file_id,
             stats,
             batchable,
         };
 
         let task_metadata = TaskWorkerMetadata {
-            task_id: task.task_id,
-            file_id: task.file_id,
             model_name,
             channel,
         };
@@ -84,18 +83,18 @@ impl TaskResponder {
             Ok(result) => {
                 // prepare signed and encrypted payload
                 log::info!(
-                    "Publishing {} result for {}",
+                    "Publishing {} result for {}/{}",
                     "task".yellow(),
-                    task_output.row_id
+                    task_output.file_id,
+                    task_output.task_id
                 );
 
                 // TODO: will get better token count from `TaskWorkerOutput`
                 let token_count = result.len();
                 let payload = TaskResponsePayload::new(
                     result,
-                    task_output.row_id,
-                    task_metadata.task_id,
-                    task_metadata.file_id,
+                    task_output.file_id,
+                    task_output.task_id,
                     task_metadata.model_name,
                     task_output
                         .stats
@@ -110,14 +109,18 @@ impl TaskResponder {
             Err(err) => {
                 // use pretty display string for error logging with causes
                 let err_string = format!("{:#}", err);
-                log::error!("Task {} failed: {}", task_output.row_id, err_string);
+                log::error!(
+                    "Task {}/{} failed: {}",
+                    task_output.file_id,
+                    task_output.task_id,
+                    err_string
+                );
 
                 // prepare error payload
                 let error_payload = TaskResponsePayload::new_error(
                     err_string,
-                    task_output.row_id,
-                    task_metadata.task_id,
-                    task_metadata.file_id,
+                    task_output.file_id,
+                    task_output.task_id,
                     task_metadata.model_name,
                     task_output.stats.record_published_at(),
                 );

@@ -10,22 +10,28 @@ use uuid::Uuid;
 /// This is put into a map before execution, and then removed after the task is done.
 pub struct TaskWorkerMetadata {
     pub model_name: String,
-    pub task_id: Uuid,
-    pub file_id: Uuid,
     pub channel: ResponseChannel<Vec<u8>>,
 }
 
 pub struct TaskWorkerInput {
+    // used as identifier for metadata
+    pub task_id: Uuid,
+    pub file_id: Uuid,
+    // actual consumed input
     pub executor: Executor,
     pub workflow: Workflow,
-    pub row_id: Uuid,
+    // piggybacked metadata
     pub stats: TaskStats,
     pub batchable: bool,
 }
 
 pub struct TaskWorkerOutput {
+    // used as identifier for metadata
+    pub task_id: Uuid,
+    pub file_id: Uuid,
+    // actual produced output
     pub result: Result<String, ExecutionError>,
-    pub row_id: Uuid,
+    // piggybacked metadata
     pub stats: TaskStats,
     pub batchable: bool,
 }
@@ -80,9 +86,9 @@ impl TaskWorker {
 
             if let Some(task) = task {
                 log::info!(
-                    "Processing {} row {} (single)",
+                    "Processing {} task {} (single)",
                     "task".yellow(),
-                    task.row_id
+                    task.task_id
                 );
                 TaskWorker::execute((task, &self.publish_tx)).await
             } else {
@@ -230,7 +236,8 @@ impl TaskWorker {
 
         let output = TaskWorkerOutput {
             result,
-            row_id: input.row_id,
+            task_id: input.task_id,
+            file_id: input.file_id,
             batchable: input.batchable,
             stats: input.stats,
         };
@@ -309,7 +316,8 @@ mod tests {
             let task_input = TaskWorkerInput {
                 executor,
                 workflow,
-                row_id: Uuid::now_v7(),
+                task_id: Uuid::now_v7(),
+                file_id: Uuid::now_v7(),
                 stats: TaskStats::default(),
                 batchable: true,
             };

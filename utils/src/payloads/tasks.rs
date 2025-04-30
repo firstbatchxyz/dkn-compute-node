@@ -15,8 +15,6 @@ pub const TASK_RESULT_TOPIC: &str = "results";
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskResponsePayload {
-    /// The uprimary key of the row in the database for this task.
-    pub row_id: Uuid,
     /// The unique identifier of the task.
     pub task_id: Uuid,
     /// The file that this task is associated with.
@@ -39,14 +37,12 @@ impl TaskResponsePayload {
     /// Creates the payload of a computation with its result.
     pub fn new(
         result: String,
-        row_id: Uuid,
         task_id: Uuid,
         file_id: Uuid,
         model: String,
         stats: TaskStats,
     ) -> Self {
         TaskResponsePayload {
-            row_id,
             task_id,
             file_id,
             result: Some(result),
@@ -59,14 +55,12 @@ impl TaskResponsePayload {
     /// Creates the payload of a computation with an error message.
     pub fn new_error(
         error: String,
-        row_id: Uuid,
-        task_id: Uuid,
         file_id: Uuid,
+        task_id: Uuid,
         model: String,
         stats: TaskStats,
     ) -> Self {
         TaskResponsePayload {
-            row_id,
             task_id,
             file_id,
             result: None,
@@ -81,8 +75,6 @@ impl TaskResponsePayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskRequestPayload<T> {
-    /// The uprimary key of the row in the database for this task.
-    pub row_id: Uuid,
     /// The unique identifier of the task.
     pub task_id: Uuid,
     /// The file that this task is associated with.
