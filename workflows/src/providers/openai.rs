@@ -173,7 +173,7 @@ mod tests {
         env::set_var("RUST_LOG", "none,dkn_workflows=debug");
         let _ = env_logger::builder().is_test(true).try_init();
 
-        let models = vec![Model::GPT4Turbo, Model::GPT4o, Model::GPT4oMini];
+        let models = vec![Model::GPT4o, Model::GPT4oMini];
         let config = OpenAIConfig::new();
         let res = config.check(models.clone()).await;
         assert_eq!(res.unwrap(), models);

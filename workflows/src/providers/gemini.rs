@@ -181,12 +181,7 @@ mod tests {
         env::set_var("RUST_LOG", "none,dkn_workflows=debug");
         let _ = env_logger::builder().is_test(true).try_init();
 
-        let models = vec![
-            Model::Gemini10Pro,
-            Model::Gemini15ProExp0827,
-            Model::Gemini15Flash,
-            Model::Gemini15Pro,
-        ];
+        let models = vec![Model::Gemini2_0Flash, Model::Gemini2_5ProExp];
         let res = GeminiConfig::new().check(models.clone()).await;
         assert_eq!(res.unwrap(), models);
 

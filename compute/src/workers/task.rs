@@ -282,7 +282,7 @@ mod tests {
         });
 
         let num_tasks = 4;
-        let model = Model::O1Preview;
+        let model = Model::GPT4o;
         let workflow = serde_json::json!({
             "config": {
                 "max_steps": 10,

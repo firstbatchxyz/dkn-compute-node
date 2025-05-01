@@ -260,7 +260,7 @@ mod tests {
 
     #[test]
     fn test_model_matching() {
-        let cfg = DriaWorkflowsConfig::new_from_csv("gpt-4o,llama3.1:latest");
+        let cfg = DriaWorkflowsConfig::new_from_csv("gpt-4o,i-dont-exist");
         assert_eq!(
             cfg.get_matching_model("openai".to_string()).unwrap(),
             Model::GPT4o,
@@ -268,9 +268,8 @@ mod tests {
         );
 
         assert_eq!(
-            cfg.get_matching_model("llama3.1:latest".to_string())
-                .unwrap(),
-            Model::Llama3_1_8B,
+            cfg.get_matching_model("gpt-4o".to_string()).unwrap(),
+            Model::GPT4o,
             "Should find existing model"
         );
 
@@ -288,17 +287,12 @@ mod tests {
 
     #[test]
     fn test_get_any_matching_model() {
-        let cfg = DriaWorkflowsConfig::new_from_csv("gpt-3.5-turbo,llama3.1:latest");
+        let cfg = DriaWorkflowsConfig::new_from_csv("gpt-4o,llama3.1:8b-instruct-q4_K_M");
         let result = cfg.get_any_matching_model(vec![
             "i-dont-exist".to_string(),
-            "llama3.1:latest".to_string(),
             "gpt-4o".to_string(),
             "ollama".to_string(),
         ]);
-        assert_eq!(
-            result.unwrap(),
-            Model::Llama3_1_8B,
-            "Should find existing model"
-        );
+        assert_eq!(result.unwrap(), Model::GPT4o, "Should find existing model");
     }
 }

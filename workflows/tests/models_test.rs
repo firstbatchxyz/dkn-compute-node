@@ -20,11 +20,11 @@ fn setup() {
 async fn test_ollama_check() -> Result<()> {
     setup();
 
-    let models = vec![Model::Phi3_5Mini];
+    let models = vec![Model::Llama3_2_1bInstructQ4Km];
     let mut model_config = DriaWorkflowsConfig::new(models);
     model_config.check_services().await?;
 
-    assert_eq!(model_config.models[0], Model::Phi3_5Mini);
+    assert_eq!(model_config.models[0], Model::Llama3_2_1bInstructQ4Km);
 
     Ok(())
 }
@@ -34,11 +34,11 @@ async fn test_ollama_check() -> Result<()> {
 async fn test_openai_check() -> Result<()> {
     setup();
 
-    let models = vec![Model::GPT4Turbo];
+    let models = vec![Model::GPT4o];
     let mut model_config = DriaWorkflowsConfig::new(models);
     model_config.check_services().await?;
 
-    assert_eq!(model_config.models[0], Model::GPT4Turbo);
+    assert_eq!(model_config.models[0], Model::GPT4o);
     Ok(())
 }
 
@@ -47,11 +47,11 @@ async fn test_openai_check() -> Result<()> {
 async fn test_gemini_check() -> Result<()> {
     setup();
 
-    let models = vec![Model::Gemini15Flash];
+    let models = vec![Model::Gemini2_0Flash];
     let mut model_config = DriaWorkflowsConfig::new(models);
     model_config.check_services().await?;
 
-    assert_eq!(model_config.models[0], Model::Gemini15Flash);
+    assert_eq!(model_config.models[0], Model::Gemini2_0Flash);
     Ok(())
 }
 
@@ -60,11 +60,11 @@ async fn test_gemini_check() -> Result<()> {
 async fn test_openrouter_check() -> Result<()> {
     setup();
 
-    let models = vec![Model::ORDeepSeek2_5];
+    let models = vec![Model::OR3_5Sonnet];
     let mut model_config = DriaWorkflowsConfig::new(models);
     model_config.check_services().await?;
 
-    assert_eq!(model_config.models[0], Model::ORDeepSeek2_5);
+    assert_eq!(model_config.models[0], Model::OR3_5Sonnet);
     Ok(())
 }
 
