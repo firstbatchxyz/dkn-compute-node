@@ -8,6 +8,10 @@ use uuid::Uuid;
 /// A metadata object that is kept aside while the worker is doing its job.
 ///
 /// This is put into a map before execution, and then removed after the task is done.
+///
+/// If for any reason this object is dropped before `channel` is responded to,
+/// the task will be lost and the channel will be abruptly closed, causing an error on
+/// both the client and the server side (that waits for response), likely with an `OmissionError`.
 pub struct TaskWorkerMetadata {
     pub model_name: String,
     pub channel: ResponseChannel<Vec<u8>>,
