@@ -80,6 +80,9 @@ async fn main() -> Result<()> {
     config.assert_address_not_in_use()?;
     // check services & models, will exit if there is an error
     // since service check can take time, we allow early-exit here as well
+    //
+    // NOTE: to test for erroneous compute nodes, you can simply disable this check
+    // and use a bad API key for the model you want to test
     tokio::select! {
         result = config.workflows.check_services() => result,
         _ = cancellation.cancelled() => {

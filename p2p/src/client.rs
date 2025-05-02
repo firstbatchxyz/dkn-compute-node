@@ -323,27 +323,33 @@ impl DriaP2PClient {
                 cause,
                 ..
             } => {
-                let cause = cause
-                    .map(|c| c.to_string())
-                    .unwrap_or("Unknown".to_string());
+                // we only care about the connections that we have dialed
                 if endpoint.is_dialer() {
-                    // we only care about logs about the ones that we have dialed
-                    log::warn!("Connection ({connection_id}) closed for {peer_id}\nCause: {cause}");
+                    // if we know the cause, it may be a good idea to re-dial
+                    if let Some(cause) = cause {
+                        log::warn!(
+                            "Connection ({connection_id}) closed for {peer_id} due to {cause}"
+                        );
 
-                    let addr = endpoint.get_remote_address();
-                    log::info!("Dialing {} again at {}", peer_id, addr);
-                    if let Err(err) = self.swarm.dial(
-                        DialOpts::peer_id(peer_id)
-                            .addresses(vec![addr.clone()])
-                            .condition(PeerCondition::DisconnectedAndNotDialing)
-                            .build(),
-                    ) {
-                        log::error!("Could not dial peer {peer_id}: {err:?}");
+                        let addr = endpoint.get_remote_address();
+                        log::info!("Dialing {} again at {}", peer_id, addr);
+                        if let Err(err) = self.swarm.dial(
+                            DialOpts::peer_id(peer_id)
+                                .addresses(vec![addr.clone()])
+                                .condition(PeerCondition::DisconnectedAndNotDialing)
+                                .build(),
+                        ) {
+                            log::error!("Could not dial peer {peer_id}: {err:?}");
+                        }
+                    } else {
+                        // if we don't know the cause, we don't want to re-dial,
+                        // because the cause is `None` if the other side closed the connection manually
+                        log::warn!(
+                            "Connection ({connection_id}) closed for {peer_id} without a cause, will not re-dial!"
+                        );
                     }
                 } else {
-                    log::debug!(
-                        "Connection ({connection_id}) closed for {peer_id}\nCause: {cause}"
-                    );
+                    log::debug!("Connection ({connection_id}) closed for {peer_id}: {cause:?}",);
                 }
             }
 
