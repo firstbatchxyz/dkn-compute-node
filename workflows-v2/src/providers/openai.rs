@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use eyre::{eyre, Context, Result};
 use reqwest::Client;
 use rig::{
@@ -10,14 +12,14 @@ use crate::{Model, TaskBody};
 
 /// OpenAI-specific configurations.
 #[derive(Clone)]
-pub struct OpenAIProvider {
+pub struct OpenAIClient {
     /// API key, if available.
     api_key: String,
     /// Underlying OpenAI client from [`rig`].
     client: openai::Client,
 }
 
-impl OpenAIProvider {
+impl OpenAIClient {
     /// Looks at the environment variables for OpenAI API key.
     pub fn new(api_key: &str) -> Self {
         Self {
@@ -44,49 +46,44 @@ impl OpenAIProvider {
     }
 
     /// Returns the list of model names available to this account.
-    pub async fn check(&self, models: Vec<Model>) -> Result<Vec<Model>> {
+    pub async fn check(&self, models: &mut HashSet<Model>) -> Result<()> {
+        let mut models_to_remove = Vec::new();
         log::info!("Checking OpenAI requirements");
 
         // check if models exist within the account and select those that are available
         let openai_model_names = self.fetch_models().await?;
-        let mut available_models = Vec::new();
-        for requested_model in models {
+        for model in models.iter().cloned() {
             // check if model exists
-            if !openai_model_names.contains(&requested_model.to_string()) {
+            if !openai_model_names.contains(&model.to_string()) {
                 log::warn!(
                     "Model {} not found in your OpenAI account, ignoring it.",
-                    requested_model
+                    model
                 );
-                continue;
-            }
-
-            // make a dummy request
+                models_to_remove.push(model);
+            } else
+            // if it exists, make a dummy request
             if let Err(err) = self
-                .execute(TaskBody::new_prompt("What is 2 + 2?", requested_model))
+                .execute(TaskBody::new_prompt("What is 2 + 2?", model))
                 .await
             {
-                log::warn!(
-                    "Model {} failed dummy request, ignoring it: {}",
-                    requested_model,
-                    err
-                );
-                continue;
+                log::warn!("Model {} failed dummy request, ignoring it: {}", model, err);
+                models_to_remove.push(model);
             }
+        }
 
-            available_models.push(requested_model)
+        // remove models that are not available
+        for model in models_to_remove.iter() {
+            models.remove(model);
         }
 
         // log results
-        if available_models.is_empty() {
+        if models.is_empty() {
             log::warn!("OpenAI checks are finished, no available models found.",);
         } else {
-            log::info!(
-                "OpenAI checks are finished, using models: {:#?}",
-                available_models
-            );
+            log::info!("OpenAI checks are finished, using models: {:#?}", models);
         }
 
-        Ok(available_models)
+        Ok(())
     }
 
     /// Fetches the list of models available in the OpenAI account.
@@ -145,14 +142,18 @@ mod tests {
             .try_init();
         let _ = dotenvy::dotenv(); // read api key
 
-        let models = vec![Model::GPT4Turbo, Model::GPT4o, Model::GPT4oMini];
-        let res = OpenAIProvider::from_env()
+        let initial_models = [Model::GPT4o, Model::GPT4oMini];
+        let mut models = HashSet::from_iter(initial_models);
+        OpenAIClient::from_env()
             .unwrap()
-            .check(models.clone())
-            .await;
-        assert_eq!(res.unwrap(), models);
+            .check(&mut models)
+            .await
+            .unwrap();
+        assert_eq!(models.len(), initial_models.len());
 
-        let res = OpenAIProvider::new("i-dont-work").check(vec![]).await;
+        let res = OpenAIClient::new("i-dont-work")
+            .check(&mut Default::default())
+            .await;
         assert!(res.is_err());
     }
 }

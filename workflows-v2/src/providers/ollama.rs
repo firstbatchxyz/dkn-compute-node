@@ -5,8 +5,8 @@ use ollama_rs::generation::{
 };
 use rig::completion::{Chat, PromptError};
 use rig::providers::ollama;
-use std::env;
 use std::time::Duration;
+use std::{collections::HashSet, env};
 
 use crate::{Model, TaskBody};
 
@@ -23,7 +23,7 @@ const TEST_PROMPT: &str = "Please write a poem about Kapadokya.";
 
 /// Ollama-specific configurations.
 #[derive(Clone)]
-pub struct OllamaProvider {
+pub struct OllamaClient {
     /// Whether to automatically pull models from Ollama.
     /// This is useful for CI/CD workflows.
     auto_pull: bool,
@@ -35,7 +35,7 @@ pub struct OllamaProvider {
     ollama_rs_client: ollama_rs::Ollama,
 }
 
-impl OllamaProvider {
+impl OllamaClient {
     /// Creates a new Ollama client using the host and port.
     pub fn new(host: &str, port: u16, auto_pull: bool) -> Self {
         Self {
@@ -82,7 +82,7 @@ impl OllamaProvider {
     }
 
     /// Check if requested models exist in Ollama, and then tests them using a workflow.
-    pub async fn check(&self, external_models: Vec<Model>) -> Result<Vec<Model>> {
+    pub async fn check(&self, models: &mut HashSet<Model>) -> Result<()> {
         log::info!(
             "Checking Ollama requirements (auto-pull {}, timeout: {}s, min tps: {})",
             if self.auto_pull { "on" } else { "off" },
@@ -103,30 +103,34 @@ impl OllamaProvider {
         log::info!("Found local Ollama models: {:#?}", local_models);
 
         // check external models & pull them if available
-        // and also run a test workflow for them
-        let mut good_models = Vec::new();
-        for model in external_models {
+        // iterate over models and remove bad ones
+        let mut models_to_remove = Vec::new();
+        for model in models.iter() {
+            // pull the model if it is not in the local models
             if !local_models.contains(&model.to_string()) {
-                self.try_pull(&model)
+                self.try_pull(model)
                     .await
                     .wrap_err("could not pull model")?;
             }
 
-            if self.test_performance(&model).await {
-                good_models.push(model);
+            // test its performance
+            if !self.test_performance(model).await {
+                models_to_remove.push(*model);
             }
         }
 
-        if good_models.is_empty() {
-            log::warn!("No Ollama models passed the performance test! Try using a more powerful machine OR smaller models.");
-        } else {
-            log::info!(
-                "Ollama checks are finished, using models: {:#?}",
-                good_models
-            );
+        // remove failed models
+        for model in models_to_remove {
+            models.remove(&model);
         }
 
-        Ok(good_models)
+        if models.is_empty() {
+            log::warn!("No Ollama models passed the performance test! Try using a more powerful machine OR smaller models.");
+        } else {
+            log::info!("Ollama checks are finished, using models: {:#?}", models);
+        }
+
+        Ok(())
     }
 
     /// Pulls a model if `auto_pull` exists, otherwise returns an error.
@@ -215,8 +219,8 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires Ollama"]
     async fn test_ollama_prompt() {
-        let client = OllamaProvider::from_env();
-        let model = Model::TinyAgent05;
+        let client = OllamaClient::from_env();
+        let model = Model::Llama3_2_1bInstructQ4Km;
         // let ollama = Ollama::default();
 
         let stats = client.try_pull(&model).await.unwrap();

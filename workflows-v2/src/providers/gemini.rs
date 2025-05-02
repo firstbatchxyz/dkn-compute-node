@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use eyre::{eyre, Context, Result};
 use reqwest::Client;
 use rig::{
@@ -10,12 +12,12 @@ use crate::{Model, TaskBody};
 
 /// OpenAI-specific configurations.
 #[derive(Clone)]
-pub struct GeminiProvider {
+pub struct GeminiClient {
     api_key: String,
     client: gemini::Client,
 }
 
-impl GeminiProvider {
+impl GeminiClient {
     /// Looks at the environment variables for Gemini API key.
     pub fn new(api_key: &str) -> Self {
         Self {
@@ -42,25 +44,25 @@ impl GeminiProvider {
     }
 
     /// Check if requested models exist & are available in the OpenAI account.
-    pub async fn check(&self, models: Vec<Model>) -> Result<Vec<Model>> {
+    pub async fn check(&self, models: &mut HashSet<Model>) -> Result<()> {
+        let mut models_to_remove = Vec::new();
         log::info!("Checking Gemini requirements");
 
         // check if models exist and select those that are available
         let gemini_models_names = self.fetch_models().await?;
-        let mut available_models = Vec::new();
-        for requested_model in models {
+        for requested_model in models.iter().cloned() {
             // check if model exists
             if !gemini_models_names
                 .iter()
+                // due to weird naming of models in Gemini API, we need to check prefix
                 .any(|model| model.starts_with(&requested_model.to_string()))
             {
                 log::warn!(
                     "Model {} not found in your Gemini account, ignoring it.",
                     requested_model
                 );
-                continue;
-            }
-
+                models_to_remove.push(requested_model);
+            } else
             // make a dummy request
             if let Err(err) = self
                 .execute(TaskBody::new_prompt("What is 2 + 2?", requested_model))
@@ -71,23 +73,16 @@ impl GeminiProvider {
                     requested_model,
                     err
                 );
-                continue;
+                models_to_remove.push(requested_model);
             }
-
-            available_models.push(requested_model);
         }
 
-        // log results
-        if available_models.is_empty() {
-            log::warn!("Gemini checks are finished, no available models found.",);
-        } else {
-            log::info!(
-                "Gemini checks are finished, using models: {:#?}",
-                available_models
-            );
+        // remove models that are not available
+        for model in models_to_remove.iter() {
+            models.remove(model);
         }
 
-        Ok(available_models)
+        Ok(())
     }
 
     /// Returns the list of models available to this account.
@@ -153,14 +148,19 @@ mod tests {
             .try_init();
         let _ = dotenvy::dotenv(); // read api key
 
-        let models = vec![Model::Gemini15Flash, Model::Gemini15Pro];
-        let res = GeminiProvider::from_env()
+        let initial_models = [Model::Gemini2_0Flash, Model::Gemini2_5ProExp];
+        let mut models = HashSet::from_iter(initial_models);
+        GeminiClient::from_env()
             .unwrap()
-            .check(models.clone())
-            .await;
-        assert_eq!(res.unwrap(), models);
+            .check(&mut models)
+            .await
+            .unwrap();
+        assert_eq!(models.len(), initial_models.len());
 
-        let res = GeminiProvider::new("i-dont-work").check(vec![]).await;
+        // should give error for bad API key
+        let res = GeminiClient::new("i-dont-work")
+            .check(&mut HashSet::new())
+            .await;
         assert!(res.is_err());
     }
 }

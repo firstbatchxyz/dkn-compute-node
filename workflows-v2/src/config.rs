@@ -1,101 +1,52 @@
-use crate::{
-    providers::{GeminiProvider, OllamaProvider, OpenAIProvider, OpenRouterProvider},
-    Model, ModelProvider, TaskBody,
-};
+use std::collections::{HashMap, HashSet};
+
+use crate::{providers::DriaWorkflowsProvider, Model, ModelProvider, TaskBody};
 use dkn_utils::split_csv_line;
 use eyre::{eyre, OptionExt, Result};
 use rand::seq::IteratorRandom;
 
 #[derive(Clone)]
 pub struct DriaWorkflowsConfig {
-    /// List of models.
-    ///
-    /// You can do `model.provider()` to get its provider.
     pub models: Vec<Model>,
-    /// Ollama configurations, in case Ollama is used.
-    /// Otherwise, can be ignored.
-    pub ollama: Option<OllamaProvider>,
-    /// OpenAI configurations, e.g. API key, in case OpenAI is used.
-    /// Otherwise, can be ignored.
-    pub openai: Option<OpenAIProvider>,
-    /// Gemini configurations, e.g. API key, in case Gemini is used.
-    /// Otherwise, can be ignored.
-    pub gemini: Option<GeminiProvider>,
-    /// OpenRouter configurations, e.g. API key, in case OpenRouter is used.
-    /// Otherwise, can be ignored.
-    pub openrouter: Option<OpenRouterProvider>,
-}
-
-impl Default for DriaWorkflowsConfig {
-    fn default() -> Self {
-        Self::new(Vec::default())
-    }
+    /// Providers and their clients, as derived from the models.
+    pub providers: HashMap<ModelProvider, (DriaWorkflowsProvider, HashSet<Model>)>,
 }
 
 impl DriaWorkflowsConfig {
     /// Creates a new config with the given models.
     pub fn new(models: Vec<Model>) -> Self {
-        // create a client if model uses its respective provider
+        // given a vector of models, creates a map of providers and its models
+        let providers = models.iter().cloned().fold(
+            HashMap::<ModelProvider, (DriaWorkflowsProvider, HashSet<Model>)>::new(),
+            |mut provider_models, model| {
+                let provider = model.provider();
+                provider_models
+                    .entry(model.provider())
+                    // create a new provider if it does not exist
+                    .or_insert_with(|| {
+                        (
+                            DriaWorkflowsProvider::new(provider),
+                            HashSet::from_iter([model]),
+                        )
+                    })
+                    // or append the model set to the existing provider
+                    .1
+                    .insert(model);
+                provider_models
+            },
+        );
 
-        Self {
-            ollama: if models.iter().any(|m| m.provider() == ModelProvider::Ollama) {
-                Some(OllamaProvider::from_env())
-            } else {
-                None
-            },
-            openai: if models.iter().any(|m| m.provider() == ModelProvider::OpenAI) {
-                Some(OpenAIProvider::from_env().expect("could not create OpenAI client"))
-            } else {
-                None
-            },
-            openrouter: if models
-                .iter()
-                .any(|m| m.provider() == ModelProvider::OpenRouter)
-            {
-                Some(OpenRouterProvider::from_env().expect("could not create OpenRouter client"))
-            } else {
-                None
-            },
-            gemini: if models.iter().any(|m| m.provider() == ModelProvider::Gemini) {
-                Some(GeminiProvider::from_env().expect("could not create Gemini client"))
-            } else {
-                None
-            },
-            models,
-        }
+        Self { providers, models }
     }
 
+    /// Executes a given task using the appropriate provider.
     pub async fn execute(&self, task: TaskBody) -> Result<String, rig::completion::PromptError> {
-        match task.model.provider() {
-            ModelProvider::Ollama => {
-                self.ollama
-                    .as_ref()
-                    .expect("not supported")
-                    .execute(task)
-                    .await
-            }
-            ModelProvider::OpenAI => {
-                self.openai
-                    .as_ref()
-                    .expect("not supported")
-                    .execute(task)
-                    .await
-            }
-            ModelProvider::Gemini => {
-                self.gemini
-                    .as_ref()
-                    .expect("not supported")
-                    .execute(task)
-                    .await
-            }
-            ModelProvider::OpenRouter => {
-                self.openrouter
-                    .as_ref()
-                    .expect("not supported")
-                    .execute(task)
-                    .await
-            }
-        }
+        self.providers
+            .get(&task.model.provider())
+            .unwrap() // TODO: give error here
+            .0
+            .execute(task)
+            .await
     }
 
     /// Parses Ollama-Workflows compatible models from a comma-separated values string.
@@ -111,26 +62,22 @@ impl DriaWorkflowsConfig {
     }
 
     /// Returns the models from the config that belongs to a given provider.
-    pub fn get_models_for_provider(&self, provider: ModelProvider) -> Vec<Model> {
-        self.models
-            .iter()
-            .filter(|m| m.provider() == provider)
-            .cloned()
-            .collect()
+    pub fn get_models_for_provider(&self, provider: ModelProvider) -> &HashSet<Model> {
+        &self
+            .providers
+            .get(&provider)
+            .unwrap() // TODO: give error here
+            .1
     }
 
     /// Returns `true` if the configuration contains models that can be processed in parallel, e.g. API calls.
     pub fn has_batchable_models(&self) -> bool {
-        self.models
-            .iter()
-            .any(|m| m.provider() != ModelProvider::Ollama)
+        !self.has_non_batchable_models()
     }
 
     /// Returns `true` if the configuration contains a model that cant be run in parallel, e.g. a Ollama model.
     pub fn has_non_batchable_models(&self) -> bool {
-        self.models
-            .iter()
-            .any(|m| m.provider() == ModelProvider::Ollama)
+        self.providers.contains_key(&ModelProvider::Ollama)
     }
 
     /// Given a raw model name or provider (as a string), returns the first matching model & provider.
@@ -201,15 +148,7 @@ impl DriaWorkflowsConfig {
     /// Returns the list of unique providers in the config.
     #[inline]
     pub fn get_providers(&self) -> Vec<ModelProvider> {
-        self.models.iter().fold(Vec::new(), |mut unique, m| {
-            let provider = m.provider();
-
-            if !unique.contains(&provider) {
-                unique.push(provider);
-            }
-
-            unique
-        })
+        self.providers.keys().cloned().collect()
     }
 
     /// Returns the names of all models in the config.
@@ -228,47 +167,31 @@ impl DriaWorkflowsConfig {
     /// If there are no models left in the end, an error is thrown.
     pub async fn check_services(&mut self) -> Result<()> {
         log::info!("Checking configured services.");
-        let unique_providers = self.get_providers();
 
-        let mut good_models: Vec<Model> = Vec::new();
-
-        // if Ollama is a provider, check that it is running & Ollama models are pulled (or pull them)
-        if unique_providers.contains(&ModelProvider::Ollama) {
-            let provider_models = self.get_models_for_provider(ModelProvider::Ollama);
-            good_models.extend(self.ollama.as_ref().unwrap().check(provider_models).await?);
+        // check all configured providers
+        for (client, models) in self.providers.values_mut() {
+            client.check(models).await?;
         }
 
-        // if OpenAI is a provider, check that the API key is set & models are available
-        if unique_providers.contains(&ModelProvider::OpenAI) {
-            let provider_models = self.get_models_for_provider(ModelProvider::OpenAI);
-            good_models.extend(self.openai.as_ref().unwrap().check(provider_models).await?);
+        // obtain the final list of providers & models,
+        // remove the providers that have no models left
+        self.providers.retain(|provider, (_, models)| {
+            let ok = models.is_empty();
+            if !ok {
+                log::warn!(
+                    "Provider {} has no models left, removing it from the config.",
+                    provider
+                )
+            }
+            ok
+        });
+
+        // check if we have any models left at all
+        if self.providers.is_empty() {
+            eyre::bail!("No good models found, please check logs for errors.")
         }
 
-        // if Gemini is a provider, check that the API key is set & models are available
-        if unique_providers.contains(&ModelProvider::Gemini) {
-            let provider_models = self.get_models_for_provider(ModelProvider::Gemini);
-            good_models.extend(self.gemini.as_ref().unwrap().check(provider_models).await?);
-        }
-
-        // if OpenRouter is a provider, check that the API key is set
-        if unique_providers.contains(&ModelProvider::OpenRouter) {
-            let provider_models = self.get_models_for_provider(ModelProvider::OpenRouter);
-            good_models.extend(
-                self.openrouter
-                    .as_ref()
-                    .unwrap()
-                    .check(provider_models)
-                    .await,
-            );
-        }
-
-        // update good models
-        if good_models.is_empty() {
-            Err(eyre!("No good models found, please check logs for errors."))
-        } else {
-            // self.models = good_models;
-            Ok(())
-        }
+        Ok(())
     }
 }
 
@@ -301,7 +224,7 @@ mod tests {
 
     #[test]
     fn test_model_matching() {
-        let cfg = DriaWorkflowsConfig::new_from_csv("gpt-4o,llama3.1:latest");
+        let cfg = DriaWorkflowsConfig::new_from_csv("gpt-4o,llama3.2:1b-instruct-q4_K_M");
         assert_eq!(
             cfg.get_matching_model("openai".to_string()).unwrap(),
             Model::GPT4o,
@@ -309,9 +232,9 @@ mod tests {
         );
 
         assert_eq!(
-            cfg.get_matching_model("llama3.1:latest".to_string())
+            cfg.get_matching_model("llama3.2:1b-instruct-q4_K_M".to_string())
                 .unwrap(),
-            Model::Llama3_1_8B,
+            Model::Llama3_2_1bInstructQ4Km,
             "Should find existing model"
         );
 
@@ -329,7 +252,7 @@ mod tests {
 
     #[test]
     fn test_get_any_matching_model() {
-        let cfg = DriaWorkflowsConfig::new_from_csv("gpt-3.5-turbo,llama3.1:latest");
+        let cfg = DriaWorkflowsConfig::new_from_csv("gpt-3.5-turbo,llama3.2:1b-instruct-q4_K_M");
         let result = cfg.get_any_matching_model(vec![
             "i-dont-exist".to_string(),
             "llama3.1:latest".to_string(),
@@ -338,7 +261,7 @@ mod tests {
         ]);
         assert_eq!(
             result.unwrap(),
-            Model::Llama3_1_8B,
+            Model::Llama3_2_1bInstructQ4Km,
             "Should find existing model"
         );
     }

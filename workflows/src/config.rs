@@ -107,12 +107,6 @@ impl DriaWorkflowsConfig {
                 .choose(&mut rand::thread_rng())
                 .ok_or_eyre("could not find models to randomly pick for '*'")
                 .cloned()
-        } else if model_or_provider == "!" {
-            // return the first model
-            self.models
-                .first()
-                .ok_or_eyre("could not find models to choose first for '!'")
-                .cloned()
         } else if let Ok(provider) = ModelProvider::try_from(model_or_provider.clone()) {
             // this is a valid provider, return the first matching model in the config
             self.models

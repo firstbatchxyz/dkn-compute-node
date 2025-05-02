@@ -20,6 +20,8 @@ impl DriaComputeNode {
     /// Does not return an error, but simply logs it to [`log::error`].
     pub(crate) async fn handle_reqres(&mut self, peer_id: PeerId, message: DriaReqResMessage) {
         match message {
+            // make sure that the `channel` here is NOT DROPPED until a response is sent,
+            // otherwise you will get an error
             DriaReqResMessage::Request {
                 request,
                 request_id,
@@ -90,7 +92,7 @@ impl DriaComputeNode {
             self.handle_task_request(peer_id, task_request, channel)
                 .await
         } else {
-            Err(eyre::eyre!("Received unhandled request from {}", peer_id,))
+            Err(eyre::eyre!("Received unhandled request from {peer_id}"))
         }
     }
 
@@ -106,9 +108,8 @@ impl DriaComputeNode {
         channel: ResponseChannel<Vec<u8>>,
     ) -> Result<()> {
         log::info!(
-            "Received a {} request from {}",
-            TASK_REQUEST_TOPIC.yellow(),
-            peer_id
+            "Received a {} request from {peer_id}",
+            TASK_REQUEST_TOPIC.yellow()
         );
 
         let (task_input, task_metadata) =
@@ -163,8 +164,8 @@ impl DriaComputeNode {
 
         // respond to the response channel with the result
         match task_metadata {
-            Some(metadata) => {
-                TaskResponder::send_output(self, task_response, metadata).await?;
+            Some(task_metadata) => {
+                TaskResponder::send_output(self, task_response, task_metadata).await?;
             }
             None => {
                 // totally unexpected case, wont happen at all

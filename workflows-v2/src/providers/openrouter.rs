@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use eyre::Result;
 use rig::completion::{Chat, PromptError};
 use rig::providers::openrouter;
@@ -6,11 +8,11 @@ use crate::{Model, TaskBody};
 
 /// OpenRouter-specific configurations.
 #[derive(Clone)]
-pub struct OpenRouterProvider {
+pub struct OpenRouterClient {
     client: openrouter::Client,
 }
 
-impl OpenRouterProvider {
+impl OpenRouterClient {
     /// Looks at the environment variables for OpenRouter API key.
     pub fn new(api_key: &str) -> Self {
         Self {
@@ -36,39 +38,26 @@ impl OpenRouterProvider {
     }
 
     /// Checks if the API key exists.
-    pub async fn check(&self, external_models: Vec<Model>) -> Vec<Model> {
+    pub async fn check(&self, models: &mut HashSet<Model>) {
+        let mut models_to_remove = Vec::new();
         log::info!("Checking OpenRouter API key");
 
         // make a dummy request with existing models
-        let mut available_models = Vec::new();
-        for requested_model in external_models {
+        for model in models.iter().cloned() {
             // make a dummy request
             if let Err(err) = self
-                .execute(TaskBody::new_prompt("What is 2 + 2?", requested_model))
+                .execute(TaskBody::new_prompt("What is 2 + 2?", model))
                 .await
             {
-                log::warn!(
-                    "Model {} failed dummy request, ignoring it: {}",
-                    requested_model,
-                    err
-                );
-                continue;
+                log::warn!("Model {} failed dummy request, ignoring it: {}", model, err);
+                models_to_remove.push(model);
             }
-
-            available_models.push(requested_model)
         }
 
-        // log results
-        if available_models.is_empty() {
-            log::warn!("OpenRouter checks are finished, no available models found.",);
-        } else {
-            log::info!(
-                "OpenRouter checks are finished, using models: {:#?}",
-                available_models
-            );
+        // remove models that failed the dummy request
+        for model in models_to_remove.iter() {
+            models.remove(model);
         }
-
-        available_models
     }
 }
 
@@ -86,14 +75,14 @@ mod tests {
             .try_init();
         let _ = dotenvy::dotenv(); // read api key
 
-        let models = vec![Model::ORDeepSeek2_5, Model::ORLlama3_1_8B];
-        let config = OpenRouterProvider::from_env().unwrap();
-        let res = config.check(models.clone()).await;
-        assert_eq!(res, models);
+        let initial_models = [Model::OR3_5Sonnet, Model::OR3_7Sonnet];
+        let mut models = HashSet::from_iter(initial_models);
+        let config = OpenRouterClient::from_env().unwrap();
+        config.check(&mut models).await;
+        assert_eq!(models.len(), initial_models.len());
 
         // create with a bad api key
-        let config = OpenRouterProvider::new("i-dont-work");
-        let res = config.check(vec![]).await;
-        assert!(res.is_empty()); // does not return an Err unlike others!
+        let config = OpenRouterClient::new("i-dont-work");
+        config.check(&mut HashSet::new()).await; // should not panic
     }
 }
