@@ -94,32 +94,6 @@ impl DriaComputeNode {
         }
     }
 
-    // /// Handles a specifications request received from the network.
-    // async fn handle_spec_request(
-    //     &mut self,
-    //     peer_id: PeerId,
-    //     spec_request: <SpecRequester as IsResponder>::Request,
-    //     channel: ResponseChannel<Vec<u8>>,
-    // ) -> Result<()> {
-    //     log::info!(
-    //         "Got a {} request from peer {peer_id} with id {}",
-    //         SPECS_TOPIC.green(),
-    //         spec_request.request_id
-    //     );
-
-    //     let response = SpecRequester::respond(spec_request, self.spec_collector.collect().await);
-    //     let response_data = serde_json::to_vec(&response)?;
-
-    //     log::info!(
-    //         "Responding to {} request from peer {peer_id} with id {}",
-    //         SPECS_TOPIC.green(),,
-    //         response.request_id
-    //     );
-    //     self.p2p.respond(response_data, channel).await?;
-
-    //     Ok(())
-    // }
-
     /// Handles a Task request received from the network.
     ///
     /// Based on the task type, the task is sent to the appropriate worker & metadata is stored in memory.
@@ -189,15 +163,12 @@ impl DriaComputeNode {
 
         // respond to the response channel with the result
         match task_metadata {
-            Some(channel) => {
-                TaskResponder::send_output(self, task_response, channel).await?;
+            Some(metadata) => {
+                TaskResponder::send_output(self, task_response, metadata).await?;
             }
             None => {
-                return Err(eyre!(
-                    "Channel not found during task {}/{}",
-                    task_response.file_id,
-                    task_response.task_id
-                ))
+                // totally unexpected case, wont happen at all
+                eyre::bail!("Metadata not found for {}", task_response.row_id);
             }
         };
 

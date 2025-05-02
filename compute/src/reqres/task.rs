@@ -64,14 +64,14 @@ impl TaskResponder {
         let task_input = TaskWorkerInput {
             executor,
             workflow,
-            task_id: task.task_id,
-            file_id: task.file_id,
             row_id: task.row_id,
             stats,
             batchable,
         };
 
         let task_metadata = TaskWorkerMetadata {
+            task_id: task.task_id,
+            file_id: task.file_id,
             model_name,
             channel,
         };
@@ -91,8 +91,8 @@ impl TaskResponder {
                 log::info!(
                     "Publishing {} result for {}/{}",
                     "task".yellow(),
-                    task_output.file_id,
-                    task_output.task_id
+                    task_metadata.file_id,
+                    task_metadata.task_id
                 );
 
                 // TODO: will get better token count from `TaskWorkerOutput`
@@ -100,9 +100,9 @@ impl TaskResponder {
                 let payload = TaskResponsePayload {
                     result: Some(result),
                     error: None,
+                    file_id: task_metadata.file_id,
+                    task_id: task_metadata.task_id,
                     row_id: task_output.row_id,
-                    file_id: task_output.file_id,
-                    task_id: task_output.task_id,
                     model: task_metadata.model_name,
                     stats: task_output
                         .stats
@@ -119,8 +119,8 @@ impl TaskResponder {
                 let err_string = format!("{:#}", err);
                 log::error!(
                     "Task {}/{} failed: {}",
-                    task_output.file_id,
-                    task_output.task_id,
+                    task_metadata.file_id,
+                    task_metadata.task_id,
                     err_string
                 );
 
@@ -129,8 +129,8 @@ impl TaskResponder {
                     result: None,
                     error: Some(err_string),
                     row_id: task_output.row_id,
-                    file_id: task_output.file_id,
-                    task_id: task_output.task_id,
+                    file_id: task_metadata.file_id,
+                    task_id: task_metadata.task_id,
                     model: task_metadata.model_name,
                     stats: task_output
                         .stats

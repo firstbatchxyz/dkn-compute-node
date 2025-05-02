@@ -8,19 +8,18 @@ use uuid::Uuid;
 /// A metadata object that is kept aside while the worker is doing its job.
 ///
 /// This is put into a map before execution, and then removed after the task is done.
-///
-/// If for any reason this object is dropped before `channel` is responded to,
-/// the task will be lost and the channel will be abruptly closed, causing an error on
-/// both the client and the server side (that waits for response), likely with an `OmissionError`.
 pub struct TaskWorkerMetadata {
     pub model_name: String,
+    pub task_id: Uuid,
+    pub file_id: Uuid,
+    /// If for any reason this object is dropped before `channel` is responded to,
+    /// the task will be lost and the channel will be abruptly closed, causing an error on
+    /// both the responder and the requester side, likely with an `OmissionError`.
     pub channel: ResponseChannel<Vec<u8>>,
 }
 
 pub struct TaskWorkerInput {
     // used as identifier for metadata
-    pub task_id: Uuid,
-    pub file_id: Uuid,
     pub row_id: Uuid,
     // actual consumed input
     pub executor: Executor,
@@ -32,8 +31,6 @@ pub struct TaskWorkerInput {
 
 pub struct TaskWorkerOutput {
     // used as identifier for metadata
-    pub task_id: Uuid,
-    pub file_id: Uuid,
     pub row_id: Uuid,
     // actual produced output
     pub result: Result<String, ExecutionError>,
@@ -44,7 +41,7 @@ pub struct TaskWorkerOutput {
 
 /// Workflows worker is a task executor that can process workflows in parallel / series.
 ///
-/// It is expected to be spawned in another thread, with `run_batch` for batch processing and `run` for single processing.
+/// It is expected to be spawned in another thread, with [`Self::run_batch`] for batch processing and [`Self::run_series`] for single processing.
 pub struct TaskWorker {
     /// Workflow message channel receiver, the sender is most likely the compute node itself.
     task_rx: mpsc::Receiver<TaskWorkerInput>,
@@ -91,12 +88,7 @@ impl TaskWorker {
             let task = self.task_rx.recv().await;
 
             if let Some(task) = task {
-                log::info!(
-                    "Processing {} task {}/{} (single)",
-                    "task".yellow(),
-                    task.file_id,
-                    task.task_id
-                );
+                log::info!("Processing {} (single)", "task".yellow(),);
                 TaskWorker::execute((task, &self.publish_tx)).await
             } else {
                 return self.shutdown();
@@ -243,8 +235,6 @@ impl TaskWorker {
 
         let output = TaskWorkerOutput {
             result,
-            task_id: input.task_id,
-            file_id: input.file_id,
             row_id: input.row_id,
             batchable: input.batchable,
             stats: input.stats,
@@ -324,8 +314,7 @@ mod tests {
             let task_input = TaskWorkerInput {
                 executor,
                 workflow,
-                task_id: Uuid::now_v7(),
-                file_id: Uuid::now_v7(),
+                // dummy variables
                 row_id: Uuid::now_v7(),
                 stats: TaskStats::default(),
                 batchable: true,
