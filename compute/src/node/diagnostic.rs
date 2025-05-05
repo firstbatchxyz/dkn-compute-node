@@ -113,7 +113,7 @@ impl DriaComputeNode {
                 "Connection to RPC {} is lost, geting a new one!",
                 self.dria_rpc.addr,
             );
-            match DriaRPC::new_for_network(self.dria_rpc.network).await {
+            match DriaRPC::new_for_network(self.dria_rpc.network, &self.config.version).await {
                 Ok(new_rpc) => {
                     self.dria_rpc = new_rpc;
 

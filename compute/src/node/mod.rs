@@ -82,7 +82,7 @@ impl DriaComputeNode {
             log::info!("Using initial RPC address: {}", addr);
             DriaRPC::new(addr, config.network_type).expect("could not get RPC to connect to")
         } else {
-            DriaRPC::new_for_network(config.network_type)
+            DriaRPC::new_for_network(config.network_type, &config.version)
                 .await
                 .expect("could not get RPC to connect to")
         };

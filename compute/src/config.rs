@@ -1,7 +1,4 @@
-use dkn_p2p::{
-    libp2p::{Multiaddr, PeerId},
-    DriaNetworkType,
-};
+use dkn_p2p::libp2p::{Multiaddr, PeerId};
 use dkn_workflows::DriaWorkflowsConfig;
 use eyre::{eyre, Result};
 use libsecp256k1::{PublicKey, SecretKey};
@@ -9,7 +6,7 @@ use std::{env, str::FromStr};
 
 use dkn_utils::{
     crypto::{public_key_to_address, secret_to_keypair},
-    SemanticVersion,
+    DriaNetwork, SemanticVersion,
 };
 
 const DEFAULT_TASK_BATCH_SIZE: usize = 5;
@@ -32,7 +29,7 @@ pub struct DriaComputeNodeConfig {
     /// Workflow configurations, e.g. models and providers.
     pub workflows: DriaWorkflowsConfig,
     /// Network type of the node.
-    pub network_type: DriaNetworkType,
+    pub network_type: DriaNetwork,
     /// Batch size for batchable tasks (e.g. API-based ones).
     ///
     /// A higher value will help execute more tasks concurrently,
@@ -95,7 +92,7 @@ impl DriaComputeNodeConfig {
 
         // parse network type
         let network_type = env::var("DKN_NETWORK")
-            .map(|s| DriaNetworkType::from(s.as_str()))
+            .map(|s| DriaNetwork::from(s.as_str()))
             .unwrap_or_default();
 
         // parse batch size

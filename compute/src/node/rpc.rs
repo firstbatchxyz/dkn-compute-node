@@ -1,5 +1,5 @@
 use dkn_p2p::libp2p::{multiaddr::Protocol, Multiaddr, PeerId};
-use dkn_p2p::DriaNetworkType;
+use dkn_utils::{DriaNetwork, SemanticVersion};
 use eyre::{Context, OptionExt, Result};
 use std::fmt::Debug;
 
@@ -8,12 +8,12 @@ use std::fmt::Debug;
 pub struct DriaRPC {
     pub addr: Multiaddr,
     pub peer_id: PeerId,
-    pub network: DriaNetworkType,
+    pub network: DriaNetwork,
 }
 
 impl DriaRPC {
     /// Creates a new RPC target at the given type, along with a network type for refreshing the RPC address.
-    pub fn new(addr: Multiaddr, network: DriaNetworkType) -> Result<Self> {
+    pub fn new(addr: Multiaddr, network: DriaNetwork) -> Result<Self> {
         let peer_id = addr
             .iter()
             .find_map(|p| match p {
@@ -29,9 +29,9 @@ impl DriaRPC {
         })
     }
 
-    /// Creates a new RPC target for the given network type.
-    pub async fn new_for_network(network: DriaNetworkType) -> Result<Self> {
-        let addr = get_rpc_for_network(&network).await?;
+    /// Creates a new RPC target for the given network type and version.
+    pub async fn new_for_network(network: DriaNetwork, version: &SemanticVersion) -> Result<Self> {
+        let addr = get_rpc_for_network(&network, version).await?;
         Self::new(addr, network)
     }
 }
@@ -39,18 +39,21 @@ impl DriaRPC {
 /// Calls the DKN API to get an RPC address for the given network type.
 ///
 /// The peer id is expected to be within the multi-address.
-async fn get_rpc_for_network(network: &DriaNetworkType) -> Result<Multiaddr> {
+async fn get_rpc_for_network(
+    network: &DriaNetwork,
+    version: &SemanticVersion,
+) -> Result<Multiaddr> {
     #[derive(serde::Deserialize, Debug)]
     struct DriaNodesApiResponse {
         pub rpc: Multiaddr,
     }
 
     // url to be used is determined by the network type
-    let url = match network {
-        DriaNetworkType::Community => "https://dkn.dria.co/v5/available-nodes",
-        DriaNetworkType::Pro => "https://dkn.dria.co/v5/sdk/available-nodes",
-        DriaNetworkType::Test => "https://dkn.dria.co/v5/test/available-nodes",
+    let base_url = match network {
+        DriaNetwork::Mainnet => "https://dkn.dria.co/available-nodes",
+        DriaNetwork::Testnet => "https://dkn.dria.co/available-nodes",
     };
+    let url = format!("{}/{}", base_url, version.as_major_minor());
 
     // make the request
     let response = reqwest::get(url).await?;
@@ -69,7 +72,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_dria_nodes() {
-        let node = DriaRPC::new_for_network(DriaNetworkType::Community).await;
+        let node =
+            DriaRPC::new_for_network(DriaNetwork::Mainnet, &SemanticVersion::from_crate_version())
+                .await;
         assert!(node.is_ok());
     }
 }
