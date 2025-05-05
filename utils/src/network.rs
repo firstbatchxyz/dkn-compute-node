@@ -37,8 +37,8 @@ impl DriaNetwork {
 
     pub fn discovery_url(&self, version: &SemanticVersion) -> String {
         let base_url = match self {
-            DriaNetwork::Mainnet => "https://mainnet.dkn.dria.co/discovery/available-nodes",
-            DriaNetwork::Testnet => "https://testnet.dkn.dria.co/discovery/available-nodes",
+            DriaNetwork::Mainnet => "https://mainnet.dkn.dria.co/discovery/v0/available-nodes",
+            DriaNetwork::Testnet => "https://testnet.dkn.dria.co/discovery/v0/available-nodes",
         };
 
         format!("{}/{}", base_url, version.as_major_minor())
@@ -67,11 +67,11 @@ mod tests {
 
         assert_eq!(
             mainnet.discovery_url(&version),
-            "https://mainnet.dkn.dria.co/discovery/available-nodes/1.0"
+            "https://mainnet.dkn.dria.co/discovery/v0/available-nodes/1.0"
         );
         assert_eq!(
             testnet.discovery_url(&version),
-            "https://testnet.dkn.dria.co/discovery/available-nodes/1.0"
+            "https://testnet.dkn.dria.co/discovery/v0/available-nodes/1.0"
         );
     }
 }
