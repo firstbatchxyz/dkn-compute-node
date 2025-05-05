@@ -43,26 +43,18 @@ async fn get_rpc_for_network(
     network: &DriaNetwork,
     version: &SemanticVersion,
 ) -> Result<Multiaddr> {
-    #[derive(serde::Deserialize, Debug)]
-    struct DriaNodesApiResponse {
-        pub rpc: Multiaddr,
-    }
-
-    // url to be used is determined by the network type
-    let base_url = match network {
-        DriaNetwork::Mainnet => "https://dkn.dria.co/available-nodes",
-        DriaNetwork::Testnet => "https://dkn.dria.co/available-nodes",
-    };
-    let url = format!("{}/{}", base_url, version.as_major_minor());
-
-    // make the request
-    let response = reqwest::get(url).await?;
-    let response_body = response
-        .json::<DriaNodesApiResponse>()
+    let response = reqwest::get(network.discovery_url(version)).await?;
+    let rpcs_and_peer_counts = response
+        .json::<Vec<(Multiaddr, usize)>>()
         .await
         .wrap_err("could not parse API response")?;
 
-    Ok(response_body.rpc)
+    // returns the RPC address with the least peer count (for load balancing)
+    rpcs_and_peer_counts
+        .into_iter()
+        .min_by_key(|(_, peer_count)| *peer_count)
+        .ok_or_eyre("no RPCs were returned by discovery API")
+        .map(|(addr, _)| addr)
 }
 
 #[cfg(test)]
@@ -76,5 +68,17 @@ mod tests {
             DriaRPC::new_for_network(DriaNetwork::Mainnet, &SemanticVersion::from_crate_version())
                 .await;
         assert!(node.is_ok());
+    }
+
+    #[test]
+    fn test_deserialize() {
+        let input = r#"[
+          ["/ip4/12.34.56.78/tcp/4001/p2p/16Uiu2HAmG7qrpSh8kenjuYqyrwxgEVdzqRV4wM1hHAZRq4j25VBC", 1],
+          ["/ip4/78.56.34.12/tcp/4001/p2p/16Uiu2HAmG7qrpSh8kenjuYqyrwxgEVdzqRV4wM1hHAZRq4j25VBC", 4]
+        ]"#;
+        let result: Vec<(Multiaddr, usize)> = serde_json::from_str(input).unwrap();
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].1, 1);
+        assert_eq!(result[1].1, 4);
     }
 }
