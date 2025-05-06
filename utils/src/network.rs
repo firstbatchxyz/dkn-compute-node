@@ -1,19 +1,24 @@
 use crate::SemanticVersion;
 
 /// Network type, either mainnet or testnet.
-#[derive(Default, Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DriaNetwork {
     Mainnet,
-    #[default]
     Testnet,
 }
 
-impl From<&str> for DriaNetwork {
-    fn from(s: &str) -> Self {
+impl TryFrom<&str> for DriaNetwork {
+    type Error = ();
+
+    /// Converts a string to a `DriaNetwork`, using the same name as in:
+    ///
+    /// - "mainnet" for `DriaNetwork::Mainnet`
+    /// - "testnet" for `DriaNetwork::Testnet`
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
         match s {
-            "mainnet" => DriaNetwork::Mainnet,
-            "testnet" => DriaNetwork::Testnet,
-            _ => Default::default(),
+            "mainnet" => Ok(DriaNetwork::Mainnet),
+            "testnet" => Ok(DriaNetwork::Testnet),
+            _ => Err(()),
         }
     }
 }
@@ -28,6 +33,8 @@ impl std::fmt::Display for DriaNetwork {
 }
 
 impl DriaNetwork {
+    /// Returns the protocol name for the given network, which can be used by
+    /// libp2p `identify` protocol.
     pub fn protocol_name(&self) -> &str {
         match self {
             DriaNetwork::Mainnet => "dria",
@@ -35,6 +42,8 @@ impl DriaNetwork {
         }
     }
 
+    /// Returns the discovery URL for the given version, where the
+    /// major.minor version is appended to the URL as a path variable.
     pub fn discovery_url(&self, version: &SemanticVersion) -> String {
         let base_url = match self {
             DriaNetwork::Mainnet => "https://mainnet.dkn.dria.co/discovery/v0/available-nodes",

@@ -92,10 +92,12 @@ impl DriaComputeNodeConfig {
 
         // parse network type
         let network_type = env::var("DKN_NETWORK")
-            .map(|s| DriaNetwork::from(s.as_str()))
-            .unwrap_or_default();
+            // if there is an explicit value, default to testnet on error
+            .map(|s| DriaNetwork::try_from(s.as_str()).unwrap_or(DriaNetwork::Testnet))
+            // if there is no explicit value, default to mainnet
+            .unwrap_or(DriaNetwork::Mainnet);
         if network_type == DriaNetwork::Testnet {
-            log::warn!("Using testnet!");
+            log::warn!("Using testnet network!");
         }
 
         // parse batch size
