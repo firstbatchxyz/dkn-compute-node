@@ -94,6 +94,9 @@ impl DriaComputeNodeConfig {
         let network_type = env::var("DKN_NETWORK")
             .map(|s| DriaNetwork::from(s.as_str()))
             .unwrap_or_default();
+        if network_type == DriaNetwork::Testnet {
+            log::warn!("Using testnet!");
+        }
 
         // parse batch size
         let batch_size = env::var("DKN_BATCH_SIZE")
@@ -106,9 +109,12 @@ impl DriaComputeNodeConfig {
             .expect("could not parse version");
 
         // parse initial rpc address, if any
-        let initial_rpc_addr = env::var("DKN_INITIAL_RPC_ADDR").ok().map(|addr| {
-            Multiaddr::from_str(&addr).expect("could not parse the given initial RPC address.")
-        });
+        let initial_rpc_addr = env::var("DKN_INITIAL_RPC_ADDR")
+            .ok()
+            .and_then(|addr| if addr.is_empty() { None } else { Some(addr) })
+            .map(|addr| {
+                Multiaddr::from_str(&addr).expect("could not parse the given initial RPC address.")
+            });
 
         Self {
             secret_key,
