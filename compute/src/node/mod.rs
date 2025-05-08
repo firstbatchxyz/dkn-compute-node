@@ -126,6 +126,7 @@ impl DriaComputeNode {
             .map(|s| s.score)
             .unwrap_or_default();
 
+        let spec_collector = SpecCollector::new(model_names.clone(), config.version);
         Ok((
             DriaComputeNode {
                 config,
@@ -149,7 +150,7 @@ impl DriaComputeNode {
                 num_heartbeats: 0,
                 // specs
                 specs_reqs: HashSet::new(),
-                spec_collector: SpecCollector::new(model_names),
+                spec_collector,
             },
             p2p_client,
             task_batch_worker,

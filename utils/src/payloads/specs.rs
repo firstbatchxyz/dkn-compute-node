@@ -8,10 +8,11 @@ pub const SPECS_TOPIC: &str = "specs";
 pub struct SpecsRequest {
     /// UUID of the specs request, prevents replays.
     pub specs_id: Uuid,
-    /// Node specs, flattened during serialization.
+    /// Node specs.
     pub specs: Specs,
-    /// Model names available in the node.
-    pub models: Vec<String>,
+    /// Address of the node, used by frontend etc.
+    /// instead of using the peer id.
+    pub address: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -20,7 +21,6 @@ pub struct SpecsResponse {
     pub specs_id: Uuid,
 }
 
-/// Machine info & location.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Specs {
     /// Total memory in bytes
@@ -37,8 +37,10 @@ pub struct Specs {
     pub arch: String,
     /// Public IP lookup response.
     pub lookup: Option<public_ip_address::response::LookupResponse>,
-    /// Used models.
+    /// Models server by this node.
     pub models: Vec<String>,
+    /// Node version, e.g. `0.1.0`.
+    pub version: String,
     // GPU adapter infos, showing information about the available GPUs.
     // gpus: Vec<wgpu::AdapterInfo>,
 }
