@@ -1,10 +1,7 @@
 use colored::Colorize;
 use std::time::Duration;
 
-use crate::{
-    utils::{get_points, DriaRPC},
-    DriaComputeNode, DRIA_COMPUTE_NODE_VERSION,
-};
+use crate::{node::rpc::DriaRPC, utils::get_points, DriaComputeNode, DRIA_COMPUTE_NODE_VERSION};
 
 /// Number of seconds such that if the last heartbeat ACK is older than this, the node is considered unreachable.
 /// This must be at least greated than the heartbeat interval duration, and the liveness check duration.
@@ -116,7 +113,7 @@ impl DriaComputeNode {
                 "Connection to RPC {} is lost, geting a new one!",
                 self.dria_rpc.addr,
             );
-            match DriaRPC::new_for_network(self.dria_rpc.network).await {
+            match DriaRPC::new_for_network(self.dria_rpc.network, &self.config.version).await {
                 Ok(new_rpc) => {
                     self.dria_rpc = new_rpc;
 

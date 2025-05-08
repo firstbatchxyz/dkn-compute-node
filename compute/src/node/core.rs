@@ -1,9 +1,14 @@
+use colored::Colorize;
 use dkn_p2p::libp2p::{Multiaddr, PeerId};
+use dkn_utils::{
+    payloads::{HEARTBEAT_TOPIC, SPECS_TOPIC},
+    DriaMessage,
+};
 use eyre::{eyre, Result};
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
-use crate::{utils::DriaMessage, DriaComputeNode};
+use crate::DriaComputeNode;
 
 impl DriaComputeNode {
     /// Runs the main loop of the compute node.
@@ -15,6 +20,8 @@ impl DriaComputeNode {
         const RPC_LIVENESS_REFRESH_INTERVAL_SECS: Duration = Duration::from_secs(2 * 60);
         /// Duration between each heartbeat sent to the RPC.
         const HEARTBEAT_INTERVAL_SECS: Duration = Duration::from_secs(60);
+        /// Duration between each specs update sent to the RPC.
+        const SPECS_INTERVAL_SECS: Duration = Duration::from_secs(60 * 5);
 
         let mut diagnostic_refresh_interval =
             tokio::time::interval(DIAGNOSTIC_REFRESH_INTERVAL_SECS);
@@ -23,10 +30,15 @@ impl DriaComputeNode {
             tokio::time::interval(RPC_LIVENESS_REFRESH_INTERVAL_SECS);
         rpc_liveness_refresh_interval.tick().await; // move each one tick
 
-        let mut heartbeat_interval = tokio::time::interval(HEARTBEAT_INTERVAL_SECS);
         // move one tick, and wait at least a third of the diagnostics
+        let mut heartbeat_interval = tokio::time::interval(HEARTBEAT_INTERVAL_SECS);
         heartbeat_interval.tick().await;
         heartbeat_interval.reset_after(DIAGNOSTIC_REFRESH_INTERVAL_SECS / 3);
+
+        // move one tick, and wait a little bit
+        let mut specs_interval = tokio::time::interval(SPECS_INTERVAL_SECS);
+        specs_interval.tick().await;
+        specs_interval.reset_after(DIAGNOSTIC_REFRESH_INTERVAL_SECS / 6);
 
         loop {
             tokio::select! {
@@ -61,7 +73,14 @@ impl DriaComputeNode {
                 // send a heartbeat request to publish liveness info
                 _ = heartbeat_interval.tick() => {
                   if let Err(e) = self.send_heartbeat().await {
-                    log::error!("Error making heartbeat: {:?}", e);
+                    log::error!("Error making {}: {:?}", HEARTBEAT_TOPIC.blue(), e);
+                  }
+                },
+
+                // send specs to the RPC
+                _ = specs_interval.tick() => {
+                  if let Err(e) = self.send_specs().await {
+                    log::error!("Error sending {}: {:?}", SPECS_TOPIC.green(), e);
                   }
                 },
 
@@ -88,7 +107,13 @@ impl DriaComputeNode {
     /// Topic was previously used for GossipSub, but kept for verbosity.
     #[inline(always)]
     pub fn new_message(&self, data: impl AsRef<[u8]>, topic: impl ToString) -> DriaMessage {
-        DriaMessage::new(data, topic, self.p2p.protocol(), &self.config.secret_key)
+        DriaMessage::new_signed(
+            data,
+            topic,
+            self.p2p.protocol().name.clone(),
+            &self.config.secret_key,
+            self.config.version,
+        )
     }
 
     /// Dial the given peer at the given address.

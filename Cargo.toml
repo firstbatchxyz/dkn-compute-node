@@ -1,13 +1,13 @@
 [workspace]
 resolver = "2"
-members = ["compute", "p2p", "workflows", "utils"]
+members = ["compute", "p2p", "workflows", "utils", "workflows-v2"]
 
 # removing this breaks the workflows
 default-members = ["compute"]
 
 [workspace.package]
 edition = "2021"
-version = "0.4.2"
+version = "0.5.0"
 license = "Apache-2.0"
 readme = "README.md"
 
@@ -31,6 +31,8 @@ reqwest = "0.12.5"
 # utilities
 dotenvy = "0.15.7"
 rand = "0.8.5"
+uuid = { version = "1.8.0", features = ["v7", "serde"] }
+chrono = { version = "0.4.40", features = ["serde"] }
 
 # logging & errors
 env_logger = "0.11.3"

@@ -123,7 +123,7 @@ mod tests {
         env::set_var("RUST_LOG", "none,dkn_workflows=debug");
         let _ = env_logger::builder().is_test(true).try_init();
 
-        let models = vec![Model::ORDeepSeek2_5, Model::ORLlama3_1_8B];
+        let models = vec![Model::OR3_5Sonnet, Model::OR3_7Sonnet];
         let config = OpenRouterConfig::new();
         let res = config.check(models.clone()).await.unwrap();
         assert_eq!(res, models);

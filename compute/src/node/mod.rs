@@ -1,24 +1,29 @@
 use dkn_p2p::{
     libp2p::PeerId, DriaP2PClient, DriaP2PCommander, DriaP2PProtocol, DriaReqResMessage,
 };
+use dkn_utils::crypto::secret_to_keypair;
 use eyre::Result;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use tokio::sync::mpsc;
+use uuid::Uuid;
 
 use crate::{
     config::*,
-    utils::{crypto::secret_to_keypair, get_points, DriaRPC, SpecCollector},
+    utils::{get_points, SpecCollector},
     workers::task::{TaskWorker, TaskWorkerInput, TaskWorkerMetadata, TaskWorkerOutput},
 };
 
 mod core;
 mod diagnostic;
 mod reqres;
+mod rpc;
+use rpc::DriaRPC;
 
 /// Buffer size for message publishes.
 const PUBLISH_CHANNEL_BUFSIZE: usize = 1024;
 
 pub struct DriaComputeNode {
+    /// Compute node configuration.
     pub config: DriaComputeNodeConfig,
     /// Chosen RPC node.
     pub dria_rpc: DriaRPC,
@@ -31,7 +36,10 @@ pub struct DriaComputeNode {
     pub(crate) num_heartbeats: u64,
     /// A mapping of heartbeat UUIDs to their deadlines.
     /// This is used to track the heartbeats, and their acknowledgements.
-    pub(crate) heartbeats: HashMap<uuid::Uuid, chrono::DateTime<chrono::Utc>>,
+    pub(crate) heartbeats_reqs: HashMap<Uuid, chrono::DateTime<chrono::Utc>>,
+    /// A mapping of specs UUIDs to their deadlines.
+    /// This is used to track the specs, and their acknowledgements.
+    pub(crate) specs_reqs: HashSet<Uuid>,
     /// Request-response message receiver, can have both a request or a response.
     reqres_rx: mpsc::Receiver<(PeerId, DriaReqResMessage)>,
     /// Task response receiver, will respond to the request-response channel with the given result.
@@ -40,10 +48,10 @@ pub struct DriaComputeNode {
     task_request_batch_tx: Option<mpsc::Sender<TaskWorkerInput>>,
     /// Task worker transmitter to send single tasks.
     task_request_single_tx: Option<mpsc::Sender<TaskWorkerInput>>,
-    // Single tasks
-    pending_tasks_single: HashMap<String, TaskWorkerMetadata>,
-    // Batchable tasks
-    pending_tasks_batch: HashMap<String, TaskWorkerMetadata>,
+    // Single tasks, key is `row_id`
+    pub pending_tasks_single: HashMap<Uuid, TaskWorkerMetadata>,
+    // Batchable tasks, key is `row_id`
+    pub pending_tasks_batch: HashMap<Uuid, TaskWorkerMetadata>,
     /// Completed single tasks count
     completed_tasks_single: usize,
     /// Completed batch tasks count
@@ -59,7 +67,7 @@ impl DriaComputeNode {
     ///
     /// Returns the node instance and p2p client together. P2p MUST be run in a separate task before this node is used at all.
     pub async fn new(
-        config: DriaComputeNodeConfig,
+        mut config: DriaComputeNodeConfig,
     ) -> Result<(
         DriaComputeNode,
         DriaP2PClient,
@@ -69,10 +77,15 @@ impl DriaComputeNode {
         // create the keypair from secret key
         let keypair = secret_to_keypair(&config.secret_key);
 
-        // get available rpc node
-        let dria_nodes = DriaRPC::new_for_network(config.network_type)
-            .await
-            .expect("could not get RPC to connect to");
+        // dial the RPC node
+        let dria_nodes = if let Some(addr) = config.initial_rpc_addr.take() {
+            log::info!("Using initial RPC address: {}", addr);
+            DriaRPC::new(addr, config.network_type).expect("could not get RPC to connect to")
+        } else {
+            DriaRPC::new_for_network(config.network_type, &config.version)
+                .await
+                .expect("could not get RPC to connect to")
+        };
 
         // we are using the major.minor version as the P2P version
         // so that patch versions do not interfere with the protocol
@@ -113,11 +126,13 @@ impl DriaComputeNode {
             .map(|s| s.score)
             .unwrap_or_default();
 
+        let spec_collector = SpecCollector::new(model_names.clone(), config.version);
         Ok((
             DriaComputeNode {
                 config,
                 p2p: p2p_commander,
                 dria_rpc: dria_nodes,
+                initial_steps,
                 // receivers
                 task_output_rx: publish_rx,
                 reqres_rx: request_rx,
@@ -130,12 +145,12 @@ impl DriaComputeNode {
                 completed_tasks_single: 0,
                 completed_tasks_batch: 0,
                 // heartbeats
-                heartbeats: HashMap::new(),
+                heartbeats_reqs: HashMap::new(),
                 last_heartbeat_at: chrono::Utc::now(),
                 num_heartbeats: 0,
-                // misc
-                initial_steps,
-                spec_collector: SpecCollector::new(model_names),
+                // specs
+                specs_reqs: HashSet::new(),
+                spec_collector,
             },
             p2p_client,
             task_batch_worker,

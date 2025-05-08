@@ -1,37 +1,18 @@
-#![allow(unused)]
-
 use colored::Colorize;
 use dkn_p2p::libp2p::request_response::ResponseChannel;
-use dkn_workflows::{Entry, Executor, ModelProvider, Workflow};
-use eyre::{eyre, Context, Result};
-use libsecp256k1::PublicKey;
-use serde::Deserialize;
+use dkn_utils::payloads::{TaskRequestPayload, TaskResponsePayload, TaskStats, TASK_RESULT_TOPIC};
+use dkn_utils::DriaMessage;
+use dkn_workflows::{Executor, ModelProvider, TaskWorkflow};
+use eyre::{Context, Result};
 
-use crate::payloads::*;
-use crate::utils::DriaMessage;
 use crate::workers::task::*;
 use crate::DriaComputeNode;
 
-use super::IsResponder;
-
 pub struct TaskResponder;
 
-impl IsResponder for TaskResponder {
-    type Request = DriaMessage; // TODO: TaskRequestPayload<WorkflowPayload>;
+impl super::IsResponder for TaskResponder {
+    type Request = DriaMessage; // TODO: TaskRequestPayload<TaskWorkflow>;
     type Response = DriaMessage; // TODO: TaskResponsePayload;
-}
-
-#[derive(Debug, Deserialize)]
-pub struct TaskPayload {
-    /// [Workflow](https://github.com/andthattoo/ollama-workflows/blob/main/src/program/workflow.rs) object to be parsed.
-    pub(crate) workflow: Workflow,
-    /// A lıst of model (that can be parsed into `Model`) or model provider names.
-    /// If model provider is given, the first matching model in the node config is used for that.
-    /// From the given list, a random choice will be made for the task.
-    pub(crate) model: Vec<String>,
-    /// Prompts can be provided within the workflow itself, in which case this is `None`.
-    /// Otherwise, the prompt is expected to be `Some` here.
-    pub(crate) prompt: Option<String>,
 }
 
 impl TaskResponder {
@@ -43,34 +24,25 @@ impl TaskResponder {
     ) -> Result<(TaskWorkerInput, TaskWorkerMetadata)> {
         // parse payload
         let task = compute_message
-            .parse_payload::<TaskRequestPayload<TaskPayload>>()
+            .parse_payload::<TaskRequestPayload<TaskWorkflow>>()
             .wrap_err("could not parse workflow task")?;
         log::info!("Handling task {}", task.task_id);
 
+        // record received time
         let stats = TaskStats::new().record_received_at();
-
-        // check if deadline is past or not
-        // with request-response, we dont expect this to happen much
-        if chrono::Utc::now() >= task.deadline {
-            return Err(eyre!(
-                "Task {} is past the deadline, ignoring",
-                task.task_id
-            ));
-        }
-
-        // obtain public key from the payload
-        // do this early to avoid unnecessary processing
-        let task_public_key_bytes =
-            hex::decode(&task.public_key).wrap_err("could not decode public key")?;
-        let task_public_key = PublicKey::parse_slice(&task_public_key_bytes, None)?;
 
         // read model / provider from the task
         let model = node
             .config
             .workflows
-            .get_any_matching_model(task.input.model)?;
+            .get_any_matching_model(vec![task.input.model])?; // FIXME: dont use vector here
         let model_name = model.to_string(); // get model name, we will pass it in payload
-        log::info!("Using model {} for task {}", model_name, task.task_id);
+        log::info!(
+            "Using model {} for task {}/{}",
+            model_name,
+            task.file_id,
+            task.task_id
+        );
 
         // prepare workflow executor
         let (executor, batchable) = if model.provider() == ModelProvider::Ollama {
@@ -86,27 +58,21 @@ impl TaskResponder {
             (Executor::new(model), true)
         };
 
-        // prepare entry from prompt
-        let entry: Option<Entry> = task
-            .input
-            .prompt
-            .map(|prompt| Entry::try_value_or_str(&prompt));
-
         // get workflow as well
         let workflow = task.input.workflow;
 
         let task_input = TaskWorkerInput {
-            entry,
             executor,
             workflow,
-            task_id: task.task_id,
+            row_id: task.row_id,
             stats,
             batchable,
         };
 
         let task_metadata = TaskWorkerMetadata {
+            task_id: task.task_id,
+            file_id: task.file_id,
             model_name,
-            public_key: task_public_key,
             channel,
         };
 
@@ -123,44 +89,65 @@ impl TaskResponder {
             Ok(result) => {
                 // prepare signed and encrypted payload
                 log::info!(
-                    "Publishing {} result for {}",
+                    "Publishing {} result for {}/{}",
                     "task".yellow(),
-                    task_output.task_id
+                    task_metadata.file_id,
+                    task_metadata.task_id
                 );
-                let payload = TaskResponsePayload::new(
-                    result,
-                    &task_output.task_id,
-                    &task_metadata.public_key,
-                    task_metadata.model_name,
-                    task_output.stats.record_published_at(),
-                )?;
 
-                // convert payload to message
-                let payload_str = serde_json::json!(payload).to_string();
+                // TODO: will get better token count from `TaskWorkerOutput`
+                let token_count = result.len();
+                let payload = TaskResponsePayload {
+                    result: Some(result),
+                    error: None,
+                    file_id: task_metadata.file_id,
+                    task_id: task_metadata.task_id,
+                    row_id: task_output.row_id,
+                    model: task_metadata.model_name,
+                    stats: task_output
+                        .stats
+                        .record_published_at()
+                        .record_token_count(token_count),
+                };
+                let payload_str =
+                    serde_json::to_string(&payload).wrap_err("could not serialize payload")?;
 
-                node.new_message(payload_str, "response")
+                node.new_message(payload_str, TASK_RESULT_TOPIC)
             }
             Err(err) => {
                 // use pretty display string for error logging with causes
                 let err_string = format!("{:#}", err);
-                log::error!("Task {} failed: {}", task_output.task_id, err_string);
+                log::error!(
+                    "Task {}/{} failed: {}",
+                    task_metadata.file_id,
+                    task_metadata.task_id,
+                    err_string
+                );
 
                 // prepare error payload
-                let error_payload = TaskErrorPayload {
-                    task_id: task_output.task_id,
-                    error: err_string,
+                let error_payload = TaskResponsePayload {
+                    result: None,
+                    error: Some(err_string),
+                    row_id: task_output.row_id,
+                    file_id: task_metadata.file_id,
+                    task_id: task_metadata.task_id,
                     model: task_metadata.model_name,
-                    stats: task_output.stats.record_published_at(),
+                    stats: task_output
+                        .stats
+                        .record_published_at()
+                        .record_token_count(0),
                 };
-                let error_payload_str = serde_json::json!(error_payload).to_string();
+                let error_payload_str = serde_json::to_string(&error_payload)
+                    .wrap_err("could not serialize payload")?;
 
-                node.new_message(error_payload_str, "response")
+                node.new_message(error_payload_str, TASK_RESULT_TOPIC)
             }
         };
 
         // respond through the channel
-        let data = response.to_bytes()?;
-        node.p2p.respond(data, task_metadata.channel).await?;
+        node.p2p
+            .respond(response.into(), task_metadata.channel)
+            .await?;
 
         Ok(())
     }

@@ -1,4 +1,4 @@
-use dkn_workflows::{DriaWorkflowsConfig, Model};
+use dkn_workflows_v2::{DriaWorkflowsConfig, Model};
 use eyre::Result;
 
 #[inline(always)]
@@ -10,7 +10,7 @@ fn setup() {
     let _ = env_logger::builder()
         .filter_level(log::LevelFilter::Off)
         .filter_module("models_test", log::LevelFilter::Debug)
-        .filter_module("dkn_workflows", log::LevelFilter::Debug)
+        .filter_module("dkn_workflows_v2", log::LevelFilter::Debug)
         .is_test(true)
         .try_init();
 }

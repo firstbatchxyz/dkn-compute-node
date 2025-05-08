@@ -4,6 +4,7 @@ use dkn_p2p::libp2p::{
     PeerId,
 };
 use dkn_p2p::DriaReqResMessage;
+use dkn_utils::payloads::{HEARTBEAT_TOPIC, SPECS_TOPIC, TASK_REQUEST_TOPIC};
 use eyre::{eyre, Result};
 
 use crate::{reqres::*, workers::task::TaskWorkerOutput};
@@ -19,6 +20,8 @@ impl DriaComputeNode {
     /// Does not return an error, but simply logs it to [`log::error`].
     pub(crate) async fn handle_reqres(&mut self, peer_id: PeerId, message: DriaReqResMessage) {
         match message {
+            // make sure that the `channel` here is NOT DROPPED until a response is sent,
+            // otherwise you will get an error
             DriaReqResMessage::Request {
                 request,
                 request_id,
@@ -61,9 +64,15 @@ impl DriaComputeNode {
         if let Ok(heartbeat_response) = HeartbeatRequester::try_parse_response(&data) {
             log::info!(
                 "Received a {} response ({request_id}) from {peer_id}",
-                "heartbeat".blue(),
+                HEARTBEAT_TOPIC.blue(),
             );
             HeartbeatRequester::handle_ack(self, heartbeat_response).await
+        } else if let Ok(spec_response) = SpecRequester::try_parse_response(&data) {
+            log::info!(
+                "Received a {} response ({request_id}) from {peer_id}",
+                SPECS_TOPIC.green(),
+            );
+            SpecRequester::handle_ack(self, spec_response).await
         } else {
             Err(eyre::eyre!("Received unhandled request from {}", peer_id))
         }
@@ -79,41 +88,12 @@ impl DriaComputeNode {
         data: Vec<u8>,
         channel: ResponseChannel<Vec<u8>>,
     ) -> Result<()> {
-        if let Ok(spec_request) = SpecResponder::try_parse_request(&data) {
-            self.handle_spec_request(peer_id, spec_request, channel)
-                .await
-        } else if let Ok(task_request) = TaskResponder::try_parse_request(&data) {
+        if let Ok(task_request) = TaskResponder::try_parse_request(&data) {
             self.handle_task_request(peer_id, task_request, channel)
                 .await
         } else {
-            Err(eyre::eyre!("Received unhandled request from {}", peer_id,))
+            Err(eyre::eyre!("Received unhandled request from {peer_id}"))
         }
-    }
-
-    /// Handles a specifications request received from the network.
-    async fn handle_spec_request(
-        &mut self,
-        peer_id: PeerId,
-        spec_request: <SpecResponder as IsResponder>::Request,
-        channel: ResponseChannel<Vec<u8>>,
-    ) -> Result<()> {
-        log::info!(
-            "Got a {} request from peer {peer_id} with id {}",
-            "spec".green(),
-            spec_request.request_id
-        );
-
-        let response = SpecResponder::respond(spec_request, self.spec_collector.collect().await);
-        let response_data = serde_json::to_vec(&response)?;
-
-        log::info!(
-            "Responding to {} request from peer {peer_id} with id {}",
-            "spec".green(),
-            response.request_id
-        );
-        self.p2p.respond(response_data, channel).await?;
-
-        Ok(())
     }
 
     /// Handles a Task request received from the network.
@@ -127,7 +107,10 @@ impl DriaComputeNode {
         task_request: <TaskResponder as IsResponder>::Request,
         channel: ResponseChannel<Vec<u8>>,
     ) -> Result<()> {
-        log::info!("Received a {} request from {}", "task".yellow(), peer_id);
+        log::info!(
+            "Received a {} request from {peer_id}",
+            TASK_REQUEST_TOPIC.yellow()
+        );
 
         let (task_input, task_metadata) =
             TaskResponder::prepare_worker_input(self, &task_request, channel).await?;
@@ -137,7 +120,7 @@ impl DriaComputeNode {
             true => match self.task_request_batch_tx {
                 Some(ref mut tx) => {
                     self.pending_tasks_batch
-                        .insert(task_input.task_id.clone(), task_metadata);
+                        .insert(task_input.row_id, task_metadata);
                     tx.send(task_input).await
                 }
                 None => {
@@ -152,7 +135,7 @@ impl DriaComputeNode {
             false => match self.task_request_single_tx {
                 Some(ref mut tx) => {
                     self.pending_tasks_single
-                        .insert(task_input.task_id.clone(), task_metadata);
+                        .insert(task_input.row_id, task_metadata);
                     tx.send(task_input).await
                 }
                 None => {
@@ -171,24 +154,22 @@ impl DriaComputeNode {
         let task_metadata = match task_response.batchable {
             true => {
                 self.completed_tasks_batch += 1; // TODO: this should be done in success
-                self.pending_tasks_batch.remove(&task_response.task_id)
+                self.pending_tasks_batch.remove(&task_response.row_id)
             }
             false => {
                 self.completed_tasks_single += 1; // TODO: this should be done in success
-                self.pending_tasks_single.remove(&task_response.task_id)
+                self.pending_tasks_single.remove(&task_response.row_id)
             }
         };
 
         // respond to the response channel with the result
         match task_metadata {
-            Some(channel) => {
-                TaskResponder::send_output(self, task_response, channel).await?;
+            Some(task_metadata) => {
+                TaskResponder::send_output(self, task_response, task_metadata).await?;
             }
             None => {
-                return Err(eyre!(
-                    "Channel not found for task id: {}",
-                    task_response.task_id
-                ))
+                // totally unexpected case, wont happen at all
+                eyre::bail!("Metadata not found for {}", task_response.row_id);
             }
         };
 
@@ -202,7 +183,21 @@ impl DriaComputeNode {
         let request_id = HeartbeatRequester::send_heartbeat(self, peer_id).await?;
         log::info!(
             "Sending {} request ({request_id}) to {peer_id}",
-            "heartbeat".blue()
+            HEARTBEAT_TOPIC.blue()
+        );
+
+        Ok(())
+    }
+
+    /// Sends a specs request to the configured RPC node.
+    #[inline]
+    pub(crate) async fn send_specs(&mut self) -> Result<()> {
+        let peer_id = self.dria_rpc.peer_id;
+        let specs = self.spec_collector.collect().await;
+        let request_id = SpecRequester::send_specs(self, peer_id, specs).await?;
+        log::info!(
+            "Sending {} request ({request_id}) to {peer_id}",
+            SPECS_TOPIC.green()
         );
 
         Ok(())

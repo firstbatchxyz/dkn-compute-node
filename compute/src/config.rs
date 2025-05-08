@@ -1,13 +1,13 @@
-use dkn_p2p::{
-    libp2p::{Multiaddr, PeerId},
-    DriaNetworkType,
-};
+use dkn_p2p::libp2p::{Multiaddr, PeerId};
 use dkn_workflows::DriaWorkflowsConfig;
 use eyre::{eyre, Result};
 use libsecp256k1::{PublicKey, SecretKey};
 use std::{env, str::FromStr};
 
-use crate::utils::crypto::{public_key_to_address, secret_to_keypair};
+use dkn_utils::{
+    crypto::{public_key_to_address, secret_to_keypair},
+    DriaNetwork, SemanticVersion,
+};
 
 const DEFAULT_TASK_BATCH_SIZE: usize = 5;
 const DEFAULT_P2P_LISTEN_ADDR: &str = "/ip4/0.0.0.0/tcp/4001";
@@ -22,17 +22,23 @@ pub struct DriaComputeNodeConfig {
     pub address: String,
     /// Peer ID of the node.
     pub peer_id: PeerId,
+    /// Compute node version.
+    pub version: SemanticVersion,
     /// P2P listen address, e.g. `/ip4/0.0.0.0/tcp/4001`.
     pub p2p_listen_addr: Multiaddr,
     /// Workflow configurations, e.g. models and providers.
     pub workflows: DriaWorkflowsConfig,
     /// Network type of the node.
-    pub network_type: DriaNetworkType,
+    pub network_type: DriaNetwork,
     /// Batch size for batchable tasks (e.g. API-based ones).
     ///
     /// A higher value will help execute more tasks concurrently,
     /// at the risk of hitting rate-limits.
     pub batch_size: usize,
+    /// An optional first-attempt RPC address, will be dialled at startup.
+    ///
+    /// TODO: this is `None` after startup due to `Option::take`, can we do any better?
+    pub initial_rpc_addr: Option<Multiaddr>,
 }
 
 #[allow(clippy::new_without_default)]
@@ -86,23 +92,43 @@ impl DriaComputeNodeConfig {
 
         // parse network type
         let network_type = env::var("DKN_NETWORK")
-            .map(|s| DriaNetworkType::from(s.as_str()))
-            .unwrap_or_default();
+            // if there is an explicit value, default to testnet on error
+            .map(|s| DriaNetwork::try_from(s.as_str()).unwrap_or(DriaNetwork::Testnet))
+            // if there is no explicit value, default to mainnet
+            .unwrap_or(DriaNetwork::Mainnet);
+        if network_type == DriaNetwork::Testnet {
+            log::warn!("Using testnet network!");
+        }
 
         // parse batch size
         let batch_size = env::var("DKN_BATCH_SIZE")
             .map(|s| s.parse::<usize>().unwrap_or(DEFAULT_TASK_BATCH_SIZE))
             .unwrap_or(DEFAULT_TASK_BATCH_SIZE);
 
+        // parse version
+        let version = env!("CARGO_PKG_VERSION")
+            .parse()
+            .expect("could not parse version");
+
+        // parse initial rpc address, if any
+        let initial_rpc_addr = env::var("DKN_INITIAL_RPC_ADDR")
+            .ok()
+            .and_then(|addr| if addr.is_empty() { None } else { Some(addr) })
+            .map(|addr| {
+                Multiaddr::from_str(&addr).expect("could not parse the given initial RPC address.")
+            });
+
         Self {
             secret_key,
             public_key,
             address,
             peer_id,
+            version,
             workflows,
             p2p_listen_addr,
             network_type,
             batch_size,
+            initial_rpc_addr,
         }
     }
 
@@ -142,21 +168,6 @@ impl DriaComputeNodeConfig {
                 "Listen address {} is already in use.",
                 self.p2p_listen_addr
             ));
-        }
-
-        Ok(())
-    }
-
-    /// Checks the network specific configurations.
-    pub fn check_network_specific(&self) -> Result<()> {
-        // if network is `pro`, we require Jina and Serper to be present.
-        if self.network_type == DriaNetworkType::Pro {
-            if !self.workflows.jina.has_api_key() {
-                return Err(eyre!("Jina is required for the Pro network."));
-            }
-            if !self.workflows.serper.has_api_key() {
-                return Err(eyre!("Serper is required for the Pro network."));
-            }
         }
 
         Ok(())

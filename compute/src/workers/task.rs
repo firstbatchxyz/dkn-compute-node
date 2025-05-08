@@ -1,36 +1,47 @@
 use colored::Colorize;
 use dkn_p2p::libp2p::request_response::ResponseChannel;
-use dkn_workflows::{Entry, ExecutionError, Executor, Workflow};
-use libsecp256k1::PublicKey;
+use dkn_utils::payloads::TaskStats;
+use dkn_workflows::{ExecutionError, Executor, Workflow};
 use tokio::sync::mpsc;
+use uuid::Uuid;
 
-use crate::payloads::TaskStats;
-
+/// A metadata object that is kept aside while the worker is doing its job.
+///
+/// This is put into a map before execution, and then removed after the task is done.
 pub struct TaskWorkerMetadata {
-    pub public_key: PublicKey,
     pub model_name: String,
+    pub task_id: Uuid,
+    pub file_id: Uuid,
+    /// If for any reason this object is dropped before `channel` is responded to,
+    /// the task will be lost and the channel will be abruptly closed, causing an error on
+    /// both the responder and the requester side, likely with an `OmissionError`.
     pub channel: ResponseChannel<Vec<u8>>,
 }
 
 pub struct TaskWorkerInput {
-    pub entry: Option<Entry>,
+    // used as identifier for metadata
+    pub row_id: Uuid,
+    // actual consumed input
     pub executor: Executor,
     pub workflow: Workflow,
-    pub task_id: String,
+    // piggybacked metadata
     pub stats: TaskStats,
     pub batchable: bool,
 }
 
 pub struct TaskWorkerOutput {
+    // used as identifier for metadata
+    pub row_id: Uuid,
+    // actual produced output
     pub result: Result<String, ExecutionError>,
-    pub task_id: String,
+    // piggybacked metadata
     pub stats: TaskStats,
     pub batchable: bool,
 }
 
 /// Workflows worker is a task executor that can process workflows in parallel / series.
 ///
-/// It is expected to be spawned in another thread, with `run_batch` for batch processing and `run` for single processing.
+/// It is expected to be spawned in another thread, with [`Self::run_batch`] for batch processing and [`Self::run_series`] for single processing.
 pub struct TaskWorker {
     /// Workflow message channel receiver, the sender is most likely the compute node itself.
     task_rx: mpsc::Receiver<TaskWorkerInput>,
@@ -77,7 +88,7 @@ impl TaskWorker {
             let task = self.task_rx.recv().await;
 
             if let Some(task) = task {
-                log::info!("Processing {} {} (single)", "task".yellow(), task.task_id);
+                log::info!("Processing {} (single)", "task".yellow(),);
                 TaskWorker::execute((task, &self.publish_tx)).await
             } else {
                 return self.shutdown();
@@ -217,17 +228,14 @@ impl TaskWorker {
         input.stats = input.stats.record_execution_started_at();
         let result = input
             .executor
-            .execute(
-                input.entry.as_ref(),
-                &input.workflow,
-                &mut Default::default(),
-            )
+            // takes no explicit prompt input, everything is in the workflow
+            .execute(None, &input.workflow, &mut Default::default())
             .await;
         input.stats = input.stats.record_execution_ended_at();
 
         let output = TaskWorkerOutput {
             result,
-            task_id: input.task_id,
+            row_id: input.row_id,
             batchable: input.batchable,
             stats: input.stats,
         };
@@ -240,10 +248,8 @@ impl TaskWorker {
 
 #[cfg(test)]
 mod tests {
-    use dkn_workflows::{Executor, Model};
-
     use super::*;
-    use crate::payloads::TaskStats;
+    use dkn_workflows::{Executor, Model};
 
     /// Tests the workflows worker with a single task sent within a batch.
     ///
@@ -270,7 +276,7 @@ mod tests {
         });
 
         let num_tasks = 4;
-        let model = Model::O1Preview;
+        let model = Model::GPT4o;
         let workflow = serde_json::json!({
             "config": {
                 "max_steps": 10,
@@ -306,10 +312,10 @@ mod tests {
 
             let executor = Executor::new(model.clone());
             let task_input = TaskWorkerInput {
-                entry: None,
                 executor,
                 workflow,
-                task_id: format!("task-{}", i + 1),
+                // dummy variables
+                row_id: Uuid::now_v7(),
                 stats: TaskStats::default(),
                 batchable: true,
             };

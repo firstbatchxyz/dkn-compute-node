@@ -1,6 +1,5 @@
 pub mod config;
 pub mod node;
-pub mod payloads;
 pub mod reqres;
 pub mod utils;
 pub mod workers;

@@ -87,17 +87,12 @@ impl GeminiConfig {
     async fn fetch_models(&self, api_key: &str) -> Result<Vec<String>> {
         /// [Model](https://ai.google.dev/api/models#Model) API object, fields omitted.
         #[derive(Debug, Clone, Deserialize)]
-        #[allow(non_snake_case)]
-        #[allow(unused)]
         struct GeminiModel {
             name: String,
-            version: String,
             // other fields are ignored from API response
         }
 
         #[derive(Debug, Clone, Deserialize)]
-        #[allow(non_snake_case)]
-        #[allow(unused)]
         struct GeminiModelsResponse {
             models: Vec<GeminiModel>,
         }
@@ -186,12 +181,7 @@ mod tests {
         env::set_var("RUST_LOG", "none,dkn_workflows=debug");
         let _ = env_logger::builder().is_test(true).try_init();
 
-        let models = vec![
-            Model::Gemini10Pro,
-            Model::Gemini15ProExp0827,
-            Model::Gemini15Flash,
-            Model::Gemini15Pro,
-        ];
+        let models = vec![Model::Gemini2_0Flash, Model::Gemini2_5ProExp];
         let res = GeminiConfig::new().check(models.clone()).await;
         assert_eq!(res.unwrap(), models);
 
