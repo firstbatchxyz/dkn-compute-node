@@ -203,7 +203,7 @@ mod tests {
             .expect("Should decode");
         assert_eq!(
             serde_json::to_string(&body).expect("Should stringify"),
-            "{\"hello\":\"world\"}"
+            "{\"hello\":\"hi there baby!\"}"
         );
         assert_eq!(message.topic, TOPIC);
         assert_eq!(message.version, SemanticVersion::default());

@@ -7,7 +7,9 @@ const POINTS_API_BASE_URL: &str =
 #[derive(Debug, serde::Deserialize)]
 pub struct DriaPoints {
     /// Indicates in which top percentile your points are.
-    pub percentile: u32,
+    ///
+    /// TODO: can be number in API
+    pub percentile: String,
     /// The total number of points you have accumulated.
     pub score: f64,
 }
@@ -34,6 +36,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore = "waiting for API"]
     async fn test_get_points() {
         let steps = get_points("0xa43536a6032a3907ccf60e8109429ee1047b207c")
             .await

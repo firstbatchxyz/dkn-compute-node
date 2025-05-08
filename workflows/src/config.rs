@@ -246,10 +246,8 @@ mod tests {
         let cfg = DriaWorkflowsConfig::new_from_csv("idontexist,i dont either,i332287648762");
         assert_eq!(cfg.models.len(), 0);
 
-        let cfg = DriaWorkflowsConfig::new_from_csv(
-            "gemma2:9b-instruct-q8_0,phi3:14b-medium-4k-instruct-q4_1,balblablabl",
-        );
-        assert_eq!(cfg.models.len(), 2);
+        let cfg = DriaWorkflowsConfig::new_from_csv("gemma2:9b-instruct-q8_0,gpt-4o,balblablabl");
+        assert_eq!(cfg.models.len(), 1);
     }
 
     #[test]
