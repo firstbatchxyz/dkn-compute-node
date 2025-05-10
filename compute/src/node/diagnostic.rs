@@ -26,7 +26,9 @@ impl DriaComputeNode {
             let earned = steps.score - self.initial_steps;
             diagnostics.push(format!(
                 "$DRIA Points: {} total, {} earned in this run, within top {}%",
-                steps.score, earned, steps.percentile
+                steps.score,
+                earned,
+                steps.percentile.unwrap_or("100%".to_string())
             ));
         }
 

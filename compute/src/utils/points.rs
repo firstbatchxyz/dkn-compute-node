@@ -9,7 +9,8 @@ pub struct DriaPoints {
     /// Indicates in which top percentile your points are.
     ///
     /// TODO: can be number in API
-    pub percentile: String,
+    /// TODO: API sometimes returns `null` here?
+    pub percentile: Option<String>,
     /// The total number of points you have accumulated.
     pub score: f64,
 }
