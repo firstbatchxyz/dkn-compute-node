@@ -36,9 +36,9 @@ impl SemanticVersion {
     /// Checks if the current version is compatible with the given version.
     /// Compatibility is defined as:
     /// - Major and minor versions must match exactly.
-    /// - Patch version must be greater than or equal to the given version.
+    /// - Patch versions dont have to match.
     pub fn is_compatible(&self, other: &Self) -> bool {
-        self.major == other.major && self.minor == other.minor && self.patch >= other.patch
+        self.major == other.major && self.minor == other.minor
     }
 
     pub fn with_major(mut self, major: u32) -> Self {

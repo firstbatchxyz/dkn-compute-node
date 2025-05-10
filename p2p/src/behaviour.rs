@@ -29,7 +29,7 @@ fn create_request_response_behaviour(
 ) -> request_response::cbor::Behaviour<Vec<u8>, Vec<u8>> {
     use request_response::{Behaviour, Config, ProtocolSupport};
 
-    const REQUEST_RESPONSE_TIMEOUT: Duration = Duration::from_secs(180);
+    const REQUEST_RESPONSE_TIMEOUT: Duration = Duration::from_secs(512);
 
     Behaviour::new(
         [(protocol_name, ProtocolSupport::Full)],

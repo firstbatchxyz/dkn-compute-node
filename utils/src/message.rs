@@ -33,9 +33,9 @@ pub enum DriaMessageError {
     DecodeError(base64::DecodeError),
     #[error("Could not parse message: {0}")]
     ParseError(serde_json::Error),
-    #[error("Invalid header (expected {expected:?}, got {found:?})")]
+    #[error("Protocol mismatch (expected {expected:?}, got {found:?})")]
     ProtocolMismatch { expected: String, found: String },
-    #[error("Invalid header (expected {expected:?}, got {found:?})")]
+    #[error("Version mismatch (expected {expected:?}, got {found:?})")]
     VersionMismatch {
         expected: SemanticVersion,
         found: SemanticVersion,
