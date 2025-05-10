@@ -8,7 +8,7 @@ use eyre::{eyre, Result};
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
-use crate::DriaComputeNode;
+use crate::{reqres::HeartbeatRequester, DriaComputeNode};
 
 impl DriaComputeNode {
     /// Runs the main loop of the compute node.
@@ -18,8 +18,6 @@ impl DriaComputeNode {
         const DIAGNOSTIC_REFRESH_INTERVAL_SECS: Duration = Duration::from_secs(45);
         /// Duration between refreshing the available nodes.
         const RPC_LIVENESS_REFRESH_INTERVAL_SECS: Duration = Duration::from_secs(2 * 60);
-        /// Duration between each heartbeat sent to the RPC.
-        const HEARTBEAT_INTERVAL_SECS: Duration = Duration::from_secs(60);
         /// Duration between each specs update sent to the RPC.
         const SPECS_INTERVAL_SECS: Duration = Duration::from_secs(60 * 5);
 
@@ -31,7 +29,7 @@ impl DriaComputeNode {
         rpc_liveness_refresh_interval.tick().await; // move each one tick
 
         // move one tick, and wait at least a third of the diagnostics
-        let mut heartbeat_interval = tokio::time::interval(HEARTBEAT_INTERVAL_SECS);
+        let mut heartbeat_interval = tokio::time::interval(HeartbeatRequester::HEARTBEAT_DEADLINE);
         heartbeat_interval.tick().await;
         heartbeat_interval.reset_after(DIAGNOSTIC_REFRESH_INTERVAL_SECS / 3);
 

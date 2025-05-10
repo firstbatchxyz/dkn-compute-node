@@ -28,7 +28,7 @@ impl DriaComputeNode {
                 "$DRIA Points: {} total, {} earned in this run, within top {}%",
                 steps.score,
                 earned,
-                steps.percentile.unwrap_or("100%".to_string())
+                steps.percentile.unwrap_or("100".to_string())
             ));
         }
 

@@ -19,16 +19,15 @@ impl IsResponder for HeartbeatRequester {
     type Response = HeartbeatResponse;
 }
 
-/// Any acknowledged heartbeat that is older than this duration is considered dead.
-const HEARTBEAT_DEADLINE_SECS: Duration = Duration::from_secs(20);
-
 impl HeartbeatRequester {
+    /// Any acknowledged heartbeat that is older than this duration is considered dead.
+    pub const HEARTBEAT_DEADLINE: Duration = Duration::from_secs(60);
     pub(crate) async fn send_heartbeat(
         node: &mut DriaComputeNode,
         peer_id: PeerId,
     ) -> Result<OutboundRequestId> {
         let uuid = Uuid::now_v7();
-        let deadline = chrono::Utc::now() + HEARTBEAT_DEADLINE_SECS;
+        let deadline = chrono::Utc::now() + Self::HEARTBEAT_DEADLINE;
 
         let heartbeat_request = HeartbeatRequest {
             heartbeat_id: uuid,
