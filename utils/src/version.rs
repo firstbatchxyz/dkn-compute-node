@@ -76,3 +76,20 @@ impl std::fmt::Display for SemanticVersion {
         write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_compatible() {
+        let version1 = SemanticVersion::from_str("1.2.3").unwrap();
+        let version2 = SemanticVersion::from_str("1.2.4").unwrap();
+        let version3 = SemanticVersion::from_str("1.3.0").unwrap();
+        let version4 = SemanticVersion::from_str("2.0.0").unwrap();
+
+        assert!(version1.is_compatible(&version2));
+        assert!(!version1.is_compatible(&version3));
+        assert!(!version1.is_compatible(&version4));
+    }
+}
