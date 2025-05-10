@@ -1001,7 +1001,7 @@ dependencies = [
 
 [[package]]
 name = "dkn-compute"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -1034,7 +1034,7 @@ dependencies = [
 
 [[package]]
 name = "dkn-p2p"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "dkn-utils",
  "env_logger 0.11.8",
@@ -1050,7 +1050,7 @@ dependencies = [
 
 [[package]]
 name = "dkn-utils"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -1069,7 +1069,7 @@ dependencies = [
 
 [[package]]
 name = "dkn-workflows"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "dkn-utils",
  "dotenvy",
@@ -1089,7 +1089,7 @@ dependencies = [
 
 [[package]]
 name = "dkn-workflows-v2"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "dkn-utils",
  "dotenvy",
