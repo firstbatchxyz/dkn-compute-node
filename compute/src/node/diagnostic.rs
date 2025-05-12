@@ -11,6 +11,7 @@ impl DriaComputeNode {
     /// Returns the task count within the channels, `single` and `batch`.
     #[inline(always)]
     pub fn get_pending_task_count(&self) -> [usize; 2] {
+        // TODO: return the number of tasks in the channels as well
         [
             self.pending_tasks_single.len(),
             self.pending_tasks_batch.len(),
