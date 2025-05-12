@@ -26,7 +26,7 @@ impl TaskResponder {
         let task = compute_message
             .parse_payload::<TaskRequestPayload<TaskWorkflow>>()
             .wrap_err("could not parse workflow task")?;
-        log::info!("Handling task {}", task.task_id);
+        log::info!("Handling task {}", task.row_id);
 
         // record received time
         let stats = TaskStats::new().record_received_at();
@@ -37,12 +37,7 @@ impl TaskResponder {
             .workflows
             .get_any_matching_model(vec![task.input.model])?; // FIXME: dont use vector here
         let model_name = model.to_string(); // get model name, we will pass it in payload
-        log::info!(
-            "Using model {} for task {}/{}",
-            model_name,
-            task.file_id,
-            task.task_id
-        );
+        log::info!("Using model {} for task {}", model_name, task.row_id);
 
         // prepare workflow executor
         let (executor, batchable) = if model.provider() == ModelProvider::Ollama {
@@ -89,10 +84,9 @@ impl TaskResponder {
             Ok(result) => {
                 // prepare signed and encrypted payload
                 log::info!(
-                    "Publishing {} result for {}/{}",
+                    "Publishing {} result for {}",
                     "task".yellow(),
-                    task_metadata.file_id,
-                    task_metadata.task_id
+                    task_output.row_id
                 );
 
                 // TODO: will get better token count from `TaskWorkerOutput`
@@ -117,12 +111,7 @@ impl TaskResponder {
             Err(err) => {
                 // use pretty display string for error logging with causes
                 let err_string = format!("{:#}", err);
-                log::error!(
-                    "Task {}/{} failed: {}",
-                    task_metadata.file_id,
-                    task_metadata.task_id,
-                    err_string
-                );
+                log::error!("Task {} failed: {}", task_output.row_id, err_string);
 
                 // prepare error payload
                 let error_payload = TaskResponsePayload {

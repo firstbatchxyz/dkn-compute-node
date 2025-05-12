@@ -15,12 +15,13 @@ pub const TASK_RESULT_TOPIC: &str = "results";
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskResponsePayload {
+    /// The unique file that this task is associated with.
+    pub file_id: Uuid,
     /// The unique identifier of the task.
     pub row_id: Uuid,
-    /// The unique identifier of the task.
-    pub task_id: Uuid,
-    /// The file that this task is associated with.
-    pub file_id: Uuid,
+    /// The custom identifier of the task (given by user).
+    /// Also referred to as `custom_id` elsewhere.
+    pub task_id: String,
     /// Name of the model used for this task.
     pub model: String,
     /// Stats about the task execution.
@@ -41,12 +42,13 @@ pub struct TaskResponsePayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskRequestPayload<T> {
+    /// The unique file that this task is associated with.
+    pub file_id: Uuid,
     /// The unique identifier of the task.
     pub row_id: Uuid,
-    /// The unique identifier of the task.
-    pub task_id: Uuid,
-    /// The file that this task is associated with.
-    pub file_id: Uuid,
+    /// The custom identifier of the task (given by user).
+    /// Also referred to as `custom_id` elsewhere.
+    pub task_id: String,
     /// The input to the compute function.
     pub input: T,
 }
