@@ -17,8 +17,6 @@ const DEFAULT_MIN_TPS: f64 = 15.0;
 
 /// Some models such as small embedding models, are hardcoded into the node.
 const HARDCODED_MODELS: [&str; 1] = ["hellord/mxbai-embed-large-v1:f16"];
-/// Prompt to be used to see Ollama performance.
-const TEST_PROMPT: &str = "Please write a poem about Kapadokya.";
 
 /// Ollama-specific configurations.
 #[derive(Debug, Clone)]
@@ -179,13 +177,20 @@ impl OllamaConfig {
     /// This is to see if a given system can execute Ollama workflows for their chosen models,
     /// e.g. if they have enough RAM/CPU and such.
     pub async fn test_performance(&self, ollama: &Ollama, model: &Model) -> bool {
-        log::info!("Testing model {}", model);
+        const TEST_PROMPT: &str = "Please write a poem about Kapadokya.";
+        const WARMUP_PROMPT: &str = "Write a short poem about hedgehogs and squirrels.";
 
-        let generation_request = GenerationRequest::new(model.to_string(), TEST_PROMPT.to_string());
+        log::info!("Testing model {}", model);
 
         // run a dummy generation for warm-up
         log::debug!("Warming up Ollama for model {}", model);
-        if let Err(e) = ollama.generate(generation_request.clone()).await {
+        if let Err(e) = ollama
+            .generate(GenerationRequest::new(
+                model.to_string(),
+                WARMUP_PROMPT.to_string(),
+            ))
+            .await
+        {
             log::warn!("Ignoring model {}: Workflow failed with error {}", model, e);
             return false;
         }
@@ -195,7 +200,7 @@ impl OllamaConfig {
             _ = tokio::time::sleep(self.timeout) => {
                 log::warn!("Ignoring model {}: Workflow timed out", model);
             },
-            result = ollama.generate(generation_request) => {
+            result = ollama.generate(GenerationRequest::new(model.to_string(), TEST_PROMPT.to_string())) => {
                 match result {
                     Ok(response) => {
                         let tps = (response.eval_count.unwrap_or_default() as f64)
