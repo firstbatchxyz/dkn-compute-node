@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::{
     config::*,
-    utils::{get_points, SpecCollector},
+    utils::{DriaPointsClient, SpecCollector},
     workers::task::{TaskWorker, TaskWorkerInput, TaskWorkerMetadata, TaskWorkerOutput},
 };
 
@@ -58,8 +58,8 @@ pub struct DriaComputeNode {
     completed_tasks_batch: usize,
     /// Specifications collector.
     spec_collector: SpecCollector,
-    /// Initial steps count.
-    initial_steps: f64,
+    /// Points client.
+    points_client: DriaPointsClient,
 }
 
 impl DriaComputeNode {
@@ -78,7 +78,7 @@ impl DriaComputeNode {
         let keypair = secret_to_keypair(&config.secret_key);
 
         // dial the RPC node
-        let dria_nodes = if let Some(addr) = config.initial_rpc_addr.take() {
+        let dria_rpc = if let Some(addr) = config.initial_rpc_addr.take() {
             log::info!("Using initial RPC address: {}", addr);
             DriaRPC::new(addr, config.network_type).expect("could not get RPC to connect to")
         } else {
@@ -96,7 +96,7 @@ impl DriaComputeNode {
         let (p2p_client, p2p_commander, request_rx) = DriaP2PClient::new(
             keypair,
             config.p2p_listen_addr.clone(),
-            &dria_nodes.addr,
+            &dria_rpc.addr,
             protocol,
         )?;
 
@@ -120,19 +120,15 @@ impl DriaComputeNode {
         };
 
         let model_names = config.workflows.get_model_names();
-
-        let initial_steps = get_points(&config.address)
-            .await
-            .map(|s| s.score)
-            .unwrap_or_default();
+        let points_client = DriaPointsClient::new(&config.address)?;
 
         let spec_collector = SpecCollector::new(model_names.clone(), config.version);
         Ok((
             DriaComputeNode {
                 config,
                 p2p: p2p_commander,
-                dria_rpc: dria_nodes,
-                initial_steps,
+                dria_rpc,
+                points_client,
                 // receivers
                 task_output_rx: publish_rx,
                 reqres_rx: request_rx,

@@ -14,8 +14,13 @@ impl DriaComputeNode {
     /// Runs the main loop of the compute node.
     /// This method is not expected to return until cancellation occurs for the given token.
     pub async fn run(&mut self, cancellation: CancellationToken) {
+        // initialize the points client
+        self.points_client.initialize().await;
+
         /// Duration between refreshing for diagnostic prints.
         const DIAGNOSTIC_REFRESH_INTERVAL_SECS: Duration = Duration::from_secs(45);
+        /// Duration between refreshing for points update.
+        const POINTS_REFRESH_INTERVAL_SECS: Duration = Duration::from_secs(180);
         /// Duration between refreshing the available nodes.
         const RPC_LIVENESS_REFRESH_INTERVAL_SECS: Duration = Duration::from_secs(2 * 60);
         /// Duration between each specs update sent to the RPC.
@@ -27,6 +32,11 @@ impl DriaComputeNode {
         let mut rpc_liveness_refresh_interval =
             tokio::time::interval(RPC_LIVENESS_REFRESH_INTERVAL_SECS);
         rpc_liveness_refresh_interval.tick().await; // move each one tick
+
+        // tick the first time a bit earlier
+        let mut points_refresh_interval = tokio::time::interval(POINTS_REFRESH_INTERVAL_SECS);
+        points_refresh_interval.tick().await;
+        points_refresh_interval.reset_after(POINTS_REFRESH_INTERVAL_SECS / 12);
 
         // move one tick, and wait at least a third of the diagnostics
         let mut heartbeat_interval = tokio::time::interval(HeartbeatRequester::HEARTBEAT_DEADLINE);
@@ -67,6 +77,9 @@ impl DriaComputeNode {
 
                 // check RPC, and get a new one if we are disconnected
                 _ = rpc_liveness_refresh_interval.tick() => self.handle_rpc_liveness_check().await,
+
+                // log points every now and then
+                _ = points_refresh_interval.tick() => self.handle_points_refresh().await,
 
                 // send a heartbeat request to publish liveness info
                 _ = heartbeat_interval.tick() => {

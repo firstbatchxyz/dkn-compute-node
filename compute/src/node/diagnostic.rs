@@ -1,7 +1,7 @@
 use colored::Colorize;
 use std::time::Duration;
 
-use crate::{node::rpc::DriaRPC, utils::get_points, DriaComputeNode, DRIA_COMPUTE_NODE_VERSION};
+use crate::{node::rpc::DriaRPC, DriaComputeNode, DRIA_COMPUTE_NODE_VERSION};
 
 /// Number of seconds such that if the last heartbeat ACK is older than this, the node is considered unreachable.
 /// This must be at least greated than the heartbeat interval duration, and the liveness check duration.
@@ -21,17 +21,6 @@ impl DriaComputeNode {
     /// Peer refresh simply reports the peer count to the user.
     pub(crate) async fn handle_diagnostic_refresh(&mut self) {
         let mut diagnostics = vec![format!("Diagnostics (v{}):", DRIA_COMPUTE_NODE_VERSION)];
-
-        // print steps
-        if let Ok(steps) = get_points(&self.config.address).await {
-            let earned = steps.score - self.initial_steps;
-            diagnostics.push(format!(
-                "$DRIA Points: {} total, {} earned in this run, within top {}%",
-                steps.score,
-                earned,
-                steps.percentile.unwrap_or("100".to_string())
-            ));
-        }
 
         // completed tasks count is printed as well in debug
         if log::log_enabled!(log::Level::Debug) {
@@ -135,6 +124,26 @@ impl DriaComputeNode {
             };
         } else {
             log::debug!("Connection with {} is intact.", self.dria_rpc.peer_id);
+        }
+    }
+
+    /// Updates the points for the given address.
+    #[inline]
+    pub(crate) async fn handle_points_refresh(&mut self) {
+        // get points from the API
+        match self.points_client.get_points().await {
+            Ok(steps) => {
+                log::info!(
+                    "{}: {} total, {} earned in this run, within top {}%",
+                    "$DRIA Points".purple(),
+                    steps.score,
+                    steps.score - self.points_client.initial,
+                    steps.percentile.unwrap_or("100".to_string())
+                );
+            }
+            Err(err) => {
+                log::error!("Could not get $DRIA points info: {err:?}");
+            }
         }
     }
 }
