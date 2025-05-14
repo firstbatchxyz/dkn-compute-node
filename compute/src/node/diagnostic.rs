@@ -138,7 +138,7 @@ impl DriaComputeNode {
                     "$DRIA Points".purple(),
                     steps.score,
                     steps.score - self.points_client.initial,
-                    steps.percentile.unwrap_or("100".to_string())
+                    steps.percentile
                 );
             }
             Err(err) => {

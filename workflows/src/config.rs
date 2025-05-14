@@ -279,7 +279,7 @@ mod tests {
 
     #[test]
     fn test_get_any_matching_model() {
-        let cfg = DriaWorkflowsConfig::new_from_csv("gpt-4o,llama3.1:8b-instruct-q4_K_M");
+        let cfg = DriaWorkflowsConfig::new_from_csv("gpt-4o,aaabbbccc");
         let result = cfg.get_any_matching_model(vec![
             "i-dont-exist".to_string(),
             "gpt-4o".to_string(),

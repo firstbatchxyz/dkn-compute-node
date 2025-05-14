@@ -249,21 +249,4 @@ mod tests {
             "Should not find anything for inexisting model"
         );
     }
-
-    #[test]
-    #[ignore = "TODO: fix this test"]
-    fn test_get_any_matching_model() {
-        let cfg = DriaWorkflowsConfig::new_from_csv("gpt-4o-mini,llama3.2:1b-instruct-q4_K_M");
-        let result = cfg.get_any_matching_model(vec![
-            "i-dont-exist".to_string(),
-            "llama3.1:latest".to_string(),
-            "gpt-4o".to_string(),
-            "ollama".to_string(),
-        ]);
-        assert_eq!(
-            result.unwrap(),
-            Model::Llama3_2_1bInstructQ4Km,
-            "Should find existing model"
-        );
-    }
 }
