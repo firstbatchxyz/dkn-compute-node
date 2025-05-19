@@ -1,7 +1,6 @@
-use dkn_workflows_v2::{DriaWorkflowsConfig, Model};
+use dkn_executor::{DriaExecutorsConfig, Model};
 use eyre::Result;
 
-#[inline(always)]
 fn setup() {
     // read api key from .env
     let _ = dotenvy::dotenv();
@@ -10,7 +9,7 @@ fn setup() {
     let _ = env_logger::builder()
         .filter_level(log::LevelFilter::Off)
         .filter_module("models_test", log::LevelFilter::Debug)
-        .filter_module("dkn_workflows_v2", log::LevelFilter::Debug)
+        .filter_module("dkn_executor", log::LevelFilter::Debug)
         .is_test(true)
         .try_init();
 }
@@ -21,11 +20,12 @@ async fn test_ollama_check() -> Result<()> {
     setup();
 
     let models = vec![Model::Llama3_2_1bInstructQ4Km];
-    let mut model_config = DriaWorkflowsConfig::new(models);
+    let mut model_config = DriaExecutorsConfig::new_from_env_for_models(models)?;
     model_config.check_services().await?;
 
-    assert_eq!(model_config.models[0], Model::Llama3_2_1bInstructQ4Km);
-
+    assert!(model_config
+        .models
+        .contains(&Model::Llama3_2_1bInstructQ4Km));
     Ok(())
 }
 
@@ -35,10 +35,10 @@ async fn test_openai_check() -> Result<()> {
     setup();
 
     let models = vec![Model::GPT4o];
-    let mut model_config = DriaWorkflowsConfig::new(models);
+    let mut model_config = DriaExecutorsConfig::new_from_env_for_models(models)?;
     model_config.check_services().await?;
 
-    assert_eq!(model_config.models[0], Model::GPT4o);
+    assert!(model_config.models.contains(&Model::GPT4o));
     Ok(())
 }
 
@@ -48,10 +48,10 @@ async fn test_gemini_check() -> Result<()> {
     setup();
 
     let models = vec![Model::Gemini2_0Flash];
-    let mut model_config = DriaWorkflowsConfig::new(models);
+    let mut model_config = DriaExecutorsConfig::new_from_env_for_models(models)?;
     model_config.check_services().await?;
 
-    assert_eq!(model_config.models[0], Model::Gemini2_0Flash);
+    assert!(model_config.models.contains(&Model::Gemini2_0Flash));
     Ok(())
 }
 
@@ -61,17 +61,19 @@ async fn test_openrouter_check() -> Result<()> {
     setup();
 
     let models = vec![Model::OR3_5Sonnet];
-    let mut model_config = DriaWorkflowsConfig::new(models);
+    let mut model_config = DriaExecutorsConfig::new_from_env_for_models(models)?;
     model_config.check_services().await?;
 
-    assert_eq!(model_config.models[0], Model::OR3_5Sonnet);
+    assert!(model_config.models.contains(&Model::OR3_5Sonnet));
     Ok(())
 }
 
 #[tokio::test]
-async fn test_empty() {
-    assert!(DriaWorkflowsConfig::new(vec![])
+async fn test_empty() -> Result<()> {
+    assert!(DriaExecutorsConfig::new_from_env_for_models(Vec::new())?
         .check_services()
         .await
         .is_err());
+
+    Ok(())
 }

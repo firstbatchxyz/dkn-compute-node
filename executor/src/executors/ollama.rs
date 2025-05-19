@@ -11,7 +11,7 @@ const DEFAULT_OLLAMA_HOST: &str = "http://127.0.0.1";
 const DEFAULT_OLLAMA_PORT: u16 = 11434;
 
 /// Timeout duration for checking model performance during a generation.
-const PERFORMANCE_TIMEOUT: Duration = Duration::from_secs(80);
+const PERFORMANCE_TIMEOUT: Duration = Duration::from_secs(120);
 /// Minimum tokens per second (TPS) for checking model performance during a generation.
 const PERFORMANCE_MIN_TPS: f64 = 15.0;
 
@@ -42,7 +42,9 @@ impl OllamaClient {
     /// Looks at the environment variables for Ollama host and port.
     ///
     /// If not found, defaults to `DEFAULT_OLLAMA_HOST` and `DEFAULT_OLLAMA_PORT`.
-    pub fn from_env() -> Self {
+    ///
+    /// Returns a `Result` to be compatible with other executors.
+    pub fn from_env() -> Result<Self, std::env::VarError> {
         let host = env::var("OLLAMA_HOST")
             .map(|h| h.trim_matches('"').to_string())
             .unwrap_or(DEFAULT_OLLAMA_HOST.to_string());
@@ -55,7 +57,7 @@ impl OllamaClient {
             .map(|s| s == "true")
             .unwrap_or(true);
 
-        Self::new(&host, port, auto_pull)
+        Ok(Self::new(&host, port, auto_pull))
     }
 
     /// Sets the auto-pull flag for Ollama models.
@@ -221,9 +223,8 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires Ollama"]
     async fn test_ollama_prompt() {
-        let client = OllamaClient::from_env();
+        let client = OllamaClient::from_env().unwrap();
         let model = Model::Llama3_2_1bInstructQ4Km;
-        // let ollama = Ollama::default();
 
         let stats = client.try_pull(&model).await.unwrap();
         println!("Model {}: {:#?}", model, stats);

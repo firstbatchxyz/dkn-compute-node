@@ -1,7 +1,7 @@
 use colored::Colorize;
+use dkn_executor::{DriaExecutor, TaskBody};
 use dkn_p2p::libp2p::request_response::ResponseChannel;
 use dkn_utils::payloads::TaskStats;
-use dkn_workflows::{ExecutionError, Executor, Workflow};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
@@ -19,21 +19,20 @@ pub struct TaskWorkerMetadata {
 }
 
 pub struct TaskWorkerInput {
-    // used as identifier for metadata
+    /// used as identifier for metadata
     pub row_id: Uuid,
     // actual consumed input
-    pub executor: Executor,
-    pub workflow: Workflow,
+    pub executor: DriaExecutor,
+    pub task: TaskBody,
     // piggybacked metadata
     pub stats: TaskStats,
-    pub batchable: bool,
 }
 
 pub struct TaskWorkerOutput {
     // used as identifier for metadata
     pub row_id: Uuid,
     // actual produced output
-    pub result: Result<String, ExecutionError>,
+    pub result: Result<String, dkn_executor::PromptError>,
     // piggybacked metadata
     pub stats: TaskStats,
     pub batchable: bool,
@@ -47,6 +46,7 @@ pub struct TaskWorker {
     task_rx: mpsc::Receiver<TaskWorkerInput>,
     /// Publish message channel sender, the receiver is most likely the compute node itself.
     publish_tx: mpsc::Sender<TaskWorkerOutput>,
+    // TODO: batch size must be defined here
 }
 
 /// Buffer size for workflow tasks (per worker).
@@ -225,18 +225,19 @@ impl TaskWorker {
     pub async fn execute(
         (mut input, publish_tx): (TaskWorkerInput, &mpsc::Sender<TaskWorkerOutput>),
     ) {
+        let batchable = input.task.is_batchable();
         input.stats = input.stats.record_execution_started_at();
         let result = input
             .executor
             // takes no explicit prompt input, everything is in the workflow
-            .execute(None, &input.workflow, &mut Default::default())
+            .execute(input.task)
             .await;
         input.stats = input.stats.record_execution_ended_at();
 
         let output = TaskWorkerOutput {
             result,
             row_id: input.row_id,
-            batchable: input.batchable,
+            batchable,
             stats: input.stats,
         };
 
@@ -249,7 +250,7 @@ impl TaskWorker {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dkn_workflows::{Executor, Model};
+    use dkn_executor::{DriaExecutor, Model};
 
     /// Tests the workflows worker with a single task sent within a batch.
     ///
@@ -277,47 +278,18 @@ mod tests {
 
         let num_tasks = 4;
         let model = Model::GPT4o;
-        let workflow = serde_json::json!({
-            "config": {
-                "max_steps": 10,
-                "max_time": 250,
-                "tools": [""]
-            },
-            "tasks": [
-                {
-                    "id": "A",
-                    "name": "",
-                    "description": "",
-                    "operator": "generation",
-                    "messages": [{ "role": "user", "content": "Write a 4 paragraph poem about Julius Caesar." }],
-                    "outputs": [ { "type": "write", "key": "result", "value": "__result" } ]
-                },
-                {
-                    "id": "__end",
-                    "name": "end",
-                    "description": "End of the task",
-                    "operator": "end",
-                    "messages": [{ "role": "user", "content": "End of the task" }],
-                }
-            ],
-            "steps": [ { "source": "A", "target": "__end" } ],
-            "return_value": { "input": { "type": "read", "key": "result" }
-            }
-        });
+        let executor = DriaExecutor::new_from_env(model.provider()).unwrap();
+        let task = TaskBody::new_prompt("Write a poem about Julius Caesar.", model.clone());
 
         for i in 0..num_tasks {
             log::info!("Sending task {}", i + 1);
 
-            let workflow = serde_json::from_value(workflow.clone()).unwrap();
-
-            let executor = Executor::new(model.clone());
             let task_input = TaskWorkerInput {
-                executor,
-                workflow,
+                executor: executor.clone(),
+                task: task.clone(),
                 // dummy variables
                 row_id: Uuid::now_v7(),
                 stats: TaskStats::default(),
-                batchable: true,
             };
 
             // send workflow to worker

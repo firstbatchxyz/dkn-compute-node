@@ -1,5 +1,5 @@
+use dkn_executor::DriaExecutorsConfig;
 use dkn_p2p::libp2p::{Multiaddr, PeerId};
-use dkn_workflows::DriaWorkflowsConfig;
 use eyre::{eyre, Result};
 use libsecp256k1::{PublicKey, SecretKey};
 use std::{env, str::FromStr};
@@ -12,7 +12,7 @@ use dkn_utils::{
 const DEFAULT_TASK_BATCH_SIZE: usize = 5;
 const DEFAULT_P2P_LISTEN_ADDR: &str = "/ip4/0.0.0.0/tcp/4001";
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct DriaComputeNodeConfig {
     /// Wallet secret/private key.
     pub secret_key: SecretKey,
@@ -26,8 +26,8 @@ pub struct DriaComputeNodeConfig {
     pub version: SemanticVersion,
     /// P2P listen address, e.g. `/ip4/0.0.0.0/tcp/4001`.
     pub p2p_listen_addr: Multiaddr,
-    /// Workflow configurations, e.g. models and providers.
-    pub workflows: DriaWorkflowsConfig,
+    /// Executor configurations, e.g. models and providers.
+    pub executors: DriaExecutorsConfig,
     /// Network type of the node.
     pub network_type: DriaNetwork,
     /// Batch size for batchable tasks (e.g. API-based ones).
@@ -44,7 +44,7 @@ pub struct DriaComputeNodeConfig {
 #[allow(clippy::new_without_default)]
 impl DriaComputeNodeConfig {
     /// Creates new config from environment variables.
-    pub fn new(workflows: DriaWorkflowsConfig) -> Self {
+    pub fn new(executors: DriaExecutorsConfig) -> Self {
         let secret_key = match env::var("DKN_WALLET_SECRET_KEY") {
             Ok(secret_env) => {
                 let secret_dec = hex::decode(secret_env.trim_start_matches("0x"))
@@ -124,7 +124,7 @@ impl DriaComputeNodeConfig {
             address,
             peer_id,
             version,
-            workflows,
+            executors,
             p2p_listen_addr,
             network_type,
             batch_size,

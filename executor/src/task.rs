@@ -24,7 +24,7 @@ pub struct TaskBody {
     pub preamble: Option<String>,
     /// The main user prompt.
     pub prompt: Message,
-    /// List of messages for context / chat.
+    /// List of messages for context or chat history.
     pub chat_history: Vec<Message>,
     /// The model to use for the task.
     pub model: Model,
@@ -84,13 +84,15 @@ impl<'de> Deserialize<'de> for TaskBody {
         let raw = RawTaskBody::deserialize(deserializer)?;
 
         // parse model
-        let model = Model::try_from(raw.model)
-            .map_err(|err| Error::custom(format!("Invalid model: {err}")))?;
+        let model = Model::try_from(raw.model).map_err(|err_model| {
+            Error::custom(format!("Model {err_model} is not supported by this node."))
+        })?;
 
         // ensure there are messages
         if raw.messages.is_empty() {
             return Err(Error::custom("No messages found in the task body"));
         }
+
         // ensure the last message is from the user
         if raw.messages.last().unwrap().role != "user" {
             return Err(Error::custom("Last message must be from the user"));
@@ -103,7 +105,7 @@ impl<'de> Deserialize<'de> for TaskBody {
                 "system" => {
                     // we only expect to see one system message ever
                     if preamble.is_some() {
-                        return Err(Error::custom("Multiple system messages found"));
+                        return Err(Error::custom("Only one system message is allowed"));
                     }
                     preamble = Some(msg.content);
                 }

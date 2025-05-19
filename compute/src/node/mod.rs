@@ -104,7 +104,7 @@ impl DriaComputeNode {
         let (publish_tx, publish_rx) = mpsc::channel(PUBLISH_CHANNEL_BUFSIZE);
 
         // check if we should create a worker for batchable workflows
-        let (task_batch_worker, task_batch_tx) = if config.workflows.has_batchable_models() {
+        let (task_batch_worker, task_batch_tx) = if config.executors.has_batchable_models() {
             let (worker, sender) = TaskWorker::new(publish_tx.clone());
             (Some(worker), Some(sender))
         } else {
@@ -112,14 +112,14 @@ impl DriaComputeNode {
         };
 
         // check if we should create a worker for single workflows
-        let (task_single_worker, task_single_tx) = if config.workflows.has_non_batchable_models() {
+        let (task_single_worker, task_single_tx) = if config.executors.has_non_batchable_models() {
             let (worker, sender) = TaskWorker::new(publish_tx);
             (Some(worker), Some(sender))
         } else {
             (None, None)
         };
 
-        let model_names = config.workflows.get_model_names();
+        let model_names = config.executors.get_model_names();
         let points_client = DriaPointsClient::new(&config.address)?;
 
         let spec_collector = SpecCollector::new(model_names.clone(), config.version);

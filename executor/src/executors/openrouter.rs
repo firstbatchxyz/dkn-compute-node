@@ -33,7 +33,6 @@ impl OpenRouterClient {
         }
 
         let agent = model.build();
-
         agent.chat(task.prompt, task.chat_history).await
     }
 
@@ -44,7 +43,6 @@ impl OpenRouterClient {
 
         // make a dummy request with existing models
         for model in models.iter().cloned() {
-            // make a dummy request
             if let Err(err) = self
                 .execute(TaskBody::new_prompt("What is 2 + 2?", model))
                 .await
@@ -70,7 +68,7 @@ mod tests {
     async fn test_openrouter_check() {
         let _ = env_logger::builder()
             .filter_level(log::LevelFilter::Off)
-            .filter_module("dkn_workflows", log::LevelFilter::Debug)
+            .filter_module("dkn_executor", log::LevelFilter::Debug)
             .is_test(true)
             .try_init();
         let _ = dotenvy::dotenv(); // read api key

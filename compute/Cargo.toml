@@ -54,7 +54,7 @@ public-ip-address = "0.3.2"
 # dria subcrates
 dkn-p2p = { path = "../p2p" }
 dkn-utils = { path = "../utils", features = ["crypto"] }
-dkn-workflows = { path = "../workflows" }
+dkn-executor = { path = "../executor" }
 chrono.workspace = true
 
 

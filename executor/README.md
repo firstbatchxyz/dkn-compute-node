@@ -1,6 +1,6 @@
-# Dria Workflows
+# Dria Executor
 
-We make use of [Ollama Workflows](https://github.com/andthattoo/ollama-workflows) in Dria Knowledge Network; however, we also want to make sure that the chosen models are valid and is performant enough (i.e. have enough TPS). This crate handles the configurations of models to be used, and implements various service checks.
+TODO: !!!
 
 There are two types of services:
 
@@ -32,7 +32,7 @@ DKN Workflows make use of several environment variables, with respect to several
 With the environment variables ready, you can simply create a new configuration and call `check_services` to ensure all models are correctly setup:
 
 ```rs
-use dkn_workflows::{DriaWorkflowsConfig, Model};
+use dkn_executor::{DriaWorkflowsConfig, Model};
 
 let models = vec![Model::Phi3_5Mini];
 let mut config = DriaWorkflowsConfig::new(models);

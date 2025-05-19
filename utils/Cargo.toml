@@ -37,5 +37,4 @@ base64 = { version = "0.22.0", optional = true }
 public-ip-address = "0.3.2"
 chrono.workspace = true
 uuid.workspace = true
-
-thiserror = "2.0.12"
+thiserror.workspace = true

@@ -1,5 +1,5 @@
 [package]
-name = "dkn-workflows-v2"
+name = "dkn-executor"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -21,13 +21,10 @@ serde_json.workspace = true
 # http & networking
 reqwest.workspace = true
 
-# utilities
-rand.workspace = true
-dkn-utils = { path = "../utils" }
-
 # logging & errors
 log.workspace = true
 eyre.workspace = true
+thiserror.workspace = true
 
 enum-iterator = "2.1.0"
 rig-core = "0.11.1"
