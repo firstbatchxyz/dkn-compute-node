@@ -1,4 +1,4 @@
-use eyre::{eyre, Context, Result};
+use eyre::{Context, Result};
 use ollama_rs::generation::completion::request::GenerationRequest;
 use rig::completion::{Chat, PromptError};
 use rig::providers::ollama;
@@ -21,6 +21,7 @@ pub struct OllamaClient {
     /// Whether to automatically pull models from Ollama.
     /// This is useful for CI/CD workflows.
     auto_pull: bool,
+    /// Underlying Ollama client.
     client: ollama::Client,
     /// A more specialized Ollama client.
     ///
@@ -104,9 +105,16 @@ impl OllamaClient {
         for model in models.iter() {
             // pull the model if it is not in the local models
             if !local_models.contains(&model.to_string()) {
-                self.try_pull(model)
-                    .await
-                    .wrap_err("could not pull model")?;
+                log::warn!("Model {} not found in Ollama", model);
+                if self.auto_pull {
+                    self.try_pull(model)
+                        .await
+                        .wrap_err("could not pull model")?;
+                } else {
+                    log::error!("Please download missing model with: ollama pull {}", model);
+                    log::error!("Or, set OLLAMA_AUTO_PULL=true to pull automatically.");
+                    eyre::bail!("required model not pulled in Ollama");
+                }
             }
 
             // test its performance
@@ -129,34 +137,23 @@ impl OllamaClient {
         Ok(())
     }
 
-    /// Pulls a model if `auto_pull` exists, otherwise returns an error.
-    ///
-    /// Returns whether the model was pulled or not.
-    async fn try_pull(&self, model: &Model) -> Result<()> {
+    /// Pulls a model from Ollama.
+    async fn try_pull(&self, model: &Model) -> Result<ollama_rs::models::pull::PullModelStatus> {
         // TODO: add pull-bar here
-        // FIXME: logic here is wrong
-        log::warn!("Model {} not found in Ollama", model);
-        if self.auto_pull {
-            // if auto-pull is enabled, pull the model
-            log::info!(
-                "Downloading missing model {} (this may take a while)",
-                model
-            );
-            self.ollama_rs_client
-                .pull_model(model.to_string(), false)
-                .await?;
-            Ok(())
-        } else {
-            // otherwise, give error
-            log::error!("Please download missing model with: ollama pull {}", model);
-            log::error!("Or, set OLLAMA_AUTO_PULL=true to pull automatically.");
-            Err(eyre!("required model not pulled in Ollama"))
-        }
+        // if auto-pull is enabled, pull the model
+        log::info!(
+            "Downloading missing model {} (this may take a while)",
+            model
+        );
+        self.ollama_rs_client
+            .pull_model(model.to_string(), false)
+            .await
+            .wrap_err("could not pull model")
     }
 
-    /// Runs a small workflow to test Ollama Workflows.
+    /// Runs a small test to test local model performance.
     ///
-    /// This is to see if a given system can execute Ollama workflows for their chosen models,
+    /// This is to see if a given system can execute tasks for their chosen models,
     /// e.g. if they have enough RAM/CPU and such.
     pub async fn test_performance(&self, model: &Model) -> bool {
         const TEST_PROMPT: &str = "Please write a poem about Kapadokya.";

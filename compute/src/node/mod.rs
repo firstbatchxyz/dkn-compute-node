@@ -80,16 +80,16 @@ impl DriaComputeNode {
         // dial the RPC node
         let dria_rpc = if let Some(addr) = config.initial_rpc_addr.take() {
             log::info!("Using initial RPC address: {}", addr);
-            DriaRPC::new(addr, config.network_type).expect("could not get RPC to connect to")
+            DriaRPC::new(addr, config.network).expect("could not get RPC to connect to")
         } else {
-            DriaRPC::new_for_network(config.network_type, &config.version)
+            DriaRPC::new_for_network(config.network, &config.version)
                 .await
                 .expect("could not get RPC to connect to")
         };
 
         // we are using the major.minor version as the P2P version
         // so that patch versions do not interfere with the protocol
-        let protocol = DriaP2PProtocol::new_major_minor(config.network_type.protocol_name());
+        let protocol = DriaP2PProtocol::new_major_minor(config.network.protocol_name());
         log::info!("Using identity: {}", protocol);
 
         // create p2p client
@@ -103,21 +103,23 @@ impl DriaComputeNode {
         // create workflow workers, all workers use the same publish channel
         let (publish_tx, publish_rx) = mpsc::channel(PUBLISH_CHANNEL_BUFSIZE);
 
-        // check if we should create a worker for batchable workflows
-        let (task_batch_worker, task_batch_tx) = if config.executors.has_batchable_models() {
-            let (worker, sender) = TaskWorker::new(publish_tx.clone());
-            (Some(worker), Some(sender))
-        } else {
-            (None, None)
-        };
+        // check if we should create a worker for batch executor
+        let (task_batch_worker, task_batch_tx) =
+            if config.executors.providers.keys().any(|p| p.is_batchable()) {
+                let (worker, sender) = TaskWorker::new(publish_tx.clone());
+                (Some(worker), Some(sender))
+            } else {
+                (None, None)
+            };
 
-        // check if we should create a worker for single workflows
-        let (task_single_worker, task_single_tx) = if config.executors.has_non_batchable_models() {
-            let (worker, sender) = TaskWorker::new(publish_tx);
-            (Some(worker), Some(sender))
-        } else {
-            (None, None)
-        };
+        // check if we should create a worker for single executor
+        let (task_single_worker, task_single_tx) =
+            if config.executors.providers.keys().any(|p| !p.is_batchable()) {
+                let (worker, sender) = TaskWorker::new(publish_tx);
+                (Some(worker), Some(sender))
+            } else {
+                (None, None)
+            };
 
         let model_names = config.executors.get_model_names();
         let points_client = DriaPointsClient::new(&config.address)?;

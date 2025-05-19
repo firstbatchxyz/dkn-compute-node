@@ -38,8 +38,6 @@ pub struct TaskWorkerOutput {
     pub batchable: bool,
 }
 
-/// Workflows worker is a task executor that can process workflows in parallel / series.
-///
 /// It is expected to be spawned in another thread, with [`Self::run_batch`] for batch processing and [`Self::run_series`] for single processing.
 pub struct TaskWorker {
     /// Workflow message channel receiver, the sender is most likely the compute node itself.
@@ -73,9 +71,9 @@ impl TaskWorker {
         (worker, task_tx)
     }
 
-    /// Closes the workflow receiver channel.
+    /// Closes the worker's receiver channel.
     fn shutdown(&mut self) {
-        log::info!("Closing workflows worker.");
+        log::info!("Closing worker.");
         self.task_rx.close();
     }
 
@@ -252,16 +250,16 @@ mod tests {
     use super::*;
     use dkn_executor::{DriaExecutor, Model};
 
-    /// Tests the workflows worker with a single task sent within a batch.
+    /// Tests the worker with a single task sent within a batch.
     ///
     /// ## Run command
     ///
     /// ```sh
-    /// cargo test --package dkn-compute --lib --all-features -- workers::workflow::tests::test_workflows_worker --exact --show-output --nocapture --ignored
+    /// cargo test --package dkn-compute --lib --all-features -- workers::workflow::tests::test_executor_worker --exact --show-output --nocapture --ignored
     /// ```
     #[tokio::test]
     #[ignore = "run manually"]
-    async fn test_workflows_worker() {
+    async fn test_executor_worker() {
         let _ = env_logger::builder()
             .filter_level(log::LevelFilter::Off)
             .filter_module("dkn_compute", log::LevelFilter::Debug)

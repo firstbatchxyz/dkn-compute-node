@@ -1,5 +1,5 @@
 use dkn_compute::*;
-use dkn_executor::{DriaExecutorsConfig, Model};
+use dkn_executor::{DriaExecutorsManager, Model};
 use eyre::Result;
 use std::env;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
@@ -73,7 +73,7 @@ async fn main() -> Result<()> {
         .into_iter()
         .filter_map(|s| Model::try_from(s.as_str()).ok())
         .collect::<Vec<_>>();
-    let executors_config = DriaExecutorsConfig::new_from_env_for_models(model_names)?;
+    let executors_config = DriaExecutorsManager::new_from_env_for_models(model_names)?;
     if executors_config.models.is_empty() {
         return Err(eyre::eyre!("No models were provided, make sure to restart with at least one model provided within DKN_MODELS."));
     }
@@ -116,7 +116,7 @@ async fn main() -> Result<()> {
             "batch size too large"
         );
         log::info!(
-            "Spawning workflows batch worker thread. (batch size {})",
+            "Spawning batch executor worker thread. (batch size {})",
             batch_size
         );
         task_tracker.spawn(async move { worker_batch.run_batch(batch_size).await });
@@ -124,7 +124,7 @@ async fn main() -> Result<()> {
 
     // spawn single worker thread if we are using such models (e.g. Ollama)
     if let Some(mut worker_single) = worker_single {
-        log::info!("Spawning workflows single worker thread.");
+        log::info!("Spawning single executor worker thread.");
         task_tracker.spawn(async move { worker_single.run_series().await });
     }
 

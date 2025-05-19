@@ -16,7 +16,6 @@ impl super::IsResponder for TaskResponder {
 }
 
 impl TaskResponder {
-    /// Handles the compute message for workflows.
     pub(crate) async fn prepare_worker_input(
         node: &mut DriaComputeNode,
         compute_message: &DriaMessage,
@@ -31,7 +30,12 @@ impl TaskResponder {
         // record received time
         let stats = TaskStats::new().record_received_at();
 
-        log::info!("Using model {} for task {}", task.input.model, task.row_id);
+        log::info!(
+            "Using model {} for {} {}",
+            task.input.model.to_string().yellow(),
+            "task".yellow(),
+            task.row_id
+        );
         let task_body = task.input;
 
         // check if the model is available in this node, if so

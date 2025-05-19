@@ -1,10 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{executors::DriaExecutor, DriaExecutorError, Model, ModelProvider};
-use eyre::Result;
 
 #[derive(Clone)]
-pub struct DriaExecutorsConfig {
+pub struct DriaExecutorsManager {
     /// List of all models supported by this node.
     ///
     /// Equivalent to the union of all sets of models in the providers.
@@ -13,29 +12,27 @@ pub struct DriaExecutorsConfig {
     pub providers: HashMap<ModelProvider, (DriaExecutor, HashSet<Model>)>,
 }
 
-impl DriaExecutorsConfig {
-    /// Creates a new config with the given models, using environment variables for the providers.
+impl DriaExecutorsManager {
+    /// Creates a new executor manager with the given models, using environment variables for the providers.
     pub fn new_from_env_for_models(models: Vec<Model>) -> Result<Self, std::env::VarError> {
-        let mut provider_set = HashMap::new();
+        let mut provider_set: HashMap<ModelProvider, (DriaExecutor, HashSet<Model>)> =
+            HashMap::new();
         let mut model_set = HashSet::new();
         for model in models {
             // get the provider for the model
             let provider = model.provider();
 
-            // create a new executor for the provider if it does not exist
-            //
-            // we do this like this instead of `entry(key).or_insert` because we want to
-            // return the error here
-            if !provider_set.contains_key(&provider) {
-                // create a new executor for the provider, may return an error!
-                let executor = DriaExecutor::new_from_env(provider)?;
-                provider_set.insert(provider, (executor, HashSet::new()));
+            // add model to the provider set, and create a new executor if needed
+            match provider_set.get_mut(&provider) {
+                Some((_, models)) => {
+                    models.insert(model);
+                }
+                None => {
+                    // create a new executor for the provider, may return an error!
+                    let executor = DriaExecutor::new_from_env(provider)?;
+                    provider_set.insert(provider, (executor, HashSet::from_iter([model])));
+                }
             }
-
-            // add the model to the provider models set
-            provider_set.get_mut(&provider).map(|(_, models)| {
-                models.insert(model);
-            });
 
             // add the model to the global model set
             model_set.insert(model);
@@ -61,28 +58,8 @@ impl DriaExecutorsConfig {
         if models.contains(model) {
             Ok(executor.clone())
         } else {
-            Err(DriaExecutorError::ModelNotSupported(*model).into())
+            Err(DriaExecutorError::ModelNotSupported(*model))
         }
-    }
-
-    /// Returns `true` if the configuration contains models that can be processed in parallel, e.g. API calls.
-    ///
-    /// This is not just a negation of `has_non_batchable_models`, as it also checks for the presence of models that can be run in parallel.
-    pub fn has_batchable_models(&self) -> bool {
-        self.providers.contains_key(&ModelProvider::Gemini)
-            || self.providers.contains_key(&ModelProvider::OpenAI)
-            || self.providers.contains_key(&ModelProvider::OpenRouter)
-    }
-
-    /// Returns `true` if the configuration contains a model that cant be run in parallel, e.g. a Ollama model.
-    pub fn has_non_batchable_models(&self) -> bool {
-        self.providers.contains_key(&ModelProvider::Ollama)
-    }
-
-    /// Returns the list of unique providers in the config.
-    #[inline]
-    pub fn get_providers(&self) -> Vec<ModelProvider> {
-        self.providers.keys().cloned().collect()
     }
 
     /// Returns the names of all models in the config.
@@ -99,7 +76,7 @@ impl DriaExecutorsConfig {
     ///
     /// In the end, bad models are filtered out and we simply check if we are left if any valid models at all.
     /// If there are no models left in the end, an error is thrown.
-    pub async fn check_services(&mut self) -> Result<()> {
+    pub async fn check_services(&mut self) -> eyre::Result<()> {
         log::info!("Checking configured services.");
 
         // check all configured providers

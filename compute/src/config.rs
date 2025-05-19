@@ -1,4 +1,4 @@
-use dkn_executor::DriaExecutorsConfig;
+use dkn_executor::DriaExecutorsManager;
 use dkn_p2p::libp2p::{Multiaddr, PeerId};
 use eyre::{eyre, Result};
 use libsecp256k1::{PublicKey, SecretKey};
@@ -26,10 +26,10 @@ pub struct DriaComputeNodeConfig {
     pub version: SemanticVersion,
     /// P2P listen address, e.g. `/ip4/0.0.0.0/tcp/4001`.
     pub p2p_listen_addr: Multiaddr,
-    /// Executor configurations, e.g. models and providers.
-    pub executors: DriaExecutorsConfig,
+    /// Executor manager, handles models and providers.
+    pub executors: DriaExecutorsManager,
     /// Network type of the node.
-    pub network_type: DriaNetwork,
+    pub network: DriaNetwork,
     /// Batch size for batchable tasks (e.g. API-based ones).
     ///
     /// A higher value will help execute more tasks concurrently,
@@ -44,7 +44,7 @@ pub struct DriaComputeNodeConfig {
 #[allow(clippy::new_without_default)]
 impl DriaComputeNodeConfig {
     /// Creates new config from environment variables.
-    pub fn new(executors: DriaExecutorsConfig) -> Self {
+    pub fn new(executors: DriaExecutorsManager) -> Self {
         let secret_key = match env::var("DKN_WALLET_SECRET_KEY") {
             Ok(secret_env) => {
                 let secret_dec = hex::decode(secret_env.trim_start_matches("0x"))
@@ -126,7 +126,7 @@ impl DriaComputeNodeConfig {
             version,
             executors,
             p2p_listen_addr,
-            network_type,
+            network: network_type,
             batch_size,
             initial_rpc_addr,
         }

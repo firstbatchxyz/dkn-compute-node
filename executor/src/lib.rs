@@ -1,8 +1,8 @@
 mod executors;
 pub use executors::{DriaExecutor, DriaExecutorError};
 
-mod config;
-pub use config::DriaExecutorsConfig;
+mod manager;
+pub use manager::DriaExecutorsManager;
 
 mod models;
 pub use models::{Model, ModelProvider};
