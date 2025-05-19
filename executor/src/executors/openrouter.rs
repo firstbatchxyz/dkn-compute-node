@@ -37,7 +37,7 @@ impl OpenRouterClient {
     }
 
     /// Checks if the API key exists.
-    pub async fn check(&self, models: &mut HashSet<Model>) {
+    pub async fn check(&self, models: &mut HashSet<Model>) -> Result<()> {
         let mut models_to_remove = Vec::new();
         log::info!("Checking OpenRouter API key");
 
@@ -56,6 +56,8 @@ impl OpenRouterClient {
         for model in models_to_remove.iter() {
             models.remove(model);
         }
+
+        Ok(())
     }
 }
 
@@ -76,11 +78,11 @@ mod tests {
         let initial_models = [Model::OR3_5Sonnet, Model::OR3_7Sonnet];
         let mut models = HashSet::from_iter(initial_models);
         let config = OpenRouterClient::from_env().unwrap();
-        config.check(&mut models).await;
+        config.check(&mut models).await.unwrap();
         assert_eq!(models.len(), initial_models.len());
 
         // create with a bad api key
         let config = OpenRouterClient::new("i-dont-work");
-        config.check(&mut HashSet::new()).await; // should not panic
+        config.check(&mut HashSet::new()).await.unwrap(); // should not panic
     }
 }

@@ -65,7 +65,7 @@ impl DriaExecutor {
             DriaExecutor::Ollama(provider) => provider.check(models).await,
             DriaExecutor::OpenAI(provider) => provider.check(models).await,
             DriaExecutor::Gemini(provider) => provider.check(models).await,
-            DriaExecutor::OpenRouter(provider) => Ok(provider.check(models).await),
+            DriaExecutor::OpenRouter(provider) => provider.check(models).await,
         }
     }
 }
