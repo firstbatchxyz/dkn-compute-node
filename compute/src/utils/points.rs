@@ -1,6 +1,5 @@
+use dkn_utils::DriaNetwork;
 use eyre::Context;
-
-const POINTS_API_BASE_URL: &str = "https://mainnet.dkn.dria.co/points/v0/total/node/";
 
 pub struct DriaPointsClient {
     pub url: String,
@@ -18,13 +17,21 @@ pub struct DriaPoints {
 }
 
 impl DriaPointsClient {
+    /// The base URL for the points API, w.r.t network.
+    pub fn base_url(network: &DriaNetwork) -> &'static str {
+        match network {
+            DriaNetwork::Mainnet => "https://mainnet.dkn.dria.co/points/v0/total/node/",
+            DriaNetwork::Testnet => "https://testnet.dkn.dria.co/points/v0/total/node/",
+        }
+    }
+
     /// Creates a new `DriaPointsClient` for the given address.
-    pub fn new(address: &str) -> eyre::Result<Self> {
+    pub fn new(address: &str, network: &DriaNetwork) -> eyre::Result<Self> {
         const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
         let url = format!(
             "{}/0x{}",
-            POINTS_API_BASE_URL,
+            Self::base_url(network),
             address.trim_start_matches("0x")
         );
 
@@ -66,7 +73,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_points() {
-        let client = DriaPointsClient::new("0xa43536a6032a3907ccf60e8109429ee1047b207c").unwrap();
+        let client = DriaPointsClient::new(
+            "0xa43536a6032a3907ccf60e8109429ee1047b207c",
+            &DriaNetwork::Mainnet,
+        )
+        .unwrap();
         let steps = client.get_points().await.unwrap();
         assert!(steps.score >= 0.0);
         assert!(steps.percentile <= 100);

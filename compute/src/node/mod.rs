@@ -122,7 +122,7 @@ impl DriaComputeNode {
             };
 
         let model_names = config.executors.get_model_names();
-        let points_client = DriaPointsClient::new(&config.address)?;
+        let points_client = DriaPointsClient::new(&config.address, &config.network)?;
 
         let spec_collector = SpecCollector::new(model_names.clone(), config.version);
         Ok((
