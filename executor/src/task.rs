@@ -11,13 +11,19 @@ pub type TaskResult = Result<String, PromptError>;
 
 /// The body of a task request that includes the messages and the model to use.
 ///
-/// Implements a deserializer to convert from object with a `model` field and
-/// a `messages` field with an array of messages of the form
-/// `{role: string, content: string}` to itself.
+/// Implements a custom [`Deserialize`] to convert from an object of the form below to self:
 ///
+/// ```ts
+/// {
+///  "model": string,
+///  "messages": { role: string, content: string }[]
+/// }
+/// ```
+///
+/// For the `messages` array, the following rules apply:
 /// - If the first message is a system message, it will be stored in the `preamble` field.
 /// - The last message must be a user message, and it will be stored in the `prompt` field.
-/// - All other messages will be stored in the `chat_history` field.
+/// - All other intermediate messages will be stored in the `chat_history` field.
 #[derive(Debug, Clone)]
 pub struct TaskBody {
     /// An optional system prompt.
