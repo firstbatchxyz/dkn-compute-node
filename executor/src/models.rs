@@ -1,6 +1,6 @@
 use enum_iterator::Sequence;
 use serde::{Deserialize, Serialize};
-use std::fmt;
+use std::{collections::HashSet, fmt, str::FromStr};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize, Sequence)]
 pub enum Model {
@@ -52,7 +52,39 @@ pub enum Model {
     OR3_7Sonnet,
 }
 
+impl FromStr for Model {
+    type Err = String;
+
+    /// Tries to parse the given `str` into a `Model`.
+    /// On failure, returns the original string back as the `Err` value.
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        // serde requires quotes (for JSON)
+        serde_json::from_str::<Self>(&format!("\"{}\"", value))
+            .map_err(|e| format!("Model {} invalid: {}", value, e))
+    }
+}
+
 impl Model {
+    /// Returns a set of models from a CSV string.
+    ///
+    /// The input string should be a comma-separated list of model names.
+    ///
+    /// ## Example
+    ///
+    /// ```rs
+    /// let models = Model::from_csv("gpt-4o, gpt-4o-mini");
+    /// assert!(models.contains(&Model::GPT4o));
+    /// assert!(models.contains(&Model::GPT4oMini));
+    /// ```
+    pub fn from_csv(input: impl AsRef<str>) -> HashSet<Self> {
+        HashSet::from_iter(
+            input
+                .as_ref()
+                .split(',')
+                .filter_map(|s| Self::try_from(s.trim()).ok()),
+        )
+    }
+
     /// Returns an iterator over all models.
     #[inline(always)]
     pub fn all() -> impl Iterator<Item = Model> {
@@ -72,17 +104,10 @@ impl Model {
     }
 }
 
-impl From<Model> for String {
-    fn from(model: Model) -> Self {
-        model.to_string() // via Display
-    }
-}
-
 impl fmt::Display for Model {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // guaranteed not to fail because this is enum to string serialization
         let self_str = serde_json::to_string(&self).unwrap_or_default();
-
         // remove quotes from JSON
         write!(f, "{}", self_str.trim_matches('"'))
     }
@@ -91,18 +116,14 @@ impl fmt::Display for Model {
 impl TryFrom<String> for Model {
     type Error = String;
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::try_from(value.as_str())
+        value.as_str().parse()
     }
 }
 
 impl TryFrom<&str> for Model {
     type Error = String;
-
-    /// Tries to parse the given `str` into a `Model`.
-    /// On failure, returns the original string back as the `Err` value.
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        // serde requires quotes (for JSON)
-        serde_json::from_str::<Self>(&format!("\"{}\"", value)).map_err(|_| value.to_string())
+        value.parse()
     }
 }
 
@@ -177,19 +198,29 @@ impl From<&Model> for ModelProvider {
     }
 }
 
+impl FromStr for ModelProvider {
+    type Err = String;
+
+    /// Tries to parse the given `str` into a `ModelProvider`.
+    /// On failure, returns the original string back as the `Err` value.
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        // serde requires quotes (for JSON)
+        serde_json::from_str::<Self>(&format!("\"{}\"", value))
+            .map_err(|e| format!("Model provider {} invalid: {}", value, e))
+    }
+}
+
 impl TryFrom<String> for ModelProvider {
     type Error = String;
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        ModelProvider::try_from(value.as_str())
+        value.as_str().parse()
     }
 }
 
 impl TryFrom<&str> for ModelProvider {
     type Error = String;
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        // serde requires quotes (for JSON)
-        serde_json::from_str::<Self>(&format!("\"{}\"", value))
-            .map_err(|e| format!("Model provider {} invalid: {}", value, e))
+        value.parse()
     }
 }
 
@@ -211,7 +242,7 @@ mod tests {
         let model = Model::OR3_5Sonnet;
 
         // convert to string
-        let model_str: String = model.clone().into();
+        let model_str = model.clone().to_string();
         assert_eq!(model_str, "anthropic/claude-3.5-sonnet");
 
         // (try) convert from string

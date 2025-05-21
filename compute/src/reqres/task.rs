@@ -11,51 +11,45 @@ use crate::DriaComputeNode;
 pub struct TaskResponder;
 
 impl super::IsResponder for TaskResponder {
-    type Request = DriaMessage; // TODO: TaskRequestPayload<TaskWorkflow>;
-    type Response = DriaMessage; // TODO: TaskResponsePayload;
+    type Request = DriaMessage; // TODO: can we do this typed?
+    type Response = DriaMessage; // TODO: can we do this typed?
 }
 
 impl TaskResponder {
-    pub(crate) async fn prepare_worker_input(
+    pub(crate) async fn parse_task_request(
         node: &mut DriaComputeNode,
         compute_message: &DriaMessage,
         channel: ResponseChannel<Vec<u8>>,
     ) -> Result<(TaskWorkerInput, TaskWorkerMetadata)> {
-        // parse payload
         let task = compute_message
             .parse_payload::<TaskRequestPayload<TaskBody>>()
-            .wrap_err("could not parse workflow task")?;
-        log::info!("Handling task {}", task.row_id);
-
-        // record received time
+            .wrap_err("could not parse task payload")?;
         let stats = TaskStats::new().record_received_at();
-
         log::info!(
-            "Using model {} for {} {}",
-            task.input.model.to_string().yellow(),
+            "Handling {} {} with model {}",
             "task".yellow(),
-            task.row_id
+            task.row_id,
+            task.input.model.to_string().yellow()
         );
-        let task_body = task.input;
 
         // check if the model is available in this node, if so
         // it will return an executor that can run this model
         let executor = node
             .config
             .executors
-            .get_executor(&task_body.model)
+            .get_executor(&task.input.model)
             .await
             .wrap_err("could not get an executor")?;
 
         let task_metadata = TaskWorkerMetadata {
             task_id: task.task_id,
             file_id: task.file_id,
-            model_name: task_body.model.to_string(),
+            model_name: task.input.model.to_string(),
             channel,
         };
         let task_input = TaskWorkerInput {
             executor,
-            task: task_body,
+            task: task.input,
             row_id: task.row_id,
             stats,
         };
@@ -63,8 +57,8 @@ impl TaskResponder {
         Ok((task_input, task_metadata))
     }
 
-    /// Handles the result of a workflow task.
-    pub(crate) async fn send_output(
+    /// Handles the result of a task.
+    pub(crate) async fn send_task_output(
         node: &mut DriaComputeNode,
         task_output: TaskWorkerOutput,
         task_metadata: TaskWorkerMetadata,

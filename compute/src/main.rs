@@ -69,11 +69,8 @@ async fn main() -> Result<()> {
     });
 
     // create configurations
-    let model_names = dkn_utils::split_csv_line(&env::var("DKN_MODELS").unwrap_or_default())
-        .into_iter()
-        .filter_map(|s| Model::try_from(s.as_str()).ok())
-        .collect::<Vec<_>>();
-    let executors_config = DriaExecutorsManager::new_from_env_for_models(model_names)?;
+    let models = Model::from_csv(env::var("DKN_MODELS").unwrap_or_default());
+    let executors_config = DriaExecutorsManager::new_from_env_for_models(models.into_iter())?;
     if executors_config.models.is_empty() {
         return Err(eyre::eyre!("No models were provided, make sure to restart with at least one model provided within DKN_MODELS."));
     }

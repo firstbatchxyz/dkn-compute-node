@@ -19,7 +19,6 @@ const PERFORMANCE_MIN_TPS: f64 = 15.0;
 #[derive(Clone)]
 pub struct OllamaClient {
     /// Whether to automatically pull models from Ollama.
-    /// This is useful for CI/CD workflows.
     auto_pull: bool,
     /// Underlying Ollama client.
     client: ollama::Client,
@@ -78,7 +77,7 @@ impl OllamaClient {
         agent.chat(task.prompt, task.chat_history).await
     }
 
-    /// Check if requested models exist in Ollama, and then tests them using a workflow.
+    /// Check if requested models exist in Ollama & test them using a dummy prompt.
     pub async fn check(&self, models: &mut HashSet<Model>) -> Result<()> {
         log::info!(
             "Checking Ollama requirements (auto-pull {}, timeout: {}s, min tps: {})",
@@ -163,7 +162,7 @@ impl OllamaClient {
 
         // run a dummy generation for warm-up
         log::debug!("Warming up Ollama for model {}", model);
-        if let Err(e) = self
+        if let Err(err) = self
             .ollama_rs_client
             .generate(GenerationRequest::new(
                 model.to_string(),
@@ -171,14 +170,14 @@ impl OllamaClient {
             ))
             .await
         {
-            log::warn!("Ignoring model {}: Workflow failed with error {}", model, e);
+            log::warn!("Ignoring model {model}: {err}");
             return false;
         }
 
         // then, run a sample generation with timeout and measure tps
         tokio::select! {
             _ = tokio::time::sleep(PERFORMANCE_TIMEOUT) => {
-                log::warn!("Ignoring model {}: Workflow timed out", model);
+                log::warn!("Ignoring model {model}: Timed out");
             },
             result = self.ollama_rs_client.generate(GenerationRequest::new(
                 model.to_string(),
@@ -203,7 +202,7 @@ impl OllamaClient {
                         );
                     }
                     Err(e) => {
-                        log::warn!("Ignoring model {}: Workflow failed with error {}", model, e);
+                        log::warn!("Ignoring model {}: Task failed with error {}", model, e);
                     }
                 }
             }

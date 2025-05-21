@@ -4,8 +4,11 @@ use dkn_p2p::libp2p::{
     PeerId,
 };
 use dkn_p2p::DriaReqResMessage;
-use dkn_utils::payloads::{HEARTBEAT_TOPIC, SPECS_TOPIC, TASK_REQUEST_TOPIC};
-use eyre::{eyre, Result};
+use dkn_utils::{
+    payloads::{HEARTBEAT_TOPIC, SPECS_TOPIC, TASK_REQUEST_TOPIC},
+    DriaMessage,
+};
+use eyre::Result;
 
 use crate::{reqres::*, workers::task::TaskWorkerOutput};
 
@@ -33,7 +36,7 @@ impl DriaComputeNode {
                 if self.dria_rpc.peer_id != peer_id {
                     log::warn!("Received request from unauthorized source: {}", peer_id);
                     log::debug!("Allowed source: {}", self.dria_rpc.peer_id);
-                } else if let Err(e) = self.handle_request(peer_id, request, channel).await {
+                } else if let Err(e) = self.handle_request(peer_id, &request, channel).await {
                     log::error!("Error handling request: {:?}", e);
                 }
             }
@@ -61,6 +64,11 @@ impl DriaComputeNode {
         request_id: OutboundRequestId,
         data: Vec<u8>,
     ) -> Result<()> {
+        if peer_id != self.dria_rpc.peer_id {
+            log::warn!("Received response from unauthorized source: {}", peer_id);
+            log::debug!("Allowed source: {}", self.dria_rpc.peer_id);
+        }
+
         if let Ok(heartbeat_response) = HeartbeatRequester::try_parse_response(&data) {
             log::info!(
                 "Received a {} response ({request_id}) from {peer_id}",
@@ -85,14 +93,18 @@ impl DriaComputeNode {
     async fn handle_request(
         &mut self,
         peer_id: PeerId,
-        data: Vec<u8>,
+        message_data: &[u8],
         channel: ResponseChannel<Vec<u8>>,
     ) -> Result<()> {
-        if let Ok(task_request) = TaskResponder::try_parse_request(&data) {
-            self.handle_task_request(peer_id, task_request, channel)
-                .await
-        } else {
-            Err(eyre::eyre!("Received unhandled request from {peer_id}"))
+        let message = DriaMessage::from_slice_checked(
+            message_data,
+            self.p2p.protocol().name.clone(),
+            self.config.version,
+        )?;
+
+        match message.topic.as_str() {
+            TASK_REQUEST_TOPIC => self.handle_task_request(peer_id, message, channel).await,
+            _ => Err(eyre::eyre!("Received unhandled request from {peer_id}")),
         }
     }
 
@@ -113,7 +125,7 @@ impl DriaComputeNode {
         );
 
         let (task_input, task_metadata) =
-            TaskResponder::prepare_worker_input(self, &task_request, channel).await?;
+            TaskResponder::parse_task_request(self, &task_request, channel).await?;
         if let Err(e) = match task_input.task.is_batchable() {
             // this is a batchable task, send it to batch worker
             // and keep track of the task id in pending tasks
@@ -123,11 +135,7 @@ impl DriaComputeNode {
                         .insert(task_input.row_id, task_metadata);
                     tx.send(task_input).await
                 }
-                None => {
-                    return Err(eyre!(
-                        "Batchable workflow received but no worker available."
-                    ));
-                }
+                None => eyre::bail!("Batchable task received but no worker available."),
             },
 
             // this is a single task, send it to single worker
@@ -138,12 +146,10 @@ impl DriaComputeNode {
                         .insert(task_input.row_id, task_metadata);
                     tx.send(task_input).await
                 }
-                None => {
-                    return Err(eyre!("Single workflow received but no worker available."));
-                }
+                None => eyre::bail!("Single task received but no worker available."),
             },
         } {
-            log::error!("Error sending workflow message: {:?}", e);
+            log::error!("Could not send task to worker: {:?}", e);
         };
 
         Ok(())
@@ -165,7 +171,7 @@ impl DriaComputeNode {
         // respond to the response channel with the result
         match task_metadata {
             Some(task_metadata) => {
-                TaskResponder::send_output(self, task_response, task_metadata).await?;
+                TaskResponder::send_task_output(self, task_response, task_metadata).await?;
             }
             None => {
                 // totally unexpected case, wont happen at all

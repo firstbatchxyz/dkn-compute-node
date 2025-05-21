@@ -3,6 +3,8 @@ use libp2p::identity::{Keypair, PublicKey};
 use libp2p::{identify, request_response, StreamProtocol};
 use std::time::Duration;
 
+use crate::DriaP2PProtocol;
+
 #[derive(libp2p::swarm::NetworkBehaviour)]
 pub struct DriaBehaviour {
     pub identify: identify::Behaviour,
@@ -10,12 +12,12 @@ pub struct DriaBehaviour {
 }
 
 impl DriaBehaviour {
-    pub fn new(key: &Keypair, identity_protocol: String, reqres_protocol: StreamProtocol) -> Self {
+    pub fn new(key: &Keypair, protocol: &DriaP2PProtocol) -> Self {
         let public_key = key.public();
 
         Self {
-            identify: create_identify_behaviour(public_key, identity_protocol),
-            request_response: create_request_response_behaviour(reqres_protocol),
+            identify: create_identify_behaviour(public_key, protocol.identity()),
+            request_response: create_request_response_behaviour(protocol.request_response()),
         }
     }
 }

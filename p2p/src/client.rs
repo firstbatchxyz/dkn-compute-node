@@ -16,8 +16,6 @@ use crate::DriaP2PProtocol;
 use super::commands::DriaP2PCommand;
 use super::DriaP2PCommander;
 
-/// Duration before an idle connection is closed.
-const IDLE_CONNECTION_TIMEOUT: Duration = Duration::from_secs(4 * 60);
 /// Buffer size for command channel.
 const COMMAND_CHANNEL_BUFSIZE: usize = 1024;
 /// Buffer size for events channel.
@@ -68,10 +66,9 @@ impl DriaP2PClient {
                 noise::Config::new,
                 yamux::Config::default,
             )?
-            .with_behaviour(|key| {
-                DriaBehaviour::new(key, protocol.identity(), protocol.request_response())
-            })?
-            .with_swarm_config(|c| c.with_idle_connection_timeout(IDLE_CONNECTION_TIMEOUT))
+            .with_behaviour(|key| DriaBehaviour::new(key, &protocol))?
+            // do not timeout at all, as we are only connected to an authority RPC at a given time and should stick to it
+            .with_swarm_config(|c| c.with_idle_connection_timeout(Duration::from_secs(u64::MAX)))
             .build();
 
         // listen on all interfaces for incoming connections

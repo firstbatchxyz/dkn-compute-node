@@ -87,7 +87,7 @@ impl GeminiClient {
     /// Returns the list of models available to this account.
     ///
     /// A gemini model name in API response is given as `models/{baseModelId}-{version}`
-    /// the model name in Workflows can include the version as well, so best bet is to check prefix
+    /// the model name in Dria can include the version as well, so best bet is to check prefix
     /// ignoring the `models/` part.
     async fn fetch_models(&self) -> Result<Vec<String>> {
         /// [Model](https://ai.google.dev/api/models#Model) API object, fields omitted.

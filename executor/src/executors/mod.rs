@@ -19,15 +19,13 @@ use crate::{Model, ModelProvider};
 pub enum DriaExecutorError {
     #[error("Model {0} is not a valid model.")]
     InvalidModel(String),
-    #[error("Model {0} is not supported by this node.")]
+    #[error("Model {0} not found in your configuration.")]
     ModelNotSupported(Model),
-    #[error("Model {0} is not supported by this provider.")]
+    #[error("Provider {0} not found in your configuration")]
     ProviderNotSupported(ModelProvider),
 }
 
-/// A wrapper enum for all workflow providers.
-///
-/// Exposes the same API for all providers.
+/// A wrapper enum for all model providers.
 #[derive(Clone)]
 pub enum DriaExecutor {
     Ollama(OllamaClient),

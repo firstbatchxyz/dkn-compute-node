@@ -17,7 +17,7 @@ pub const TASK_RESULT_TOPIC: &str = "results";
 pub struct TaskResponsePayload {
     /// The unique identifier of the task.
     pub row_id: Uuid,
-    /// The unique identifier of the task.
+    /// The custom identifier of the task.
     pub task_id: Uuid,
     /// The file that this task is associated with.
     pub file_id: Uuid,

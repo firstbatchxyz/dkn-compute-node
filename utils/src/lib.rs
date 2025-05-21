@@ -6,9 +6,6 @@ pub mod crypto;
 /// Includes heartbeat, task and specs payloads and their request/response types.
 pub mod payloads;
 
-mod csv;
-pub use csv::split_csv_line;
-
 mod env;
 pub use env::safe_read_env;
 

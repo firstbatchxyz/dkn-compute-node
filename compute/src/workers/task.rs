@@ -40,14 +40,14 @@ pub struct TaskWorkerOutput {
 
 /// It is expected to be spawned in another thread, with [`Self::run_batch`] for batch processing and [`Self::run_series`] for single processing.
 pub struct TaskWorker {
-    /// Workflow message channel receiver, the sender is most likely the compute node itself.
+    /// Task channel receiver, the sender is most likely the compute node itself.
     task_rx: mpsc::Receiver<TaskWorkerInput>,
     /// Publish message channel sender, the receiver is most likely the compute node itself.
     publish_tx: mpsc::Sender<TaskWorkerOutput>,
     // TODO: batch size must be defined here
 }
 
-/// Buffer size for workflow tasks (per worker).
+/// Buffer size for task channels (per worker).
 const TASK_RX_CHANNEL_BUFSIZE: usize = 1024;
 
 impl TaskWorker {
@@ -225,11 +225,7 @@ impl TaskWorker {
     ) {
         let batchable = input.task.is_batchable();
         input.stats = input.stats.record_execution_started_at();
-        let result = input
-            .executor
-            // takes no explicit prompt input, everything is in the workflow
-            .execute(input.task)
-            .await;
+        let result = input.executor.execute(input.task).await;
         input.stats = input.stats.record_execution_ended_at();
 
         let output = TaskWorkerOutput {
@@ -240,7 +236,7 @@ impl TaskWorker {
         };
 
         if let Err(e) = publish_tx.send(output).await {
-            log::error!("Error sending workflow result: {}", e);
+            log::error!("Error sending task result: {}", e);
         }
     }
 }
@@ -255,7 +251,7 @@ mod tests {
     /// ## Run command
     ///
     /// ```sh
-    /// cargo test --package dkn-compute --lib --all-features -- workers::workflow::tests::test_executor_worker --exact --show-output --nocapture --ignored
+    /// cargo test --package dkn-compute --lib --all-features -- workers::task::tests::test_executor_worker --exact --show-output --nocapture --ignored
     /// ```
     #[tokio::test]
     #[ignore = "run manually"]
@@ -269,7 +265,7 @@ mod tests {
         let (publish_tx, mut publish_rx) = mpsc::channel(1024);
         let (mut worker, task_tx) = TaskWorker::new(publish_tx);
 
-        // create batch workflow worker
+        // create batch worker
         let worker_handle = tokio::spawn(async move {
             worker.run_batch(4).await;
         });
@@ -290,7 +286,7 @@ mod tests {
                 stats: TaskStats::default(),
             };
 
-            // send workflow to worker
+            // send task to worker
             task_tx.send(task_input).await.unwrap();
         }
 

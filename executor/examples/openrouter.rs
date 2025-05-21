@@ -6,7 +6,7 @@ async fn main() -> eyre::Result<()> {
 
     let model = Model::OR3_5Sonnet;
     let models = vec![model];
-    let mut config = DriaExecutorsManager::new_from_env_for_models(models)?;
+    let mut config = DriaExecutorsManager::new_from_env_for_models(models.into_iter())?;
     config.check_services().await?;
 
     assert!(config.models.contains(&model));

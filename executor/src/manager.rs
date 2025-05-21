@@ -14,7 +14,12 @@ pub struct DriaExecutorsManager {
 
 impl DriaExecutorsManager {
     /// Creates a new executor manager with the given models, using environment variables for the providers.
-    pub fn new_from_env_for_models(models: Vec<Model>) -> Result<Self, std::env::VarError> {
+    ///
+    /// If a provider is required (as per the chosen model) but its environment variables are missing,
+    /// this will return an error.
+    pub fn new_from_env_for_models(
+        models: impl Iterator<Item = Model>,
+    ) -> Result<Self, std::env::VarError> {
         let mut provider_set: HashMap<ModelProvider, (DriaExecutor, HashSet<Model>)> =
             HashMap::new();
         let mut model_set = HashSet::new();
@@ -62,16 +67,24 @@ impl DriaExecutorsManager {
         }
     }
 
-    /// Returns the names of all models in the config.
-    #[inline(always)]
+    /// Returns the set of models supported by the given provider for this manager.
+    ///
+    /// If there are no models for the provider, an empty set is returned.
+    pub fn get_models_for_provider(&self, provider: ModelProvider) -> HashSet<Model> {
+        self.providers
+            .get(&provider)
+            .map(|(_, models)| models.clone())
+            .unwrap_or_default()
+    }
+
+    /// Returns the names of all models in the manager, in a random order.
     pub fn get_model_names(&self) -> Vec<String> {
         self.models.iter().map(|m| m.to_string()).collect()
     }
 
     /// Check if the required compute services are running.
     ///
-    /// - If Ollama models are used, hardcoded models are checked locally, and for
-    ///   external models, the workflow is tested with a simple task with timeout.
+    /// - If Ollama models are used the task is tested with a simple task with timeout.
     /// - If API based models are used, the API key is checked and the models are tested with a dummy request.
     ///
     /// In the end, bad models are filtered out and we simply check if we are left if any valid models at all.

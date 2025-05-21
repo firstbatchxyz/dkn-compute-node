@@ -100,7 +100,7 @@ impl DriaComputeNode {
             protocol,
         )?;
 
-        // create workflow workers, all workers use the same publish channel
+        // create channel for task executors, all workers use the same publish channel
         let (publish_tx, publish_rx) = mpsc::channel(PUBLISH_CHANNEL_BUFSIZE);
 
         // check if we should create a worker for batch executor
