@@ -29,17 +29,7 @@
     </a>
 </p>
 
-## About
-
-Compute nodes can technically do any arbitrary task, from computing the square root of a given number to finding LLM outputs from a given prompt, or validating an LLM's output with respect to knowledge available on the web accessed via tools.
-
-- **Heartbeats**: Every few seconds, a heartbeat ping is published into the network, and every compute node responds with a digitally-signed pong message to indicate that they are alive, along with additional information such as which nodes they are running & how many tasks they have so far.
-
-- **Workflows**: Each task is given in the form of a [workflow](https://github.com/andthattoo/ollama-workflows). Every workflow defines an agentic behavior for the chosen LLM, all captured in a single JSON file, and can represent things ranging from simple LLM generations to iterative web searching & reasoning.
-
-### Running a Node
-
-Use the [Dria Compute Launcher](https://github.com/firstbatchxyz/dkn-compute-launcher/) to run a compute node with many more features!
+> Use the [Dria Compute Launcher](https://github.com/firstbatchxyz/dkn-compute-launcher/) to run a compute node with many more features!
 
 ## Releases
 
@@ -65,7 +55,7 @@ If you would like to run the node from source (which is really handy during deve
 make help
 ```
 
-You probably have already but in case you don't, you will need OpenSSL installed, see shorthand commands [here](https://github.com/sfackler/rust-openssl/issues/855#issuecomment-450057552).
+You can run the binary as is:
 
 ```sh
 cargo run
@@ -85,13 +75,6 @@ docker compose --profile=ollama-cpu up
 docker compose --profile=ollama-cuda up
 # Ollama for AMD gpus
 docker compose --profile=ollama-rocm up
-```
-
-Note that we are very dependent on Ollama packages, and it is important to check their versions if relevant:
-
-```sh
-cat Cargo.lock | grep "https://github.com/andthattoo/ollama-workflows"
-cat Cargo.lock | grep "https://github.com/andthattoo/ollama-rs"
 ```
 
 > [!TIP]

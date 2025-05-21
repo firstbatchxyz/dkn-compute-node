@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use eyre::{eyre, Context, Result};
 use reqwest::Client;
 use rig::{
@@ -7,6 +5,7 @@ use rig::{
     providers::gemini,
 };
 use serde::Deserialize;
+use std::collections::HashSet;
 
 use crate::{Model, TaskBody};
 
@@ -143,7 +142,7 @@ mod tests {
     async fn test_gemini_check() {
         let _ = env_logger::builder()
             .filter_level(log::LevelFilter::Off)
-            .filter_module("dkn_workflows", log::LevelFilter::Debug)
+            .filter_module("dkn_executor", log::LevelFilter::Debug)
             .is_test(true)
             .try_init();
         let _ = dotenvy::dotenv(); // read api key

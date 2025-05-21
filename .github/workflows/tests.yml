@@ -8,15 +8,15 @@ on:
       # Source files in each member
       - "compute/src/**"
       - "p2p/src/**"
-      - "monitor/src/**"
-      - "workflows/src/**"
+      - "utils/src/**"
+      - "executor/src/**"
       # Cargo in each member
       - "compute/Cargo.toml"
       - "p2p/Cargo.toml"
-      - "workflows/Cargo.toml"
-      - "monitor/Cargo.toml"
+      - "utils/Cargo.toml"
+      - "executor/Cargo.toml"
       # root-level Cargo
-      - "Cargo.lock"
+      - "Cargo.toml"
       # workflow itself
       - ".github/workflows/tests.yml"
   workflow_dispatch:

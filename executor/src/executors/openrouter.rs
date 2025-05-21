@@ -33,18 +33,16 @@ impl OpenRouterClient {
         }
 
         let agent = model.build();
-
         agent.chat(task.prompt, task.chat_history).await
     }
 
     /// Checks if the API key exists.
-    pub async fn check(&self, models: &mut HashSet<Model>) {
+    pub async fn check(&self, models: &mut HashSet<Model>) -> Result<()> {
         let mut models_to_remove = Vec::new();
         log::info!("Checking OpenRouter API key");
 
         // make a dummy request with existing models
         for model in models.iter().cloned() {
-            // make a dummy request
             if let Err(err) = self
                 .execute(TaskBody::new_prompt("What is 2 + 2?", model))
                 .await
@@ -58,6 +56,8 @@ impl OpenRouterClient {
         for model in models_to_remove.iter() {
             models.remove(model);
         }
+
+        Ok(())
     }
 }
 
@@ -70,7 +70,7 @@ mod tests {
     async fn test_openrouter_check() {
         let _ = env_logger::builder()
             .filter_level(log::LevelFilter::Off)
-            .filter_module("dkn_workflows", log::LevelFilter::Debug)
+            .filter_module("dkn_executor", log::LevelFilter::Debug)
             .is_test(true)
             .try_init();
         let _ = dotenvy::dotenv(); // read api key
@@ -78,11 +78,11 @@ mod tests {
         let initial_models = [Model::OR3_5Sonnet, Model::OR3_7Sonnet];
         let mut models = HashSet::from_iter(initial_models);
         let config = OpenRouterClient::from_env().unwrap();
-        config.check(&mut models).await;
+        config.check(&mut models).await.unwrap();
         assert_eq!(models.len(), initial_models.len());
 
         // create with a bad api key
         let config = OpenRouterClient::new("i-dont-work");
-        config.check(&mut HashSet::new()).await; // should not panic
+        config.check(&mut HashSet::new()).await.unwrap(); // should not panic
     }
 }

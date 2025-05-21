@@ -2,7 +2,7 @@ use enum_iterator::Sequence;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Deserialize, Serialize, Sequence)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize, Sequence)]
 pub enum Model {
     // Ollama models
     /// [Meta's Llama3.1](https://ollama.com/library/llama3.1:8b-instruct-q4_K_M)
@@ -53,22 +53,6 @@ pub enum Model {
 }
 
 impl Model {
-    /// Returns whether the model supports tool calling.
-    #[deprecated]
-    pub fn supports_tool_calling(&self) -> bool {
-        match self {
-            // OpenAI models that support tool calling
-            Model::GPT4o | Model::GPT4oMini => true,
-            // others do not, by default
-            _ => false,
-        }
-    }
-
-    /// Returns whether the model supports reasoning.
-    pub fn has_reasoning(&self) -> bool {
-        false
-    }
-
     /// Returns an iterator over all models.
     #[inline(always)]
     pub fn all() -> impl Iterator<Item = Model> {
@@ -113,16 +97,18 @@ impl TryFrom<String> for Model {
 
 impl TryFrom<&str> for Model {
     type Error = String;
+
+    /// Tries to parse the given `str` into a `Model`.
+    /// On failure, returns the original string back as the `Err` value.
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         // serde requires quotes (for JSON)
-        serde_json::from_str::<Self>(&format!("\"{}\"", value))
-            .map_err(|e| format!("Model {} invalid: {}", value, e))
+        serde_json::from_str::<Self>(&format!("\"{}\"", value)).map_err(|_| value.to_string())
     }
 }
 
 /// A model provider is a service that hosts the chosen Model.
 /// It can be derived from the model name, e.g. GPT4o is hosted by OpenAI (via API), or Phi3 is hosted by Ollama (locally).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize, Sequence)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize, Sequence)]
 pub enum ModelProvider {
     #[serde(rename = "ollama")]
     Ollama,
@@ -145,6 +131,19 @@ impl ModelProvider {
     #[inline]
     pub fn models(&self) -> impl Iterator<Item = Model> + '_ {
         Model::all_with_provider(self)
+    }
+
+    /// Returns whether the provider is batchable
+    /// (can be executed concurrently) or not.
+    pub fn is_batchable(&self) -> bool {
+        match self {
+            // ollama models are not batchable
+            ModelProvider::Ollama => false,
+            // api-based providers are batchable
+            ModelProvider::OpenAI => true,
+            ModelProvider::Gemini => true,
+            ModelProvider::OpenRouter => true,
+        }
     }
 }
 

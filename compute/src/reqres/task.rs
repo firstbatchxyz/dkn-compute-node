@@ -1,8 +1,8 @@
 use colored::Colorize;
+use dkn_executor::TaskBody;
 use dkn_p2p::libp2p::request_response::ResponseChannel;
 use dkn_utils::payloads::{TaskRequestPayload, TaskResponsePayload, TaskStats, TASK_RESULT_TOPIC};
 use dkn_utils::DriaMessage;
-use dkn_workflows::{Executor, ModelProvider, TaskWorkflow};
 use eyre::{Context, Result};
 
 use crate::workers::task::*;
@@ -16,7 +16,6 @@ impl super::IsResponder for TaskResponder {
 }
 
 impl TaskResponder {
-    /// Handles the compute message for workflows.
     pub(crate) async fn prepare_worker_input(
         node: &mut DriaComputeNode,
         compute_message: &DriaMessage,
@@ -24,56 +23,41 @@ impl TaskResponder {
     ) -> Result<(TaskWorkerInput, TaskWorkerMetadata)> {
         // parse payload
         let task = compute_message
-            .parse_payload::<TaskRequestPayload<TaskWorkflow>>()
+            .parse_payload::<TaskRequestPayload<TaskBody>>()
             .wrap_err("could not parse workflow task")?;
-        log::info!("Handling task {}", task.task_id);
+        log::info!("Handling task {}", task.row_id);
 
         // record received time
         let stats = TaskStats::new().record_received_at();
 
-        // read model / provider from the task
-        let model = node
-            .config
-            .workflows
-            .get_any_matching_model(vec![task.input.model])?; // FIXME: dont use vector here
-        let model_name = model.to_string(); // get model name, we will pass it in payload
         log::info!(
-            "Using model {} for task {}/{}",
-            model_name,
-            task.file_id,
-            task.task_id
+            "Using model {} for {} {}",
+            task.input.model.to_string().yellow(),
+            "task".yellow(),
+            task.row_id
         );
+        let task_body = task.input;
 
-        // prepare workflow executor
-        let (executor, batchable) = if model.provider() == ModelProvider::Ollama {
-            (
-                Executor::new_at(
-                    model,
-                    &node.config.workflows.ollama.host,
-                    node.config.workflows.ollama.port,
-                ),
-                false,
-            )
-        } else {
-            (Executor::new(model), true)
-        };
-
-        // get workflow as well
-        let workflow = task.input.workflow;
-
-        let task_input = TaskWorkerInput {
-            executor,
-            workflow,
-            row_id: task.row_id,
-            stats,
-            batchable,
-        };
+        // check if the model is available in this node, if so
+        // it will return an executor that can run this model
+        let executor = node
+            .config
+            .executors
+            .get_executor(&task_body.model)
+            .await
+            .wrap_err("could not get an executor")?;
 
         let task_metadata = TaskWorkerMetadata {
             task_id: task.task_id,
             file_id: task.file_id,
-            model_name,
+            model_name: task_body.model.to_string(),
             channel,
+        };
+        let task_input = TaskWorkerInput {
+            executor,
+            task: task_body,
+            row_id: task.row_id,
+            stats,
         };
 
         Ok((task_input, task_metadata))

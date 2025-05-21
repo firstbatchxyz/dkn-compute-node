@@ -114,7 +114,7 @@ impl DriaComputeNode {
 
         let (task_input, task_metadata) =
             TaskResponder::prepare_worker_input(self, &task_request, channel).await?;
-        if let Err(e) = match task_input.batchable {
+        if let Err(e) = match task_input.task.is_batchable() {
             // this is a batchable task, send it to batch worker
             // and keep track of the task id in pending tasks
             true => match self.task_request_batch_tx {

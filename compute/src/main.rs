@@ -1,5 +1,5 @@
 use dkn_compute::*;
-use dkn_workflows::DriaWorkflowsConfig;
+use dkn_executor::{DriaExecutorsManager, Model};
 use eyre::Result;
 use std::env;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
@@ -17,7 +17,7 @@ async fn main() -> Result<()> {
         .filter_module("dkn_compute", log::LevelFilter::Info)
         .filter_module("dkn_p2p", log::LevelFilter::Info)
         .filter_module("dkn_utils", log::LevelFilter::Info)
-        .filter_module("dkn_workflows", log::LevelFilter::Info)
+        .filter_module("dkn_executor", log::LevelFilter::Info)
         .filter_module("libp2p", log::LevelFilter::Error)
         .parse_default_env() // reads RUST_LOG variable
         .init();
@@ -68,23 +68,29 @@ async fn main() -> Result<()> {
         task_tracker_to_close.close();
     });
 
-    // create configurations & check required services & address in use
-    let workflows_config =
-        DriaWorkflowsConfig::new_from_csv(&env::var("DKN_MODELS").unwrap_or_default());
-    if workflows_config.models.is_empty() {
+    // create configurations
+    let model_names = dkn_utils::split_csv_line(&env::var("DKN_MODELS").unwrap_or_default())
+        .into_iter()
+        .filter_map(|s| Model::try_from(s.as_str()).ok())
+        .collect::<Vec<_>>();
+    let executors_config = DriaExecutorsManager::new_from_env_for_models(model_names)?;
+    if executors_config.models.is_empty() {
         return Err(eyre::eyre!("No models were provided, make sure to restart with at least one model provided within DKN_MODELS."));
     }
 
-    log::info!("Configured models: {:?}", workflows_config.models);
-    let mut config = DriaComputeNodeConfig::new(workflows_config);
+    log::info!(
+        "Initial provided models are: {}",
+        executors_config.get_model_names().join(", ")
+    );
+    let mut config = DriaComputeNodeConfig::new(executors_config);
+
+    // check address in use
     config.assert_address_not_in_use()?;
+
     // check services & models, will exit if there is an error
     // since service check can take time, we allow early-exit here as well
-    //
-    // NOTE: to test for erroneous compute nodes, you can simply disable this check
-    // and use a bad API key for the model you want to test
     tokio::select! {
-        result = config.workflows.check_services() => result,
+        result = config.executors.check_services() => result,
         _ = cancellation.cancelled() => {
             log::info!("Service check cancelled, exiting.");
             return Ok(());
@@ -92,7 +98,7 @@ async fn main() -> Result<()> {
     }?;
     log::warn!(
         "Using models: {}",
-        config.workflows.get_model_names().join(", ")
+        config.executors.get_model_names().join(", ")
     );
 
     // create the node
@@ -110,7 +116,7 @@ async fn main() -> Result<()> {
             "batch size too large"
         );
         log::info!(
-            "Spawning workflows batch worker thread. (batch size {})",
+            "Spawning batch executor worker thread. (batch size {})",
             batch_size
         );
         task_tracker.spawn(async move { worker_batch.run_batch(batch_size).await });
@@ -118,7 +124,7 @@ async fn main() -> Result<()> {
 
     // spawn single worker thread if we are using such models (e.g. Ollama)
     if let Some(mut worker_single) = worker_single {
-        log::info!("Spawning workflows single worker thread.");
+        log::info!("Spawning single executor worker thread.");
         task_tracker.spawn(async move { worker_single.run_series().await });
     }
 
