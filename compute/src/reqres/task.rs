@@ -21,15 +21,51 @@ impl TaskResponder {
         compute_message: &DriaMessage,
         channel: ResponseChannel<Vec<u8>>,
     ) -> Result<(TaskWorkerInput, TaskWorkerMetadata)> {
+        // parse this in two-steps so that if something goes wrong we know the task id
         let task = compute_message
-            .parse_payload::<TaskRequestPayload<TaskBody>>()
-            .wrap_err("could not parse task payload")?;
+            .parse_payload::<TaskRequestPayload<serde_json::Value>>()
+            .wrap_err("could not parse task request payload")?;
+        let task_body = match serde_json::from_value::<TaskBody>(task.input)
+            .wrap_err("could not parse task body")
+        {
+            Ok(task_body) => task_body,
+            Err(err) => {
+                let err_string = format!("{:#}", err);
+                log::error!(
+                    "Task {}/{} failed due to parsing error: {}",
+                    task.file_id,
+                    task.task_id,
+                    err_string
+                );
+
+                // prepare error payload
+                let error_payload = TaskResponsePayload {
+                    result: None,
+                    error: Some(err_string),
+                    row_id: task.row_id,
+                    file_id: task.file_id,
+                    task_id: task.task_id,
+                    model: Default::default(),
+                    stats: TaskStats::new(),
+                };
+
+                let error_payload_str = serde_json::to_string(&error_payload)
+                    .wrap_err("could not serialize payload")?;
+
+                // respond through the channel to notify about the parsing error
+                let response = node.new_message(error_payload_str, TASK_RESULT_TOPIC);
+                node.p2p.respond(response.into(), channel).await?;
+
+                return Err(err);
+            }
+        };
+
         let stats = TaskStats::new().record_received_at();
         log::info!(
             "Handling {} {} with model {}",
             "task".yellow(),
             task.row_id,
-            task.input.model.to_string().yellow()
+            task_body.model.to_string().yellow()
         );
 
         // check if the model is available in this node, if so
@@ -37,19 +73,19 @@ impl TaskResponder {
         let executor = node
             .config
             .executors
-            .get_executor(&task.input.model)
+            .get_executor(&task_body.model)
             .await
             .wrap_err("could not get an executor")?;
 
         let task_metadata = TaskWorkerMetadata {
             task_id: task.task_id,
             file_id: task.file_id,
-            model_name: task.input.model.to_string(),
+            model_name: task_body.model.to_string(),
             channel,
         };
         let task_input = TaskWorkerInput {
             executor,
-            task: task.input,
+            task: task_body,
             row_id: task.row_id,
             stats,
         };
