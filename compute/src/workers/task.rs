@@ -10,7 +10,7 @@ use uuid::Uuid;
 /// This is put into a map before execution, and then removed after the task is done.
 pub struct TaskWorkerMetadata {
     pub model_name: String,
-    pub task_id: Uuid,
+    pub task_id: String,
     pub file_id: Uuid,
     /// If for any reason this object is dropped before `channel` is responded to,
     /// the task will be lost and the channel will be abruptly closed, causing an error on

@@ -12,15 +12,18 @@ pub const TASK_RESULT_TOPIC: &str = "results";
 /// `result` and `error` are mutually-exclusive, only one of them can be `Some`:
 /// - if `result` is `Some`, then it contains the result.
 /// - if `error` is `Some`, then it contains the error message.
+///
+/// Each task belongs to a file (uniquely identified by `file_id`), and has a unique identifier (`row_id`).
+/// THe `task_id` is a custom identifier given by a user.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskResponsePayload {
-    /// The unique identifier of the task.
-    pub row_id: Uuid,
-    /// The custom identifier of the task.
-    pub task_id: Uuid,
     /// The file that this task is associated with.
     pub file_id: Uuid,
+    /// The unique identifier of the task.
+    pub row_id: Uuid,
+    /// The custom identifier of the task, not necessarily unique.
+    pub task_id: String,
     /// Name of the model used for this task.
     pub model: String,
     /// Stats about the task execution.
@@ -38,15 +41,18 @@ pub struct TaskResponsePayload {
 }
 
 /// A generic task request, given by Dria.
+///
+/// Each task belongs to a file (uniquely identified by `file_id`), and has a unique identifier (`row_id`).
+/// THe `task_id` is a custom identifier given by a user.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskRequestPayload<T> {
-    /// The unique identifier of the task.
-    pub row_id: Uuid,
-    /// The unique identifier of the task.
-    pub task_id: Uuid,
     /// The file that this task is associated with.
     pub file_id: Uuid,
+    /// The unique identifier of the task.
+    pub row_id: Uuid,
+    /// The custom identifier of the task, not necessarily unique.
+    pub task_id: String,
     /// The input to the compute function.
     pub input: T,
 }
