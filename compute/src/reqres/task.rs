@@ -32,7 +32,8 @@ impl TaskResponder {
             Err(err) => {
                 let err_string = format!("{:#}", err);
                 log::error!(
-                    "Task {} failed due to parsing error: {}",
+                    "Task {}/{} failed due to parsing error: {}",
+                    task.file_id,
                     task.row_id,
                     err_string
                 );
@@ -102,8 +103,9 @@ impl TaskResponder {
             Ok(result) => {
                 // prepare signed and encrypted payload
                 log::info!(
-                    "Publishing {} result for {}",
+                    "Publishing {} result for {}/{}",
                     "task".yellow(),
+                    task_metadata.file_id,
                     task_output.row_id
                 );
 
@@ -129,7 +131,12 @@ impl TaskResponder {
             Err(err) => {
                 // use pretty display string for error logging with causes
                 let err_string = format!("{:#}", err);
-                log::error!("Task {} failed: {}", task_output.row_id, err_string);
+                log::error!(
+                    "Task {}/{} failed: {}",
+                    task_metadata.file_id,
+                    task_output.row_id,
+                    err_string
+                );
 
                 // prepare error payload
                 let error_payload = TaskResponsePayload {
