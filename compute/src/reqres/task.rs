@@ -34,7 +34,7 @@ impl TaskResponder {
                 log::error!(
                     "Task {}/{} failed due to parsing error: {}",
                     task.file_id,
-                    task.task_id,
+                    task.row_id,
                     err_string
                 );
 
@@ -106,7 +106,7 @@ impl TaskResponder {
                     "Publishing {} result for {}/{}",
                     "task".yellow(),
                     task_metadata.file_id,
-                    task_metadata.task_id
+                    task_output.row_id
                 );
 
                 // TODO: will get better token count from `TaskWorkerOutput`
@@ -134,7 +134,7 @@ impl TaskResponder {
                 log::error!(
                     "Task {}/{} failed: {}",
                     task_metadata.file_id,
-                    task_metadata.task_id,
+                    task_output.row_id,
                     err_string
                 );
 
