@@ -78,9 +78,8 @@ pub enum TaskError {
         /// Can be a provider name, or RPC etc.
         provider: String,
     },
-    /// A network-related error from the client.
-    #[error("HTTP error: {0}")]
     /// This is a generic HTTP error, not necessarily related to the provider.
+    #[error("HTTP error: {0}")]
     HttpError(String),
     /// Any other executor error that is not a provider error.
     #[error("Executor error: {0}")]
