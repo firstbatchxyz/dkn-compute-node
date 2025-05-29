@@ -63,7 +63,7 @@ pub enum TaskError {
     #[error("Parse error: {0}")]
     ParseError(String),
     /// An error returned from the model provider.
-    #[error("Provider error: {code} - {message} (source: {provider})")]
+    #[error("{provider} error ({code}): {message}")]
     ProviderError {
         /// Not necessarily an HTTP status code, but a code that the provider uses to identify the error.
         ///
@@ -78,6 +78,10 @@ pub enum TaskError {
         /// Can be a provider name, or RPC etc.
         provider: String,
     },
+    /// A network-related error from the client.
+    #[error("HTTP error: {0}")]
+    /// This is a generic HTTP error, not necessarily related to the provider.
+    HttpError(String),
     /// Any other executor error that is not a provider error.
     #[error("Executor error: {0}")]
     ExecutorError(String),

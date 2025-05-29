@@ -38,13 +38,9 @@ impl DriaExecutor {
     pub async fn execute(&self, task: crate::TaskBody) -> Result<String, PromptError> {
         match self {
             DriaExecutor::Ollama(provider) => provider.execute(task).await,
-            // .map_err(|e| map_prompt_error(&ModelProvider::Ollama, e)),
             DriaExecutor::OpenAI(provider) => provider.execute(task).await,
-            // .map_err(|e| map_prompt_error(&ModelProvider::OpenAI, e)),
             DriaExecutor::Gemini(provider) => provider.execute(task).await,
-            // .map_err(|e| map_prompt_error(&ModelProvider::Gemini, e)),
             DriaExecutor::OpenRouter(provider) => provider.execute(task).await,
-            // .map_err(|e| map_prompt_error(&ModelProvider::OpenRouter, e)),
         }
     }
 
