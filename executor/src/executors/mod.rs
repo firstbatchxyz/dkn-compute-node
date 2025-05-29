@@ -1,5 +1,9 @@
+use crate::ModelProvider;
 use rig::completion::PromptError;
 use std::collections::HashSet;
+
+mod errors;
+pub use errors::DriaExecutorError;
 
 mod ollama;
 use ollama::OllamaClient;
@@ -12,18 +16,6 @@ use gemini::GeminiClient;
 
 mod openrouter;
 use openrouter::OpenRouterClient;
-
-use crate::{Model, ModelProvider};
-
-#[derive(Debug, thiserror::Error)]
-pub enum DriaExecutorError {
-    #[error("Model {0} is not a valid model.")]
-    InvalidModel(String),
-    #[error("Model {0} not found in your configuration.")]
-    ModelNotSupported(Model),
-    #[error("Provider {0} not found in your configuration")]
-    ProviderNotSupported(ModelProvider),
-}
 
 /// A wrapper enum for all model providers.
 #[derive(Clone)]
@@ -49,9 +41,13 @@ impl DriaExecutor {
     pub async fn execute(&self, task: crate::TaskBody) -> Result<String, PromptError> {
         match self {
             DriaExecutor::Ollama(provider) => provider.execute(task).await,
+            // .map_err(|e| map_prompt_error(&ModelProvider::Ollama, e)),
             DriaExecutor::OpenAI(provider) => provider.execute(task).await,
+            // .map_err(|e| map_prompt_error(&ModelProvider::OpenAI, e)),
             DriaExecutor::Gemini(provider) => provider.execute(task).await,
+            // .map_err(|e| map_prompt_error(&ModelProvider::Gemini, e)),
             DriaExecutor::OpenRouter(provider) => provider.execute(task).await,
+            // .map_err(|e| map_prompt_error(&ModelProvider::OpenRouter, e)),
         }
     }
 
