@@ -33,11 +33,11 @@ pub struct TaskResponsePayload {
     /// If this is `None`, the task failed, and you should check the `error` field.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<String>,
-    /// An error message, if any.
+    /// An error, if any.
     ///
     /// If this is `Some`, you can ignore the `result` field.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<String>,
+    pub error: Option<TaskError>,
 }
 
 /// A generic task request, given by Dria.
@@ -55,6 +55,35 @@ pub struct TaskRequestPayload<T> {
     pub task_id: String,
     /// The input to the compute function.
     pub input: T,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum TaskError {
+    /// A parse error occurred while parsing the task request or response.
+    ParseError(String),
+    /// An error returned from the model provider.
+    ProviderError {
+        /// Not necessarily an HTTP status code, but a code that the provider uses to identify the error.
+        ///
+        /// For example, OpenAI uses a string code like "invalid_request_error".
+        code: String,
+        /// The error message returned by the provider.
+        ///
+        /// May contain additional information about the error.
+        message: String,
+        /// The source of the error.
+        ///
+        /// Can be a provider name, or RPC etc.
+        provider: String,
+    },
+    /// The task request had failed for some network reason.
+    OutboundRequestError {
+        code: String,
+        /// The error message returned by the network.
+        message: String,
+    },
+    /// An error that returned by executor.
+    Other(String),
 }
 
 /// Task stats for diagnostics.
