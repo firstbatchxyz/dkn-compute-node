@@ -1,6 +1,5 @@
+use crate::{executors::DriaExecutor, Model, ModelProvider};
 use std::collections::{HashMap, HashSet};
-
-use crate::{executors::DriaExecutor, DriaExecutorError, Model, ModelProvider};
 
 #[derive(Clone)]
 pub struct DriaExecutorsManager {
@@ -53,17 +52,17 @@ impl DriaExecutorsManager {
     ///
     /// If the model's provider is not supported, an error is returned.
     /// Likewise, if the provider is supported but the model is not, an error is returned.
-    pub async fn get_executor(&self, model: &Model) -> Result<DriaExecutor, DriaExecutorError> {
+    pub async fn get_executor(&self, model: &Model) -> eyre::Result<DriaExecutor> {
         let provider = model.provider();
         let (executor, models) = self
             .providers
-            .get(&model.provider())
-            .ok_or(DriaExecutorError::ProviderNotSupported(provider))?;
+            .get(&provider)
+            .ok_or_else(|| eyre::eyre!("Provider {provider} supported by this executor"))?;
 
         if models.contains(model) {
             Ok(executor.clone())
         } else {
-            Err(DriaExecutorError::ModelNotSupported(*model))
+            Err(eyre::eyre!("Model {model} not supported by this executor"))
         }
     }
 

@@ -24,7 +24,7 @@ impl DriaBehaviour {
 
 /// Configures the request-response behaviour for the node.
 ///
-/// The protocol supports bytes only,
+/// The protocol supports bytes only.
 #[inline]
 fn create_request_response_behaviour(
     protocol_name: StreamProtocol,

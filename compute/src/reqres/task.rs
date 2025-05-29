@@ -70,12 +70,7 @@ impl TaskResponder {
 
         // check if the model is available in this node, if so
         // it will return an executor that can run this model
-        let executor = node
-            .config
-            .executors
-            .get_executor(&task_body.model)
-            .await
-            .wrap_err("could not get an executor")?;
+        let executor = node.config.executors.get_executor(&task_body.model).await?;
 
         let task_metadata = TaskWorkerMetadata {
             task_id: task.task_id,

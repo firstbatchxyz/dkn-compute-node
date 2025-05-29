@@ -2,9 +2,6 @@ use crate::ModelProvider;
 use rig::completion::PromptError;
 use std::collections::HashSet;
 
-mod errors;
-pub use errors::DriaExecutorError;
-
 mod ollama;
 use ollama::OllamaClient;
 
