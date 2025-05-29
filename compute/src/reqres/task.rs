@@ -134,7 +134,10 @@ impl TaskResponder {
                 // prepare error payload
                 let error_payload = TaskResponsePayload {
                     result: None,
-                    error: Some(map_prompt_error(task_metadata.model.provider(), err)),
+                    error: Some(map_prompt_error_to_task_error(
+                        task_metadata.model.provider(),
+                        err,
+                    )),
                     row_id: task_output.row_id,
                     file_id: task_metadata.file_id,
                     task_id: task_metadata.task_id,
@@ -160,8 +163,8 @@ impl TaskResponder {
     }
 }
 
-/// Maps a [`PromptError`] to a [`DriaExecutorError`] with respect to the given provider.
-fn map_prompt_error(provider: ModelProvider, err: PromptError) -> TaskError {
+/// Maps a [`PromptError`] to a [`TaskError`] with respect to the given provider.
+fn map_prompt_error_to_task_error(provider: ModelProvider, err: PromptError) -> TaskError {
     if let PromptError::CompletionError(CompletionError::ProviderError(err_inner)) = &err {
         /// A wrapper for `{ error: T }` to match the provider error format.
         #[derive(Clone, serde::Deserialize)]
@@ -254,7 +257,7 @@ fn map_prompt_error(provider: ModelProvider, err: PromptError) -> TaskError {
             ),
         }
         // if we couldn't parse it, just return a generic prompt error
-        .unwrap_or(TaskError::Other(err.to_string()))
+        .unwrap_or(TaskError::ExecutorError(err_inner.clone()))
     } else {
         // not a provider error, fallback to generic prompt error
         TaskError::Other(err.to_string())

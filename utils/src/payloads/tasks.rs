@@ -57,11 +57,13 @@ pub struct TaskRequestPayload<T> {
     pub input: T,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, thiserror::Error)]
 pub enum TaskError {
     /// A parse error occurred while parsing the task request or response.
+    #[error("Parse error: {0}")]
     ParseError(String),
     /// An error returned from the model provider.
+    #[error("Provider error: {code} - {message} (source: {provider})")]
     ProviderError {
         /// Not necessarily an HTTP status code, but a code that the provider uses to identify the error.
         ///
@@ -76,13 +78,18 @@ pub enum TaskError {
         /// Can be a provider name, or RPC etc.
         provider: String,
     },
+    /// Any other executor error that is not a provider error.
+    #[error("Executor error: {0}")]
+    ExecutorError(String),
     /// The task request had failed for some network reason.
+    #[error("Outbound request error: {code} - {message}")]
     OutboundRequestError {
         code: String,
         /// The error message returned by the network.
         message: String,
     },
-    /// An error that returned by executor.
+    /// Any other error
+    #[error("Other error: {0}")]
     Other(String),
 }
 
