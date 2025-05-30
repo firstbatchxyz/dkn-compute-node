@@ -1,3 +1,5 @@
+use dkn_utils::payloads::SpecModelPerformance;
+
 use crate::{executors::DriaExecutor, Model, ModelProvider};
 use std::collections::{HashMap, HashSet};
 
@@ -88,12 +90,14 @@ impl DriaExecutorsManager {
     ///
     /// In the end, bad models are filtered out and we simply check if we are left if any valid models at all.
     /// If there are no models left in the end, an error is thrown.
-    pub async fn check_services(&mut self) -> eyre::Result<()> {
+    pub async fn check_services(&mut self) -> eyre::Result<HashMap<Model, SpecModelPerformance>> {
         log::info!("Checking configured services.");
 
-        // check all configured providers
+        // check all configured providers & record model performances
+        let mut model_perf = HashMap::new();
         for (client, models) in self.providers.values_mut() {
-            client.check(models).await?;
+            let provider_model_perf = client.check(models).await?;
+            model_perf.extend(provider_model_perf);
         }
 
         // obtain the final list of providers & models, removing the providers with no models left
@@ -113,6 +117,6 @@ impl DriaExecutorsManager {
             eyre::bail!("No good models found, please check logs for errors.")
         }
 
-        Ok(())
+        Ok(model_perf)
     }
 }

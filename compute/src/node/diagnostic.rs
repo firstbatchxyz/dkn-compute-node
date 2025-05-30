@@ -85,9 +85,10 @@ impl DriaComputeNode {
 
     /// Dials the existing RPC node if we are not connected to it.
     ///
-    /// If there is an error while doing that,
-    /// it will try to get a new RPC node and dial it.
-    pub(crate) async fn handle_rpc_liveness_check(&mut self) {
+    /// If there is an error while doing that, it will try to get a new RPC node and dial it.
+    ///
+    /// Returns `true` if the RPC is connected, `false` otherwise.
+    pub(crate) async fn handle_rpc_liveness_check(&mut self) -> bool {
         log::debug!("Checking RPC connections for diagnostics.");
 
         // check if we are connected
@@ -124,6 +125,9 @@ impl DriaComputeNode {
         } else {
             log::debug!("Connection with {} is intact.", self.dria_rpc.peer_id);
         }
+
+        // return the connection status
+        is_connected
     }
 
     /// Updates the points for the given address.

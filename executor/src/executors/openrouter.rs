@@ -1,5 +1,6 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
+use dkn_utils::payloads::SpecModelPerformance;
 use eyre::Result;
 use rig::completion::{Chat, PromptError};
 use rig::providers::openrouter;
@@ -37,8 +38,12 @@ impl OpenRouterClient {
     }
 
     /// Checks if the API key exists.
-    pub async fn check(&self, models: &mut HashSet<Model>) -> Result<()> {
+    pub async fn check(
+        &self,
+        models: &mut HashSet<Model>,
+    ) -> Result<HashMap<Model, SpecModelPerformance>> {
         let mut models_to_remove = Vec::new();
+        let mut model_performances = HashMap::new();
         log::info!("Checking OpenRouter API key");
 
         // make a dummy request with existing models
@@ -49,7 +54,12 @@ impl OpenRouterClient {
             {
                 log::warn!("Model {} failed dummy request, ignoring it: {}", model, err);
                 models_to_remove.push(model);
+                model_performances.insert(model, SpecModelPerformance::ExecutionFailed);
+                continue;
             }
+
+            // record the model performance
+            model_performances.insert(model, SpecModelPerformance::Passed);
         }
 
         // remove models that failed the dummy request
@@ -57,7 +67,7 @@ impl OpenRouterClient {
             models.remove(model);
         }
 
-        Ok(())
+        Ok(model_performances)
     }
 }
 

@@ -1,5 +1,5 @@
 use colored::Colorize;
-use dkn_executor::{DriaExecutor, TaskBody};
+use dkn_executor::{DriaExecutor, Model, TaskBody};
 use dkn_p2p::libp2p::request_response::ResponseChannel;
 use dkn_utils::payloads::TaskStats;
 use tokio::sync::mpsc;
@@ -9,7 +9,7 @@ use uuid::Uuid;
 ///
 /// This is put into a map before execution, and then removed after the task is done.
 pub struct TaskWorkerMetadata {
-    pub model_name: String,
+    pub model: Model,
     pub task_id: String,
     pub file_id: Uuid,
     /// If for any reason this object is dropped before `channel` is responded to,

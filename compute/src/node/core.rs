@@ -76,7 +76,16 @@ impl DriaComputeNode {
                 _ = diagnostic_refresh_interval.tick() => self.handle_diagnostic_refresh().await,
 
                 // check RPC, and get a new one if we are disconnected
-                _ = rpc_liveness_refresh_interval.tick() => self.handle_rpc_liveness_check().await,
+                _ = rpc_liveness_refresh_interval.tick() => {
+                    let is_connected = self.handle_rpc_liveness_check().await;
+                    if !is_connected {
+                        // make sure we reset the heartbeat and specs intervals so that
+                        // we dont wait the entire duration for this new connection
+                        log::info!("Connecting was re-attempted, resetting timers.");
+                        heartbeat_interval.reset_after(Duration::from_secs(5));
+                        specs_interval.reset_after(Duration::from_secs(5));
+                    }
+                },
 
                 // log points every now and then
                 _ = points_refresh_interval.tick() => self.handle_points_refresh().await,

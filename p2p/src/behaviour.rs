@@ -47,5 +47,7 @@ fn create_identify_behaviour(
 ) -> identify::Behaviour {
     use identify::{Behaviour, Config};
 
-    Behaviour::new(Config::new(protocol_version, local_public_key))
+    Behaviour::new(
+        Config::new(protocol_version, local_public_key).with_push_listen_addr_updates(true),
+    )
 }

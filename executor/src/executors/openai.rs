@@ -1,5 +1,6 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
+use dkn_utils::payloads::SpecModelPerformance;
 use eyre::{eyre, Context, Result};
 use reqwest::Client;
 use rig::{
@@ -46,8 +47,12 @@ impl OpenAIClient {
     }
 
     /// Returns the list of model names available to this account.
-    pub async fn check(&self, models: &mut HashSet<Model>) -> Result<()> {
+    pub async fn check(
+        &self,
+        models: &mut HashSet<Model>,
+    ) -> Result<HashMap<Model, SpecModelPerformance>> {
         let mut models_to_remove = Vec::new();
+        let mut model_performances = HashMap::new();
         log::info!("Checking OpenAI requirements");
 
         // check if models exist within the account and select those that are available
@@ -60,7 +65,10 @@ impl OpenAIClient {
                     model
                 );
                 models_to_remove.push(model);
-            } else
+                model_performances.insert(model, SpecModelPerformance::NotFound);
+                continue;
+            }
+
             // if it exists, make a dummy request
             if let Err(err) = self
                 .execute(TaskBody::new_prompt("What is 2 + 2?", model))
@@ -68,7 +76,12 @@ impl OpenAIClient {
             {
                 log::warn!("Model {} failed dummy request, ignoring it: {}", model, err);
                 models_to_remove.push(model);
+                model_performances.insert(model, SpecModelPerformance::ExecutionFailed);
+                continue;
             }
+
+            // record the performance of the model
+            model_performances.insert(model, SpecModelPerformance::Passed);
         }
 
         // remove models that are not available
@@ -83,7 +96,7 @@ impl OpenAIClient {
             log::info!("OpenAI checks are finished, using models: {:#?}", models);
         }
 
-        Ok(())
+        Ok(model_performances)
     }
 
     /// Fetches the list of models available in the OpenAI account.

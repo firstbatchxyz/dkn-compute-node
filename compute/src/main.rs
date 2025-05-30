@@ -86,21 +86,27 @@ async fn main() -> Result<()> {
 
     // check services & models, will exit if there is an error
     // since service check can take time, we allow early-exit here as well
-    tokio::select! {
+    let model_perf = tokio::select! {
         result = config.executors.check_services() => result,
         _ = cancellation.cancelled() => {
             log::info!("Service check cancelled, exiting.");
             return Ok(());
         }
     }?;
-    log::warn!(
-        "Using models: {}",
-        config.executors.get_model_names().join(", ")
+    log::info!(
+        "Using models: {}\n{}",
+        config.executors.get_model_names().join(", "),
+        model_perf
+            .iter()
+            .map(|(model, perf)| format!("{}: {}", model, perf))
+            .collect::<Vec<_>>()
+            .join("\n")
     );
 
     // create the node
     let batch_size = config.batch_size;
-    let (mut node, p2p, worker_batch, worker_single) = DriaComputeNode::new(config).await?;
+    let (mut node, p2p, worker_batch, worker_single) =
+        DriaComputeNode::new(config, model_perf).await?;
 
     // spawn p2p client first
     log::info!("Spawning peer-to-peer client thread.");

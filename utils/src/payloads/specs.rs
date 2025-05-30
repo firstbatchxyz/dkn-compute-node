@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 /// Topic used within [`crate::DriaMessage`] for specs messages.
@@ -10,8 +11,7 @@ pub struct SpecsRequest {
     pub specs_id: Uuid,
     /// Node specs.
     pub specs: Specs,
-    /// Address of the node, used by frontend etc.
-    /// instead of using the peer id.
+    /// Address of the node, used by frontend etc. instead of peer id.
     pub address: String,
 }
 
@@ -21,6 +21,9 @@ pub struct SpecsResponse {
     pub specs_id: Uuid,
 }
 
+/// The specs of a node, containing information about the hardware and software it runs on.
+///
+/// These are stored in a database / cache.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Specs {
     /// Total memory in bytes
@@ -39,8 +42,51 @@ pub struct Specs {
     pub lookup: Option<public_ip_address::response::LookupResponse>,
     /// Models server by this node.
     pub models: Vec<String>,
+    /// Model performance metrics, keyed by model name.
+    pub model_perf: HashMap<String, SpecModelPerformance>,
     /// Node version, e.g. `0.1.0`.
     pub version: String,
     // GPU adapter infos, showing information about the available GPUs.
     // gpus: Vec<wgpu::AdapterInfo>,
+}
+
+/// Performance metrics for a model, used in the specs.
+///
+/// These are measured at the start of the compute node, and those that are not succesfull.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum SpecModelPerformance {
+    /// Evaluation tokens per second (TPS) for the model that has passed evaluation.
+    PassedWithTPS(f64),
+    /// Evaluation tokens per second (TPS) for the model that has failed evaluation.
+    FailedWithTPS(f64),
+    /// Model has timed-out during performance evaluation.
+    ///
+    /// This can happen if the model is slow to respond or the request takes too long.
+    Timeout,
+    /// Model is not found for performance evaluation.
+    ///
+    /// Possible reasons are API key not set, or model not available in the account.
+    NotFound,
+    /// Model has failed to execute during performance evaluation.
+    ///
+    /// This can happen if the model is not available, or the request fails for some reason.
+    /// One example is OpenRouter, where sometimes models are not available even if they are listed.
+    ExecutionFailed,
+    /// Model has passed execution performance evaluation, however TPS was not available.
+    Passed,
+}
+
+impl std::fmt::Display for SpecModelPerformance {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SpecModelPerformance::PassedWithTPS(tps) => write!(f, "Passed with TPS: {tps:.3}"),
+            SpecModelPerformance::FailedWithTPS(tps) => {
+                write!(f, "Failed with TPS: {tps:.3}")
+            }
+            SpecModelPerformance::Timeout => write!(f, "Timeout"),
+            SpecModelPerformance::NotFound => write!(f, "Not Found"),
+            SpecModelPerformance::ExecutionFailed => write!(f, "Execution Failed"),
+            SpecModelPerformance::Passed => write!(f, "Passed"),
+        }
+    }
 }

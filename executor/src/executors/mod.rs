@@ -1,6 +1,7 @@
-use crate::ModelProvider;
+use crate::{Model, ModelProvider, TaskBody};
+use dkn_utils::payloads::SpecModelPerformance;
 use rig::completion::PromptError;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 mod ollama;
 use ollama::OllamaClient;
@@ -35,23 +36,22 @@ impl DriaExecutor {
     }
 
     /// Executes the given task using the appropriate provider.
-    pub async fn execute(&self, task: crate::TaskBody) -> Result<String, PromptError> {
+    pub async fn execute(&self, task: TaskBody) -> Result<String, PromptError> {
         match self {
             DriaExecutor::Ollama(provider) => provider.execute(task).await,
-            // .map_err(|e| map_prompt_error(&ModelProvider::Ollama, e)),
             DriaExecutor::OpenAI(provider) => provider.execute(task).await,
-            // .map_err(|e| map_prompt_error(&ModelProvider::OpenAI, e)),
             DriaExecutor::Gemini(provider) => provider.execute(task).await,
-            // .map_err(|e| map_prompt_error(&ModelProvider::Gemini, e)),
             DriaExecutor::OpenRouter(provider) => provider.execute(task).await,
-            // .map_err(|e| map_prompt_error(&ModelProvider::OpenRouter, e)),
         }
     }
 
     /// Checks if the requested models exist and are available in the provider's account.
     ///
     /// For Ollama in particular, it also checks if the models are performant enough.
-    pub async fn check(&self, models: &mut HashSet<crate::Model>) -> eyre::Result<()> {
+    pub async fn check(
+        &self,
+        models: &mut HashSet<Model>,
+    ) -> eyre::Result<HashMap<Model, SpecModelPerformance>> {
         match self {
             DriaExecutor::Ollama(provider) => provider.check(models).await,
             DriaExecutor::OpenAI(provider) => provider.check(models).await,
