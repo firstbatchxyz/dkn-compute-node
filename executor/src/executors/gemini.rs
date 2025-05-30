@@ -1,3 +1,4 @@
+use dkn_utils::payloads::SpecModelPerformance;
 use eyre::{eyre, Context, Result};
 use reqwest::Client;
 use rig::{
@@ -5,7 +6,7 @@ use rig::{
     providers::gemini,
 };
 use serde::Deserialize;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::{Model, TaskBody};
 
@@ -43,8 +44,12 @@ impl GeminiClient {
     }
 
     /// Check if requested models exist & are available in the OpenAI account.
-    pub async fn check(&self, models: &mut HashSet<Model>) -> Result<()> {
+    pub async fn check(
+        &self,
+        models: &mut HashSet<Model>,
+    ) -> Result<HashMap<Model, SpecModelPerformance>> {
         let mut models_to_remove = Vec::new();
+        let mut model_performances = HashMap::new();
         log::info!("Checking Gemini requirements");
 
         // check if models exist and select those that are available
@@ -61,7 +66,10 @@ impl GeminiClient {
                     requested_model
                 );
                 models_to_remove.push(requested_model);
-            } else
+                model_performances.insert(requested_model, SpecModelPerformance::NotFound);
+                continue;
+            }
+
             // make a dummy request
             if let Err(err) = self
                 .execute(TaskBody::new_prompt("What is 2 + 2?", requested_model))
@@ -73,7 +81,12 @@ impl GeminiClient {
                     err
                 );
                 models_to_remove.push(requested_model);
+                model_performances.insert(requested_model, SpecModelPerformance::ExecutionFailed);
+                continue;
             }
+
+            // record the performance of the model
+            model_performances.insert(requested_model, SpecModelPerformance::Passed);
         }
 
         // remove models that are not available
@@ -81,7 +94,7 @@ impl GeminiClient {
             models.remove(model);
         }
 
-        Ok(())
+        Ok(model_performances)
     }
 
     /// Returns the list of models available to this account.

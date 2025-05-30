@@ -812,6 +812,7 @@ dependencies = [
 name = "dkn-executor"
 version = "0.6.0"
 dependencies = [
+ "dkn-utils",
  "dotenvy",
  "enum-iterator",
  "env_logger",

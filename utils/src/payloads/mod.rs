@@ -8,4 +8,4 @@ pub use heartbeat::{HeartbeatRequest, HeartbeatResponse};
 
 mod specs;
 pub use specs::SPECS_TOPIC;
-pub use specs::{Specs, SpecsRequest, SpecsResponse};
+pub use specs::{SpecModelPerformance, Specs, SpecsRequest, SpecsResponse};

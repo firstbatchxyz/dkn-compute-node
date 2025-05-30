@@ -29,6 +29,7 @@ thiserror.workspace = true
 enum-iterator = "2.1.0"
 rig-core = "0.11.1"
 ollama-rs = { version = "0.3.0", features = ["tokio", "rustls", "stream"] }
+dkn-utils = { path = "../utils" }
 
 [dev-dependencies]
 # only used for tests

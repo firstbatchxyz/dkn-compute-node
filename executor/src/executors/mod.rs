@@ -1,4 +1,5 @@
 use crate::{Model, ModelProvider, TaskBody};
+use dkn_utils::payloads::SpecModelPerformance;
 use rig::completion::PromptError;
 use std::collections::{HashMap, HashSet};
 
@@ -50,7 +51,7 @@ impl DriaExecutor {
     pub async fn check(
         &self,
         models: &mut HashSet<Model>,
-    ) -> eyre::Result<HashMap<Model, ModelPerformanceMetric>> {
+    ) -> eyre::Result<HashMap<Model, SpecModelPerformance>> {
         match self {
             DriaExecutor::Ollama(provider) => provider.check(models).await,
             DriaExecutor::OpenAI(provider) => provider.check(models).await,
@@ -58,10 +59,4 @@ impl DriaExecutor {
             DriaExecutor::OpenRouter(provider) => provider.check(models).await,
         }
     }
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub enum ModelPerformanceMetric {
-    Latency(f64), // in seconds
-    TPS(f64),     // (eval) tokens per second
 }

@@ -1,4 +1,10 @@
-use dkn_utils::{payloads::Specs, SemanticVersion};
+use std::collections::HashMap;
+
+use dkn_executor::Model;
+use dkn_utils::{
+    payloads::{SpecModelPerformance, Specs},
+    SemanticVersion,
+};
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind};
 
 pub struct SpecCollector {
@@ -7,6 +13,8 @@ pub struct SpecCollector {
     system: sysinfo::System,
     /// Used models.
     models: Vec<String>,
+    /// Model performances
+    model_perf: HashMap<String, SpecModelPerformance>,
     /// Version string.
     version: String,
     // GPU adapter infos, showing information about the available GPUs.
@@ -20,10 +28,18 @@ pub struct SpecCollector {
 // }
 
 impl SpecCollector {
-    pub fn new(models: Vec<String>, version: SemanticVersion) -> Self {
+    pub fn new(
+        models: Vec<String>,
+        model_perf: HashMap<Model, SpecModelPerformance>,
+        version: SemanticVersion,
+    ) -> Self {
         SpecCollector {
             system: sysinfo::System::new_with_specifics(Self::get_refresh_specifics()),
             models,
+            model_perf: model_perf
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v))
+                .collect(),
             version: version.to_string(),
             // gpus: wgpu::Instance::default()
             //     .enumerate_adapters(wgpu::Backends::all())
@@ -55,6 +71,7 @@ impl SpecCollector {
             lookup: public_ip_address::perform_lookup(None).await.ok(),
             models: self.models.clone(),
             version: self.version.clone(),
+            model_perf: self.model_perf.clone(),
             // gpus: self.gpus.clone(),
         }
     }
@@ -64,13 +81,18 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_print_specs() {
+    async fn test_specs_serialization() {
         let mut spec_collector = SpecCollector::new(
-            vec!["gpt-4o".to_string()],
+            vec![Model::Gemma3_4b.to_string()],
+            HashMap::from_iter([
+                (Model::Gemma3_4b, SpecModelPerformance::PassedWithTPS(100.0)),
+                (Model::GPT4oMini, SpecModelPerformance::NotFound),
+                (Model::Gemma3_27b, SpecModelPerformance::ExecutionFailed),
+            ]),
             SemanticVersion {
-                major: 0,
-                minor: 1,
-                patch: 0,
+                major: 4,
+                minor: 5,
+                patch: 1,
             },
         );
         let specs = spec_collector.collect().await;
@@ -82,6 +104,9 @@ mod tests {
         assert!(!specs.arch.is_empty());
         assert!(specs.lookup.is_some());
         assert!(!specs.models.is_empty());
-        assert_eq!(specs.version, "0.1.0");
+        assert_eq!(specs.version, "4.5.1");
+
+        // should be serializable to JSON
+        assert!(serde_json::to_string_pretty(&specs).is_ok())
     }
 }

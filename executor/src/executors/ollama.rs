@@ -1,7 +1,9 @@
+use dkn_utils::payloads::SpecModelPerformance;
 use eyre::{Context, Result};
 use ollama_rs::generation::completion::request::GenerationRequest;
 use rig::completion::{Chat, PromptError};
 use rig::providers::ollama;
+use std::collections::HashMap;
 use std::time::Duration;
 use std::{collections::HashSet, env};
 
@@ -78,7 +80,10 @@ impl OllamaClient {
     }
 
     /// Check if requested models exist in Ollama & test them using a dummy prompt.
-    pub async fn check(&self, models: &mut HashSet<Model>) -> Result<()> {
+    pub async fn check(
+        &self,
+        models: &mut HashSet<Model>,
+    ) -> Result<HashMap<Model, SpecModelPerformance>> {
         log::info!(
             "Checking Ollama requirements (auto-pull {}, timeout: {}s, min tps: {})",
             if self.auto_pull { "on" } else { "off" },
@@ -101,6 +106,7 @@ impl OllamaClient {
         // check external models & pull them if available
         // iterate over models and remove bad ones
         let mut models_to_remove = Vec::new();
+        let mut model_performances = HashMap::new();
         for model in models.iter() {
             // pull the model if it is not in the local models
             if !local_models.contains(&model.to_string()) {
@@ -117,8 +123,13 @@ impl OllamaClient {
             }
 
             // test its performance
-            if !self.test_performance(model).await {
+            let perf = self.measure_tps_with_warmup(model).await;
+            if let SpecModelPerformance::PassedWithTPS(_) = perf {
+                model_performances.insert(*model, perf);
+            } else {
+                // if its anything but PassedWithTPS, remove the model
                 models_to_remove.push(*model);
+                model_performances.insert(*model, perf);
             }
         }
 
@@ -133,7 +144,7 @@ impl OllamaClient {
             log::info!("Ollama checks are finished, using models: {:#?}", models);
         }
 
-        Ok(())
+        Ok(model_performances)
     }
 
     /// Pulls a model from Ollama.
@@ -154,7 +165,7 @@ impl OllamaClient {
     ///
     /// This is to see if a given system can execute tasks for their chosen models,
     /// e.g. if they have enough RAM/CPU and such.
-    pub async fn test_performance(&self, model: &Model) -> bool {
+    pub async fn measure_tps_with_warmup(&self, model: &Model) -> SpecModelPerformance {
         const TEST_PROMPT: &str = "Please write a poem about Kapadokya.";
         const WARMUP_PROMPT: &str = "Write a short poem about hedgehogs and squirrels.";
 
@@ -171,44 +182,46 @@ impl OllamaClient {
             .await
         {
             log::warn!("Ignoring model {model}: {err}");
-            return false;
+            return SpecModelPerformance::ExecutionFailed;
         }
 
         // then, run a sample generation with timeout and measure tps
-        tokio::select! {
-            _ = tokio::time::sleep(PERFORMANCE_TIMEOUT) => {
-                log::warn!("Ignoring model {model}: Timed out");
-            },
-            result = self.ollama_rs_client.generate(GenerationRequest::new(
+        let Ok(result) = tokio::time::timeout(
+            PERFORMANCE_TIMEOUT,
+            self.ollama_rs_client.generate(GenerationRequest::new(
                 model.to_string(),
                 TEST_PROMPT.to_string(),
-            )) => {
-                match result {
-                    Ok(response) => {
-                        let tps = (response.eval_count.unwrap_or_default() as f64)
-                        / (response.eval_duration.unwrap_or(1) as f64)
-                        * 1_000_000_000f64;
-
-                        if tps >= PERFORMANCE_MIN_TPS {
-                            log::info!("Model {} passed the test with tps: {}", model, tps);
-                            return true;
-                        }
-
-                        log::warn!(
-                            "Ignoring model {}: tps too low ({:.3} < {:.3})",
-                            model,
-                            tps,
-                            PERFORMANCE_MIN_TPS
-                        );
-                    }
-                    Err(e) => {
-                        log::warn!("Ignoring model {}: Task failed with error {}", model, e);
-                    }
-                }
-            }
+            )),
+        )
+        .await
+        else {
+            log::warn!("Ignoring model {model}: Timed out");
+            return SpecModelPerformance::Timeout;
         };
 
-        false
+        // check the result
+        match result {
+            Ok(response) => {
+                let tps = (response.eval_count.unwrap_or_default() as f64)
+                    / (response.eval_duration.unwrap_or(1) as f64)
+                    * 1_000_000_000f64;
+
+                if tps >= PERFORMANCE_MIN_TPS {
+                    log::info!("Model {model} passed the test with tps: {tps}");
+                    SpecModelPerformance::PassedWithTPS(tps)
+                } else {
+                    log::warn!(
+                        "Ignoring model {model}: tps too low ({tps:.3} < {:.3})",
+                        PERFORMANCE_MIN_TPS
+                    );
+                    SpecModelPerformance::FailedWithTPS(tps)
+                }
+            }
+            Err(err) => {
+                log::warn!("Ignoring model {model} due to: {err}");
+                SpecModelPerformance::ExecutionFailed
+            }
+        }
     }
 }
 

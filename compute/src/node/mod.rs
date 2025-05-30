@@ -1,7 +1,8 @@
+use dkn_executor::Model;
 use dkn_p2p::{
     libp2p::PeerId, DriaP2PClient, DriaP2PCommander, DriaP2PProtocol, DriaReqResMessage,
 };
-use dkn_utils::crypto::secret_to_keypair;
+use dkn_utils::{crypto::secret_to_keypair, payloads::SpecModelPerformance};
 use eyre::Result;
 use std::collections::{HashMap, HashSet};
 use tokio::sync::mpsc;
@@ -68,6 +69,7 @@ impl DriaComputeNode {
     /// Returns the node instance and p2p client together. P2p MUST be run in a separate task before this node is used at all.
     pub async fn new(
         mut config: DriaComputeNodeConfig,
+        model_perf: HashMap<Model, SpecModelPerformance>,
     ) -> Result<(
         DriaComputeNode,
         DriaP2PClient,
@@ -124,7 +126,7 @@ impl DriaComputeNode {
         let model_names = config.executors.get_model_names();
         let points_client = DriaPointsClient::new(&config.address, &config.network)?;
 
-        let spec_collector = SpecCollector::new(model_names.clone(), config.version);
+        let spec_collector = SpecCollector::new(model_names.clone(), model_perf, config.version);
         Ok((
             DriaComputeNode {
                 config,
