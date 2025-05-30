@@ -1,6 +1,6 @@
-use crate::ModelProvider;
+use crate::{Model, ModelProvider, TaskBody};
 use rig::completion::PromptError;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 mod ollama;
 use ollama::OllamaClient;
@@ -35,7 +35,7 @@ impl DriaExecutor {
     }
 
     /// Executes the given task using the appropriate provider.
-    pub async fn execute(&self, task: crate::TaskBody) -> Result<String, PromptError> {
+    pub async fn execute(&self, task: TaskBody) -> Result<String, PromptError> {
         match self {
             DriaExecutor::Ollama(provider) => provider.execute(task).await,
             DriaExecutor::OpenAI(provider) => provider.execute(task).await,
@@ -47,7 +47,10 @@ impl DriaExecutor {
     /// Checks if the requested models exist and are available in the provider's account.
     ///
     /// For Ollama in particular, it also checks if the models are performant enough.
-    pub async fn check(&self, models: &mut HashSet<crate::Model>) -> eyre::Result<()> {
+    pub async fn check(
+        &self,
+        models: &mut HashSet<Model>,
+    ) -> eyre::Result<HashMap<Model, ModelPerformanceMetric>> {
         match self {
             DriaExecutor::Ollama(provider) => provider.check(models).await,
             DriaExecutor::OpenAI(provider) => provider.check(models).await,
@@ -55,4 +58,10 @@ impl DriaExecutor {
             DriaExecutor::OpenRouter(provider) => provider.check(models).await,
         }
     }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub enum ModelPerformanceMetric {
+    Latency(f64), // in seconds
+    TPS(f64),     // (eval) tokens per second
 }
