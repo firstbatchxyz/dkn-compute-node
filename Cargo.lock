@@ -777,7 +777,7 @@ dependencies = [
 
 [[package]]
 name = "dkn-compute"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "base64",
  "chrono",
@@ -810,7 +810,7 @@ dependencies = [
 
 [[package]]
 name = "dkn-executor"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "dkn-utils",
  "dotenvy",
@@ -830,7 +830,7 @@ dependencies = [
 
 [[package]]
 name = "dkn-p2p"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "dkn-utils",
  "env_logger",
@@ -846,7 +846,7 @@ dependencies = [
 
 [[package]]
 name = "dkn-utils"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "base64",
  "chrono",

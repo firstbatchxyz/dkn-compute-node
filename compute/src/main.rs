@@ -92,17 +92,23 @@ async fn main() -> Result<()> {
             log::info!("Service check cancelled, exiting.");
             return Ok(());
         }
-    }?;
-    log::info!(
-        "Using models: {}\n{}",
-        config.executors.get_model_names().join(", "),
-        model_perf
-            .iter()
-            .map(|(model, perf)| format!("{}: {}", model, perf))
-            .collect::<Vec<_>>()
-            .join("\n")
-    );
+    };
 
+    if config.executors.models.is_empty() {
+        return Err(eyre::eyre!(
+            "No valid models left after service checks, exiting."
+        ));
+    } else {
+        log::info!(
+            "Using models: {}\n{}",
+            config.executors.get_model_names().join(", "),
+            model_perf
+                .iter()
+                .map(|(model, perf)| format!("{}: {}", model, perf))
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+    }
     // create the node
     let batch_size = config.batch_size;
     let (mut node, p2p, worker_batch, worker_single) =

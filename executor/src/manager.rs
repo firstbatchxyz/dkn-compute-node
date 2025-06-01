@@ -35,8 +35,17 @@ impl DriaExecutorsManager {
                 }
                 None => {
                     // create a new executor for the provider, may return an error!
-                    let executor = DriaExecutor::new_from_env(provider)?;
-                    provider_set.insert(provider, (executor, HashSet::from_iter([model])));
+                    match DriaExecutor::new_from_env(provider) {
+                        Ok(executor) => {
+                            provider_set.insert(provider, (executor, HashSet::from_iter([model])));
+                        }
+                        Err(err) => {
+                            log::error!(
+                            "Failed to create executor for {provider}: {err}, {model} will not be supported.",
+                        );
+                            continue; // skip this model if the executor creation failed
+                        }
+                    }
                 }
             }
 
@@ -90,14 +99,27 @@ impl DriaExecutorsManager {
     ///
     /// In the end, bad models are filtered out and we simply check if we are left if any valid models at all.
     /// If there are no models left in the end, an error is thrown.
-    pub async fn check_services(&mut self) -> eyre::Result<HashMap<Model, SpecModelPerformance>> {
+    pub async fn check_services(&mut self) -> HashMap<Model, SpecModelPerformance> {
         log::info!("Checking configured services.");
 
         // check all configured providers & record model performances
         let mut model_perf = HashMap::new();
         for (client, models) in self.providers.values_mut() {
-            let provider_model_perf = client.check(models).await?;
-            model_perf.extend(provider_model_perf);
+            if let Ok(provider_model_perf) = client.check(models).await {
+                model_perf.extend(provider_model_perf);
+            } else {
+                log::warn!(
+                    "Provider {} failed to check services, ignoring its models.",
+                    client.name()
+                );
+                model_perf.extend(
+                    models
+                        .iter()
+                        .map(|m| (m.clone(), SpecModelPerformance::ExecutionFailed)),
+                );
+                // clear models
+                models.clear();
+            }
         }
 
         // obtain the final list of providers & models, removing the providers with no models left
@@ -112,11 +134,13 @@ impl DriaExecutorsManager {
             ok
         });
 
-        // check if we have any models left at all
-        if self.providers.is_empty() {
-            eyre::bail!("No good models found, please check logs for errors.")
-        }
+        // update the models set
+        self.models = self
+            .providers
+            .values()
+            .flat_map(|(_, models)| models.iter().cloned())
+            .collect();
 
-        Ok(model_perf)
+        model_perf
     }
 }

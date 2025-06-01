@@ -59,4 +59,13 @@ impl DriaExecutor {
             DriaExecutor::OpenRouter(provider) => provider.check(models).await,
         }
     }
+
+    pub fn name(&self) -> String {
+        match self {
+            DriaExecutor::Ollama(_) => ModelProvider::Ollama.to_string(),
+            DriaExecutor::OpenAI(_) => ModelProvider::OpenAI.to_string(),
+            DriaExecutor::Gemini(_) => ModelProvider::Gemini.to_string(),
+            DriaExecutor::OpenRouter(_) => ModelProvider::OpenRouter.to_string(),
+        }
+    }
 }

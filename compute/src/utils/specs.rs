@@ -1,10 +1,9 @@
-use std::collections::HashMap;
-
 use dkn_executor::Model;
 use dkn_utils::{
     payloads::{SpecModelPerformance, Specs},
     SemanticVersion,
 };
+use std::collections::HashMap;
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind};
 
 pub struct SpecCollector {
@@ -30,7 +29,7 @@ impl SpecCollector {
         version: SemanticVersion,
         exec_platform: String,
     ) -> Self {
-        log::debug!("Creating spec collector with version {version} and platform {exec_platform}");
+        log::info!("Creating spec collector with version {version} and platform {exec_platform} and models {models:?}");
         SpecCollector {
             system: sysinfo::System::new_with_specifics(Self::get_refresh_specifics()),
             models,
