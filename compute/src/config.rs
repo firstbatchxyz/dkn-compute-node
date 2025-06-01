@@ -39,6 +39,10 @@ pub struct DriaComputeNodeConfig {
     ///
     /// TODO: this is `None` after startup due to `Option::take`, can we do any better?
     pub initial_rpc_addr: Option<Multiaddr>,
+    /// Execution platform, mainly for diagnostics.
+    ///
+    /// Given by `DKN_EXEC_PLATFORM`.
+    pub exec_platform: String,
 }
 
 #[allow(clippy::new_without_default)]
@@ -118,6 +122,9 @@ impl DriaComputeNodeConfig {
                 Multiaddr::from_str(&addr).expect("could not parse the given initial RPC address.")
             });
 
+        // parse execution platform
+        let exec_platform = env::var("DKN_EXEC_PLATFORM").unwrap_or_else(|_| "unknown".to_string());
+
         Self {
             secret_key,
             public_key,
@@ -129,6 +136,7 @@ impl DriaComputeNodeConfig {
             network: network_type,
             batch_size,
             initial_rpc_addr,
+            exec_platform,
         }
     }
 

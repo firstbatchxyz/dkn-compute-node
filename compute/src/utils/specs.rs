@@ -17,22 +17,20 @@ pub struct SpecCollector {
     model_perf: HashMap<String, SpecModelPerformance>,
     /// Version string.
     version: String,
+    /// Execution platform, mainly for diagnostics.
+    exec_platform: String,
     // GPU adapter infos, showing information about the available GPUs.
     // gpus: Vec<wgpu::AdapterInfo>,
 }
-
-// impl Default for SpecCollector {
-//     fn default() -> Self {
-//         Self::new(vec![], SemanticVersion::default())
-//     }
-// }
 
 impl SpecCollector {
     pub fn new(
         models: Vec<String>,
         model_perf: HashMap<Model, SpecModelPerformance>,
         version: SemanticVersion,
+        exec_platform: String,
     ) -> Self {
+        log::debug!("Creating spec collector with version {version} and platform {exec_platform}");
         SpecCollector {
             system: sysinfo::System::new_with_specifics(Self::get_refresh_specifics()),
             models,
@@ -41,6 +39,7 @@ impl SpecCollector {
                 .map(|(k, v)| (k.to_string(), v))
                 .collect(),
             version: version.to_string(),
+            exec_platform,
             // gpus: wgpu::Instance::default()
             //     .enumerate_adapters(wgpu::Backends::all())
             //     .into_iter()
@@ -72,6 +71,7 @@ impl SpecCollector {
             models: self.models.clone(),
             version: self.version.clone(),
             model_perf: self.model_perf.clone(),
+            exec_platform: self.exec_platform.clone(),
             // gpus: self.gpus.clone(),
         }
     }
@@ -94,6 +94,7 @@ mod tests {
                 minor: 5,
                 patch: 1,
             },
+            "testing".to_string(),
         );
         let specs = spec_collector.collect().await;
         assert!(specs.total_mem > 0);
@@ -104,7 +105,9 @@ mod tests {
         assert!(!specs.arch.is_empty());
         assert!(specs.lookup.is_some());
         assert!(!specs.models.is_empty());
+        assert_eq!(specs.model_perf.len(), 3);
         assert_eq!(specs.version, "4.5.1");
+        assert_eq!(specs.exec_platform, "testing");
 
         // should be serializable to JSON
         assert!(serde_json::to_string_pretty(&specs).is_ok())

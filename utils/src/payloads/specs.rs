@@ -46,6 +46,8 @@ pub struct Specs {
     pub model_perf: HashMap<String, SpecModelPerformance>,
     /// Node version, e.g. `0.1.0`.
     pub version: String,
+    /// Name of the execution platform, e.g. Docker file or Launcher.
+    pub exec_platform: String,
     // GPU adapter infos, showing information about the available GPUs.
     // gpus: Vec<wgpu::AdapterInfo>,
 }
