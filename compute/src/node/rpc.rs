@@ -1,6 +1,7 @@
 use dkn_p2p::libp2p::{multiaddr::Protocol, Multiaddr, PeerId};
 use dkn_utils::{DriaNetwork, SemanticVersion};
 use eyre::{Context, OptionExt, Result};
+use rand::seq::SliceRandom;
 use std::fmt::Debug;
 
 /// The connected RPC node, as per the Star network topology.
@@ -43,23 +44,46 @@ async fn get_rpc_for_network(
     network: &DriaNetwork,
     version: &SemanticVersion,
 ) -> Result<Multiaddr> {
+    const MIN_MARGIN: usize = 150;
+
     let response = reqwest::get(network.discovery_url(version)).await?;
     let rpcs_and_peer_counts = response
         .json::<Vec<(Multiaddr, usize)>>()
         .await
         .wrap_err("could not parse API response")?;
 
-    // returns the RPC address with the least peer count (for load balancing)
-    rpcs_and_peer_counts
+    // ensure that the response contains at least one RPC
+    if rpcs_and_peer_counts.is_empty() {
+        eyre::bail!("no RPCs were returned by discovery API");
+    }
+
+    // get the minimum count of peers from all RPCs
+    let min_peer_count = rpcs_and_peer_counts
+        .iter()
+        .map(|(_, peer_count)| *peer_count)
+        .min()
+        .unwrap(); // safe to unwrap because we checked for empty earlier
+
+    // choose the RPCs that have peers in range `[min_peer_count, min_peer_count + MIN_MARGIN]`
+    let rpcs_and_peer_counts: Vec<(Multiaddr, usize)> = rpcs_and_peer_counts
         .into_iter()
-        .min_by_key(|(_, peer_count)| *peer_count)
-        .ok_or_eyre("no RPCs were returned by discovery API")
+        .filter(|(_, peer_count)| {
+            (min_peer_count..=min_peer_count + MIN_MARGIN).contains(peer_count)
+        })
+        .collect();
+
+    // pick a random RPC from the filtered list
+    let chosen_rpc = rpcs_and_peer_counts
+        .choose(&mut rand::thread_rng())
+        .cloned()
         .map(|(addr, _)| addr)
+        .unwrap(); // safe to unwrap because we checked for empty earlier
+
+    Ok(chosen_rpc)
 }
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
     #[tokio::test]

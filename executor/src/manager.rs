@@ -115,7 +115,7 @@ impl DriaExecutorsManager {
                 model_perf.extend(
                     models
                         .iter()
-                        .map(|m| (m.clone(), SpecModelPerformance::ExecutionFailed)),
+                        .map(|m| (*m, SpecModelPerformance::ExecutionFailed)),
                 );
                 // clear models
                 models.clear();
