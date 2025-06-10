@@ -247,6 +247,14 @@ fn map_prompt_error_to_task_error(provider: ModelProvider, err: PromptError) -> 
                                 "cuda_malloc_failed"
                             } else if ollama_error.contains("CUDA error: out of memory") {
                                 "cuda_oom"
+                            } else if ollama_error.contains("API Error: Too Many Requests") {
+                                "api:too_many_requests"
+                            } else if ollama_error.contains("API Error: Bad Request") {
+                                "api:bad_request"
+                            } else if ollama_error.contains("not found, try pulling it first") {
+                                "model_not_pulled"
+                            } else if ollama_error.contains("Unexpected end of JSON input") {
+                                "unexpected_end_of_json"
                             } else {
                                 "unknown"
                             };
@@ -260,7 +268,10 @@ fn map_prompt_error_to_task_error(provider: ModelProvider, err: PromptError) -> 
                     ),
             }
             // if we couldn't parse it, just return a generic prompt error
-            .unwrap_or(TaskError::ExecutorError(err_inner.clone()))
+            .unwrap_or(TaskError::ExecutorError(format!(
+                "{provider} executor error: {}",
+                err_inner.clone()
+            )))
         }
         // if its a http error, we can try to parse it as well
         PromptError::CompletionError(CompletionError::HttpError(err_inner)) => {
