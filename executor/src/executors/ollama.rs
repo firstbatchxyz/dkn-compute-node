@@ -15,7 +15,7 @@ const DEFAULT_OLLAMA_PORT: u16 = 11434;
 /// Timeout duration for checking model performance during a generation.
 const PERFORMANCE_TIMEOUT: Duration = Duration::from_secs(120);
 /// Minimum tokens per second (TPS) for checking model performance during a generation.
-const PERFORMANCE_MIN_TPS: f64 = 15.0;
+const PERFORMANCE_MIN_TPS: f64 = 10.0;
 
 /// Ollama-specific configurations.
 #[derive(Clone)]
@@ -85,8 +85,12 @@ impl OllamaClient {
         models: &mut HashSet<Model>,
     ) -> Result<HashMap<Model, SpecModelPerformance>> {
         log::info!(
-            "Checking Ollama requirements (auto-pull {}, timeout: {}s, min tps: {})",
-            if self.auto_pull { "on" } else { "off" },
+            "Checking Ollama requirements ({}, timeout: {}s, min tps: {})",
+            if self.auto_pull {
+                "auto-pull enabled"
+            } else {
+                "auto-pull disabled"
+            },
             PERFORMANCE_TIMEOUT.as_secs(),
             PERFORMANCE_MIN_TPS
         );
