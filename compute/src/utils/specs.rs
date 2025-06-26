@@ -1,4 +1,5 @@
 use dkn_executor::Model;
+use dkn_p2p::libp2p::PeerId;
 use dkn_utils::{
     payloads::{SpecModelPerformance, Specs},
     SemanticVersion,
@@ -18,6 +19,8 @@ pub struct SpecCollector {
     version: String,
     /// Execution platform, mainly for diagnostics.
     exec_platform: String,
+    /// Peer ID of the node, used for identification in the network.
+    peer_id: String,
     // GPU adapter infos, showing information about the available GPUs.
     // gpus: Vec<wgpu::AdapterInfo>,
 }
@@ -28,6 +31,7 @@ impl SpecCollector {
         model_perf: HashMap<Model, SpecModelPerformance>,
         version: SemanticVersion,
         exec_platform: String,
+        peer_id: PeerId,
     ) -> Self {
         log::info!("Creating spec collector with version {version} and platform {exec_platform} and models {models:?}");
         SpecCollector {
@@ -39,6 +43,7 @@ impl SpecCollector {
                 .collect(),
             version: version.to_string(),
             exec_platform,
+            peer_id: peer_id.to_string(),
             // gpus: wgpu::Instance::default()
             //     .enumerate_adapters(wgpu::Backends::all())
             //     .into_iter()
@@ -70,7 +75,8 @@ impl SpecCollector {
             models: self.models.clone(),
             version: self.version.clone(),
             model_perf: self.model_perf.clone(),
-            exec_platform: self.exec_platform.clone(),
+            exec_platform: Some(self.exec_platform.clone()),
+            peer_id: Some(self.peer_id.clone()),
             // gpus: self.gpus.clone(),
         }
     }
@@ -94,6 +100,7 @@ mod tests {
                 patch: 1,
             },
             "testing".to_string(),
+            PeerId::random(),
         );
         let specs = spec_collector.collect().await;
         assert!(specs.total_mem > 0);
@@ -106,7 +113,7 @@ mod tests {
         assert!(!specs.models.is_empty());
         assert_eq!(specs.model_perf.len(), 3);
         assert_eq!(specs.version, "4.5.1");
-        assert_eq!(specs.exec_platform, "testing");
+        assert_eq!(specs.exec_platform, Some("testing".to_string()));
 
         // should be serializable to JSON
         assert!(serde_json::to_string_pretty(&specs).is_ok())

@@ -23,7 +23,7 @@ pub struct SpecsResponse {
 
 /// The specs of a node, containing information about the hardware and software it runs on.
 ///
-/// These are stored in a database / cache.
+/// Optional values are done so for backwards compatibility, as some fields were added later.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Specs {
     /// Total memory in bytes
@@ -47,7 +47,11 @@ pub struct Specs {
     /// Node version, e.g. `0.1.0`.
     pub version: String,
     /// Name of the execution platform, e.g. Docker file or Launcher.
-    pub exec_platform: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exec_platform: Option<String>,
+    /// Peer id of the node.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub peer_id: Option<String>,
     // GPU adapter infos, showing information about the available GPUs.
     // gpus: Vec<wgpu::AdapterInfo>,
 }

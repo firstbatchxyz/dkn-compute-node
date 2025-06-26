@@ -131,6 +131,7 @@ impl DriaComputeNode {
             model_perf,
             config.version,
             config.exec_platform.clone(),
+            p2p_client.peer_id,
         );
         Ok((
             DriaComputeNode {
