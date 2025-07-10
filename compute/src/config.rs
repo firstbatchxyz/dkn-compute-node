@@ -63,7 +63,7 @@ impl DriaComputeNodeConfig {
                 }
             }
             Err(err) => {
-                log::error!("No secret key provided: {}", err);
+                log::error!("No secret key provided: {err}");
                 panic!("Please provide a secret key.");
             }
         };
@@ -81,11 +81,11 @@ impl DriaComputeNodeConfig {
 
         // print address
         let address = hex::encode(public_key_to_address(&public_key));
-        log::info!("Node Address:     0x{}", address);
+        log::info!("Node Address:     0x{address}");
 
         // to this here to log the peer id at start
         let peer_id = secret_to_keypair(&secret_key).public().to_peer_id();
-        log::info!("Node PeerID:      {}", peer_id);
+        log::info!("Node PeerID:      {peer_id}");
 
         // parse listen address
         let p2p_listen_addr_str = env::var("DKN_P2P_LISTEN_ADDR")

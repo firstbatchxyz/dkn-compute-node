@@ -139,7 +139,7 @@ impl TaskWorker {
             );
             debug_assert!(num_tasks != 0, "number of tasks cant be zero");
 
-            log::info!("Processing {} tasks in batch", num_tasks);
+            log::info!("Processing {num_tasks} tasks in batch");
             let mut batch = tasks.into_iter().map(|b| (b, &self.publish_tx));
             match num_tasks {
                 1 => {
@@ -235,8 +235,8 @@ impl TaskWorker {
             stats: input.stats,
         };
 
-        if let Err(e) = publish_tx.send(output).await {
-            log::error!("Error sending task result: {}", e);
+        if let Err(err) = publish_tx.send(output).await {
+            log::error!("Error sending task result: {err}");
         }
     }
 }

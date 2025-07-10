@@ -72,17 +72,17 @@ impl DriaP2PClient {
             .build();
 
         // listen on all interfaces for incoming connections
-        log::info!("Listening p2p network on: {}", listen_addr);
-        if let Err(e) = swarm.listen_on(listen_addr) {
-            log::error!("Could not listen on address: {:?}", e);
+        log::info!("Listening p2p network on: {listen_addr}");
+        if let Err(err) = swarm.listen_on(listen_addr) {
+            log::error!("Could not listen on address: {err:?}");
             log::warn!("Trying fallback address with localhost random port");
             swarm.listen_on("/ip4/127.0.0.1/tcp/0".parse().unwrap())?;
         }
 
         // dial rpc node, this will cause `identify` event to be called on their side
-        log::info!("Dialing RPC node: {}", rpc_addr);
-        if let Err(e) = swarm.dial(rpc_addr.clone()) {
-            log::error!("Could not dial RPC node: {:?}", e);
+        log::info!("Dialing RPC node: {rpc_addr}");
+        if let Err(err) = swarm.dial(rpc_addr.clone()) {
+            log::error!("Could not dial RPC node: {err:?}");
         };
 
         // create commander
@@ -187,7 +187,7 @@ impl DriaP2PClient {
             )) => {
                 // whether its a request or response, we forward it to the main thread
                 if let Err(err) = self.reqres_tx.send((peer, message)).await {
-                    log::error!("Could not transfer request {:?}", err);
+                    log::error!("Could not transfer request {err:?}");
                 }
             }
 
@@ -219,10 +219,7 @@ impl DriaP2PClient {
                 },
             )) => {
                 log::error!(
-                    "Request-Response: Inbound failure to peer {} with request_id {}: {:?}",
-                    peer,
-                    request_id,
-                    error
+                    "Request-Response: Inbound failure to {peer} with request_id {request_id}: {error:?}"
                 );
             }
 
@@ -267,10 +264,7 @@ impl DriaP2PClient {
                 ..
             } => {
                 log::debug!(
-                    "Incoming connection error: from {} to {} - {:?}",
-                    local_addr,
-                    send_back_addr,
-                    error
+                    "Incoming connection error: from {local_addr} to {send_back_addr} - {error:?}"
                 );
             }
             SwarmEvent::IncomingConnection {
@@ -278,18 +272,14 @@ impl DriaP2PClient {
                 send_back_addr,
                 ..
             } => {
-                log::debug!(
-                    "Incoming connection  attempt: from {} to {}",
-                    local_addr,
-                    send_back_addr
-                );
+                log::debug!("Incoming connection  attempt: from {local_addr} to {send_back_addr}");
             }
 
             SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
                 if let Some(peer_id) = peer_id {
-                    log::warn!("Could not connect to peer {}: {:?}", peer_id, error);
+                    log::warn!("Could not connect to peer {peer_id}: {error:?}");
                 } else {
-                    log::warn!("Outgoing connection error: {:?}", error);
+                    log::warn!("Outgoing connection error: {error:?}");
                 }
             }
 
@@ -329,7 +319,7 @@ impl DriaP2PClient {
                         );
 
                         let addr = endpoint.get_remote_address();
-                        log::info!("Dialing {} again at {}", peer_id, addr);
+                        log::info!("Dialing {peer_id} again at {addr}");
                         if let Err(err) = self.swarm.dial(
                             DialOpts::peer_id(peer_id)
                                 .addresses(vec![addr.clone()])
@@ -362,7 +352,7 @@ impl DriaP2PClient {
                 log::error!("Listener ({listener_id}) failed: {error}");
             }
 
-            event => log::debug!("Unhandled Swarm Event: {:?}", event),
+            event => log::debug!("Unhandled Swarm Event: {event:?}"),
         }
     }
 }

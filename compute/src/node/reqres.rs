@@ -30,14 +30,14 @@ impl DriaComputeNode {
                 request_id,
                 channel,
             } => {
-                log::debug!("Received a request ({}) from {}", request_id, peer_id);
+                log::debug!("Received a request ({request_id}) from {peer_id}");
 
                 // ensure that message is from the known RPCs
                 if self.dria_rpc.peer_id != peer_id {
-                    log::warn!("Received request from unauthorized source: {}", peer_id);
+                    log::warn!("Received request from unauthorized source: {peer_id}");
                     log::debug!("Allowed source: {}", self.dria_rpc.peer_id);
-                } else if let Err(e) = self.handle_request(peer_id, &request, channel).await {
-                    log::error!("Error handling request: {:?}", e);
+                } else if let Err(err) = self.handle_request(peer_id, &request, channel).await {
+                    log::error!("Error handling request: {err:?}");
                 }
             }
 
@@ -45,9 +45,9 @@ impl DriaComputeNode {
                 response,
                 request_id,
             } => {
-                log::debug!("Received a response ({}) from {}", request_id, peer_id);
-                if let Err(e) = self.handle_response(peer_id, request_id, response).await {
-                    log::error!("Error handling response: {:?}", e);
+                log::debug!("Received a response ({request_id}) from {peer_id}");
+                if let Err(err) = self.handle_response(peer_id, request_id, response).await {
+                    log::error!("Error handling response: {err:?}");
                 }
             }
         };
@@ -65,7 +65,7 @@ impl DriaComputeNode {
         data: Vec<u8>,
     ) -> Result<()> {
         if peer_id != self.dria_rpc.peer_id {
-            log::warn!("Received response from unauthorized source: {}", peer_id);
+            log::warn!("Received response from unauthorized source: {peer_id}");
             log::debug!("Allowed source: {}", self.dria_rpc.peer_id);
         }
 
@@ -126,7 +126,7 @@ impl DriaComputeNode {
 
         let (task_input, task_metadata) =
             TaskResponder::parse_task_request(self, &task_request, channel).await?;
-        if let Err(e) = match task_input.task.is_batchable() {
+        if let Err(err) = match task_input.task.is_batchable() {
             // this is a batchable task, send it to batch worker
             // and keep track of the task id in pending tasks
             true => match self.task_request_batch_tx {
@@ -149,7 +149,7 @@ impl DriaComputeNode {
                 None => eyre::bail!("Single task received but no worker available."),
             },
         } {
-            log::error!("Could not send task to worker: {:?}", e);
+            log::error!("Could not send task to worker: {err:?}");
         };
 
         Ok(())

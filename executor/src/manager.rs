@@ -126,10 +126,7 @@ impl DriaExecutorsManager {
         self.providers.retain(|provider, (_, models)| {
             let ok = !models.is_empty();
             if !ok {
-                log::warn!(
-                    "Provider {} has no models left, removing it from the config.",
-                    provider
-                )
+                log::warn!("Provider {provider} has no models left, removing it from the config.")
             }
             ok
         });

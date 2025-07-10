@@ -58,8 +58,8 @@ impl FromStr for Model {
     /// On failure, returns the original string back as the `Err` value.
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         // serde requires quotes (for JSON)
-        serde_json::from_str::<Self>(&format!("\"{}\"", value))
-            .map_err(|e| format!("Model {} invalid: {}", value, e))
+        serde_json::from_str::<Self>(&format!("\"{value}\""))
+            .map_err(|err| format!("Model {value} invalid: {err}"))
     }
 }
 
@@ -204,8 +204,8 @@ impl FromStr for ModelProvider {
     /// On failure, returns the original string back as the `Err` value.
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         // serde requires quotes (for JSON)
-        serde_json::from_str::<Self>(&format!("\"{}\"", value))
-            .map_err(|e| format!("Model provider {} invalid: {}", value, e))
+        serde_json::from_str::<Self>(&format!("\"{value}\""))
+            .map_err(|err| format!("Model provider {value} invalid: {err}"))
     }
 }
 
