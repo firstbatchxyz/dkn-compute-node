@@ -147,7 +147,7 @@ mod tests {
     #[test]
     fn test_task_body_deserialization() {
         let json_data = json!({
-            "model": "gpt-4o-mini",
+            "model": "gemma:4b",
             "messages": [
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": "What is the capital of France?"},
@@ -158,7 +158,7 @@ mod tests {
 
         let task_body: TaskBody = serde_json::from_value(json_data).unwrap();
 
-        assert_eq!(task_body.model, Model::GPT4oMini);
+        assert_eq!(task_body.model, Model::Gemma3_4b);
         assert_eq!(
             task_body.preamble,
             Some("You are a helpful assistant.".to_string())

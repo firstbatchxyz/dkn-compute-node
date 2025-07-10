@@ -254,7 +254,7 @@ mod tests {
     /// cargo test --package dkn-compute --lib --all-features -- workers::task::tests::test_executor_worker --exact --show-output --nocapture --ignored
     /// ```
     #[tokio::test]
-    #[ignore = "run manually"]
+    #[ignore = "run manually with Ollama"]
     async fn test_executor_worker() {
         let _ = env_logger::builder()
             .filter_level(log::LevelFilter::Off)
@@ -271,7 +271,7 @@ mod tests {
         });
 
         let num_tasks = 4;
-        let model = Model::GPT4o;
+        let model = Model::Llama3_2_1bInstructQ4Km;
         let executor = DriaExecutor::new_from_env(model.provider()).unwrap();
         let task = TaskBody::new_prompt("Write a poem about Julius Caesar.", model.clone());
 

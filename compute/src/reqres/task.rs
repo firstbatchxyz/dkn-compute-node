@@ -175,63 +175,63 @@ fn map_prompt_error_to_task_error(provider: ModelProvider, err: PromptError) -> 
             }
 
             match provider {
-                ModelProvider::Gemini => {
-                    /// Gemini API [error object](https://github.com/googleapis/go-genai/blob/main/api_client.go#L273).
-                    #[derive(Clone, serde::Deserialize)]
-                    pub struct GeminiError {
-                        code: u32,
-                        message: String,
-                        status: String,
-                    }
+                // ModelProvider::Gemini => {
+                //     /// Gemini API [error object](https://github.com/googleapis/go-genai/blob/main/api_client.go#L273).
+                //     #[derive(Clone, serde::Deserialize)]
+                //     pub struct GeminiError {
+                //         code: u32,
+                //         message: String,
+                //         status: String,
+                //     }
 
-                    serde_json::from_str::<ErrorObject<GeminiError>>(err_inner).map(
-                        |ErrorObject {
-                             error: gemini_error,
-                         }| TaskError::ProviderError {
-                            code: format!("{} ({})", gemini_error.code, gemini_error.status),
-                            message: gemini_error.message,
-                            provider: provider.to_string(),
-                        },
-                    )
-                }
-                ModelProvider::OpenAI => {
-                    /// OpenAI API [error object](https://github.com/openai/openai-go/blob/main/internal/apierror/apierror.go#L17).
-                    #[derive(Clone, serde::Deserialize)]
-                    pub struct OpenAIError {
-                        code: String,
-                        message: String,
-                    }
+                //     serde_json::from_str::<ErrorObject<GeminiError>>(err_inner).map(
+                //         |ErrorObject {
+                //              error: gemini_error,
+                //          }| TaskError::ProviderError {
+                //             code: format!("{} ({})", gemini_error.code, gemini_error.status),
+                //             message: gemini_error.message,
+                //             provider: provider.to_string(),
+                //         },
+                //     )
+                // }
+                // ModelProvider::OpenAI => {
+                //     /// OpenAI API [error object](https://github.com/openai/openai-go/blob/main/internal/apierror/apierror.go#L17).
+                //     #[derive(Clone, serde::Deserialize)]
+                //     pub struct OpenAIError {
+                //         code: String,
+                //         message: String,
+                //     }
 
-                    serde_json::from_str::<ErrorObject<OpenAIError>>(err_inner).map(
-                        |ErrorObject {
-                             error: openai_error,
-                         }| TaskError::ProviderError {
-                            code: openai_error.code,
-                            message: openai_error.message,
-                            provider: provider.to_string(),
-                        },
-                    )
-                }
-                ModelProvider::OpenRouter => {
-                    /// OpenRouter API [error object](https://openrouter.ai/docs/api-reference/errors).
-                    #[derive(Clone, serde::Deserialize)]
-                    pub struct OpenRouterError {
-                        code: u32,
-                        message: String,
-                    }
+                //     serde_json::from_str::<ErrorObject<OpenAIError>>(err_inner).map(
+                //         |ErrorObject {
+                //              error: openai_error,
+                //          }| TaskError::ProviderError {
+                //             code: openai_error.code,
+                //             message: openai_error.message,
+                //             provider: provider.to_string(),
+                //         },
+                //     )
+                // }
+                // ModelProvider::OpenRouter => {
+                //     /// OpenRouter API [error object](https://openrouter.ai/docs/api-reference/errors).
+                //     #[derive(Clone, serde::Deserialize)]
+                //     pub struct OpenRouterError {
+                //         code: u32,
+                //         message: String,
+                //     }
 
-                    serde_json::from_str::<ErrorObject<OpenRouterError>>(err_inner).map(
-                        |ErrorObject {
-                             error: openrouter_error,
-                         }| {
-                            TaskError::ProviderError {
-                                code: openrouter_error.code.to_string(),
-                                message: openrouter_error.message,
-                                provider: provider.to_string(),
-                            }
-                        },
-                    )
-                }
+                //     serde_json::from_str::<ErrorObject<OpenRouterError>>(err_inner).map(
+                //         |ErrorObject {
+                //              error: openrouter_error,
+                //          }| {
+                //             TaskError::ProviderError {
+                //                 code: openrouter_error.code.to_string(),
+                //                 message: openrouter_error.message,
+                //                 provider: provider.to_string(),
+                //             }
+                //         },
+                //     )
+                // }
                 ModelProvider::Ollama => serde_json::from_str::<ErrorObject<String>>(err_inner)
                     .map(
                         // Ollama just returns a string error message
