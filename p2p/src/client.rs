@@ -272,7 +272,7 @@ impl DriaP2PClient {
                 send_back_addr,
                 ..
             } => {
-                log::debug!("Incoming connection  attempt: from {local_addr} to {send_back_addr}");
+                log::debug!("Incoming connection attempt: from {local_addr} to {send_back_addr}");
             }
 
             SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
