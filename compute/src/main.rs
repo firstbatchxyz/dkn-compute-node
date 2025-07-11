@@ -36,8 +36,8 @@ async fn main() -> Result<()> {
 
     // log about env usage
     match dotenv_result {
-        Ok(_) => log::info!("Loaded environment file from {}", env_path),
-        Err(e) => log::warn!("Could not load environment file from {}: {}", env_path, e),
+        Ok(_) => log::info!("Loaded environment file from {env_path}"),
+        Err(err) => log::warn!("Could not load environment file from {env_path}: {err}"),
     }
 
     // task tracker for multiple threads
@@ -52,14 +52,14 @@ async fn main() -> Result<()> {
             env::var("DKN_EXIT_TIMEOUT").map(|s| s.to_string().parse::<u64>())
         {
             // the timeout is done for profiling only, and should not be used in production
-            log::warn!("Waiting for {} seconds before exiting.", duration_secs);
+            log::warn!("Waiting for {duration_secs} seconds before exiting.");
             tokio::time::sleep(tokio::time::Duration::from_secs(duration_secs)).await;
 
             log::warn!("Exiting due to DKN_EXIT_TIMEOUT.");
             cancellation_token.cancel();
         } else if let Err(err) = wait_for_termination(cancellation_token.clone()).await {
             // if there is no timeout, we wait for termination signals here
-            log::error!("Error waiting for termination: {:?}", err);
+            log::error!("Error waiting for termination: {err:?}");
             log::error!("Cancelling due to unexpected error.");
             cancellation_token.cancel();
         };
@@ -104,7 +104,7 @@ async fn main() -> Result<()> {
             config.executors.get_model_names().join(", "),
             model_perf
                 .iter()
-                .map(|(model, perf)| format!("{}: {}", model, perf))
+                .map(|(model, perf)| format!("{model}: {perf}"))
                 .collect::<Vec<_>>()
                 .join("\n")
         );
@@ -124,10 +124,7 @@ async fn main() -> Result<()> {
             batch_size <= TaskWorker::MAX_BATCH_SIZE,
             "batch size too large"
         );
-        log::info!(
-            "Spawning batch executor worker thread. (batch size {})",
-            batch_size
-        );
+        log::info!("Spawning batch executor worker thread. (batch size {batch_size})");
         task_tracker.spawn(async move { worker_batch.run_batch(batch_size).await });
     }
 

@@ -105,7 +105,7 @@ impl OllamaClient {
                 }
             }
         };
-        log::info!("Found local Ollama models: {:#?}", local_models);
+        log::info!("Found local Ollama models: {local_models:#?}");
 
         // check external models & pull them if available
         // iterate over models and remove bad ones
@@ -114,13 +114,13 @@ impl OllamaClient {
         for model in models.iter() {
             // pull the model if it is not in the local models
             if !local_models.contains(&model.to_string()) {
-                log::warn!("Model {} not found in Ollama", model);
+                log::warn!("Model {model} not found in Ollama");
                 if self.auto_pull {
                     self.try_pull(model)
                         .await
                         .wrap_err("could not pull model")?;
                 } else {
-                    log::error!("Please download missing model with: ollama pull {}", model);
+                    log::error!("Please download missing model with: ollama pull {model}");
                     log::error!("Or, set OLLAMA_AUTO_PULL=true to pull automatically.");
                     eyre::bail!("required model not pulled in Ollama");
                 }
@@ -145,7 +145,7 @@ impl OllamaClient {
         if models.is_empty() {
             log::warn!("No Ollama models passed the performance test! Try using a more powerful machine OR smaller models.");
         } else {
-            log::info!("Ollama checks are finished, using models: {:#?}", models);
+            log::info!("Ollama checks are finished, using models: {models:#?}");
         }
 
         Ok(model_performances)
@@ -155,10 +155,7 @@ impl OllamaClient {
     async fn try_pull(&self, model: &Model) -> Result<ollama_rs::models::pull::PullModelStatus> {
         // TODO: add pull-bar here
         // if auto-pull is enabled, pull the model
-        log::info!(
-            "Downloading missing model {} (this may take a while)",
-            model
-        );
+        log::info!("Downloading missing model {model} (this may take a while)");
         self.ollama_rs_client
             .pull_model(model.to_string(), false)
             .await
@@ -173,10 +170,10 @@ impl OllamaClient {
         const TEST_PROMPT: &str = "Please write a poem about Kapadokya.";
         const WARMUP_PROMPT: &str = "Write a short poem about hedgehogs and squirrels.";
 
-        log::info!("Testing model {}", model);
+        log::info!("Measuring {model}");
 
         // run a dummy generation for warm-up
-        log::debug!("Warming up Ollama for model {}", model);
+        log::debug!("Warming up Ollama for {model}");
         if let Err(err) = self
             .ollama_rs_client
             .generate(GenerationRequest::new(
@@ -185,7 +182,7 @@ impl OllamaClient {
             ))
             .await
         {
-            log::warn!("Ignoring model {model}: {err}");
+            log::warn!("Ignoring {model}: {err}");
             return SpecModelPerformance::ExecutionFailed;
         }
 
@@ -199,7 +196,7 @@ impl OllamaClient {
         )
         .await
         else {
-            log::warn!("Ignoring model {model}: Timed out");
+            log::warn!("Ignoring {model}: Timed out");
             return SpecModelPerformance::Timeout;
         };
 
@@ -211,18 +208,17 @@ impl OllamaClient {
                     * 1_000_000_000f64;
 
                 if tps >= PERFORMANCE_MIN_TPS {
-                    log::info!("Model {model} passed the test with tps: {tps}");
+                    log::info!("{model} passed the test with tps: {tps}");
                     SpecModelPerformance::PassedWithTPS(tps)
                 } else {
                     log::warn!(
-                        "Ignoring model {model}: tps too low ({tps:.3} < {:.3})",
-                        PERFORMANCE_MIN_TPS
+                        "Ignoring {model}: tps too low ({tps:.3} < {PERFORMANCE_MIN_TPS:.3})"
                     );
                     SpecModelPerformance::FailedWithTPS(tps)
                 }
             }
             Err(err) => {
-                log::warn!("Ignoring model {model} due to: {err}");
+                log::warn!("Ignoring {model} due to: {err}");
                 SpecModelPerformance::ExecutionFailed
             }
         }

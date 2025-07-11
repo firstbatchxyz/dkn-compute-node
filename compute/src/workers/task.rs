@@ -139,7 +139,7 @@ impl TaskWorker {
             );
             debug_assert!(num_tasks != 0, "number of tasks cant be zero");
 
-            log::info!("Processing {} tasks in batch", num_tasks);
+            log::info!("Processing {num_tasks} tasks in batch");
             let mut batch = tasks.into_iter().map(|b| (b, &self.publish_tx));
             match num_tasks {
                 1 => {
@@ -235,8 +235,8 @@ impl TaskWorker {
             stats: input.stats,
         };
 
-        if let Err(e) = publish_tx.send(output).await {
-            log::error!("Error sending task result: {}", e);
+        if let Err(err) = publish_tx.send(output).await {
+            log::error!("Error sending task result: {err}");
         }
     }
 }
@@ -254,7 +254,7 @@ mod tests {
     /// cargo test --package dkn-compute --lib --all-features -- workers::task::tests::test_executor_worker --exact --show-output --nocapture --ignored
     /// ```
     #[tokio::test]
-    #[ignore = "run manually"]
+    #[ignore = "run manually with Ollama"]
     async fn test_executor_worker() {
         let _ = env_logger::builder()
             .filter_level(log::LevelFilter::Off)
@@ -271,7 +271,7 @@ mod tests {
         });
 
         let num_tasks = 4;
-        let model = Model::GPT4o;
+        let model = Model::Llama3_2_1bInstructQ4Km;
         let executor = DriaExecutor::new_from_env(model.provider()).unwrap();
         let task = TaskBody::new_prompt("Write a poem about Julius Caesar.", model.clone());
 

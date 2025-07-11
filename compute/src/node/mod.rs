@@ -81,7 +81,7 @@ impl DriaComputeNode {
 
         // dial the RPC node
         let dria_rpc = if let Some(addr) = config.initial_rpc_addr.take() {
-            log::info!("Using initial RPC address: {}", addr);
+            log::info!("Using initial RPC address: {addr}");
             DriaRPC::new(addr, config.network).expect("could not get RPC to connect to")
         } else {
             DriaRPC::new_for_network(config.network, &config.version)
@@ -92,7 +92,7 @@ impl DriaComputeNode {
         // we are using the major.minor version as the P2P version
         // so that patch versions do not interfere with the protocol
         let protocol = DriaP2PProtocol::new_major_minor(config.network.protocol_name());
-        log::info!("Using identity: {}", protocol);
+        log::info!("Using identity: {protocol}");
 
         // create p2p client
         let (p2p_client, p2p_commander, request_rx) = DriaP2PClient::new(

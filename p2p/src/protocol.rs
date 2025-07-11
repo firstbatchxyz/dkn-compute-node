@@ -39,9 +39,9 @@ impl DriaP2PProtocol {
         let name = name.to_string();
         let version = version.to_string();
 
-        let identity = format!("{}/{}", name, version);
+        let identity = format!("{name}/{version}");
         let request_response =
-            StreamProtocol::try_from_owned(format!("/{}/rr/{}", name, version)).unwrap();
+            StreamProtocol::try_from_owned(format!("/{name}/rr/{version}")).unwrap();
 
         Self {
             name,

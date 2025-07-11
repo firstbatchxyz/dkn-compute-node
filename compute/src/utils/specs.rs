@@ -91,7 +91,6 @@ mod tests {
             vec![Model::Gemma3_4b.to_string()],
             HashMap::from_iter([
                 (Model::Gemma3_4b, SpecModelPerformance::PassedWithTPS(100.0)),
-                (Model::GPT4oMini, SpecModelPerformance::NotFound),
                 (Model::Gemma3_27b, SpecModelPerformance::ExecutionFailed),
             ]),
             SemanticVersion {

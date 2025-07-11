@@ -26,30 +26,29 @@ pub enum Model {
     /// [Google's Gemma3 27b](https://ollama.com/library/gemma3:27b)
     #[serde(rename = "gemma3:27b")]
     Gemma3_27b,
+    // // OpenAI models
+    // /// [OpenAI's GPT-4o](https://platform.openai.com/docs/models#gpt-4o)
+    // #[serde(rename = "gpt-4o")]
+    // GPT4o,
+    // /// [OpenAI's GPT-4o mini](https://platform.openai.com/docs/models#gpt-4o-mini)
+    // #[serde(rename = "gpt-4o-mini")]
+    // GPT4oMini,
 
-    // OpenAI models
-    /// [OpenAI's GPT-4o](https://platform.openai.com/docs/models#gpt-4o)
-    #[serde(rename = "gpt-4o")]
-    GPT4o,
-    /// [OpenAI's GPT-4o mini](https://platform.openai.com/docs/models#gpt-4o-mini)
-    #[serde(rename = "gpt-4o-mini")]
-    GPT4oMini,
+    // // Gemini models
+    // /// [Google's Gemini 2.5 Pro experimental](https://ai.google.dev/gemini-api/docs/models#gemini-2.5-pro-preview-03-25)
+    // #[serde(rename = "gemini-2.5-pro-exp-03-25")]
+    // Gemini2_5ProExp,
+    // /// [Google's Gemini 2.0 Flash](https://ai.google.dev/gemini-api/docs/models#gemini-2.0-flash)
+    // #[serde(rename = "gemini-2.0-flash")]
+    // Gemini2_0Flash,
 
-    // Gemini models
-    /// [Google's Gemini 2.5 Pro experimental](https://ai.google.dev/gemini-api/docs/models#gemini-2.5-pro-preview-03-25)
-    #[serde(rename = "gemini-2.5-pro-exp-03-25")]
-    Gemini2_5ProExp,
-    /// [Google's Gemini 2.0 Flash](https://ai.google.dev/gemini-api/docs/models#gemini-2.0-flash)
-    #[serde(rename = "gemini-2.0-flash")]
-    Gemini2_0Flash,
-
-    /// OpenRouter Models
-    /// [Anthropic's Claude 3.5 Sonnet](https://openrouter.ai/models?q=claude-3.5-sonnet)
-    #[serde(rename = "anthropic/claude-3.5-sonnet")]
-    OR3_5Sonnet,
-    /// [Anthropic's Claude 3.7 Sonnet](https://openrouter.ai/models?q=claude-3.7-sonnet)
-    #[serde(rename = "anthropic/claude-3-7-sonnet")]
-    OR3_7Sonnet,
+    // /// OpenRouter Models
+    // /// [Anthropic's Claude 3.5 Sonnet](https://openrouter.ai/models?q=claude-3.5-sonnet)
+    // #[serde(rename = "anthropic/claude-3.5-sonnet")]
+    // OR3_5Sonnet,
+    // /// [Anthropic's Claude 3.7 Sonnet](https://openrouter.ai/models?q=claude-3.7-sonnet)
+    // #[serde(rename = "anthropic/claude-3-7-sonnet")]
+    // OR3_7Sonnet,
 }
 
 impl FromStr for Model {
@@ -59,8 +58,8 @@ impl FromStr for Model {
     /// On failure, returns the original string back as the `Err` value.
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         // serde requires quotes (for JSON)
-        serde_json::from_str::<Self>(&format!("\"{}\"", value))
-            .map_err(|e| format!("Model {} invalid: {}", value, e))
+        serde_json::from_str::<Self>(&format!("\"{value}\""))
+            .map_err(|err| format!("Model {value} invalid: {err}"))
     }
 }
 
@@ -133,12 +132,12 @@ impl TryFrom<&str> for Model {
 pub enum ModelProvider {
     #[serde(rename = "ollama")]
     Ollama,
-    #[serde(rename = "openai")]
-    OpenAI,
-    #[serde(rename = "gemini")]
-    Gemini,
-    #[serde(rename = "openrouter")]
-    OpenRouter,
+    // #[serde(rename = "openai")]
+    // OpenAI,
+    // #[serde(rename = "gemini")]
+    // Gemini,
+    // #[serde(rename = "openrouter")]
+    // OpenRouter,
 }
 
 impl ModelProvider {
@@ -160,10 +159,10 @@ impl ModelProvider {
         match self {
             // ollama models are not batchable
             ModelProvider::Ollama => false,
-            // api-based providers are batchable
-            ModelProvider::OpenAI => true,
-            ModelProvider::Gemini => true,
-            ModelProvider::OpenRouter => true,
+            // // api-based providers are batchable
+            // ModelProvider::OpenAI => true,
+            // ModelProvider::Gemini => true,
+            // ModelProvider::OpenRouter => true,
         }
     }
 }
@@ -185,15 +184,15 @@ impl From<&Model> for ModelProvider {
             Model::Llama3_2_1bInstructQ4Km => ModelProvider::Ollama,
             Model::Llama3_3_70bInstructQ4Km => ModelProvider::Ollama,
             Model::MistralNemo12b => ModelProvider::Ollama,
-            // openai
-            Model::GPT4o => ModelProvider::OpenAI,
-            Model::GPT4oMini => ModelProvider::OpenAI,
-            // gemini
-            Model::Gemini2_0Flash => ModelProvider::Gemini,
-            Model::Gemini2_5ProExp => ModelProvider::Gemini,
-            // openrouter
-            Model::OR3_5Sonnet => ModelProvider::OpenRouter,
-            Model::OR3_7Sonnet => ModelProvider::OpenRouter,
+            // // openai
+            // Model::GPT4o => ModelProvider::OpenAI,
+            // Model::GPT4oMini => ModelProvider::OpenAI,
+            // // gemini
+            // Model::Gemini2_0Flash => ModelProvider::Gemini,
+            // Model::Gemini2_5ProExp => ModelProvider::Gemini,
+            // // openrouter
+            // Model::OR3_5Sonnet => ModelProvider::OpenRouter,
+            // Model::OR3_7Sonnet => ModelProvider::OpenRouter,
         }
     }
 }
@@ -205,8 +204,8 @@ impl FromStr for ModelProvider {
     /// On failure, returns the original string back as the `Err` value.
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         // serde requires quotes (for JSON)
-        serde_json::from_str::<Self>(&format!("\"{}\"", value))
-            .map_err(|e| format!("Model provider {} invalid: {}", value, e))
+        serde_json::from_str::<Self>(&format!("\"{value}\""))
+            .map_err(|err| format!("Model provider {value} invalid: {err}"))
     }
 }
 
@@ -239,11 +238,11 @@ mod tests {
 
     #[test]
     fn test_model_string_conversion() {
-        let model = Model::OR3_5Sonnet;
+        let model = Model::Gemma3_4b;
 
         // convert to string
         let model_str = model.clone().to_string();
-        assert_eq!(model_str, "anthropic/claude-3.5-sonnet");
+        assert_eq!(model_str, "gemma3:4b");
 
         // (try) convert from string
         let model_from = Model::try_from(model_str).expect("should convert");
@@ -256,11 +255,11 @@ mod tests {
 
     #[test]
     fn test_model_string_serde() {
-        let model = Model::GPT4o;
+        let model = Model::Gemma3_12b;
 
         // serialize to string via serde
         let model_str = serde_json::to_string(&model).expect("should serialize");
-        assert_eq!(model_str, "\"gpt-4o\"");
+        assert_eq!(model_str, "\"gemma3:12b\"");
 
         // deserialize from string via serde
         let model_from: Model = serde_json::from_str(&model_str).expect("should deserialize");
@@ -273,11 +272,11 @@ mod tests {
 
     #[test]
     fn test_provider_string_serde() {
-        let provider = ModelProvider::OpenAI;
+        let provider = ModelProvider::Ollama;
 
         // serialize to string via serde
         let provider_str = serde_json::to_string(&provider).expect("should serialize");
-        assert_eq!(provider_str, "\"openai\"");
+        assert_eq!(provider_str, "\"ollama\"");
 
         // deserialize from string via serde
         let provider_from: ModelProvider =

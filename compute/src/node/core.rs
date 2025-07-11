@@ -53,8 +53,8 @@ impl DriaComputeNode {
                 // a task is completed by the worker & should be responded to the requesting peer
                 task_response_msg_opt = self.task_output_rx.recv() => {
                     if let Some(task_response_msg) = task_response_msg_opt {
-                        if let Err(e) = self.send_task_output(task_response_msg).await {
-                            log::error!("Error responding to task: {:?}", e);
+                        if let Err(err) = self.send_task_output(task_response_msg).await {
+                            log::error!("Error responding to task: {err:?}");
                         }
                     } else {
                         log::error!("task_output_rx channel closed unexpectedly, we still have {} batch and {} single tasks.", self.pending_tasks_batch.len(), self.pending_tasks_single.len());
@@ -117,8 +117,8 @@ impl DriaComputeNode {
         self.handle_diagnostic_refresh().await;
 
         // shutdown channels
-        if let Err(e) = self.shutdown().await {
-            log::error!("Could not shutdown the node gracefully: {:?}", e);
+        if let Err(err) = self.shutdown().await {
+            log::error!("Could not shutdown the node gracefully: {err:?}");
         }
     }
 
