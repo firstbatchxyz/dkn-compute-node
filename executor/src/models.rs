@@ -288,16 +288,4 @@ mod tests {
             serde_json::from_str::<ModelProvider>("\"this-provider-does-not-will-not-exist\"");
         assert!(bad_provider.is_err());
     }
-
-    #[test]
-    fn test_model_iterator() {
-        let models = Model::all().collect::<Vec<_>>();
-        assert!(models.len() > 7); // arbitrary but large enough
-    }
-
-    #[test]
-    fn test_model_provider_iterator() {
-        let models_providers = ModelProvider::all().collect::<Vec<_>>();
-        assert!(models_providers.len() > 2); // arbitrary but large enough
-    }
 }

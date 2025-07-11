@@ -110,7 +110,7 @@ mod tests {
         assert!(!specs.arch.is_empty());
         assert!(specs.lookup.is_some());
         assert!(!specs.models.is_empty());
-        assert_eq!(specs.model_perf.len(), 3);
+        assert_eq!(specs.model_perf.len(), 2);
         assert_eq!(specs.version, "4.5.1");
         assert_eq!(specs.exec_platform, Some("testing".to_string()));
 

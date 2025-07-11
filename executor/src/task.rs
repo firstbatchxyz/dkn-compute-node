@@ -147,7 +147,7 @@ mod tests {
     #[test]
     fn test_task_body_deserialization() {
         let json_data = json!({
-            "model": "gemma:4b",
+            "model": "gemma3:4b",
             "messages": [
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": "What is the capital of France?"},
