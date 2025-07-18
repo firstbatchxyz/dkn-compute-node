@@ -26,6 +26,12 @@ pub enum Model {
     /// [Google's Gemma3 27b](https://ollama.com/library/gemma3:27b)
     #[serde(rename = "gemma3:27b")]
     Gemma3_27b,
+    /// [Alibaba's Qwen3 32b](https://ollama.com/library/qwen3:32b)
+    #[serde(rename = "qwen3:32b")]
+    Qwen3_32b,
+    /// [Alibaba's Qwen3 8b](https://ollama.com/library/qwen3:8b)
+    #[serde(rename = "qwen3:8b")]
+    Qwen3_8b,
     // // OpenAI models
     // /// [OpenAI's GPT-4o](https://platform.openai.com/docs/models#gpt-4o)
     // #[serde(rename = "gpt-4o")]
@@ -177,13 +183,15 @@ impl From<&Model> for ModelProvider {
     fn from(model: &Model) -> Self {
         match model {
             // ollama
+            Model::Gemma3_4b => ModelProvider::Ollama,
             Model::Gemma3_12b => ModelProvider::Ollama,
             Model::Gemma3_27b => ModelProvider::Ollama,
-            Model::Gemma3_4b => ModelProvider::Ollama,
             Model::Llama3_1_8bInstructQ4Km => ModelProvider::Ollama,
             Model::Llama3_2_1bInstructQ4Km => ModelProvider::Ollama,
             Model::Llama3_3_70bInstructQ4Km => ModelProvider::Ollama,
             Model::MistralNemo12b => ModelProvider::Ollama,
+            Model::Qwen3_8b => ModelProvider::Ollama,
+            Model::Qwen3_32b => ModelProvider::Ollama,
             // // openai
             // Model::GPT4o => ModelProvider::OpenAI,
             // Model::GPT4oMini => ModelProvider::OpenAI,
