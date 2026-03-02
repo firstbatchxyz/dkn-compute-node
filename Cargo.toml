@@ -1,41 +1,42 @@
-[workspace]
-resolver = "2"
-members = ["compute", "p2p", "utils", "executor"]
-
-# FIXME: removing this breaks .github workflows
-default-members = ["compute"]
-
-[workspace.package]
+[package]
+name = "dria-node"
+version = "2.0.0-alpha.1"
 edition = "2021"
-version = "0.6.7"
 license = "Apache-2.0"
-readme = "README.md"
 
-# profiling build for flamegraphs
-[profile.profiling]
-inherits = "release"
-debug = true
+[[bin]]
+name = "dria-node"
+path = "src/main.rs"
 
-[workspace.dependencies]
-# async stuff
-tokio-util = { version = "0.7.10", features = ["rt"] }
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+[features]
+default = []
+cuda = ["llama-cpp-2/cuda"]
+metal = ["llama-cpp-2/metal"]
 
-# serialize & deserialize
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-
-# http client
-reqwest = "0.12.5"
-
-# utilities
-dotenvy = "0.15.7"
-rand = "0.8.5"
-uuid = { version = "1.8.0", features = ["v7", "serde"] }
-chrono = { version = "0.4.40", features = ["serde"] }
-
-# logging & errors
-env_logger = "0.11.3"
-log = "0.4.21"
-eyre = "0.6.12"
-thiserror = "2.0.12"
+[dependencies]
+clap = { version = "4", features = ["derive", "env"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "time"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rmp-serde = "1"
+libsecp256k1 = "0.7"
+sha2 = "0.10"
+sha3 = "0.10"
+hex = "0.4"
+rand = "0.8"
+llama-cpp-2 = "0.1.137"
+hf-hub = { version = "0.4", features = ["tokio"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+thiserror = "2"
+anyhow = "1"
+uuid = { version = "1", features = ["v7", "serde"] }
+dirs = "6"
+encoding_rs = "0.8"
+quinn = "0.11"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+rustls-native-certs = "0.8"
+rcgen = "0.13"
+futures = "0.3"
+bytes = "1"
