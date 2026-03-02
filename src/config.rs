@@ -49,7 +49,7 @@ pub enum Command {
 pub struct Config {
     pub secret_key_hex: String,
     pub model_names: Vec<String>,
-    pub router_url: String,
+    pub router_urls: Vec<String>,
     pub gpu_layers: i32,
     pub max_concurrent: usize,
     pub data_dir: PathBuf,
@@ -102,10 +102,20 @@ impl Config {
             return Err(NodeError::Config("max-concurrent must be >= 1".into()));
         }
 
+        // Parse router URLs (comma-separated)
+        let router_urls: Vec<String> = router_url
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+        if router_urls.is_empty() {
+            return Err(NodeError::Config("at least one router URL must be specified".into()));
+        }
+
         Ok(Config {
             secret_key_hex,
             model_names,
-            router_url,
+            router_urls,
             gpu_layers,
             max_concurrent,
             data_dir,
@@ -138,6 +148,7 @@ mod tests {
             "6472696164726961647269616472696164726961647269616472696164726961"
         );
         assert_eq!(cfg.models_dir, PathBuf::from("/tmp/dria-test/models"));
+        assert_eq!(cfg.router_urls, vec!["https://router.dria.co"]);
     }
 
     #[test]
@@ -190,6 +201,38 @@ mod tests {
             "https://router.dria.co".into(),
             0,
             0,
+            None,
+            false,
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_config_comma_separated_router_urls() {
+        let cfg = Config::from_start_args(
+            "6472696164726961647269616472696164726961647269616472696164726961".into(),
+            "gemma3:4b".into(),
+            "https://router1.dria.co, https://router2.dria.co".into(),
+            0,
+            1,
+            None,
+            false,
+        )
+        .unwrap();
+        assert_eq!(
+            cfg.router_urls,
+            vec!["https://router1.dria.co", "https://router2.dria.co"]
+        );
+    }
+
+    #[test]
+    fn test_config_empty_router_url() {
+        let result = Config::from_start_args(
+            "6472696164726961647269616472696164726961647269616472696164726961".into(),
+            "gemma3:4b".into(),
+            "".into(),
+            0,
+            1,
             None,
             false,
         );

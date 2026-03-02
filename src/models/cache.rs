@@ -6,6 +6,7 @@ use crate::error::NodeError;
 use crate::models::registry::ModelSpec;
 
 /// Manages local model file cache.
+#[derive(Clone)]
 pub struct ModelCache {
     pub cache_dir: PathBuf,
 }

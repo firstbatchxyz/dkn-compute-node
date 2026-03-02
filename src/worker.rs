@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::ops::ControlFlow;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -21,34 +22,33 @@ pub struct CompletedTask {
 }
 
 /// Executes inference tasks with backpressure via capacity tracking.
+///
+/// Supports multiple models, each with its own engine and chat template.
 pub struct Worker {
-    engine: Arc<InferenceEngine>,
-    /// Chat template name for prompt formatting.
-    chat_template: String,
+    /// Map of model name → (engine, chat_template).
+    engines: HashMap<String, (Arc<InferenceEngine>, String)>,
     /// Number of available inference slots (CAS-based).
     capacity: Arc<AtomicUsize>,
     /// Maximum concurrent slots.
     max_capacity: usize,
-    /// Models this worker serves.
-    model_names: Vec<String>,
     /// In-flight tasks tracked via FuturesUnordered.
     in_flight: FuturesUnordered<JoinHandle<CompletedTask>>,
 }
 
 impl Worker {
-    /// Create a new worker wrapping an inference engine.
+    /// Create a new worker wrapping multiple inference engines.
     pub fn new(
-        engine: InferenceEngine,
-        chat_template: String,
-        model_names: Vec<String>,
+        engines: HashMap<String, (InferenceEngine, String)>,
         max_concurrent: usize,
     ) -> Self {
+        let engines = engines
+            .into_iter()
+            .map(|(name, (engine, template))| (name, (Arc::new(engine), template)))
+            .collect();
         Worker {
-            engine: Arc::new(engine),
-            chat_template,
+            engines,
             capacity: Arc::new(AtomicUsize::new(max_concurrent)),
             max_capacity: max_concurrent,
-            model_names,
             in_flight: FuturesUnordered::new(),
         }
     }
@@ -65,10 +65,13 @@ impl Worker {
         temperature: f32,
         validation: Option<ValidationRequest>,
     ) -> Result<(), RejectReason> {
-        // Check model
-        if !self.model_names.iter().any(|m| m == model) {
-            return Err(RejectReason::ModelNotLoaded);
-        }
+        // Look up engine + template for the requested model (fail fast before decrementing capacity)
+        let (engine, template) = self
+            .engines
+            .get(model)
+            .ok_or(RejectReason::ModelNotLoaded)?;
+        let engine = Arc::clone(engine);
+        let template = template.clone();
 
         // Try to decrement capacity (CAS loop)
         loop {
@@ -98,9 +101,7 @@ impl Worker {
             logprob_top_k: validation.as_ref().map(|v| v.logprob_top_k).unwrap_or(5),
         };
 
-        let engine = Arc::clone(&self.engine);
         let capacity = Arc::clone(&self.capacity);
-        let template = self.chat_template.clone();
 
         let handle = tokio::task::spawn_blocking(move || {
             let result = run_inference(&engine, &template, messages, &params, task_id);
@@ -137,13 +138,32 @@ impl Worker {
     }
 
     /// Model names this worker serves.
-    pub fn model_names(&self) -> &[String] {
-        &self.model_names
+    pub fn model_names(&self) -> Vec<String> {
+        self.engines.keys().cloned().collect()
     }
 
     /// Whether there are any in-flight tasks.
     pub fn has_in_flight(&self) -> bool {
         !self.in_flight.is_empty()
+    }
+
+    /// Add a new model engine at runtime (for hot-swap).
+    ///
+    /// If a model with this name already exists, it is replaced.
+    pub fn add_engine(&mut self, name: String, engine: InferenceEngine, template: String) {
+        self.engines.insert(name, (Arc::new(engine), template));
+    }
+
+    /// Remove a model engine by name. Returns true if the model was present.
+    ///
+    /// Safe while tasks are in-flight — running tasks hold their own Arc<InferenceEngine> clone.
+    pub fn remove_engine(&mut self, name: &str) -> bool {
+        self.engines.remove(name).is_some()
+    }
+
+    /// Check whether the worker has a model loaded.
+    pub fn has_model(&self, name: &str) -> bool {
+        self.engines.contains_key(name)
     }
 }
 
@@ -257,5 +277,23 @@ mod tests {
             result: Err(NodeError::Inference("test error".into())),
         };
         assert!(completed.result.is_err());
+    }
+
+    #[test]
+    fn test_worker_has_model() {
+        let worker = Worker::new(HashMap::new(), 1);
+        assert!(!worker.has_model("gemma3:4b"));
+    }
+
+    #[test]
+    fn test_worker_remove_engine_not_present() {
+        let mut worker = Worker::new(HashMap::new(), 1);
+        assert!(!worker.remove_engine("gemma3:4b"));
+    }
+
+    #[test]
+    fn test_worker_model_names_empty() {
+        let worker = Worker::new(HashMap::new(), 1);
+        assert!(worker.model_names().is_empty());
     }
 }

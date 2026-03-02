@@ -442,6 +442,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "dkn-protocol"
+version = "0.1.0"
+dependencies = [
+ "quinn",
+ "rmp-serde",
+ "serde",
+ "thiserror 2.0.12",
+ "uuid",
+]
+
+[[package]]
 name = "dria-node"
 version = "2.0.0-alpha.1"
 dependencies = [
@@ -449,6 +460,7 @@ dependencies = [
  "bytes",
  "clap",
  "dirs",
+ "dkn-protocol",
  "encoding_rs",
  "futures",
  "hex",

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -22,10 +23,6 @@ pub struct RouterConnection {
     send: quinn::SendStream,
     /// Receive half of the bi-directional stream.
     recv: quinn::RecvStream,
-    /// Router URL for reconnection.
-    router_url: String,
-    /// Whether to skip TLS verification.
-    insecure: bool,
     /// Assigned node ID from the router.
     pub node_id: String,
 }
@@ -37,7 +34,7 @@ impl RouterConnection {
         insecure: bool,
         identity: &Identity,
         models: Vec<String>,
-        tps: f64,
+        tps: HashMap<String, f64>,
         capacity: Capacity,
     ) -> Result<Self, NodeError> {
         let (host, port) = parse_url(router_url)?;
@@ -67,57 +64,18 @@ impl RouterConnection {
             connection,
             send,
             recv,
-            router_url: router_url.to_string(),
-            insecure,
             node_id,
         })
     }
 
     /// Send a message to the router.
     pub async fn send(&mut self, msg: &NodeMessage) -> Result<(), NodeError> {
-        write_framed(&mut self.send, msg).await
+        Ok(write_framed(&mut self.send, msg).await?)
     }
 
     /// Receive a message from the router. Returns `None` on clean stream close.
     pub async fn recv(&mut self) -> Result<Option<RouterMessage>, NodeError> {
-        read_framed(&mut self.recv).await
-    }
-
-    /// Attempt to reconnect with exponential backoff.
-    ///
-    /// Retries: 1s → 2s → 4s → 8s → ... → 60s cap.
-    pub async fn reconnect(
-        &mut self,
-        identity: &Identity,
-        models: Vec<String>,
-        tps: f64,
-        capacity: Capacity,
-    ) -> Result<(), NodeError> {
-        let mut delay = Duration::from_secs(1);
-        let max_delay = Duration::from_secs(60);
-
-        loop {
-            tracing::info!(delay_secs = delay.as_secs(), "attempting reconnect");
-            tokio::time::sleep(delay).await;
-
-            match Self::connect(&self.router_url, self.insecure, identity, models.clone(), tps, capacity.clone())
-                .await
-            {
-                Ok(new_conn) => {
-                    self.endpoint = new_conn.endpoint;
-                    self.connection = new_conn.connection;
-                    self.send = new_conn.send;
-                    self.recv = new_conn.recv;
-                    self.node_id = new_conn.node_id;
-                    tracing::info!(node_id = %self.node_id, "reconnected to router");
-                    return Ok(());
-                }
-                Err(e) => {
-                    tracing::warn!(%e, "reconnect failed");
-                    delay = (delay * 2).min(max_delay);
-                }
-            }
-        }
+        Ok(read_framed(&mut self.recv).await?)
     }
 
     /// Close the connection and endpoint gracefully.
@@ -403,7 +361,7 @@ mod tests {
                 &mut recv,
                 &identity,
                 vec!["gemma3:4b".into()],
-                42.0,
+                HashMap::from([("gemma3:4b".to_string(), 42.0)]),
                 Capacity { free: 1, max: 2 },
             )
             .await
@@ -416,6 +374,7 @@ mod tests {
                 models: vec!["gemma3:4b".into()],
                 capacity: Capacity { free: 1, max: 2 },
                 version: env!("CARGO_PKG_VERSION").to_string(),
+                stats: None,
             };
             write_framed(&mut send, &status).await.unwrap();
 
@@ -507,7 +466,7 @@ mod tests {
                 true,
                 &identity,
                 vec!["gemma3:4b".into()],
-                50.0,
+                HashMap::from([("gemma3:4b".to_string(), 50.0)]),
                 Capacity { free: 2, max: 4 },
             )
             .await
@@ -524,6 +483,328 @@ mod tests {
                 models: vec!["gemma3:4b".into()],
                 capacity: Capacity { free: 2, max: 4 },
                 version: env!("CARGO_PKG_VERSION").to_string(),
+                stats: None,
+            })
+            .await
+            .unwrap();
+
+            rx.await.expect("server did not signal completion");
+            conn.close();
+        })
+        .await
+        .expect("test timed out");
+    }
+
+    /// Helper: run the auth handshake as a mock router on an accepted connection.
+    async fn mock_router_auth(
+        send: &mut quinn::SendStream,
+        recv: &mut quinn::RecvStream,
+        node_id: &str,
+    ) {
+        write_framed(
+            send,
+            &crate::network::auth::ChallengeMessage {
+                challenge: [0xCC; 32],
+            },
+        )
+        .await
+        .unwrap();
+
+        let _auth_req: crate::network::auth::AuthRequest =
+            read_framed(recv).await.unwrap().unwrap();
+
+        write_framed(
+            send,
+            &crate::network::auth::AuthResponse {
+                authenticated: true,
+                node_id: Some(node_id.into()),
+                error: None,
+            },
+        )
+        .await
+        .unwrap();
+    }
+
+    /// Helper: build a mock QUIC server endpoint with self-signed cert.
+    fn build_mock_server_endpoint() -> Endpoint {
+        let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
+        let cert_der = CertificateDer::from(cert.cert);
+        let key_der =
+            rustls::pki_types::PrivatePkcs8KeyDer::from(cert.key_pair.serialize_der());
+
+        let server_crypto = rustls::ServerConfig::builder()
+            .with_no_client_auth()
+            .with_single_cert(vec![cert_der.clone()], key_der.into())
+            .unwrap();
+
+        let mut server_config = quinn::ServerConfig::with_crypto(Arc::new(
+            quinn::crypto::rustls::QuicServerConfig::try_from(server_crypto).unwrap(),
+        ));
+        let mut transport = TransportConfig::default();
+        transport.max_concurrent_bidi_streams(8u32.into());
+        server_config.transport_config(Arc::new(transport));
+
+        Endpoint::server(server_config, "127.0.0.1:0".parse().unwrap()).unwrap()
+    }
+
+    /// Integration test: full message flow (challenge → auth → ping → status → task assignment → rejection).
+    #[tokio::test]
+    async fn test_full_message_flow() {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            let server_endpoint = build_mock_server_endpoint();
+            let server_addr = server_endpoint.local_addr().unwrap();
+
+            let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+
+            tokio::spawn(async move {
+                let incoming = server_endpoint.accept().await.unwrap();
+                let server_conn = incoming.await.unwrap();
+                let (mut send, mut recv) = server_conn.open_bi().await.unwrap();
+
+                // Auth
+                mock_router_auth(&mut send, &mut recv, "flow-node").await;
+
+                // Send ping
+                write_framed(&mut send, &RouterMessage::Ping).await.unwrap();
+
+                // Read status update
+                let msg: NodeMessage = read_framed(&mut recv).await.unwrap().unwrap();
+                assert!(matches!(msg, NodeMessage::StatusUpdate { .. }));
+
+                // Send a task assignment (node has no real model → rejection expected)
+                let task_id = uuid::Uuid::nil();
+                write_framed(
+                    &mut send,
+                    &RouterMessage::TaskAssignment {
+                        task_id,
+                        model: "nonexistent:1b".into(),
+                        messages: vec![dkn_protocol::ChatMessage {
+                            role: "user".into(),
+                            content: "test".into(),
+                        }],
+                        max_tokens: 10,
+                        temperature: 0.7,
+                        validation: None,
+                    },
+                )
+                .await
+                .unwrap();
+
+                // Read the task rejection
+                let reject: NodeMessage = read_framed(&mut recv).await.unwrap().unwrap();
+                match reject {
+                    NodeMessage::TaskRejected { task_id: tid, reason } => {
+                        assert_eq!(tid, task_id);
+                        assert!(matches!(reason, dkn_protocol::RejectReason::ModelNotLoaded));
+                    }
+                    _ => panic!("expected TaskRejected, got {reject:?}"),
+                }
+
+                let _ = tx.send(());
+                server_conn.close(0u32.into(), b"done");
+                server_endpoint.close(0u32.into(), b"shutdown");
+            });
+
+            let url = format!("127.0.0.1:{}", server_addr.port());
+            let identity = Identity::from_secret_hex(
+                "6472696164726961647269616472696164726961647269616472696164726961",
+            )
+            .unwrap();
+
+            let mut conn = RouterConnection::connect(
+                &url,
+                true,
+                &identity,
+                vec!["gemma3:4b".into()],
+                HashMap::from([("gemma3:4b".to_string(), 50.0)]),
+                Capacity { free: 1, max: 1 },
+            )
+            .await
+            .unwrap();
+            assert_eq!(conn.node_id, "flow-node");
+
+            // Receive ping → reply with status
+            let msg = conn.recv().await.unwrap().unwrap();
+            assert!(matches!(msg, RouterMessage::Ping));
+
+            conn.send(&NodeMessage::StatusUpdate {
+                models: vec!["gemma3:4b".into()],
+                capacity: Capacity { free: 1, max: 1 },
+                version: env!("CARGO_PKG_VERSION").to_string(),
+                stats: None,
+            })
+            .await
+            .unwrap();
+
+            // Receive task assignment → we just forward to test; in real code the worker handles it
+            let task_msg = conn.recv().await.unwrap().unwrap();
+            match task_msg {
+                RouterMessage::TaskAssignment { task_id, .. } => {
+                    // Reject: model not loaded (only "gemma3:4b" is listed but task asks for "nonexistent:1b")
+                    conn.send(&NodeMessage::TaskRejected {
+                        task_id,
+                        reason: dkn_protocol::RejectReason::ModelNotLoaded,
+                    })
+                    .await
+                    .unwrap();
+                }
+                _ => panic!("expected TaskAssignment"),
+            }
+
+            rx.await.expect("server did not signal completion");
+            conn.close();
+        })
+        .await
+        .expect("test timed out");
+    }
+
+    /// Integration test: multi-router failover — first server closes immediately, second handles auth.
+    #[tokio::test]
+    async fn test_multi_router_failover() {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            // First "bad" server: accepts connection then immediately closes
+            let bad_endpoint = build_mock_server_endpoint();
+            let bad_addr = bad_endpoint.local_addr().unwrap();
+
+            tokio::spawn(async move {
+                if let Some(incoming) = bad_endpoint.accept().await {
+                    let conn = incoming.await.unwrap();
+                    // Immediately close without opening a stream
+                    conn.close(0u32.into(), b"go away");
+                    bad_endpoint.close(0u32.into(), b"shutdown");
+                }
+            });
+
+            // Second "good" server: handles auth normally
+            let good_endpoint = build_mock_server_endpoint();
+            let good_addr = good_endpoint.local_addr().unwrap();
+
+            let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+
+            tokio::spawn(async move {
+                let incoming = good_endpoint.accept().await.unwrap();
+                let server_conn = incoming.await.unwrap();
+                let (mut send, mut recv) = server_conn.open_bi().await.unwrap();
+
+                mock_router_auth(&mut send, &mut recv, "failover-node").await;
+
+                let _ = tx.send(());
+                // Keep connection alive until test finishes
+                tokio::time::sleep(Duration::from_secs(2)).await;
+                server_conn.close(0u32.into(), b"done");
+                good_endpoint.close(0u32.into(), b"shutdown");
+            });
+
+            let identity = Identity::from_secret_hex(
+                "6472696164726961647269616472696164726961647269616472696164726961",
+            )
+            .unwrap();
+
+            // Try bad server first, then good server
+            let urls = vec![
+                format!("127.0.0.1:{}", bad_addr.port()),
+                format!("127.0.0.1:{}", good_addr.port()),
+            ];
+
+            let mut connected = None;
+            for url in &urls {
+                match RouterConnection::connect(
+                    url,
+                    true,
+                    &identity,
+                    vec!["gemma3:4b".into()],
+                    HashMap::from([("gemma3:4b".to_string(), 50.0)]),
+                    Capacity { free: 1, max: 1 },
+                )
+                .await
+                {
+                    Ok(conn) => {
+                        connected = Some(conn);
+                        break;
+                    }
+                    Err(_) => continue,
+                }
+            }
+
+            let conn = connected.expect("should have connected to second server");
+            assert_eq!(conn.node_id, "failover-node");
+
+            rx.await.expect("server did not signal completion");
+            conn.close();
+        })
+        .await
+        .expect("test timed out");
+    }
+
+    /// Integration test: stats field is present in StatusUpdate.
+    #[tokio::test]
+    async fn test_status_update_with_stats() {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            let server_endpoint = build_mock_server_endpoint();
+            let server_addr = server_endpoint.local_addr().unwrap();
+
+            let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+
+            tokio::spawn(async move {
+                let incoming = server_endpoint.accept().await.unwrap();
+                let server_conn = incoming.await.unwrap();
+                let (mut send, mut recv) = server_conn.open_bi().await.unwrap();
+
+                mock_router_auth(&mut send, &mut recv, "stats-node").await;
+
+                // Send ping
+                write_framed(&mut send, &RouterMessage::Ping).await.unwrap();
+
+                // Read status update — verify stats field is present
+                let msg: NodeMessage = read_framed(&mut recv).await.unwrap().unwrap();
+                match msg {
+                    NodeMessage::StatusUpdate { stats, version, .. } => {
+                        assert_eq!(version, env!("CARGO_PKG_VERSION"));
+                        let s = stats.expect("stats should be present");
+                        assert_eq!(s.tasks_completed, 42);
+                        assert_eq!(s.total_tokens_generated, 1000);
+                    }
+                    _ => panic!("expected StatusUpdate"),
+                }
+
+                let _ = tx.send(());
+                server_conn.close(0u32.into(), b"done");
+                server_endpoint.close(0u32.into(), b"shutdown");
+            });
+
+            let url = format!("127.0.0.1:{}", server_addr.port());
+            let identity = Identity::from_secret_hex(
+                "6472696164726961647269616472696164726961647269616472696164726961",
+            )
+            .unwrap();
+
+            let mut conn = RouterConnection::connect(
+                &url,
+                true,
+                &identity,
+                vec!["gemma3:4b".into()],
+                HashMap::from([("gemma3:4b".to_string(), 50.0)]),
+                Capacity { free: 1, max: 1 },
+            )
+            .await
+            .unwrap();
+
+            // Receive ping
+            let msg = conn.recv().await.unwrap().unwrap();
+            assert!(matches!(msg, RouterMessage::Ping));
+
+            // Send status update with stats
+            conn.send(&NodeMessage::StatusUpdate {
+                models: vec!["gemma3:4b".into()],
+                capacity: Capacity { free: 1, max: 1 },
+                version: env!("CARGO_PKG_VERSION").to_string(),
+                stats: Some(dkn_protocol::NodeStatsSnapshot {
+                    tasks_completed: 42,
+                    tasks_failed: 3,
+                    tasks_rejected: 1,
+                    total_tokens_generated: 1000,
+                    uptime_secs: 600,
+                }),
             })
             .await
             .unwrap();

@@ -8,7 +8,9 @@ use crate::error::NodeError;
 /// The address is an Ethereum-style address (last 20 bytes of keccak256 of uncompressed pubkey).
 pub struct Identity {
     pub secret_key: SecretKey,
+    #[allow(dead_code)]
     pub public_key: PublicKey,
+    #[allow(dead_code)]
     pub address: [u8; 20],
     pub address_hex: String,
 }

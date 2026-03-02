@@ -12,7 +12,7 @@ use llama_cpp_2::token::LlamaToken;
 
 use crate::error::NodeError;
 use crate::identity::sha256hash;
-use crate::inference::proof::{InferenceProof, TokenLogprob};
+use dkn_protocol::{InferenceProof, TokenLogprob};
 use crate::inference::stream::StreamToken;
 
 /// Parameters controlling text generation.
@@ -60,6 +60,7 @@ pub struct InferenceResult {
 pub struct InferenceEngine {
     backend: LlamaBackend,
     model: LlamaModel,
+    #[allow(dead_code)]
     gpu_layers: i32,
 }
 
@@ -95,6 +96,7 @@ impl InferenceEngine {
     }
 
     /// Return the number of GPU layers configured.
+    #[allow(dead_code)]
     pub fn gpu_layers(&self) -> i32 {
         self.gpu_layers
     }

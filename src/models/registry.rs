@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use dkn_protocol::ModelRegistryEntry;
+
 /// Specification for a model: shortname mapped to HuggingFace GGUF location.
 #[derive(Debug, Clone)]
 pub struct ModelSpec {
@@ -86,6 +88,19 @@ pub fn default_registry() -> HashMap<String, ModelSpec> {
     entries.into_iter().map(|s| (s.name.clone(), s)).collect()
 }
 
+impl ModelSpec {
+    /// Create a ModelSpec from a router-provided registry entry.
+    pub fn from_registry_entry(entry: &ModelRegistryEntry) -> Self {
+        ModelSpec {
+            name: entry.name.clone(),
+            hf_repo: entry.hf_repo.clone(),
+            hf_file: entry.hf_file.clone(),
+            sha256: None,
+            chat_template: entry.chat_template.clone(),
+        }
+    }
+}
+
 /// Resolve a user-provided model name to a ModelSpec from the registry.
 pub fn resolve_model(name: &str, registry: &HashMap<String, ModelSpec>) -> Option<ModelSpec> {
     registry.get(name).cloned()
@@ -128,5 +143,21 @@ mod tests {
     fn test_resolve_unknown_model() {
         let reg = default_registry();
         assert!(resolve_model("nonexistent:1b", &reg).is_none());
+    }
+
+    #[test]
+    fn test_from_registry_entry() {
+        let entry = ModelRegistryEntry {
+            name: "test:1b".into(),
+            hf_repo: "test/repo".into(),
+            hf_file: "model.gguf".into(),
+            chat_template: Some("chatml".into()),
+        };
+        let spec = ModelSpec::from_registry_entry(&entry);
+        assert_eq!(spec.name, "test:1b");
+        assert_eq!(spec.hf_repo, "test/repo");
+        assert_eq!(spec.hf_file, "model.gguf");
+        assert!(spec.sha256.is_none());
+        assert_eq!(spec.chat_template, Some("chatml".into()));
     }
 }

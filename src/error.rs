@@ -20,3 +20,9 @@ pub enum NodeError {
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
 }
+
+impl From<dkn_protocol::ProtocolError> for NodeError {
+    fn from(e: dkn_protocol::ProtocolError) -> Self {
+        NodeError::Network(e.to_string())
+    }
+}
