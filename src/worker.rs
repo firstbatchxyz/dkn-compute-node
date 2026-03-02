@@ -10,9 +10,9 @@ use uuid::Uuid;
 
 use crate::error::NodeError;
 use crate::inference::{GenerateParams, InferenceEngine, InferenceResult};
-use crate::models::template::{ChatMessage, apply_chat_template};
+use crate::models::template::{ChatMessage, MessageContent, apply_chat_template};
 use crate::network::protocol::{
-    Capacity, NodeMessage, RejectReason, TaskStats, ValidationRequest,
+    Capacity, ModelType, NodeMessage, RejectReason, TaskStats, ValidationRequest,
 };
 
 /// A completed inference task ready to be sent back.
@@ -23,10 +23,10 @@ pub struct CompletedTask {
 
 /// Executes inference tasks with backpressure via capacity tracking.
 ///
-/// Supports multiple models, each with its own engine and chat template.
+/// Supports multiple models, each with its own engine, chat template, and modality.
 pub struct Worker {
-    /// Map of model name → (engine, chat_template).
-    engines: HashMap<String, (Arc<InferenceEngine>, String)>,
+    /// Map of model name → (engine, chat_template, model_type).
+    engines: HashMap<String, (Arc<InferenceEngine>, String, ModelType)>,
     /// Number of available inference slots (CAS-based).
     capacity: Arc<AtomicUsize>,
     /// Maximum concurrent slots.
@@ -38,12 +38,14 @@ pub struct Worker {
 impl Worker {
     /// Create a new worker wrapping multiple inference engines.
     pub fn new(
-        engines: HashMap<String, (InferenceEngine, String)>,
+        engines: HashMap<String, (InferenceEngine, String, ModelType)>,
         max_concurrent: usize,
     ) -> Self {
         let engines = engines
             .into_iter()
-            .map(|(name, (engine, template))| (name, (Arc::new(engine), template)))
+            .map(|(name, (engine, template, model_type))| {
+                (name, (Arc::new(engine), template, model_type))
+            })
             .collect();
         Worker {
             engines,
@@ -65,11 +67,31 @@ impl Worker {
         temperature: f32,
         validation: Option<ValidationRequest>,
     ) -> Result<(), RejectReason> {
-        // Look up engine + template for the requested model (fail fast before decrementing capacity)
-        let (engine, template) = self
+        // Look up engine + template + model_type for the requested model (fail fast before decrementing capacity)
+        let (engine, template, model_type) = self
             .engines
             .get(model)
             .ok_or(RejectReason::ModelNotLoaded)?;
+
+        // Check modality: reject if messages contain image/audio parts that the model can't handle
+        let has_image = messages
+            .iter()
+            .any(|m| m.content.has_image());
+        let has_audio = messages
+            .iter()
+            .any(|m| m.content.has_audio());
+
+        if has_image && *model_type != ModelType::Vision {
+            return Err(RejectReason::InvalidRequest(
+                "message contains image content but model does not support vision".into(),
+            ));
+        }
+        if has_audio && *model_type != ModelType::Audio {
+            return Err(RejectReason::InvalidRequest(
+                "message contains audio content but model does not support audio".into(),
+            ));
+        }
+
         let engine = Arc::clone(engine);
         let template = template.clone();
 
@@ -150,8 +172,15 @@ impl Worker {
     /// Add a new model engine at runtime (for hot-swap).
     ///
     /// If a model with this name already exists, it is replaced.
-    pub fn add_engine(&mut self, name: String, engine: InferenceEngine, template: String) {
-        self.engines.insert(name, (Arc::new(engine), template));
+    pub fn add_engine(
+        &mut self,
+        name: String,
+        engine: InferenceEngine,
+        template: String,
+        model_type: ModelType,
+    ) {
+        self.engines
+            .insert(name, (Arc::new(engine), template, model_type));
     }
 
     /// Remove a model engine by name. Returns true if the model was present.
@@ -282,18 +311,26 @@ mod tests {
     #[test]
     fn test_worker_has_model() {
         let worker = Worker::new(HashMap::new(), 1);
-        assert!(!worker.has_model("gemma3:4b"));
+        assert!(!worker.has_model("lfm2.5:1.2b"));
     }
 
     #[test]
     fn test_worker_remove_engine_not_present() {
         let mut worker = Worker::new(HashMap::new(), 1);
-        assert!(!worker.remove_engine("gemma3:4b"));
+        assert!(!worker.remove_engine("lfm2.5:1.2b"));
     }
 
     #[test]
     fn test_worker_model_names_empty() {
         let worker = Worker::new(HashMap::new(), 1);
         assert!(worker.model_names().is_empty());
+    }
+
+    #[test]
+    fn test_modality_check_text_content() {
+        // MessageContent::Text should have no image/audio
+        let content = MessageContent::Text("hello".into());
+        assert!(!content.has_image());
+        assert!(!content.has_audio());
     }
 }

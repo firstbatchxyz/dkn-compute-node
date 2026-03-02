@@ -90,6 +90,7 @@ mod tests {
             hf_file: "model.gguf".into(),
             sha256: None,
             chat_template: None,
+            model_type: dkn_protocol::ModelType::Text,
         };
 
         // Not present initially
