@@ -445,6 +445,7 @@ dependencies = [
 name = "dkn-protocol"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "quinn",
  "rmp-serde",
  "serde",

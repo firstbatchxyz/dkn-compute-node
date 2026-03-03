@@ -28,6 +28,17 @@ impl ModelCache {
         }
     }
 
+    /// Check if a model's mmproj GGUF is already present in our cache.
+    pub fn get_mmproj_path(&self, spec: &ModelSpec) -> Option<PathBuf> {
+        let file = spec.hf_mmproj_file.as_ref()?;
+        let path = self.cache_dir.join(file);
+        if path.exists() {
+            Some(path)
+        } else {
+            None
+        }
+    }
+
     /// Verify a file's SHA-256 against an expected hex digest.
     /// Returns Ok(true) if matches, Ok(false) if mismatch, Err on I/O failure.
     pub fn verify_sha256(path: &Path, expected_hex: &str) -> Result<bool, NodeError> {
@@ -44,6 +55,26 @@ impl ModelCache {
         let dest = self.cache_dir.join(&spec.hf_file);
         if dest.exists() {
             // Already linked or copied
+            return Ok(dest);
+        }
+
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(source, &dest)?;
+
+        #[cfg(not(unix))]
+        std::fs::copy(source, &dest)?;
+
+        Ok(dest)
+    }
+
+    /// Create a symlink from our cache dir to the hf-hub cached mmproj file.
+    pub fn link_mmproj(&self, spec: &ModelSpec, source: &Path) -> Result<PathBuf, NodeError> {
+        let file = spec
+            .hf_mmproj_file
+            .as_ref()
+            .ok_or_else(|| NodeError::Model("no mmproj file specified".into()))?;
+        let dest = self.cache_dir.join(file);
+        if dest.exists() {
             return Ok(dest);
         }
 
@@ -90,6 +121,7 @@ mod tests {
             hf_file: "model.gguf".into(),
             sha256: None,
             model_type: dkn_protocol::ModelType::Text,
+            hf_mmproj_file: None,
         };
 
         // Not present initially
@@ -98,6 +130,40 @@ mod tests {
         // Create the file
         std::fs::write(dir.join("model.gguf"), b"fake").unwrap();
         assert!(cache.get_local_path(&spec).is_some());
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_mmproj_cache_path() {
+        let dir = std::env::temp_dir().join("dria-cache-test-mmproj");
+        let cache = ModelCache::new(dir.clone()).unwrap();
+
+        let spec_no_mmproj = ModelSpec {
+            name: "text:1b".into(),
+            hf_repo: "test/repo".into(),
+            hf_file: "model.gguf".into(),
+            sha256: None,
+            model_type: dkn_protocol::ModelType::Text,
+            hf_mmproj_file: None,
+        };
+        assert!(cache.get_mmproj_path(&spec_no_mmproj).is_none());
+
+        let spec_with_mmproj = ModelSpec {
+            name: "vl:1b".into(),
+            hf_repo: "test/repo".into(),
+            hf_file: "model.gguf".into(),
+            sha256: None,
+            model_type: dkn_protocol::ModelType::Vision,
+            hf_mmproj_file: Some("mmproj.gguf".into()),
+        };
+
+        // Not present initially
+        assert!(cache.get_mmproj_path(&spec_with_mmproj).is_none());
+
+        // Create the mmproj file
+        std::fs::write(dir.join("mmproj.gguf"), b"fake").unwrap();
+        assert!(cache.get_mmproj_path(&spec_with_mmproj).is_some());
 
         std::fs::remove_dir_all(&dir).ok();
     }

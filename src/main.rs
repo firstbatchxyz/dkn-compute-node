@@ -482,9 +482,22 @@ async fn download_and_load_model(
         cache.link_model(spec, &hf_path)?
     };
 
+    // Download mmproj if specified (for vision/audio models)
+    let mmproj_path = if spec.hf_mmproj_file.is_some() {
+        if let Some(path) = cache.get_mmproj_path(spec) {
+            tracing::info!(model = %model_name, path = %path.display(), "mmproj found in cache");
+            Some(path)
+        } else {
+            let hf_path = ModelDownloader::download_mmproj(spec).await?;
+            Some(cache.link_mmproj(spec, &hf_path)?)
+        }
+    } else {
+        None
+    };
+
     // Load model and run benchmark in blocking thread
     let (engine, tps) = tokio::task::spawn_blocking(move || {
-        let engine = inference::InferenceEngine::load(&model_path, gpu_layers)?;
+        let engine = inference::InferenceEngine::load(&model_path, gpu_layers, mmproj_path.as_deref())?;
         let tps_result = engine.benchmark(&model_name)?;
         Ok::<_, error::NodeError>((engine, tps_result.generation_tps))
     })

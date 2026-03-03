@@ -234,28 +234,49 @@ fn run_inference(
     params: &GenerateParams,
     task_id: Uuid,
 ) -> CompletedTask {
-    let prompt = match engine.apply_template(&messages) {
-        Ok(p) => p,
-        Err(e) => {
-            return CompletedTask {
+    let has_media = messages
+        .iter()
+        .any(|m| m.content.has_image() || m.content.has_audio());
+
+    if has_media && engine.has_multimodal() {
+        // Multimodal path
+        match engine.generate_multimodal(&messages, params, |_| ControlFlow::Continue(())) {
+            Ok(result) => CompletedTask {
+                task_id,
+                result: Ok(build_task_result(task_id, result)),
+                stream: false,
+            },
+            Err(e) => CompletedTask {
                 task_id,
                 result: Err(e),
                 stream: false,
-            };
+            },
         }
-    };
+    } else {
+        // Text-only path
+        let prompt = match engine.apply_template(&messages) {
+            Ok(p) => p,
+            Err(e) => {
+                return CompletedTask {
+                    task_id,
+                    result: Err(e),
+                    stream: false,
+                };
+            }
+        };
 
-    match engine.generate(&prompt, params, |_| ControlFlow::Continue(())) {
-        Ok(result) => CompletedTask {
-            task_id,
-            result: Ok(build_task_result(task_id, result)),
-            stream: false,
-        },
-        Err(e) => CompletedTask {
-            task_id,
-            result: Err(e),
-            stream: false,
-        },
+        match engine.generate(&prompt, params, |_| ControlFlow::Continue(())) {
+            Ok(result) => CompletedTask {
+                task_id,
+                result: Ok(build_task_result(task_id, result)),
+                stream: false,
+            },
+            Err(e) => CompletedTask {
+                task_id,
+                result: Err(e),
+                stream: false,
+            },
+        }
     }
 }
 
@@ -267,35 +288,55 @@ fn run_inference_streaming(
     task_id: Uuid,
     token_tx: std::sync::mpsc::SyncSender<NodeMessage>,
 ) -> CompletedTask {
-    let prompt = match engine.apply_template(&messages) {
-        Ok(p) => p,
-        Err(e) => {
-            let err_msg = NodeMessage::StreamError {
-                task_id,
-                error: e.to_string(),
-            };
-            let _ = token_tx.send(err_msg);
-            return CompletedTask {
-                task_id,
-                result: Err(e),
-                stream: true,
-            };
-        }
-    };
+    let has_media = messages
+        .iter()
+        .any(|m| m.content.has_image() || m.content.has_audio());
 
-    let tx = token_tx.clone();
-    let result = engine.generate(&prompt, params, move |stream_token| {
-        let msg = NodeMessage::StreamToken {
-            task_id,
-            token: stream_token.text,
-            index: stream_token.index as u32,
+    let result = if has_media && engine.has_multimodal() {
+        // Multimodal streaming path
+        let tx = token_tx.clone();
+        engine.generate_multimodal(&messages, params, move |stream_token| {
+            let msg = NodeMessage::StreamToken {
+                task_id,
+                token: stream_token.text,
+                index: stream_token.index as u32,
+            };
+            if tx.send(msg).is_err() {
+                return ControlFlow::Break(());
+            }
+            ControlFlow::Continue(())
+        })
+    } else {
+        // Text-only streaming path
+        let prompt = match engine.apply_template(&messages) {
+            Ok(p) => p,
+            Err(e) => {
+                let err_msg = NodeMessage::StreamError {
+                    task_id,
+                    error: e.to_string(),
+                };
+                let _ = token_tx.send(err_msg);
+                return CompletedTask {
+                    task_id,
+                    result: Err(e),
+                    stream: true,
+                };
+            }
         };
-        if tx.send(msg).is_err() {
-            // Receiver dropped (connection lost), stop generation
-            return ControlFlow::Break(());
-        }
-        ControlFlow::Continue(())
-    });
+
+        let tx = token_tx.clone();
+        engine.generate(&prompt, params, move |stream_token| {
+            let msg = NodeMessage::StreamToken {
+                task_id,
+                token: stream_token.text,
+                index: stream_token.index as u32,
+            };
+            if tx.send(msg).is_err() {
+                return ControlFlow::Break(());
+            }
+            ControlFlow::Continue(())
+        })
+    };
 
     match result {
         Ok(result) => {

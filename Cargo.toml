@@ -25,7 +25,7 @@ sha2 = "0.10"
 sha3 = "0.10"
 hex = "0.4"
 rand = "0.8"
-llama-cpp-2 = "0.1.137"
+llama-cpp-2 = { version = "0.1.137", features = ["mtmd"] }
 hf-hub = { version = "0.4", features = ["tokio"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

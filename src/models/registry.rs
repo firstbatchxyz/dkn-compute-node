@@ -15,6 +15,8 @@ pub struct ModelSpec {
     pub sha256: Option<String>,
     /// Modality this model supports.
     pub model_type: ModelType,
+    /// Optional multimodal projector GGUF filename within the same repo.
+    pub hf_mmproj_file: Option<String>,
 }
 
 /// Build the default model registry with all supported models.
@@ -26,6 +28,7 @@ pub fn default_registry() -> HashMap<String, ModelSpec> {
             hf_file: "LFM2.5-1.2B-Instruct-Q4_K_M.gguf".into(),
             sha256: None,
             model_type: ModelType::Text,
+            hf_mmproj_file: None,
         },
         ModelSpec {
             name: "qwen3.5:35b-a3b".into(),
@@ -33,6 +36,7 @@ pub fn default_registry() -> HashMap<String, ModelSpec> {
             hf_file: "Qwen3.5-35B-A3B-UD-Q4_K_M.gguf".into(),
             sha256: None,
             model_type: ModelType::Text,
+            hf_mmproj_file: None,
         },
         ModelSpec {
             name: "lfm2:24b-a2b".into(),
@@ -40,6 +44,7 @@ pub fn default_registry() -> HashMap<String, ModelSpec> {
             hf_file: "LFM2-24B-A2B-Q4_K_M.gguf".into(),
             sha256: None,
             model_type: ModelType::Text,
+            hf_mmproj_file: None,
         },
         ModelSpec {
             name: "lfm2.5-vl:1.6b".into(),
@@ -47,6 +52,7 @@ pub fn default_registry() -> HashMap<String, ModelSpec> {
             hf_file: "LFM2.5-VL-1.6B-Q4_0.gguf".into(),
             sha256: None,
             model_type: ModelType::Vision,
+            hf_mmproj_file: Some("mmproj-LFM2.5-VL-1.6b-F16.gguf".into()),
         },
         ModelSpec {
             name: "lfm2.5-audio:1.5b".into(),
@@ -54,6 +60,7 @@ pub fn default_registry() -> HashMap<String, ModelSpec> {
             hf_file: "LFM2.5-Audio-1.5B-Q4_0.gguf".into(),
             sha256: None,
             model_type: ModelType::Audio,
+            hf_mmproj_file: Some("mmproj-LFM2.5-Audio-1.5B-Q4_0.gguf".into()),
         },
         ModelSpec {
             name: "qwen3.5:27b".into(),
@@ -61,6 +68,7 @@ pub fn default_registry() -> HashMap<String, ModelSpec> {
             hf_file: "Qwen3.5-27B-Q4_K_M.gguf".into(),
             sha256: None,
             model_type: ModelType::Text,
+            hf_mmproj_file: None,
         },
         ModelSpec {
             name: "nanbeige:3b".into(),
@@ -68,6 +76,7 @@ pub fn default_registry() -> HashMap<String, ModelSpec> {
             hf_file: "Nanbeige.Nanbeige4.1-3B.Q4_K_M.gguf".into(),
             sha256: None,
             model_type: ModelType::Text,
+            hf_mmproj_file: None,
         },
         ModelSpec {
             name: "locooperator:4b".into(),
@@ -75,6 +84,7 @@ pub fn default_registry() -> HashMap<String, ModelSpec> {
             hf_file: "LocoOperator-4B.Q4_K_M.gguf".into(),
             sha256: None,
             model_type: ModelType::Text,
+            hf_mmproj_file: None,
         },
         ModelSpec {
             name: "qwen3.5:9b".into(),
@@ -82,6 +92,7 @@ pub fn default_registry() -> HashMap<String, ModelSpec> {
             hf_file: "Qwen3.5-9B-Q4_K_M.gguf".into(),
             sha256: None,
             model_type: ModelType::Text,
+            hf_mmproj_file: None,
         },
     ];
 
@@ -97,6 +108,7 @@ impl ModelSpec {
             hf_file: entry.hf_file.clone(),
             sha256: None,
             model_type: entry.model_type,
+            hf_mmproj_file: entry.hf_mmproj_file.clone(),
         }
     }
 
@@ -167,6 +179,7 @@ mod tests {
         assert!(spec.hf_repo.contains("LFM2.5"));
         assert!(spec.hf_file.ends_with(".gguf"));
         assert_eq!(spec.model_type, ModelType::Text);
+        assert!(spec.hf_mmproj_file.is_none());
     }
 
     #[test]
@@ -182,6 +195,7 @@ mod tests {
             hf_repo: "test/repo".into(),
             hf_file: "model.gguf".into(),
             model_type: ModelType::Vision,
+            hf_mmproj_file: Some("mmproj.gguf".into()),
         };
         let spec = ModelSpec::from_registry_entry(&entry);
         assert_eq!(spec.name, "test:1b");
@@ -189,6 +203,7 @@ mod tests {
         assert_eq!(spec.hf_file, "model.gguf");
         assert!(spec.sha256.is_none());
         assert_eq!(spec.model_type, ModelType::Vision);
+        assert_eq!(spec.hf_mmproj_file.as_deref(), Some("mmproj.gguf"));
     }
 
     #[test]
@@ -198,6 +213,15 @@ mod tests {
         assert_eq!(reg["lfm2.5-audio:1.5b"].model_type, ModelType::Audio);
         assert_eq!(reg["lfm2.5:1.2b"].model_type, ModelType::Text);
         assert_eq!(reg["qwen3.5:27b"].model_type, ModelType::Text);
+    }
+
+    #[test]
+    fn test_mmproj_files_correct() {
+        let reg = default_registry();
+        assert!(reg["lfm2.5-vl:1.6b"].hf_mmproj_file.is_some());
+        assert!(reg["lfm2.5-audio:1.5b"].hf_mmproj_file.is_some());
+        assert!(reg["lfm2.5:1.2b"].hf_mmproj_file.is_none());
+        assert!(reg["qwen3.5:27b"].hf_mmproj_file.is_none());
     }
 
     #[test]
@@ -212,6 +236,17 @@ mod tests {
         assert_eq!(q8.name, spec.name);
         assert_eq!(q8.hf_repo, spec.hf_repo);
         assert_eq!(q8.model_type, spec.model_type);
+        assert_eq!(q8.hf_mmproj_file, spec.hf_mmproj_file);
+    }
+
+    #[test]
+    fn test_with_quant_preserves_mmproj() {
+        let reg = default_registry();
+        let spec = &reg["lfm2.5-vl:1.6b"];
+        assert!(spec.hf_mmproj_file.is_some());
+
+        let q8 = spec.with_quant("Q8_0");
+        assert_eq!(q8.hf_mmproj_file, spec.hf_mmproj_file);
     }
 
     #[test]

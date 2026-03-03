@@ -7,6 +7,7 @@ use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::{AddBos, LlamaChatMessage, LlamaModel};
+use llama_cpp_2::mtmd::{MtmdBitmap, MtmdContext, MtmdContextParams, MtmdInputText};
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 
@@ -62,6 +63,7 @@ pub struct InferenceResult {
 pub struct InferenceEngine {
     backend: LlamaBackend,
     model: LlamaModel,
+    mtmd_ctx: Option<MtmdContext>,
     #[allow(dead_code)]
     gpu_layers: i32,
 }
@@ -75,8 +77,12 @@ fn token_to_string(model: &LlamaModel, token: LlamaToken) -> String {
 }
 
 impl InferenceEngine {
-    /// Load a GGUF model from disk.
-    pub fn load(path: &Path, gpu_layers: i32) -> Result<Self, NodeError> {
+    /// Load a GGUF model from disk, optionally with a multimodal projector.
+    pub fn load(
+        path: &Path,
+        gpu_layers: i32,
+        mmproj_path: Option<&Path>,
+    ) -> Result<Self, NodeError> {
         let backend = LlamaBackend::init()
             .map_err(|e| NodeError::Inference(format!("failed to init llama backend: {e}")))?;
 
@@ -90,11 +96,38 @@ impl InferenceEngine {
         let model = LlamaModel::load_from_file(&backend, path, &model_params)
             .map_err(|e| NodeError::Inference(format!("failed to load model: {e}")))?;
 
+        let mtmd_ctx = match mmproj_path {
+            Some(p) => {
+                let params = MtmdContextParams::default();
+                let ctx = MtmdContext::init_from_file(
+                    p.to_str()
+                        .ok_or_else(|| NodeError::Inference("invalid mmproj path".into()))?,
+                    &model,
+                    &params,
+                )
+                .map_err(|e| NodeError::Inference(format!("failed to init mtmd context: {e}")))?;
+                tracing::info!(
+                    path = %p.display(),
+                    vision = ctx.support_vision(),
+                    audio = ctx.support_audio(),
+                    "multimodal projector loaded"
+                );
+                Some(ctx)
+            }
+            None => None,
+        };
+
         Ok(InferenceEngine {
             backend,
             model,
+            mtmd_ctx,
             gpu_layers,
         })
+    }
+
+    /// Whether this engine has a multimodal projector loaded.
+    pub fn has_multimodal(&self) -> bool {
+        self.mtmd_ctx.is_some()
     }
 
     /// Return the number of GPU layers configured.
@@ -112,6 +145,28 @@ impl InferenceEngine {
         let llama_messages: Vec<LlamaChatMessage> = messages
             .iter()
             .map(|m| LlamaChatMessage::new(m.role.clone(), m.content.to_string()))
+            .collect::<Result<_, _>>()
+            .map_err(|e| NodeError::Inference(format!("invalid chat message: {e}")))?;
+        self.model
+            .apply_chat_template(&template, &llama_messages, true)
+            .map_err(|e| NodeError::Inference(format!("failed to apply chat template: {e}")))
+    }
+
+    /// Apply the GGUF-embedded chat template with media parts replaced by the given marker.
+    fn apply_template_with_marker(
+        &self,
+        messages: &[ChatMessage],
+        marker: &str,
+    ) -> Result<String, NodeError> {
+        let template = self
+            .model
+            .chat_template(None)
+            .map_err(|e| NodeError::Inference(format!("no chat template in model: {e}")))?;
+        let llama_messages: Vec<LlamaChatMessage> = messages
+            .iter()
+            .map(|m| {
+                LlamaChatMessage::new(m.role.clone(), m.content.text_with_markers(marker))
+            })
             .collect::<Result<_, _>>()
             .map_err(|e| NodeError::Inference(format!("invalid chat message: {e}")))?;
         self.model
@@ -178,6 +233,166 @@ impl InferenceEngine {
         let mut logprobs: Vec<TokenLogprob> = Vec::new();
         let mut current_pos = tokens.len() as i32;
         let mut decoder = encoding_rs::UTF_8.new_decoder();
+
+        for _ in 0..params.max_tokens {
+            let new_token = sampler.sample(&ctx, -1);
+            sampler.accept(new_token);
+
+            if self.model.is_eog_token(new_token) {
+                break;
+            }
+
+            // Extract logprobs if this position was requested
+            let gen_index = generated_count as usize;
+            if params.logprob_positions.contains(&gen_index) {
+                if let Some(lp) =
+                    self.extract_logprob(&ctx, -1, gen_index, new_token, params.logprob_top_k)
+                {
+                    logprobs.push(lp);
+                }
+            }
+
+            // Decode token to text
+            let piece = self
+                .model
+                .token_to_piece(new_token, &mut decoder, true, None)
+                .unwrap_or_default();
+            generated_text.push_str(&piece);
+            generated_count += 1;
+
+            // Stream callback
+            let stream_token = StreamToken {
+                text: piece,
+                index: gen_index,
+            };
+            if let ControlFlow::Break(()) = on_token(stream_token) {
+                break;
+            }
+
+            // Prepare next batch
+            batch.clear();
+            batch
+                .add(new_token, current_pos, &[0], true)
+                .map_err(|e| NodeError::Inference(format!("batch add failed: {e}")))?;
+            ctx.decode(&mut batch)
+                .map_err(|e| NodeError::Inference(format!("decode failed: {e}")))?;
+            current_pos += 1;
+        }
+
+        let generation_time_ms = gen_start.elapsed().as_millis() as u64;
+        let tokens_per_second = if generation_time_ms > 0 {
+            (generated_count as f64) / (generation_time_ms as f64 / 1000.0)
+        } else {
+            0.0
+        };
+
+        let proof = if logprobs.is_empty() {
+            None
+        } else {
+            Some(InferenceProof {
+                logprobs,
+                kv_cache_hash: None,
+            })
+        };
+
+        Ok(InferenceResult {
+            text: generated_text,
+            tokens_generated: generated_count,
+            prompt_tokens: prompt_token_count,
+            generation_time_ms,
+            prompt_eval_time_ms,
+            tokens_per_second,
+            proof,
+        })
+    }
+
+    /// Generate text from multimodal messages containing image/audio parts.
+    ///
+    /// Uses the mtmd context to process media, then runs the standard sampling loop.
+    pub fn generate_multimodal<F>(
+        &self,
+        messages: &[ChatMessage],
+        params: &GenerateParams,
+        mut on_token: F,
+    ) -> Result<InferenceResult, NodeError>
+    where
+        F: FnMut(StreamToken) -> ControlFlow<()>,
+    {
+        let mtmd_ctx = self
+            .mtmd_ctx
+            .as_ref()
+            .ok_or_else(|| NodeError::Inference("no multimodal context loaded".into()))?;
+
+        // Get the default media marker used by the mtmd tokenizer
+        let marker = llama_cpp_2::mtmd::mtmd_default_marker();
+
+        // Apply chat template with media parts replaced by the marker
+        let prompt = self.apply_template_with_marker(messages, marker)?;
+
+        // Collect all media byte slices in order across all messages
+        let mut media_blobs: Vec<&[u8]> = Vec::new();
+        for msg in messages {
+            media_blobs.extend(msg.content.media_data());
+        }
+
+        // Create bitmaps from media blobs
+        let bitmaps: Vec<MtmdBitmap> = media_blobs
+            .iter()
+            .map(|data| {
+                MtmdBitmap::from_buffer(mtmd_ctx, data)
+                    .map_err(|e| NodeError::Inference(format!("failed to create bitmap: {e}")))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let bitmap_refs: Vec<&MtmdBitmap> = bitmaps.iter().collect();
+
+        // Tokenize the prompt with media markers resolved to bitmap embeddings
+        let input_text = MtmdInputText {
+            text: prompt,
+            add_special: false, // chat template already includes BOS
+            parse_special: true,
+        };
+        let chunks = mtmd_ctx
+            .tokenize(input_text, &bitmap_refs)
+            .map_err(|e| NodeError::Inference(format!("mtmd tokenize failed: {e}")))?;
+
+        let prompt_token_count = chunks.total_tokens() as u32;
+
+        // Create context with larger size for multimodal
+        let ctx_size = std::num::NonZeroU32::new(4096);
+        let ctx_params = LlamaContextParams::default().with_n_ctx(ctx_size);
+
+        let mut ctx = self
+            .model
+            .new_context(&self.backend, ctx_params)
+            .map_err(|e| NodeError::Inference(format!("failed to create context: {e}")))?;
+
+        // Evaluate all chunks (text + media embeddings)
+        let prompt_start = Instant::now();
+        let n_past = chunks
+            .eval_chunks(mtmd_ctx, &ctx, 0, 0, 512, true)
+            .map_err(|e| NodeError::Inference(format!("mtmd eval_chunks failed: {e}")))?;
+        let prompt_eval_time_ms = prompt_start.elapsed().as_millis() as u64;
+
+        // Build sampler chain
+        let mut samplers = vec![];
+        if params.temperature > 0.0 {
+            samplers.push(LlamaSampler::top_p(params.top_p, 1));
+            samplers.push(LlamaSampler::temp(params.temperature));
+            samplers.push(LlamaSampler::dist(params.seed.unwrap_or(0)));
+        } else {
+            samplers.push(LlamaSampler::greedy());
+        }
+        let mut sampler = LlamaSampler::chain_simple(samplers);
+
+        // Generation loop (same as text-only but starting from n_past)
+        let gen_start = Instant::now();
+        let mut generated_text = String::new();
+        let mut generated_count: u32 = 0;
+        let mut logprobs: Vec<TokenLogprob> = Vec::new();
+        let mut current_pos = n_past;
+        let mut decoder = encoding_rs::UTF_8.new_decoder();
+        let mut batch = LlamaBatch::new(1, 1);
 
         for _ in 0..params.max_tokens {
             let new_token = sampler.sample(&ctx, -1);
