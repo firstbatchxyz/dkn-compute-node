@@ -7,6 +7,7 @@ use quinn::{ClientConfig, Endpoint, TransportConfig};
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls::DigitallySignedStruct;
+use tokio::sync::mpsc;
 
 use crate::error::NodeError;
 use crate::identity::Identity;
@@ -19,10 +20,10 @@ pub struct RouterConnection {
     endpoint: Endpoint,
     /// The underlying QUIC connection.
     connection: quinn::Connection,
-    /// Send half of the bi-directional stream.
-    send: quinn::SendStream,
     /// Receive half of the bi-directional stream.
     recv: quinn::RecvStream,
+    /// Channel for outgoing messages (drained by background write task).
+    outgoing_tx: mpsc::UnboundedSender<NodeMessage>,
     /// Assigned node ID from the router.
     pub node_id: String,
 }
@@ -59,18 +60,36 @@ impl RouterConnection {
         let node_id = authenticate(&mut send, &mut recv, identity, models, tps, capacity).await?;
         tracing::info!(%node_id, "authenticated with router");
 
+        // Spawn background write task that drains outgoing channel
+        let (outgoing_tx, mut outgoing_rx) = mpsc::unbounded_channel::<NodeMessage>();
+        tokio::spawn(async move {
+            while let Some(msg) = outgoing_rx.recv().await {
+                if let Err(e) = write_framed(&mut send, &msg).await {
+                    tracing::error!(%e, "write task: failed to send message");
+                    break;
+                }
+            }
+        });
+
         Ok(RouterConnection {
             endpoint,
             connection,
-            send,
             recv,
+            outgoing_tx,
             node_id,
         })
     }
 
-    /// Send a message to the router.
-    pub async fn send(&mut self, msg: &NodeMessage) -> Result<(), NodeError> {
-        Ok(write_framed(&mut self.send, msg).await?)
+    /// Send a message to the router (non-blocking, queues to write task).
+    pub fn send(&self, msg: NodeMessage) -> Result<(), NodeError> {
+        self.outgoing_tx
+            .send(msg)
+            .map_err(|_| NodeError::Network("write channel closed".into()))
+    }
+
+    /// Get a clone of the outgoing sender for concurrent streaming use.
+    pub fn sender(&self) -> mpsc::UnboundedSender<NodeMessage> {
+        self.outgoing_tx.clone()
     }
 
     /// Receive a message from the router. Returns `None` on clean stream close.
@@ -477,18 +496,17 @@ mod tests {
 
             assert_eq!(conn.node_id, "node-42");
 
-            // Receive ping from router
+            // Receive ping from router (recv needs &mut)
             let msg = conn.recv().await.unwrap().unwrap();
             assert!(matches!(msg, RouterMessage::Ping));
 
-            // Send status update
-            conn.send(&NodeMessage::StatusUpdate {
+            // Send status update (send is &self via channel)
+            conn.send(NodeMessage::StatusUpdate {
                 models: vec!["gemma3:4b".into()],
                 capacity: Capacity { free: 2, max: 4 },
                 version: env!("CARGO_PKG_VERSION").to_string(),
                 stats: None,
             })
-            .await
             .unwrap();
 
             rx.await.expect("server did not signal completion");
@@ -586,6 +604,7 @@ mod tests {
                         max_tokens: 10,
                         temperature: 0.7,
                         validation: None,
+                        stream: false,
                     },
                 )
                 .await
@@ -628,13 +647,12 @@ mod tests {
             let msg = conn.recv().await.unwrap().unwrap();
             assert!(matches!(msg, RouterMessage::Ping));
 
-            conn.send(&NodeMessage::StatusUpdate {
+            conn.send(NodeMessage::StatusUpdate {
                 models: vec!["gemma3:4b".into()],
                 capacity: Capacity { free: 1, max: 1 },
                 version: env!("CARGO_PKG_VERSION").to_string(),
                 stats: None,
             })
-            .await
             .unwrap();
 
             // Receive task assignment → we just forward to test; in real code the worker handles it
@@ -642,11 +660,10 @@ mod tests {
             match task_msg {
                 RouterMessage::TaskAssignment { task_id, .. } => {
                     // Reject: model not loaded (only "gemma3:4b" is listed but task asks for "nonexistent:1b")
-                    conn.send(&NodeMessage::TaskRejected {
+                    conn.send(NodeMessage::TaskRejected {
                         task_id,
                         reason: dkn_protocol::RejectReason::ModelNotLoaded,
                     })
-                    .await
                     .unwrap();
                 }
                 _ => panic!("expected TaskAssignment"),
@@ -795,7 +812,7 @@ mod tests {
             assert!(matches!(msg, RouterMessage::Ping));
 
             // Send status update with stats
-            conn.send(&NodeMessage::StatusUpdate {
+            conn.send(NodeMessage::StatusUpdate {
                 models: vec!["gemma3:4b".into()],
                 capacity: Capacity { free: 1, max: 1 },
                 version: env!("CARGO_PKG_VERSION").to_string(),
@@ -807,7 +824,6 @@ mod tests {
                     uptime_secs: 600,
                 }),
             })
-            .await
             .unwrap();
 
             rx.await.expect("server did not signal completion");

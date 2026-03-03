@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
+use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 
@@ -19,6 +20,8 @@ use crate::network::protocol::{
 pub struct CompletedTask {
     pub task_id: Uuid,
     pub result: Result<NodeMessage, NodeError>,
+    /// Whether this task was streamed (tokens already forwarded inline).
+    pub stream: bool,
 }
 
 /// Executes inference tasks with backpressure via capacity tracking.
@@ -58,6 +61,9 @@ impl Worker {
     /// Try to accept a task. Returns `Err(RejectReason)` if the task cannot be accepted.
     ///
     /// On success, spawns inference in a blocking thread and returns immediately.
+    /// When `stream` is true and `stream_tx` is provided, tokens are forwarded
+    /// inline via the connection's outgoing channel.
+    #[allow(clippy::too_many_arguments)]
     pub fn try_accept(
         &self,
         task_id: Uuid,
@@ -66,6 +72,8 @@ impl Worker {
         max_tokens: u32,
         temperature: f32,
         validation: Option<ValidationRequest>,
+        stream: bool,
+        stream_tx: Option<mpsc::UnboundedSender<NodeMessage>>,
     ) -> Result<(), RejectReason> {
         // Look up engine + template + model_type for the requested model (fail fast before decrementing capacity)
         let (engine, template, model_type) = self
@@ -125,14 +133,47 @@ impl Worker {
 
         let capacity = Arc::clone(&self.capacity);
 
-        let handle = tokio::task::spawn_blocking(move || {
-            let result = run_inference(&engine, &template, messages, &params, task_id);
-            // Release capacity slot regardless of outcome
-            capacity.fetch_add(1, Ordering::Release);
-            result
-        });
+        if stream {
+            if let Some(conn_tx) = stream_tx {
+                // Bridge from blocking thread to async: use std sync_channel
+                let (sync_tx, sync_rx) = std::sync::mpsc::sync_channel::<NodeMessage>(32);
 
-        self.in_flight.push(handle);
+                // Async forwarder: reads from sync_rx, sends to connection channel
+                tokio::spawn(async move {
+                    // sync_rx.recv() blocks, so we wrap in spawn_blocking to keep async runtime happy
+                    loop {
+                        let rx = sync_rx.try_recv();
+                        match rx {
+                            Ok(msg) => {
+                                if conn_tx.send(msg).is_err() {
+                                    break; // connection gone
+                                }
+                            }
+                            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                                tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+                            }
+                            Err(std::sync::mpsc::TryRecvError::Disconnected) => break,
+                        }
+                    }
+                });
+
+                let handle = tokio::task::spawn_blocking(move || {
+                    let result =
+                        run_inference_streaming(&engine, &template, messages, &params, task_id, sync_tx);
+                    capacity.fetch_add(1, Ordering::Release);
+                    result
+                });
+                self.in_flight.push(handle);
+            }
+        } else {
+            let handle = tokio::task::spawn_blocking(move || {
+                let result = run_inference(&engine, &template, messages, &params, task_id);
+                capacity.fetch_add(1, Ordering::Release);
+                result
+            });
+            self.in_flight.push(handle);
+        }
+
         Ok(())
     }
 
@@ -210,11 +251,75 @@ fn run_inference(
         Ok(result) => CompletedTask {
             task_id,
             result: Ok(build_task_result(task_id, result)),
+            stream: false,
         },
         Err(e) => CompletedTask {
             task_id,
             result: Err(e),
+            stream: false,
         },
+    }
+}
+
+/// Run streaming inference: sends tokens via `token_tx` as they're generated.
+fn run_inference_streaming(
+    engine: &InferenceEngine,
+    template: &str,
+    messages: Vec<ChatMessage>,
+    params: &GenerateParams,
+    task_id: Uuid,
+    token_tx: std::sync::mpsc::SyncSender<NodeMessage>,
+) -> CompletedTask {
+    let prompt = apply_chat_template(template, &messages);
+
+    let tx = token_tx.clone();
+    let result = engine.generate(&prompt, params, move |stream_token| {
+        let msg = NodeMessage::StreamToken {
+            task_id,
+            token: stream_token.text,
+            index: stream_token.index as u32,
+        };
+        if tx.send(msg).is_err() {
+            // Receiver dropped (connection lost), stop generation
+            return ControlFlow::Break(());
+        }
+        ControlFlow::Continue(())
+    });
+
+    match result {
+        Ok(result) => {
+            // Send StreamEnd
+            let end_msg = NodeMessage::StreamEnd {
+                task_id,
+                text: result.text.clone(),
+                stats: TaskStats {
+                    tokens_generated: result.tokens_generated,
+                    prompt_tokens: result.prompt_tokens,
+                    generation_time_ms: result.generation_time_ms,
+                    tokens_per_second: result.tokens_per_second,
+                },
+                proof: result.proof.clone(),
+            };
+            let _ = token_tx.send(end_msg);
+            CompletedTask {
+                task_id,
+                result: Ok(build_task_result(task_id, result)),
+                stream: true,
+            }
+        }
+        Err(e) => {
+            // Send StreamError
+            let err_msg = NodeMessage::StreamError {
+                task_id,
+                error: e.to_string(),
+            };
+            let _ = token_tx.send(err_msg);
+            CompletedTask {
+                task_id,
+                result: Err(e),
+                stream: true,
+            }
+        }
     }
 }
 
@@ -295,8 +400,10 @@ mod tests {
         let completed = CompletedTask {
             task_id: Uuid::nil(),
             result: Ok(msg),
+            stream: false,
         };
         assert!(completed.result.is_ok());
+        assert!(!completed.stream);
     }
 
     #[test]
@@ -304,8 +411,30 @@ mod tests {
         let completed = CompletedTask {
             task_id: Uuid::nil(),
             result: Err(NodeError::Inference("test error".into())),
+            stream: false,
         };
         assert!(completed.result.is_err());
+    }
+
+    #[test]
+    fn test_completed_task_streaming() {
+        let completed = CompletedTask {
+            task_id: Uuid::nil(),
+            result: Ok(NodeMessage::TaskResult {
+                task_id: Uuid::nil(),
+                text: "streamed".into(),
+                stats: TaskStats {
+                    tokens_generated: 3,
+                    prompt_tokens: 2,
+                    generation_time_ms: 30,
+                    tokens_per_second: 100.0,
+                },
+                proof: None,
+            }),
+            stream: true,
+        };
+        assert!(completed.stream);
+        assert!(completed.result.is_ok());
     }
 
     #[test]

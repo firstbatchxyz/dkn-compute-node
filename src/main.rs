@@ -216,7 +216,7 @@ async fn run_start(
                 };
             }
             Event::TaskDone(completed) => {
-                handle_completed_task(completed, &mut connection, &ctx.stats).await;
+                handle_completed_task(completed, &connection, &ctx.stats);
             }
             Event::ModelLoaded(loaded) => {
                 match loaded.result {
@@ -252,7 +252,7 @@ async fn run_start(
         loop {
             tokio::select! {
                 Some(completed) = worker.next_completed() => {
-                    handle_completed_task(completed, &mut connection, &ctx.stats).await;
+                    handle_completed_task(completed, &connection, &ctx.stats);
                 }
                 _ = tokio::time::sleep_until(drain_deadline) => {
                     tracing::warn!("drain timeout reached, dropping remaining tasks");
@@ -362,9 +362,15 @@ async fn handle_router_message(
             max_tokens,
             temperature,
             validation,
+            stream,
         } => {
-            tracing::info!(%task_id, %model, "received task assignment");
-            match worker.try_accept(task_id, &model, messages, max_tokens, temperature, validation)
+            tracing::info!(%task_id, %model, stream, "received task assignment");
+            let stream_tx = if stream {
+                connection.as_ref().map(|conn| conn.sender())
+            } else {
+                None
+            };
+            match worker.try_accept(task_id, &model, messages, max_tokens, temperature, validation, stream, stream_tx)
             {
                 Ok(()) => {
                     tracing::debug!(%task_id, "task accepted");
@@ -372,9 +378,9 @@ async fn handle_router_message(
                 Err(reason) => {
                     ctx.stats.record_rejected();
                     tracing::warn!(%task_id, ?reason, "task rejected");
-                    if let Some(ref mut conn) = connection {
+                    if let Some(ref conn) = connection {
                         let reject = NodeMessage::TaskRejected { task_id, reason };
-                        if let Err(e) = conn.send(&reject).await {
+                        if let Err(e) = conn.send(reject) {
                             tracing::error!(%e, "failed to send rejection");
                         }
                     }
@@ -383,14 +389,14 @@ async fn handle_router_message(
         }
         RouterMessage::Ping => {
             tracing::debug!("received ping");
-            if let Some(ref mut conn) = connection {
+            if let Some(ref conn) = connection {
                 let status = NodeMessage::StatusUpdate {
                     models: worker.model_names(),
                     capacity: worker.capacity(),
                     version: env!("CARGO_PKG_VERSION").to_string(),
                     stats: Some(ctx.stats.snapshot()),
                 };
-                if let Err(e) = conn.send(&status).await {
+                if let Err(e) = conn.send(status) {
                     tracing::error!(%e, "failed to send status update");
                 }
             }
@@ -398,13 +404,13 @@ async fn handle_router_message(
         RouterMessage::Challenge { challenge } => {
             tracing::debug!("received challenge, signing response");
             let (sig, recid) = ctx.identity.sign(&challenge);
-            if let Some(ref mut conn) = connection {
+            if let Some(ref conn) = connection {
                 let response = NodeMessage::ChallengeResponse {
                     challenge,
                     signature: sig.serialize().to_vec(),
                     recovery_id: recid.serialize(),
                 };
-                if let Err(e) = conn.send(&response).await {
+                if let Err(e) = conn.send(response) {
                     tracing::error!(%e, "failed to send challenge response");
                 }
             }
@@ -499,21 +505,25 @@ async fn download_and_load_model(
 }
 
 /// Handle a completed inference task: send result or log if offline.
-async fn handle_completed_task(
+fn handle_completed_task(
     completed: CompletedTask,
-    connection: &mut Option<RouterConnection>,
+    connection: &Option<RouterConnection>,
     stats: &NodeStats,
 ) {
     match completed.result {
-        Ok(ref msg) => {
-            let tokens = match msg {
+        Ok(msg) => {
+            let tokens = match &msg {
                 NodeMessage::TaskResult { stats: ts, .. } => ts.tokens_generated,
                 _ => 0,
             };
             stats.record_completed(tokens);
-            tracing::info!(task_id = %completed.task_id, "task completed");
-            if let Some(ref mut conn) = connection {
-                if let Err(e) = conn.send(msg).await {
+            tracing::info!(task_id = %completed.task_id, stream = completed.stream, "task completed");
+            if completed.stream {
+                // Streaming tasks already sent tokens inline; nothing more to send.
+                return;
+            }
+            if let Some(ref conn) = connection {
+                if let Err(e) = conn.send(msg) {
                     tracing::error!(%e, task_id = %completed.task_id, "failed to send result");
                 }
             } else {
