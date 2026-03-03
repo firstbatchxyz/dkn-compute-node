@@ -66,7 +66,6 @@ struct NodeContext {
 /// Result of a background model download + load operation.
 struct ModelLoadResult {
     name: String,
-    template: String,
     model_type: ModelType,
     result: Result<(inference::InferenceEngine, f64), error::NodeError>,
 }
@@ -98,7 +97,7 @@ async fn run_start(
     let cache = ModelCache::new(config.models_dir.clone())?;
 
     // Accumulate engines and TPS per model
-    let mut engines: HashMap<String, (inference::InferenceEngine, String, ModelType)> = HashMap::new();
+    let mut engines: HashMap<String, (inference::InferenceEngine, ModelType)> = HashMap::new();
     let mut tps_map: HashMap<String, f64> = HashMap::new();
 
     for model_name in &config.model_names {
@@ -106,13 +105,9 @@ async fn run_start(
             .ok_or_else(|| error::NodeError::Model(format!("unknown model: {model_name}")))?;
 
         let (engine, tps) = download_and_load_model(&spec, &cache, config.gpu_layers).await?;
-        let chat_template = spec
-            .chat_template
-            .clone()
-            .unwrap_or_else(|| "chatml".to_string());
 
         tracing::info!(tps = %format!("{tps:.1}"), model = %model_name, "benchmark complete");
-        engines.insert(model_name.clone(), (engine, chat_template, spec.model_type));
+        engines.insert(model_name.clone(), (engine, spec.model_type));
         tps_map.insert(model_name.clone(), tps);
     }
 
@@ -226,7 +221,7 @@ async fn run_start(
                             tps = %format!("{tps:.1}"),
                             "model loaded successfully"
                         );
-                        worker.add_engine(loaded.name.clone(), engine, loaded.template, loaded.model_type);
+                        worker.add_engine(loaded.name.clone(), engine, loaded.model_type);
                         ctx.tps.insert(loaded.name, tps);
                     }
                     Err(e) => {
@@ -442,16 +437,12 @@ async fn handle_router_message(
                     let gpu_layers = ctx.config.gpu_layers;
                     let tx = model_tx.clone();
                     let name = entry.name.clone();
-                    let template = entry
-                        .chat_template
-                        .clone()
-                        .unwrap_or_else(|| "chatml".to_string());
                     let model_type = entry.model_type;
 
                     tracing::info!(model = %name, "spawning background model download+load");
                     tokio::spawn(async move {
                         let result = download_and_load_model(&spec, &cache, gpu_layers).await;
-                        let _ = tx.send(ModelLoadResult { name, template, model_type, result });
+                        let _ = tx.send(ModelLoadResult { name, model_type, result });
                     });
                 }
             }

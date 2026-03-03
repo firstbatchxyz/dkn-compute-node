@@ -6,9 +6,11 @@ use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
-use llama_cpp_2::model::{AddBos, LlamaModel};
+use llama_cpp_2::model::{AddBos, LlamaChatMessage, LlamaModel};
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
+
+use dkn_protocol::ChatMessage;
 
 use crate::error::NodeError;
 use crate::identity::sha256hash;
@@ -99,6 +101,22 @@ impl InferenceEngine {
     #[allow(dead_code)]
     pub fn gpu_layers(&self) -> i32 {
         self.gpu_layers
+    }
+
+    /// Apply the GGUF-embedded chat template to produce a formatted prompt string.
+    pub fn apply_template(&self, messages: &[ChatMessage]) -> Result<String, NodeError> {
+        let template = self
+            .model
+            .chat_template(None)
+            .map_err(|e| NodeError::Inference(format!("no chat template in model: {e}")))?;
+        let llama_messages: Vec<LlamaChatMessage> = messages
+            .iter()
+            .map(|m| LlamaChatMessage::new(m.role.clone(), m.content.to_string()))
+            .collect::<Result<_, _>>()
+            .map_err(|e| NodeError::Inference(format!("invalid chat message: {e}")))?;
+        self.model
+            .apply_chat_template(&template, &llama_messages, true)
+            .map_err(|e| NodeError::Inference(format!("failed to apply chat template: {e}")))
     }
 
     /// Generate text from a prompt.

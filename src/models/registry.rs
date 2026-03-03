@@ -13,8 +13,6 @@ pub struct ModelSpec {
     pub hf_file: String,
     /// Expected SHA-256 hex digest for verification (None = skip verification)
     pub sha256: Option<String>,
-    /// Chat template identifier (e.g. "gemma", "llama3", "chatml")
-    pub chat_template: Option<String>,
     /// Modality this model supports.
     pub model_type: ModelType,
 }
@@ -27,7 +25,6 @@ pub fn default_registry() -> HashMap<String, ModelSpec> {
             hf_repo: "LiquidAI/LFM2.5-1.2B-Instruct-GGUF".into(),
             hf_file: "LFM2.5-1.2B-Instruct-Q4_K_M.gguf".into(),
             sha256: None,
-            chat_template: Some("chatml".into()),
             model_type: ModelType::Text,
         },
         ModelSpec {
@@ -35,7 +32,6 @@ pub fn default_registry() -> HashMap<String, ModelSpec> {
             hf_repo: "unsloth/Qwen3.5-35B-A3B-GGUF".into(),
             hf_file: "Qwen3.5-35B-A3B-UD-Q4_K_M.gguf".into(),
             sha256: None,
-            chat_template: Some("chatml".into()),
             model_type: ModelType::Text,
         },
         ModelSpec {
@@ -43,7 +39,6 @@ pub fn default_registry() -> HashMap<String, ModelSpec> {
             hf_repo: "LiquidAI/LFM2-24B-A2B-GGUF".into(),
             hf_file: "LFM2-24B-A2B-Q4_K_M.gguf".into(),
             sha256: None,
-            chat_template: Some("chatml".into()),
             model_type: ModelType::Text,
         },
         ModelSpec {
@@ -51,7 +46,6 @@ pub fn default_registry() -> HashMap<String, ModelSpec> {
             hf_repo: "LiquidAI/LFM2.5-VL-1.6B-GGUF".into(),
             hf_file: "LFM2.5-VL-1.6B-Q4_0.gguf".into(),
             sha256: None,
-            chat_template: Some("chatml".into()),
             model_type: ModelType::Vision,
         },
         ModelSpec {
@@ -59,7 +53,6 @@ pub fn default_registry() -> HashMap<String, ModelSpec> {
             hf_repo: "LiquidAI/LFM2.5-Audio-1.5B-GGUF".into(),
             hf_file: "LFM2.5-Audio-1.5B-Q4_0.gguf".into(),
             sha256: None,
-            chat_template: Some("chatml".into()),
             model_type: ModelType::Audio,
         },
         ModelSpec {
@@ -67,7 +60,6 @@ pub fn default_registry() -> HashMap<String, ModelSpec> {
             hf_repo: "unsloth/Qwen3.5-27B-GGUF".into(),
             hf_file: "Qwen3.5-27B-Q4_K_M.gguf".into(),
             sha256: None,
-            chat_template: Some("chatml".into()),
             model_type: ModelType::Text,
         },
         ModelSpec {
@@ -75,7 +67,6 @@ pub fn default_registry() -> HashMap<String, ModelSpec> {
             hf_repo: "DevQuasar/Nanbeige.Nanbeige4.1-3B-GGUF".into(),
             hf_file: "Nanbeige.Nanbeige4.1-3B.Q4_K_M.gguf".into(),
             sha256: None,
-            chat_template: Some("chatml".into()),
             model_type: ModelType::Text,
         },
         ModelSpec {
@@ -83,7 +74,6 @@ pub fn default_registry() -> HashMap<String, ModelSpec> {
             hf_repo: "LocoreMind/LocoOperator-4B-GGUF".into(),
             hf_file: "LocoOperator-4B.Q4_K_M.gguf".into(),
             sha256: None,
-            chat_template: Some("chatml".into()),
             model_type: ModelType::Text,
         },
         ModelSpec {
@@ -91,7 +81,6 @@ pub fn default_registry() -> HashMap<String, ModelSpec> {
             hf_repo: "lmstudio-community/Qwen3.5-9B-GGUF".into(),
             hf_file: "Qwen3.5-9B-Q4_K_M.gguf".into(),
             sha256: None,
-            chat_template: Some("chatml".into()),
             model_type: ModelType::Text,
         },
     ];
@@ -107,7 +96,6 @@ impl ModelSpec {
             hf_repo: entry.hf_repo.clone(),
             hf_file: entry.hf_file.clone(),
             sha256: None,
-            chat_template: entry.chat_template.clone(),
             model_type: entry.model_type,
         }
     }
@@ -193,7 +181,6 @@ mod tests {
             name: "test:1b".into(),
             hf_repo: "test/repo".into(),
             hf_file: "model.gguf".into(),
-            chat_template: Some("chatml".into()),
             model_type: ModelType::Vision,
         };
         let spec = ModelSpec::from_registry_entry(&entry);
@@ -201,7 +188,6 @@ mod tests {
         assert_eq!(spec.hf_repo, "test/repo");
         assert_eq!(spec.hf_file, "model.gguf");
         assert!(spec.sha256.is_none());
-        assert_eq!(spec.chat_template, Some("chatml".into()));
         assert_eq!(spec.model_type, ModelType::Vision);
     }
 

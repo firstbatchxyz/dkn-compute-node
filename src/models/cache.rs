@@ -89,7 +89,6 @@ mod tests {
             hf_repo: "test/repo".into(),
             hf_file: "model.gguf".into(),
             sha256: None,
-            chat_template: None,
             model_type: dkn_protocol::ModelType::Text,
         };
 

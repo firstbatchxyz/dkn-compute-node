@@ -11,9 +11,8 @@ use uuid::Uuid;
 
 use crate::error::NodeError;
 use crate::inference::{GenerateParams, InferenceEngine, InferenceResult};
-use crate::models::template::{ChatMessage, apply_chat_template};
 use crate::network::protocol::{
-    Capacity, ModelType, NodeMessage, RejectReason, TaskStats, ValidationRequest,
+    Capacity, ChatMessage, ModelType, NodeMessage, RejectReason, TaskStats, ValidationRequest,
 };
 
 /// A completed inference task ready to be sent back.
@@ -26,10 +25,10 @@ pub struct CompletedTask {
 
 /// Executes inference tasks with backpressure via capacity tracking.
 ///
-/// Supports multiple models, each with its own engine, chat template, and modality.
+/// Supports multiple models, each with its own engine and modality.
 pub struct Worker {
-    /// Map of model name → (engine, chat_template, model_type).
-    engines: HashMap<String, (Arc<InferenceEngine>, String, ModelType)>,
+    /// Map of model name → (engine, model_type).
+    engines: HashMap<String, (Arc<InferenceEngine>, ModelType)>,
     /// Number of available inference slots (CAS-based).
     capacity: Arc<AtomicUsize>,
     /// Maximum concurrent slots.
@@ -41,14 +40,12 @@ pub struct Worker {
 impl Worker {
     /// Create a new worker wrapping multiple inference engines.
     pub fn new(
-        engines: HashMap<String, (InferenceEngine, String, ModelType)>,
+        engines: HashMap<String, (InferenceEngine, ModelType)>,
         max_concurrent: usize,
     ) -> Self {
         let engines = engines
             .into_iter()
-            .map(|(name, (engine, template, model_type))| {
-                (name, (Arc::new(engine), template, model_type))
-            })
+            .map(|(name, (engine, model_type))| (name, (Arc::new(engine), model_type)))
             .collect();
         Worker {
             engines,
@@ -75,8 +72,8 @@ impl Worker {
         stream: bool,
         stream_tx: Option<mpsc::UnboundedSender<NodeMessage>>,
     ) -> Result<(), RejectReason> {
-        // Look up engine + template + model_type for the requested model (fail fast before decrementing capacity)
-        let (engine, template, model_type) = self
+        // Look up engine + model_type for the requested model (fail fast before decrementing capacity)
+        let (engine, model_type) = self
             .engines
             .get(model)
             .ok_or(RejectReason::ModelNotLoaded)?;
@@ -101,7 +98,6 @@ impl Worker {
         }
 
         let engine = Arc::clone(engine);
-        let template = template.clone();
 
         // Try to decrement capacity (CAS loop)
         loop {
@@ -159,7 +155,7 @@ impl Worker {
 
                 let handle = tokio::task::spawn_blocking(move || {
                     let result =
-                        run_inference_streaming(&engine, &template, messages, &params, task_id, sync_tx);
+                        run_inference_streaming(&engine, messages, &params, task_id, sync_tx);
                     capacity.fetch_add(1, Ordering::Release);
                     result
                 });
@@ -167,7 +163,7 @@ impl Worker {
             }
         } else {
             let handle = tokio::task::spawn_blocking(move || {
-                let result = run_inference(&engine, &template, messages, &params, task_id);
+                let result = run_inference(&engine, messages, &params, task_id);
                 capacity.fetch_add(1, Ordering::Release);
                 result
             });
@@ -213,15 +209,9 @@ impl Worker {
     /// Add a new model engine at runtime (for hot-swap).
     ///
     /// If a model with this name already exists, it is replaced.
-    pub fn add_engine(
-        &mut self,
-        name: String,
-        engine: InferenceEngine,
-        template: String,
-        model_type: ModelType,
-    ) {
+    pub fn add_engine(&mut self, name: String, engine: InferenceEngine, model_type: ModelType) {
         self.engines
-            .insert(name, (Arc::new(engine), template, model_type));
+            .insert(name, (Arc::new(engine), model_type));
     }
 
     /// Remove a model engine by name. Returns true if the model was present.
@@ -240,12 +230,20 @@ impl Worker {
 /// Run inference synchronously (called from `spawn_blocking`).
 fn run_inference(
     engine: &InferenceEngine,
-    template: &str,
     messages: Vec<ChatMessage>,
     params: &GenerateParams,
     task_id: Uuid,
 ) -> CompletedTask {
-    let prompt = apply_chat_template(template, &messages);
+    let prompt = match engine.apply_template(&messages) {
+        Ok(p) => p,
+        Err(e) => {
+            return CompletedTask {
+                task_id,
+                result: Err(e),
+                stream: false,
+            };
+        }
+    };
 
     match engine.generate(&prompt, params, |_| ControlFlow::Continue(())) {
         Ok(result) => CompletedTask {
@@ -264,13 +262,26 @@ fn run_inference(
 /// Run streaming inference: sends tokens via `token_tx` as they're generated.
 fn run_inference_streaming(
     engine: &InferenceEngine,
-    template: &str,
     messages: Vec<ChatMessage>,
     params: &GenerateParams,
     task_id: Uuid,
     token_tx: std::sync::mpsc::SyncSender<NodeMessage>,
 ) -> CompletedTask {
-    let prompt = apply_chat_template(template, &messages);
+    let prompt = match engine.apply_template(&messages) {
+        Ok(p) => p,
+        Err(e) => {
+            let err_msg = NodeMessage::StreamError {
+                task_id,
+                error: e.to_string(),
+            };
+            let _ = token_tx.send(err_msg);
+            return CompletedTask {
+                task_id,
+                result: Err(e),
+                stream: true,
+            };
+        }
+    };
 
     let tx = token_tx.clone();
     let result = engine.generate(&prompt, params, move |stream_token| {
@@ -457,7 +468,7 @@ mod tests {
 
     #[test]
     fn test_modality_check_text_content() {
-        use crate::models::template::MessageContent;
+        use dkn_protocol::MessageContent;
         // MessageContent::Text should have no image/audio
         let content = MessageContent::Text("hello".into());
         assert!(!content.has_image());
