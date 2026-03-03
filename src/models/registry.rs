@@ -86,6 +86,14 @@ pub fn default_registry() -> HashMap<String, ModelSpec> {
             chat_template: Some("chatml".into()),
             model_type: ModelType::Text,
         },
+        ModelSpec {
+            name: "qwen3.5:9b".into(),
+            hf_repo: "lmstudio-community/Qwen3.5-9B-GGUF".into(),
+            hf_file: "Qwen3.5-9B-Q4_K_M.gguf".into(),
+            sha256: None,
+            chat_template: Some("chatml".into()),
+            model_type: ModelType::Text,
+        },
     ];
 
     entries.into_iter().map(|s| (s.name.clone(), s)).collect()
@@ -126,11 +134,12 @@ mod tests {
             "qwen3.5:27b",
             "nanbeige:3b",
             "locooperator:4b",
+            "qwen3.5:9b",
         ];
         for name in &expected {
             assert!(reg.contains_key(*name), "missing model: {name}");
         }
-        assert_eq!(reg.len(), 8);
+        assert_eq!(reg.len(), 9);
     }
 
     #[test]
