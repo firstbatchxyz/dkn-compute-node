@@ -111,11 +111,40 @@ impl ModelSpec {
             model_type: entry.model_type,
         }
     }
+
+    /// Return a new ModelSpec with the quantization portion of `hf_file` replaced.
+    ///
+    /// GGUF filenames follow the pattern `{ModelName}-{Quant}.gguf`
+    /// (e.g. `Qwen3.5-9B-Q4_K_M.gguf`). This replaces the last `-{Quant}.gguf`
+    /// segment with the given quantization string.
+    pub fn with_quant(&self, quant: &str) -> Self {
+        let new_file = if let Some(pos) = self.hf_file.rfind('-') {
+            format!("{}-{}.gguf", &self.hf_file[..pos], quant)
+        } else {
+            self.hf_file.clone()
+        };
+        ModelSpec {
+            hf_file: new_file,
+            sha256: None, // hash no longer valid for a different quant
+            ..self.clone()
+        }
+    }
 }
 
 /// Resolve a user-provided model name to a ModelSpec from the registry.
-pub fn resolve_model(name: &str, registry: &HashMap<String, ModelSpec>) -> Option<ModelSpec> {
-    registry.get(name).cloned()
+///
+/// When `quant` is provided, the default quantization in the registry is
+/// replaced (e.g. `Q4_K_M` → `Q8_0`).
+pub fn resolve_model(
+    name: &str,
+    registry: &HashMap<String, ModelSpec>,
+    quant: Option<&str>,
+) -> Option<ModelSpec> {
+    let spec = registry.get(name)?.clone();
+    Some(match quant {
+        Some(q) => spec.with_quant(q),
+        None => spec,
+    })
 }
 
 #[cfg(test)]
@@ -145,7 +174,7 @@ mod tests {
     #[test]
     fn test_resolve_known_model() {
         let reg = default_registry();
-        let spec = resolve_model("lfm2.5:1.2b", &reg).expect("should resolve");
+        let spec = resolve_model("lfm2.5:1.2b", &reg, None).expect("should resolve");
         assert_eq!(spec.name, "lfm2.5:1.2b");
         assert!(spec.hf_repo.contains("LFM2.5"));
         assert!(spec.hf_file.ends_with(".gguf"));
@@ -155,7 +184,7 @@ mod tests {
     #[test]
     fn test_resolve_unknown_model() {
         let reg = default_registry();
-        assert!(resolve_model("nonexistent:1b", &reg).is_none());
+        assert!(resolve_model("nonexistent:1b", &reg, None).is_none());
     }
 
     #[test]
@@ -183,5 +212,33 @@ mod tests {
         assert_eq!(reg["lfm2.5-audio:1.5b"].model_type, ModelType::Audio);
         assert_eq!(reg["lfm2.5:1.2b"].model_type, ModelType::Text);
         assert_eq!(reg["qwen3.5:27b"].model_type, ModelType::Text);
+    }
+
+    #[test]
+    fn test_with_quant_substitutes_suffix() {
+        let reg = default_registry();
+        let spec = &reg["qwen3.5:9b"];
+        assert_eq!(spec.hf_file, "Qwen3.5-9B-Q4_K_M.gguf");
+
+        let q8 = spec.with_quant("Q8_0");
+        assert_eq!(q8.hf_file, "Qwen3.5-9B-Q8_0.gguf");
+        // Everything else stays the same
+        assert_eq!(q8.name, spec.name);
+        assert_eq!(q8.hf_repo, spec.hf_repo);
+        assert_eq!(q8.model_type, spec.model_type);
+    }
+
+    #[test]
+    fn test_resolve_model_with_quant_override() {
+        let reg = default_registry();
+        let spec = resolve_model("qwen3.5:9b", &reg, Some("Q8_0")).unwrap();
+        assert_eq!(spec.hf_file, "Qwen3.5-9B-Q8_0.gguf");
+    }
+
+    #[test]
+    fn test_resolve_model_without_quant_keeps_default() {
+        let reg = default_registry();
+        let spec = resolve_model("qwen3.5:9b", &reg, None).unwrap();
+        assert_eq!(spec.hf_file, "Qwen3.5-9B-Q4_K_M.gguf");
     }
 }

@@ -39,6 +39,10 @@ pub enum Command {
         #[arg(long, env = "DRIA_DATA_DIR")]
         data_dir: Option<PathBuf>,
 
+        /// Override GGUF quantization (e.g. Q8_0, Q5_K_M, Q6_K). Defaults to the registry value (usually Q4_K_M).
+        #[arg(long, env = "DRIA_QUANT")]
+        quant: Option<String>,
+
         /// Skip TLS certificate verification (for development/testing)
         #[arg(long, env = "DRIA_INSECURE")]
         insecure: bool,
@@ -54,6 +58,7 @@ pub struct Config {
     pub max_concurrent: usize,
     pub data_dir: PathBuf,
     pub models_dir: PathBuf,
+    pub quant: Option<String>,
     pub insecure: bool,
 }
 
@@ -66,6 +71,7 @@ impl Config {
         gpu_layers: i32,
         max_concurrent: usize,
         data_dir: Option<PathBuf>,
+        quant: Option<String>,
         insecure: bool,
     ) -> Result<Self, NodeError> {
         // Validate wallet key
@@ -120,6 +126,7 @@ impl Config {
             max_concurrent,
             data_dir,
             models_dir,
+            quant,
             insecure,
         })
     }
@@ -138,6 +145,7 @@ mod tests {
             0,
             1,
             Some("/tmp/dria-test".into()),
+            None,
             false,
         )
         .unwrap();
@@ -160,6 +168,7 @@ mod tests {
             0,
             1,
             None,
+            None,
             false,
         );
         assert!(result.is_err());
@@ -173,6 +182,7 @@ mod tests {
             "https://router.dria.co".into(),
             0,
             1,
+            None,
             None,
             false,
         );
@@ -188,6 +198,7 @@ mod tests {
             0,
             1,
             None,
+            None,
             false,
         );
         assert!(result.is_err());
@@ -202,6 +213,7 @@ mod tests {
             0,
             0,
             None,
+            None,
             false,
         );
         assert!(result.is_err());
@@ -215,6 +227,7 @@ mod tests {
             "https://router1.dria.co, https://router2.dria.co".into(),
             0,
             1,
+            None,
             None,
             false,
         )
@@ -234,6 +247,7 @@ mod tests {
             0,
             1,
             None,
+            None,
             false,
         );
         assert!(result.is_err());
@@ -247,6 +261,7 @@ mod tests {
             "https://router.dria.co".into(),
             0,
             1,
+            None,
             None,
             true,
         )

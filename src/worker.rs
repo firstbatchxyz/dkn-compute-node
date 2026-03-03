@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::error::NodeError;
 use crate::inference::{GenerateParams, InferenceEngine, InferenceResult};
-use crate::models::template::{ChatMessage, MessageContent, apply_chat_template};
+use crate::models::template::{ChatMessage, apply_chat_template};
 use crate::network::protocol::{
     Capacity, ModelType, NodeMessage, RejectReason, TaskStats, ValidationRequest,
 };
@@ -328,6 +328,7 @@ mod tests {
 
     #[test]
     fn test_modality_check_text_content() {
+        use crate::models::template::MessageContent;
         // MessageContent::Text should have no image/audio
         let content = MessageContent::Text("hello".into());
         assert!(!content.has_image());

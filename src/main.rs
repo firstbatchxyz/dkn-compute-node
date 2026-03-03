@@ -44,9 +44,10 @@ async fn main() -> anyhow::Result<()> {
             gpu_layers,
             max_concurrent,
             data_dir,
+            quant,
             insecure,
         } => {
-            run_start(wallet, model, router_url, gpu_layers, max_concurrent, data_dir, insecure).await?;
+            run_start(wallet, model, router_url, gpu_layers, max_concurrent, data_dir, quant, insecure).await?;
         }
     }
 
@@ -77,10 +78,11 @@ async fn run_start(
     gpu_layers: i32,
     max_concurrent: usize,
     data_dir: Option<std::path::PathBuf>,
+    quant: Option<String>,
     insecure: bool,
 ) -> anyhow::Result<()> {
     // Parse config
-    let config = Config::from_start_args(wallet, model, router_url, gpu_layers, max_concurrent, data_dir, insecure)?;
+    let config = Config::from_start_args(wallet, model, router_url, gpu_layers, max_concurrent, data_dir, quant, insecure)?;
 
     // Create identity
     let identity = Identity::from_secret_hex(&config.secret_key_hex)?;
@@ -99,7 +101,7 @@ async fn run_start(
     let mut tps_map: HashMap<String, f64> = HashMap::new();
 
     for model_name in &config.model_names {
-        let spec = resolve_model(model_name, &registry)
+        let spec = resolve_model(model_name, &registry, config.quant.as_deref())
             .ok_or_else(|| error::NodeError::Model(format!("unknown model: {model_name}")))?;
 
         let (engine, tps) = download_and_load_model(&spec, &cache, config.gpu_layers).await?;

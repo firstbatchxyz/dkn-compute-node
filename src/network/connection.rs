@@ -578,7 +578,7 @@ mod tests {
                     &RouterMessage::TaskAssignment {
                         task_id,
                         model: "nonexistent:1b".into(),
-                        messages: vec![dkn_protocol::ChatMessage::text("user", "test")],
+                        messages: vec![dkn_protocol::ChatMessage { role: "user".into(), content: "test".into() }],
                         max_tokens: 10,
                         temperature: 0.7,
                         validation: None,
