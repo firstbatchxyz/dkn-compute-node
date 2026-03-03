@@ -194,14 +194,26 @@ async fn run_start(
                 if let Some(ref conn) = connection {
                     conn.close();
                 }
-                connection = try_reconnect(&ctx, worker.capacity()).await;
+                connection = tokio::select! {
+                    result = try_reconnect(&ctx, worker.capacity()) => result,
+                    _ = tokio::signal::ctrl_c() => {
+                        tracing::info!("shutdown signal received during reconnect");
+                        break;
+                    }
+                };
             }
             Event::RouterMsg(Err(e)) => {
                 tracing::warn!(%e, "router communication error, attempting reconnect");
                 if let Some(ref conn) = connection {
                     conn.close();
                 }
-                connection = try_reconnect(&ctx, worker.capacity()).await;
+                connection = tokio::select! {
+                    result = try_reconnect(&ctx, worker.capacity()) => result,
+                    _ = tokio::signal::ctrl_c() => {
+                        tracing::info!("shutdown signal received during reconnect");
+                        break;
+                    }
+                };
             }
             Event::TaskDone(completed) => {
                 handle_completed_task(completed, &mut connection, &ctx.stats).await;
