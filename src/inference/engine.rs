@@ -530,3 +530,147 @@ impl InferenceEngine {
         sha256hash(&bytes)
     }
 }
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dkn_protocol::{ContentPart, MessageContent};
+
+    /// Create a minimal 64x64 BMP image with a color gradient (no external deps).
+    fn create_test_bmp() -> Vec<u8> {
+        let width: u32 = 64;
+        let height: u32 = 64;
+        let row_bytes = width * 3; // 192, already 4-byte aligned
+        let pixel_data_size = row_bytes * height;
+        let file_size = 54 + pixel_data_size;
+
+        let mut data = Vec::with_capacity(file_size as usize);
+
+        // BMP file header (14 bytes)
+        data.extend_from_slice(b"BM");
+        data.extend_from_slice(&file_size.to_le_bytes());
+        data.extend_from_slice(&[0u8; 4]); // reserved
+        data.extend_from_slice(&54u32.to_le_bytes()); // pixel data offset
+
+        // BITMAPINFOHEADER (40 bytes)
+        data.extend_from_slice(&40u32.to_le_bytes()); // header size
+        data.extend_from_slice(&width.to_le_bytes());
+        data.extend_from_slice(&height.to_le_bytes());
+        data.extend_from_slice(&1u16.to_le_bytes()); // planes
+        data.extend_from_slice(&24u16.to_le_bytes()); // bits per pixel
+        data.extend_from_slice(&[0u8; 24]); // compression=0, rest zeros
+
+        // Pixel data (bottom-up, BGR)
+        for y in 0..height {
+            for x in 0..width {
+                let r = ((x * 255) / (width - 1)) as u8;
+                let g = ((y * 255) / (height - 1)) as u8;
+                let b = 128u8;
+                data.push(b);
+                data.push(g);
+                data.push(r);
+            }
+        }
+
+        data
+    }
+
+    /// Integration test: download lfm2.5-vl:1.6b + mmproj, run vision inference.
+    ///
+    /// Run with:
+    ///   cargo test test_vision_inference -- --ignored --nocapture
+    ///
+    /// Optionally provide your own image:
+    ///   TEST_IMAGE_PATH=/path/to/photo.jpg cargo test test_vision_inference -- --ignored --nocapture
+    #[tokio::test]
+    #[ignore] // requires ~1.5 GB download (model + mmproj)
+    async fn test_vision_inference() {
+        let registry = crate::models::default_registry();
+        let spec = registry.get("lfm2.5-vl:1.6b").unwrap().clone();
+
+        let cache_dir = dirs::cache_dir()
+            .unwrap_or_else(|| std::path::PathBuf::from("."))
+            .join("dria-test-models");
+        let cache = crate::models::ModelCache::new(cache_dir).unwrap();
+
+        // Download / cache the GGUF model
+        let model_path = if let Some(p) = cache.get_local_path(&spec) {
+            println!("model found in cache: {}", p.display());
+            p
+        } else {
+            println!("downloading model (this may take a while)...");
+            let hf_path = crate::models::ModelDownloader::download(&spec).await.unwrap();
+            cache.link_model(&spec, &hf_path).unwrap()
+        };
+
+        // Download / cache the mmproj
+        let mmproj_path = if let Some(p) = cache.get_mmproj_path(&spec) {
+            println!("mmproj found in cache: {}", p.display());
+            p
+        } else {
+            println!("downloading mmproj (this may take a while)...");
+            let hf_path = crate::models::ModelDownloader::download_mmproj(&spec)
+                .await
+                .unwrap();
+            cache.link_mmproj(&spec, &hf_path).unwrap()
+        };
+
+        // Load engine with multimodal projector
+        println!("loading model + mmproj...");
+        let engine = InferenceEngine::load(&model_path, 0, Some(&mmproj_path)).unwrap();
+        assert!(engine.has_multimodal(), "engine should have multimodal context");
+
+        // Get test image: from env var or generate a synthetic BMP
+        let image_bytes = if let Ok(path) = std::env::var("TEST_IMAGE_PATH") {
+            println!("using image: {path}");
+            std::fs::read(&path).expect("failed to read TEST_IMAGE_PATH")
+        } else {
+            println!("using synthetic 64x64 gradient BMP");
+            create_test_bmp()
+        };
+
+        // Build multimodal chat messages
+        let messages = vec![ChatMessage {
+            role: "user".into(),
+            content: MessageContent::Parts(vec![
+                ContentPart::Text {
+                    text: "What do you see in this image? Describe it briefly.".into(),
+                },
+                ContentPart::Image {
+                    data: image_bytes,
+                },
+            ]),
+        }];
+
+        let params = GenerateParams {
+            max_tokens: 256,
+            temperature: 0.0,
+            ..Default::default()
+        };
+
+        // Run multimodal inference, streaming tokens to stdout
+        println!("\n--- model output ---");
+        let result = engine
+            .generate_multimodal(&messages, &params, |token| {
+                print!("{}", token.text);
+                ControlFlow::Continue(())
+            })
+            .unwrap();
+        println!("\n--- end output ---\n");
+
+        println!(
+            "tokens: {} | prompt: {} | time: {}ms | {:.1} tok/s",
+            result.tokens_generated,
+            result.prompt_tokens,
+            result.generation_time_ms,
+            result.tokens_per_second,
+        );
+
+        assert!(!result.text.is_empty(), "model should produce output");
+        assert!(result.tokens_generated > 0);
+    }
+}
