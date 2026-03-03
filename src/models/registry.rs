@@ -35,8 +35,8 @@ pub fn default_registry() -> HashMap<String, ModelSpec> {
             hf_repo: "unsloth/Qwen3.5-35B-A3B-GGUF".into(),
             hf_file: "Qwen3.5-35B-A3B-UD-Q4_K_M.gguf".into(),
             sha256: None,
-            model_type: ModelType::Text,
-            hf_mmproj_file: None,
+            model_type: ModelType::Vision,
+            hf_mmproj_file: Some("mmproj-BF16.gguf".into()),
         },
         ModelSpec {
             name: "lfm2:24b-a2b".into(),
@@ -67,8 +67,8 @@ pub fn default_registry() -> HashMap<String, ModelSpec> {
             hf_repo: "unsloth/Qwen3.5-27B-GGUF".into(),
             hf_file: "Qwen3.5-27B-Q4_K_M.gguf".into(),
             sha256: None,
-            model_type: ModelType::Text,
-            hf_mmproj_file: None,
+            model_type: ModelType::Vision,
+            hf_mmproj_file: Some("mmproj-BF16.gguf".into()),
         },
         ModelSpec {
             name: "nanbeige:3b".into(),
@@ -91,8 +91,8 @@ pub fn default_registry() -> HashMap<String, ModelSpec> {
             hf_repo: "lmstudio-community/Qwen3.5-9B-GGUF".into(),
             hf_file: "Qwen3.5-9B-Q4_K_M.gguf".into(),
             sha256: None,
-            model_type: ModelType::Text,
-            hf_mmproj_file: None,
+            model_type: ModelType::Vision,
+            hf_mmproj_file: Some("mmproj-Qwen3.5-9B-BF16.gguf".into()),
         },
     ];
 
@@ -212,7 +212,9 @@ mod tests {
         assert_eq!(reg["lfm2.5-vl:1.6b"].model_type, ModelType::Vision);
         assert_eq!(reg["lfm2.5-audio:1.5b"].model_type, ModelType::Audio);
         assert_eq!(reg["lfm2.5:1.2b"].model_type, ModelType::Text);
-        assert_eq!(reg["qwen3.5:27b"].model_type, ModelType::Text);
+        assert_eq!(reg["qwen3.5:9b"].model_type, ModelType::Vision);
+        assert_eq!(reg["qwen3.5:27b"].model_type, ModelType::Vision);
+        assert_eq!(reg["qwen3.5:35b-a3b"].model_type, ModelType::Vision);
     }
 
     #[test]
@@ -220,8 +222,10 @@ mod tests {
         let reg = default_registry();
         assert!(reg["lfm2.5-vl:1.6b"].hf_mmproj_file.is_some());
         assert!(reg["lfm2.5-audio:1.5b"].hf_mmproj_file.is_some());
+        assert!(reg["qwen3.5:9b"].hf_mmproj_file.is_some());
+        assert!(reg["qwen3.5:27b"].hf_mmproj_file.is_some());
+        assert!(reg["qwen3.5:35b-a3b"].hf_mmproj_file.is_some());
         assert!(reg["lfm2.5:1.2b"].hf_mmproj_file.is_none());
-        assert!(reg["qwen3.5:27b"].hf_mmproj_file.is_none());
     }
 
     #[test]
