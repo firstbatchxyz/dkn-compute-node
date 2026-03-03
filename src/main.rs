@@ -71,6 +71,7 @@ struct ModelLoadResult {
     result: Result<(inference::InferenceEngine, f64), error::NodeError>,
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_start(
     wallet: String,
     model: String,

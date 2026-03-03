@@ -90,7 +90,7 @@ impl RouterConnection {
 // ---------------------------------------------------------------------------
 
 fn build_client_config(insecure: bool) -> Result<ClientConfig, NodeError> {
-    let crypto = if insecure {
+    let mut crypto = if insecure {
         rustls::ClientConfig::builder()
             .dangerous()
             .with_custom_certificate_verifier(Arc::new(SkipServerVerification))
@@ -104,6 +104,7 @@ fn build_client_config(insecure: bool) -> Result<ClientConfig, NodeError> {
             .with_root_certificates(root_store)
             .with_no_client_auth()
     };
+    crypto.alpn_protocols = vec![b"dkn".to_vec()];
 
     let mut transport = TransportConfig::default();
     transport.keep_alive_interval(Some(Duration::from_secs(20)));
@@ -271,10 +272,11 @@ mod tests {
                 rustls::pki_types::PrivatePkcs8KeyDer::from(cert.key_pair.serialize_der());
 
             // Build server config
-            let server_crypto = rustls::ServerConfig::builder()
+            let mut server_crypto = rustls::ServerConfig::builder()
                 .with_no_client_auth()
                 .with_single_cert(vec![cert_der.clone()], key_der.into())
                 .unwrap();
+            server_crypto.alpn_protocols = vec![b"dkn".to_vec()];
 
             let mut server_config = quinn::ServerConfig::with_crypto(Arc::new(
                 quinn::crypto::rustls::QuicServerConfig::try_from(server_crypto).unwrap(),
@@ -397,10 +399,11 @@ mod tests {
             let key_der =
                 rustls::pki_types::PrivatePkcs8KeyDer::from(cert.key_pair.serialize_der());
 
-            let server_crypto = rustls::ServerConfig::builder()
+            let mut server_crypto = rustls::ServerConfig::builder()
                 .with_no_client_auth()
                 .with_single_cert(vec![cert_der.clone()], key_der.into())
                 .unwrap();
+            server_crypto.alpn_protocols = vec![b"dkn".to_vec()];
 
             let server_config = quinn::ServerConfig::with_crypto(Arc::new(
                 quinn::crypto::rustls::QuicServerConfig::try_from(server_crypto).unwrap(),
@@ -532,10 +535,11 @@ mod tests {
         let key_der =
             rustls::pki_types::PrivatePkcs8KeyDer::from(cert.key_pair.serialize_der());
 
-        let server_crypto = rustls::ServerConfig::builder()
+        let mut server_crypto = rustls::ServerConfig::builder()
             .with_no_client_auth()
             .with_single_cert(vec![cert_der.clone()], key_der.into())
             .unwrap();
+        server_crypto.alpn_protocols = vec![b"dkn".to_vec()];
 
         let mut server_config = quinn::ServerConfig::with_crypto(Arc::new(
             quinn::crypto::rustls::QuicServerConfig::try_from(server_crypto).unwrap(),

@@ -64,6 +64,7 @@ pub struct Config {
 
 impl Config {
     /// Create a Config from the `start` subcommand arguments.
+    #[allow(clippy::too_many_arguments)]
     pub fn from_start_args(
         wallet: String,
         model: String,
