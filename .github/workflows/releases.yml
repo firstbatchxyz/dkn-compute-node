@@ -9,6 +9,7 @@ permissions:
 
 env:
   GGML_NATIVE: "OFF"
+  MACOSX_DEPLOYMENT_TARGET: "14.0"
 
 jobs:
   check_release:
