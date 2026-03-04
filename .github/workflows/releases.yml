@@ -56,7 +56,7 @@ jobs:
               noavx: true,
             }
           - {
-              runner: ubuntu-latest,
+              runner: ubuntu-24.04-arm,
               osname: linux,
               arch: arm64,
               target: aarch64-unknown-linux-gnu,
