@@ -122,6 +122,9 @@ async fn run_start(
         return Err(error::NodeError::Config("no models loaded".into()).into());
     }
 
+    // Print banner
+    eprint!("{}", include_str!("../dnet.art"));
+
     // Build the worker
     let mut worker = Worker::new(engines, config.max_concurrent);
 
