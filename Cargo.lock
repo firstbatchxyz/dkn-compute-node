@@ -444,6 +444,7 @@ dependencies = [
 [[package]]
 name = "dkn-protocol"
 version = "0.1.0"
+source = "git+https://github.com/firstbatchxyz/dkn-protocol.git#19dcd03eda240eaa98665a7a839a32205b5ef912"
 dependencies = [
  "base64",
  "quinn",
@@ -455,7 +456,7 @@ dependencies = [
 
 [[package]]
 name = "dria-node"
-version = "2.0.0-alpha.1"
+version = "1.0.0-alpha.1"
 dependencies = [
  "anyhow",
  "bytes",

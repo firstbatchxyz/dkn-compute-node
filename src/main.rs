@@ -4,6 +4,7 @@ mod identity;
 mod inference;
 mod models;
 mod network;
+mod setup;
 mod stats;
 mod worker;
 
@@ -37,6 +38,12 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
+        Command::Setup {
+            data_dir,
+            gpu_layers,
+        } => {
+            setup::run_setup(data_dir, gpu_layers).await?;
+        }
         Command::Start {
             wallet,
             model,

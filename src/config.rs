@@ -13,18 +13,29 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Command {
+    /// Interactive setup: pick a model, download it, and run a test
+    Setup {
+        /// Data directory
+        #[arg(long, env = "DRIA_DATA_DIR")]
+        data_dir: Option<PathBuf>,
+
+        /// Number of GPU layers to offload (-1 = all, 0 = CPU only)
+        #[arg(long, env = "DRIA_GPU_LAYERS", default_value = "0")]
+        gpu_layers: i32,
+    },
+
     /// Start the compute node
     Start {
         /// Wallet secret key (hex-encoded, 32 bytes)
         #[arg(long, env = "DRIA_WALLET")]
         wallet: String,
 
-        /// Model(s) to serve (comma-separated shortnames, e.g. "gemma3:4b,llama3.1:8b")
+        /// Model(s) to serve (comma-separated shortnames, e.g. "qwen3.5:9b,lfm2.5:1.2b")
         #[arg(long, env = "DRIA_MODELS")]
         model: String,
 
         /// Router URL for task coordination
-        #[arg(long, env = "DRIA_ROUTER_URL", default_value = "https://router.dria.co")]
+        #[arg(long, env = "DRIA_ROUTER_URL", default_value = "quic.dria.co:4001")]
         router_url: String,
 
         /// Number of GPU layers to offload (-1 = all, 0 = CPU only)
@@ -141,8 +152,8 @@ mod tests {
     fn test_config_from_valid_args() {
         let cfg = Config::from_start_args(
             "0x6472696164726961647269616472696164726961647269616472696164726961".into(),
-            "gemma3:4b, llama3.1:8b".into(),
-            "https://router.dria.co".into(),
+            "qwen3.5:9b, lfm2.5:1.2b".into(),
+            "quic.dria.co:4001".into(),
             0,
             1,
             Some("/tmp/dria-test".into()),
@@ -151,21 +162,21 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(cfg.model_names, vec!["gemma3:4b", "llama3.1:8b"]);
+        assert_eq!(cfg.model_names, vec!["qwen3.5:9b", "lfm2.5:1.2b"]);
         assert_eq!(
             cfg.secret_key_hex,
             "6472696164726961647269616472696164726961647269616472696164726961"
         );
         assert_eq!(cfg.models_dir, PathBuf::from("/tmp/dria-test/models"));
-        assert_eq!(cfg.router_urls, vec!["https://router.dria.co"]);
+        assert_eq!(cfg.router_urls, vec!["quic.dria.co:4001"]);
     }
 
     #[test]
     fn test_config_invalid_wallet_length() {
         let result = Config::from_start_args(
             "0xabcd".into(),
-            "gemma3:4b".into(),
-            "https://router.dria.co".into(),
+            "qwen3.5:9b".into(),
+            "quic.dria.co:4001".into(),
             0,
             1,
             None,
@@ -179,8 +190,8 @@ mod tests {
     fn test_config_invalid_wallet_hex() {
         let result = Config::from_start_args(
             "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz".into(),
-            "gemma3:4b".into(),
-            "https://router.dria.co".into(),
+            "qwen3.5:9b".into(),
+            "quic.dria.co:4001".into(),
             0,
             1,
             None,
@@ -195,7 +206,7 @@ mod tests {
         let result = Config::from_start_args(
             "6472696164726961647269616472696164726961647269616472696164726961".into(),
             "".into(),
-            "https://router.dria.co".into(),
+            "quic.dria.co:4001".into(),
             0,
             1,
             None,
@@ -209,8 +220,8 @@ mod tests {
     fn test_config_zero_concurrency() {
         let result = Config::from_start_args(
             "6472696164726961647269616472696164726961647269616472696164726961".into(),
-            "gemma3:4b".into(),
-            "https://router.dria.co".into(),
+            "qwen3.5:9b".into(),
+            "quic.dria.co:4001".into(),
             0,
             0,
             None,
@@ -224,7 +235,7 @@ mod tests {
     fn test_config_comma_separated_router_urls() {
         let cfg = Config::from_start_args(
             "6472696164726961647269616472696164726961647269616472696164726961".into(),
-            "gemma3:4b".into(),
+            "qwen3.5:9b".into(),
             "https://router1.dria.co, https://router2.dria.co".into(),
             0,
             1,
@@ -243,7 +254,7 @@ mod tests {
     fn test_config_empty_router_url() {
         let result = Config::from_start_args(
             "6472696164726961647269616472696164726961647269616472696164726961".into(),
-            "gemma3:4b".into(),
+            "qwen3.5:9b".into(),
             "".into(),
             0,
             1,
@@ -258,8 +269,8 @@ mod tests {
     fn test_config_insecure_flag() {
         let cfg = Config::from_start_args(
             "6472696164726961647269616472696164726961647269616472696164726961".into(),
-            "gemma3:4b".into(),
-            "https://router.dria.co".into(),
+            "qwen3.5:9b".into(),
+            "quic.dria.co:4001".into(),
             0,
             1,
             None,

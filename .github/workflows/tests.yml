@@ -3,22 +3,15 @@ name: tests
 on:
   push:
     branches:
-      - master
+      - v2
     paths:
-      # Source files in each member
-      - "compute/src/**"
-      - "p2p/src/**"
-      - "utils/src/**"
-      - "executor/src/**"
-      # Cargo in each member
-      - "compute/Cargo.toml"
-      - "p2p/Cargo.toml"
-      - "utils/Cargo.toml"
-      - "executor/Cargo.toml"
-      # root-level Cargo
+      - "src/**"
       - "Cargo.toml"
-      # workflow itself
+      - "Cargo.lock"
       - ".github/workflows/tests.yml"
+  pull_request:
+    branches:
+      - v2
   workflow_dispatch:
 
 jobs:
@@ -29,11 +22,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake
+
       - name: Install Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
 
       - name: Run tests
-        run: cargo test --workspace
+        run: cargo test
 
       - name: Run linter
-        run: cargo clippy --workspace
+        run: cargo clippy
