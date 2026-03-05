@@ -2,6 +2,7 @@ use std::io::{self, Write};
 use std::ops::ControlFlow;
 use std::path::PathBuf;
 
+use dialoguer::{Select, theme::ColorfulTheme};
 use dkn_protocol::ModelType;
 
 use crate::error::NodeError;
@@ -149,60 +150,35 @@ pub async fn run_setup(data_dir: Option<PathBuf>, gpu_layers: i32) -> Result<(),
         return Ok(());
     }
 
-    // Print selectable list
-    println!("  Available models:");
-    println!();
-    for (i, m) in fits.iter().enumerate() {
-        println!(
-            "    {}) {:<22} {:<8} {:<10} ~{:.1} GB",
-            i + 1,
-            m.name,
-            model_type_label(m.model_type),
-            m.quant,
-            m.size_gb,
-        );
-    }
-    println!();
-
-    // Print too-large models
+    // Print too-large models as info
     if !too_large.is_empty() {
-        println!("  Models too large for your system (need more RAM):");
+        println!("  Models too large for your system:");
         for m in &too_large {
             println!(
-                "    - {:<22} (~{:.0} GB) — needs ~{:.0} GB",
+                "    - {:<22} (~{:.0} GB) — needs ~{:.0} GB RAM",
                 m.name, m.size_gb, m.ram_needed_gb,
             );
         }
         println!();
     }
 
-    // Read selection
-    let selection = loop {
-        print!("  Select a model [1-{}]: ", fits.len());
-        io::stdout().flush().map_err(|e| NodeError::Config(format!("stdout flush: {e}")))?;
+    // Build display items for model selection
+    let model_items: Vec<String> = fits
+        .iter()
+        .map(|m| {
+            format!(
+                "{:<22} {:<8} {:<10} ~{:.1} GB",
+                m.name,
+                model_type_label(m.model_type),
+                m.quant,
+                m.size_gb,
+            )
+        })
+        .collect();
 
-        let mut input = String::new();
-        io::stdin()
-            .read_line(&mut input)
-            .map_err(|e| NodeError::Config(format!("failed to read input: {e}")))?;
+    let theme = ColorfulTheme::default();
 
-        match input.trim().parse::<usize>() {
-            Ok(n) if n >= 1 && n <= fits.len() => break n - 1,
-            _ => {
-                println!("  Invalid selection, please enter a number between 1 and {}.", fits.len());
-            }
-        }
-    };
-
-    let chosen = &fits[selection];
-    let model_name = &chosen.name;
-    println!();
-
-    // Resolve model spec
-    let spec = resolve_model(model_name, &registry, None)
-        .ok_or_else(|| NodeError::Model(format!("unknown model: {model_name}")))?;
-
-    // Set up cache dir
+    // Set up cache dir once
     let data_dir = match data_dir {
         Some(d) => d,
         None => dirs::home_dir()
@@ -213,97 +189,217 @@ pub async fn run_setup(data_dir: Option<PathBuf>, gpu_layers: i32) -> Result<(),
     std::fs::create_dir_all(&models_dir)?;
     let cache = ModelCache::new(models_dir)?;
 
-    // Download model
-    println!("  Downloading {}...", model_name);
-    let model_path = if let Some(path) = cache.get_local_path(&spec) {
-        println!("  (already cached)");
-        path
-    } else {
-        let hf_path = ModelDownloader::download(&spec).await?;
+    // Selection + download loop — retries on failure
+    let (spec, model_name_final, quant_override) = loop {
+        let selection = Select::with_theme(&theme)
+            .with_prompt("  Select a model")
+            .items(&model_items)
+            .default(0)
+            .interact()
+            .map_err(|e| NodeError::Config(format!("selection error: {e}")))?;
 
-        // Verify SHA-256 if specified
-        if let Some(ref expected_sha) = spec.sha256 {
-            if !ModelCache::verify_sha256(&hf_path, expected_sha)? {
-                return Err(NodeError::Model(format!(
-                    "SHA-256 mismatch for model {model_name}"
-                )));
+        let chosen = &fits[selection];
+        let model_name = &chosen.name;
+
+        // Quantization selection (4-bit vs 8-bit)
+        let q8_size = chosen.size_gb * 2.0;
+        let q8_ram = chosen.ram_needed_gb * 2.0;
+        let q8_fits = ram_gb.map_or(true, |gb| q8_ram < gb);
+
+        let quant_override = if q8_fits {
+            let quant_items = vec![
+                format!(
+                    "4-bit  ({})  ~{:.1} GB — smaller, faster",
+                    chosen.quant, chosen.size_gb
+                ),
+                format!(
+                    "8-bit  (Q8_0){}  ~{:.1} GB — better quality",
+                    " ".repeat(chosen.quant.len().saturating_sub(4)),
+                    q8_size
+                ),
+                "Back".to_string(),
+            ];
+
+            let quant_selection = Select::with_theme(&theme)
+                .with_prompt("  Select quantization")
+                .items(&quant_items)
+                .default(0)
+                .interact()
+                .map_err(|e| NodeError::Config(format!("selection error: {e}")))?;
+
+            if quant_selection == 2 {
+                println!();
+                continue;
+            } else if quant_selection == 1 {
+                Some("Q8_0")
+            } else {
+                None
             }
-        }
-
-        cache.link_model(&spec, &hf_path)?
-    };
-
-    // Download mmproj if needed
-    let mmproj_path = if spec.hf_mmproj_file.is_some() {
-        if let Some(path) = cache.get_mmproj_path(&spec) {
-            Some(path)
         } else {
-            let hf_path = ModelDownloader::download_mmproj(&spec).await?;
-            Some(cache.link_mmproj(&spec, &hf_path)?)
-        }
-    } else {
-        None
-    };
-
-    // Load model
-    println!();
-    println!("  Loading model...");
-    let engine = tokio::task::spawn_blocking({
-        let model_path = model_path.clone();
-        let mmproj_path = mmproj_path.clone();
-        move || InferenceEngine::load(&model_path, gpu_layers, mmproj_path.as_deref())
-    })
-    .await
-    .map_err(|e| NodeError::Inference(format!("task join error: {e}")))?
-    ?;
-
-    // Run test inference
-    println!("  Running test inference...");
-    println!();
-
-    let model_name_owned = model_name.clone();
-    let result = tokio::task::spawn_blocking(move || {
-        let prompt = engine
-            .apply_template(&[dkn_protocol::ChatMessage {
-                role: "user".into(),
-                content: dkn_protocol::MessageContent::Text("Hello!".into()),
-            }])
-            .unwrap_or_else(|_| "Hello!".into());
-
-        let params = GenerateParams {
-            max_tokens: 64,
-            temperature: 0.7,
-            ..Default::default()
+            println!();
+            println!(
+                "  Using {} (8-bit needs ~{:.0} GB RAM, you have ~{:.0} GB)",
+                chosen.quant,
+                q8_ram,
+                ram_gb.unwrap_or(0.0)
+            );
+            None
         };
 
-        print!("  > ");
-        let result = engine.generate(&prompt, &params, |token| {
-            print!("{}", token.text);
-            let _ = io::stdout().flush();
-            ControlFlow::Continue(())
-        });
         println!();
 
-        result.map(|r| (r, model_name_owned))
-    })
-    .await
-    .map_err(|e| NodeError::Inference(format!("task join error: {e}")))?
-    ?;
+        let spec = match resolve_model(model_name, &registry, quant_override) {
+            Some(s) => s,
+            None => {
+                println!("  Unknown model: {model_name}. Try again.");
+                println!();
+                continue;
+            }
+        };
 
-    let (inference_result, model_name_final) = result;
+        // Download model
+        println!("  Downloading {}...", model_name);
+        let model_path = if let Some(path) = cache.get_local_path(&spec) {
+            println!("  (already cached)");
+            Ok(path)
+        } else {
+            match ModelDownloader::download(&spec).await {
+                Ok(hf_path) => {
+                    if let Some(ref expected_sha) = spec.sha256 {
+                        if !ModelCache::verify_sha256(&hf_path, expected_sha)? {
+                            println!("  SHA-256 mismatch! Try a different model.");
+                            println!();
+                            continue;
+                        }
+                    }
+                    cache.link_model(&spec, &hf_path).map_err(|e| e.into())
+                }
+                Err(e) => Err(e),
+            }
+        };
 
-    println!();
-    println!(
-        "  Model working! {:.1} tok/s",
-        inference_result.tokens_per_second
-    );
+        let model_path = match model_path {
+            Ok(p) => p,
+            Err(e) => {
+                println!("  Download failed: {e}");
+                println!("  Try a different model or quantization.");
+                println!();
+                continue;
+            }
+        };
+
+        // Download mmproj if needed
+        let mmproj_result = if spec.hf_mmproj_file.is_some() {
+            if let Some(path) = cache.get_mmproj_path(&spec) {
+                Ok(Some(path))
+            } else {
+                match ModelDownloader::download_mmproj(&spec).await {
+                    Ok(hf_path) => cache.link_mmproj(&spec, &hf_path).map(Some),
+                    Err(e) => Err(e),
+                }
+            }
+        } else {
+            Ok(None)
+        };
+
+        let mmproj_path = match mmproj_result {
+            Ok(p) => p,
+            Err(e) => {
+                println!("  Multimodal projector download failed: {e}");
+                println!("  Try a different model.");
+                println!();
+                continue;
+            }
+        };
+
+        // Load model
+        println!();
+        println!("  Loading model...");
+        let engine = tokio::task::spawn_blocking({
+            let model_path = model_path.clone();
+            let mmproj_path = mmproj_path.clone();
+            move || InferenceEngine::load(&model_path, gpu_layers, mmproj_path.as_deref())
+        })
+        .await
+        .map_err(|e| NodeError::Inference(format!("task join error: {e}")))?;
+
+        let engine = match engine {
+            Ok(e) => e,
+            Err(e) => {
+                println!("  Failed to load model: {e}");
+                println!("  Try a different model or quantization.");
+                println!();
+                continue;
+            }
+        };
+
+        // Run test inference
+        println!("  Running test inference...");
+        println!();
+
+        let model_name_owned = model_name.clone();
+        let result = tokio::task::spawn_blocking(move || {
+            let prompt = engine
+                .apply_template(&[dkn_protocol::ChatMessage {
+                    role: "user".into(),
+                    content: dkn_protocol::MessageContent::Text("Hello!".into()),
+                }])
+                .unwrap_or_else(|_| "Hello!".into());
+
+            let params = GenerateParams {
+                max_tokens: 64,
+                temperature: 0.7,
+                ..Default::default()
+            };
+
+            print!("  > ");
+            let result = engine.generate(&prompt, &params, |token| {
+                print!("{}", token.text);
+                let _ = io::stdout().flush();
+                ControlFlow::Continue(())
+            });
+            println!();
+
+            result.map(|r| (r, model_name_owned))
+        })
+        .await
+        .map_err(|e| NodeError::Inference(format!("task join error: {e}")))?;
+
+        match result {
+            Ok((inference_result, name)) => {
+                println!();
+                println!(
+                    "  Model working! {:.1} tok/s",
+                    inference_result.tokens_per_second
+                );
+                break (spec, name, quant_override);
+            }
+            Err(e) => {
+                println!("  Inference test failed: {e}");
+                println!("  Try a different model.");
+                println!();
+                continue;
+            }
+        }
+    };
+
     println!();
     println!("  To start the node:");
-    println!(
-        "    dria-node start --wallet <YOUR_SECRET_KEY> --model {}",
-        model_name_final
-    );
+    if let Some(q) = quant_override {
+        println!(
+            "    dria-node start --wallet <YOUR_SECRET_KEY> --model {} --quant {}",
+            model_name_final, q
+        );
+    } else {
+        println!(
+            "    dria-node start --wallet <YOUR_SECRET_KEY> --model {}",
+            model_name_final
+        );
+    }
     println!();
+
+    // Suppress unused variable warning
+    let _ = spec;
 
     Ok(())
 }

@@ -33,7 +33,7 @@ pub fn default_registry() -> HashMap<String, ModelSpec> {
         ModelSpec {
             name: "qwen3.5:35b-a3b".into(),
             hf_repo: "unsloth/Qwen3.5-35B-A3B-GGUF".into(),
-            hf_file: "Qwen3.5-35B-A3B-UD-Q4_K_M.gguf".into(),
+            hf_file: "Qwen3.5-35B-A3B-Q4_K_M.gguf".into(),
             sha256: None,
             model_type: ModelType::Vision,
             hf_mmproj_file: Some("mmproj-BF16.gguf".into()),
