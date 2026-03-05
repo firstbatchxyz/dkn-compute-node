@@ -3,6 +3,11 @@ name: releases
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.7.2)"
+        required: true
 
 permissions:
   contents: write
@@ -10,15 +15,14 @@ permissions:
 env:
   GGML_NATIVE: "OFF"
   MACOSX_DEPLOYMENT_TARGET: "14.0"
+  RELEASE_TAG: ${{ github.event.release.tag_name || github.event.inputs.tag }}
 
 jobs:
   check_release:
     runs-on: ubuntu-latest
     steps:
       - name: Echo tag
-        run: |
-          echo "tag name: ${{ github.event.release.tag_name }}"
-          echo "release name: ${{ github.event.release.name }}"
+        run: echo "tag name: ${{ env.RELEASE_TAG }}"
 
   build:
     needs: check_release
@@ -76,6 +80,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Install build dependencies (Linux)
         if: matrix.osname == 'linux'
@@ -144,8 +150,8 @@ jobs:
       - name: Create release with artifacts
         uses: ncipollo/release-action@v1
         with:
-          name: ${{ github.event.release.name }}
-          tag: ${{ github.event.release.tag_name }}
+          name: ${{ env.RELEASE_TAG }}
+          tag: ${{ env.RELEASE_TAG }}
           artifacts: "artifacts/*"
           artifactContentType: application/octet-stream
           allowUpdates: true
@@ -171,7 +177,7 @@ jobs:
 
       - name: Update formula
         run: |
-          VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${{ env.RELEASE_TAG }}"
           VERSION="${VERSION#v}"
 
           SHA_MACOS_AMD64=$(sha256sum artifacts/dria-node-macOS-amd64 | cut -d' ' -f1)
@@ -239,5 +245,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Formula/dria-node.rb
-          git commit -m "Update dria-node to ${{ github.event.release.tag_name }}"
+          git commit -m "Update dria-node to ${{ env.RELEASE_TAG }}"
           git push
