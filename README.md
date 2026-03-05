@@ -40,19 +40,43 @@ brew tap firstbatchxyz/dkn
 brew install dria-node
 ```
 
+**Shell script (macOS / Linux):**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/firstbatchxyz/dkn-compute-node/master/install.sh | sh
+```
+
+**PowerShell (Windows):**
+
+```powershell
+irm https://raw.githubusercontent.com/firstbatchxyz/dkn-compute-node/master/install.ps1 | iex
+```
+
 **From GitHub Releases:**
 
 Download the latest binary for your platform from [Releases](https://github.com/firstbatchxyz/dkn-compute-node/releases) and place it in your `PATH`.
 
 ### Setup
 
-Run the interactive setup to pick a model, download it, and verify it works:
+Run the interactive setup:
 
 ```sh
 dria-node setup
 ```
 
-This detects your system RAM, shows models that fit, downloads your selection, and runs a test inference.
+This will:
+
+1. Detect your system RAM and list models that fit
+2. Let you pick a model from the available options
+3. Download the GGUF model file from HuggingFace
+4. Run a test inference to verify everything works
+5. Print a benchmark (tokens per second)
+
+Use `--gpu-layers -1` to offload all layers to GPU (Metal on macOS, requires building with `--features cuda` for NVIDIA):
+
+```sh
+dria-node setup --gpu-layers -1
+```
 
 ### Start
 
@@ -60,6 +84,12 @@ Once setup is complete, start the node:
 
 ```sh
 dria-node start --wallet <YOUR_SECRET_KEY> --model <MODEL_NAME>
+```
+
+The node will connect to the Dria network, register your models, and start serving inference requests. You can increase throughput with `--max-concurrent`:
+
+```sh
+dria-node start --wallet <KEY> --model lfm2.5:1.2b --max-concurrent 4
 ```
 
 ## Available Models
