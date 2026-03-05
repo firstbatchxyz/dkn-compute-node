@@ -204,7 +204,7 @@ pub async fn run_setup(data_dir: Option<PathBuf>, gpu_layers: i32) -> Result<(),
         // Quantization selection (4-bit vs 8-bit)
         let q8_size = chosen.size_gb * 2.0;
         let q8_ram = chosen.ram_needed_gb * 2.0;
-        let q8_fits = ram_gb.map_or(true, |gb| q8_ram < gb);
+        let q8_fits = ram_gb.is_none_or(|gb| q8_ram < gb);
 
         let quant_override = if q8_fits {
             let quant_items = vec![
@@ -272,7 +272,7 @@ pub async fn run_setup(data_dir: Option<PathBuf>, gpu_layers: i32) -> Result<(),
                             continue;
                         }
                     }
-                    cache.link_model(&spec, &hf_path).map_err(|e| e.into())
+                    cache.link_model(&spec, &hf_path)
                 }
                 Err(e) => Err(e),
             }
