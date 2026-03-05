@@ -18,14 +18,7 @@ env:
   RELEASE_TAG: "${{ github.event.release.tag_name || github.event.inputs.tag }}"
 
 jobs:
-  check_release:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Echo tag
-        run: echo "tag name: ${{ env.RELEASE_TAG }}"
-
   build:
-    needs: check_release
     runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
