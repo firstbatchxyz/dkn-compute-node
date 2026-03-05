@@ -106,7 +106,7 @@ jobs:
 
       - name: Build binary (native)
         if: matrix.runner == 'ubuntu-24.04-arm'
-        run: cargo build --bin dria-node --locked --release --target ${{ matrix.target }} ${{ matrix.build_args }}
+        run: cargo build --bin dria-node --release --target ${{ matrix.target }} ${{ matrix.build_args }}
 
       - name: Strip binary (native)
         if: matrix.runner == 'ubuntu-24.04-arm'
@@ -118,7 +118,7 @@ jobs:
         with:
           command: ${{ matrix.command }}
           target: ${{ matrix.target }}
-          args: "--bin dria-node --locked --release ${{ matrix.build_args }}"
+          args: "--bin dria-node --release ${{ matrix.build_args }}"
           strip: true
 
       - name: Prepare Release File
