@@ -234,10 +234,6 @@ impl InferenceEngine {
         let mut logprobs: Vec<TokenLogprob> = Vec::new();
         let mut current_pos = tokens.len() as i32;
         let mut decoder = encoding_rs::UTF_8.new_decoder();
-        // Track the sequence position where logits are available (for extract_logprob).
-        // sampler.sample() always uses -1 ("last logits" in the C API).
-        let mut logits_pos: i32 = (tokens.len() - 1) as i32;
-
         for _ in 0..params.max_tokens {
             let new_token = sampler.sample(&ctx, -1);
             sampler.accept(new_token);
@@ -246,11 +242,12 @@ impl InferenceEngine {
                 break;
             }
 
-            // Extract logprobs at stride positions
+            // Extract logprobs at stride positions.
+            // Each decode has exactly one output token, so the output index is always 0.
             let gen_index = generated_count as usize;
             if params.logprob_every_n > 0 && gen_index.is_multiple_of(params.logprob_every_n) {
                 if let Some(lp) =
-                    self.extract_logprob(&ctx, logits_pos, gen_index, new_token, params.logprob_top_k)
+                    self.extract_logprob(&ctx, 0, gen_index, new_token, params.logprob_top_k)
                 {
                     logprobs.push(lp);
                 }
@@ -280,7 +277,6 @@ impl InferenceEngine {
                 .map_err(|e| NodeError::Inference(format!("batch add failed: {e}")))?;
             ctx.decode(&mut batch)
                 .map_err(|e| NodeError::Inference(format!("decode failed: {e}")))?;
-            logits_pos = current_pos; // logits available at the position we just decoded
             current_pos += 1;
         }
 
