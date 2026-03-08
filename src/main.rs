@@ -449,6 +449,27 @@ async fn handle_router_message(
                 }
             }
         }
+        RouterMessage::ValidationTask {
+            validation_id,
+            model,
+            messages,
+            output_text,
+            logprob_every_n,
+            logprob_top_k,
+        } => {
+            tracing::info!(%validation_id, %model, "received validation task");
+            match worker.try_accept_validation(
+                validation_id,
+                &model,
+                messages,
+                output_text,
+                logprob_every_n,
+                logprob_top_k,
+            ) {
+                Ok(()) => tracing::debug!(%validation_id, "validation accepted"),
+                Err(reason) => tracing::warn!(%validation_id, ?reason, "validation rejected"),
+            }
+        }
         RouterMessage::ModelRegistryUpdate { entries } => {
             tracing::info!(count = entries.len(), "received model registry update");
 

@@ -25,8 +25,9 @@ pub struct GenerateParams {
     pub temperature: f32,
     pub top_p: f32,
     pub seed: Option<u32>,
-    /// Token positions at which to extract logprobs.
-    pub logprob_positions: Vec<usize>,
+    /// Extract logprobs every N tokens (0 = disabled).
+    /// E.g. 32 → positions [0, 32, 64, ...].
+    pub logprob_every_n: usize,
     /// Top-k alternatives to collect at each logprob position.
     pub logprob_top_k: usize,
 }
@@ -38,7 +39,7 @@ impl Default for GenerateParams {
             temperature: 0.7,
             top_p: 0.9,
             seed: None,
-            logprob_positions: vec![],
+            logprob_every_n: 0,
             logprob_top_k: 5,
         }
     }
@@ -233,6 +234,9 @@ impl InferenceEngine {
         let mut logprobs: Vec<TokenLogprob> = Vec::new();
         let mut current_pos = tokens.len() as i32;
         let mut decoder = encoding_rs::UTF_8.new_decoder();
+        // Track the sequence position where logits are available (for extract_logprob).
+        // sampler.sample() always uses -1 ("last logits" in the C API).
+        let mut logits_pos: i32 = (tokens.len() - 1) as i32;
 
         for _ in 0..params.max_tokens {
             let new_token = sampler.sample(&ctx, -1);
@@ -242,11 +246,11 @@ impl InferenceEngine {
                 break;
             }
 
-            // Extract logprobs if this position was requested
+            // Extract logprobs at stride positions
             let gen_index = generated_count as usize;
-            if params.logprob_positions.contains(&gen_index) {
+            if params.logprob_every_n > 0 && gen_index.is_multiple_of(params.logprob_every_n) {
                 if let Some(lp) =
-                    self.extract_logprob(&ctx, -1, gen_index, new_token, params.logprob_top_k)
+                    self.extract_logprob(&ctx, logits_pos, gen_index, new_token, params.logprob_top_k)
                 {
                     logprobs.push(lp);
                 }
@@ -276,6 +280,7 @@ impl InferenceEngine {
                 .map_err(|e| NodeError::Inference(format!("batch add failed: {e}")))?;
             ctx.decode(&mut batch)
                 .map_err(|e| NodeError::Inference(format!("decode failed: {e}")))?;
+            logits_pos = current_pos; // logits available at the position we just decoded
             current_pos += 1;
         }
 
@@ -389,28 +394,23 @@ impl InferenceEngine {
         let gen_start = Instant::now();
         let mut generated_text = String::new();
         let mut generated_count: u32 = 0;
-        let mut logprobs: Vec<TokenLogprob> = Vec::new();
+        let logprobs: Vec<TokenLogprob> = Vec::new();
         let mut current_pos = n_past;
         let mut decoder = encoding_rs::UTF_8.new_decoder();
         let mut batch = LlamaBatch::new(1, 1);
+        // After eval_chunks the logits index is opaque; use -1 for first sample.
+        // Multimodal tasks skip validation so logprob extraction is not needed.
+        let mut logits_idx: i32 = -1;
 
         for _ in 0..params.max_tokens {
-            let new_token = sampler.sample(&ctx, -1);
+            let new_token = sampler.sample(&ctx, logits_idx);
             sampler.accept(new_token);
 
             if self.model.is_eog_token(new_token) {
                 break;
             }
 
-            // Extract logprobs if this position was requested
             let gen_index = generated_count as usize;
-            if params.logprob_positions.contains(&gen_index) {
-                if let Some(lp) =
-                    self.extract_logprob(&ctx, -1, gen_index, new_token, params.logprob_top_k)
-                {
-                    logprobs.push(lp);
-                }
-            }
 
             // Decode token to text
             let piece = self
@@ -436,6 +436,7 @@ impl InferenceEngine {
                 .map_err(|e| NodeError::Inference(format!("batch add failed: {e}")))?;
             ctx.decode(&mut batch)
                 .map_err(|e| NodeError::Inference(format!("decode failed: {e}")))?;
+            logits_idx = current_pos;
             current_pos += 1;
         }
 
@@ -463,6 +464,105 @@ impl InferenceEngine {
             prompt_eval_time_ms,
             tokens_per_second,
             proof,
+        })
+    }
+
+    /// Prefill-only validation: tokenize prompt+output, run a single forward pass,
+    /// and extract logprobs at the same stride positions used during generation.
+    ///
+    /// Returns an `InferenceProof` that can be compared against the original.
+    pub fn validate_prefill(
+        &self,
+        prompt: &str,
+        output_text: &str,
+        logprob_every_n: usize,
+        logprob_top_k: usize,
+    ) -> Result<InferenceProof, NodeError> {
+        // Tokenize prompt alone to find the split point
+        let prompt_tokens = self
+            .model
+            .str_to_token(prompt, AddBos::Always)
+            .map_err(|e| NodeError::Inference(format!("prompt tokenization failed: {e}")))?;
+        let n_prompt = prompt_tokens.len();
+
+        // Tokenize prompt + output together
+        let full_text = format!("{}{}", prompt, output_text);
+        let all_tokens = self
+            .model
+            .str_to_token(&full_text, AddBos::Always)
+            .map_err(|e| NodeError::Inference(format!("full tokenization failed: {e}")))?;
+        let n_output = all_tokens.len().saturating_sub(n_prompt);
+
+        if n_output == 0 {
+            return Ok(InferenceProof {
+                logprobs: vec![],
+                kv_cache_hash: None,
+            });
+        }
+
+        // Compute probe positions: gen_index values [0, N, 2N, ...] where each is < n_output
+        let mut probe_gen_indices: Vec<usize> = Vec::new();
+        if logprob_every_n > 0 {
+            let mut k = 0;
+            while k < n_output {
+                probe_gen_indices.push(k);
+                k += logprob_every_n;
+            }
+        }
+
+        if probe_gen_indices.is_empty() {
+            return Ok(InferenceProof {
+                logprobs: vec![],
+                kv_cache_hash: None,
+            });
+        }
+
+        // Create context sized to fit all tokens
+        let ctx_size = std::num::NonZeroU32::new((all_tokens.len() + 64).max(2048) as u32);
+        let ctx_params = LlamaContextParams::default().with_n_ctx(ctx_size);
+
+        let mut ctx = self
+            .model
+            .new_context(&self.backend, ctx_params)
+            .map_err(|e| NodeError::Inference(format!("failed to create context: {e}")))?;
+
+        // Build batch with all tokens. Set output=true only at positions where we need logits.
+        // For probe gen_index k, we need logits at sequence position (n_prompt + k - 1) for k > 0,
+        // and at (n_prompt - 1) for k == 0 (last prompt token predicts first output token).
+        let mut output_positions: Vec<usize> = Vec::new();
+        for &k in &probe_gen_indices {
+            let seq_pos = if k == 0 { n_prompt - 1 } else { n_prompt + k - 1 };
+            output_positions.push(seq_pos);
+        }
+
+        let mut batch = LlamaBatch::new(all_tokens.len().max(1), 1);
+        for (i, &token) in all_tokens.iter().enumerate() {
+            let is_output = output_positions.contains(&i);
+            batch
+                .add(token, i as i32, &[0], is_output)
+                .map_err(|e| NodeError::Inference(format!("batch add failed: {e}")))?;
+        }
+
+        // Single forward pass
+        ctx.decode(&mut batch)
+            .map_err(|e| NodeError::Inference(format!("prefill decode failed: {e}")))?;
+
+        // Extract logprobs at each probe position.
+        // get_logits_ith(pos) expects the sequence position passed to batch.add().
+        let mut logprobs: Vec<TokenLogprob> = Vec::new();
+        for (probe_idx, &gen_index) in probe_gen_indices.iter().enumerate() {
+            let target_token = all_tokens[n_prompt + gen_index];
+            let seq_pos = output_positions[probe_idx] as i32;
+            if let Some(lp) =
+                self.extract_logprob(&ctx, seq_pos, gen_index, target_token, logprob_top_k)
+            {
+                logprobs.push(lp);
+            }
+        }
+
+        Ok(InferenceProof {
+            logprobs,
+            kv_cache_hash: None,
         })
     }
 
@@ -672,5 +772,103 @@ mod tests {
 
         assert!(!result.text.is_empty(), "model should produce output");
         assert!(result.tokens_generated > 0);
+    }
+
+    /// Helper to load lfm2.5:1.2b from cache (or download).
+    async fn load_text_model() -> (InferenceEngine, String) {
+        let registry = crate::models::default_registry();
+        let spec = registry.get("lfm2.5:1.2b").unwrap().clone();
+
+        let cache_dir = dirs::cache_dir()
+            .unwrap_or_else(|| std::path::PathBuf::from("."))
+            .join("dria-test-models");
+        let cache = crate::models::ModelCache::new(cache_dir).unwrap();
+
+        let model_path = if let Some(p) = cache.get_local_path(&spec) {
+            println!("model found in cache: {}", p.display());
+            p
+        } else {
+            println!("downloading model...");
+            let hf_path = crate::models::ModelDownloader::download(&spec).await.unwrap();
+            cache.link_model(&spec, &hf_path).unwrap()
+        };
+
+        let engine = InferenceEngine::load(&model_path, 0, None).unwrap();
+        (engine, spec.name)
+    }
+
+    /// End-to-end validation test:
+    /// 1. Generate text with logprob_every_n=8 (greedy so output is deterministic)
+    /// 2. validate_prefill() with the same prompt+output
+    /// 3. compare_proofs() — should Pass
+    ///
+    /// Run with:
+    ///   cargo test test_validate_prefill_e2e -- --ignored --nocapture
+    #[tokio::test]
+    #[ignore] // requires lfm2.5:1.2b model (~800 MB)
+    async fn test_validate_prefill_e2e() {
+        let (engine, _model_name) = load_text_model().await;
+
+        let messages = vec![ChatMessage {
+            role: "user".into(),
+            content: "What is 2 + 2? Answer in one word.".into(),
+        }];
+
+        let prompt = engine.apply_template(&messages).unwrap();
+
+        // Generate with logprobs every 8 tokens, greedy (deterministic)
+        let params = GenerateParams {
+            max_tokens: 64,
+            temperature: 0.0,
+            logprob_every_n: 8,
+            logprob_top_k: 5,
+            ..Default::default()
+        };
+
+        let gen_result = engine
+            .generate(&prompt, &params, |_| ControlFlow::Continue(()))
+            .unwrap();
+
+        println!("generated: {:?}", gen_result.text);
+        println!("tokens: {}", gen_result.tokens_generated);
+
+        let original_proof = gen_result.proof.as_ref().expect("should have proof with logprob_every_n=8");
+        println!("original proof positions: {:?}",
+            original_proof.logprobs.iter().map(|lp| lp.position).collect::<Vec<_>>()
+        );
+
+        // Now validate: prefill-only forward pass
+        let validator_proof = engine
+            .validate_prefill(&prompt, &gen_result.text, 8, 5)
+            .unwrap();
+
+        println!("validator proof positions: {:?}",
+            validator_proof.logprobs.iter().map(|lp| lp.position).collect::<Vec<_>>()
+        );
+
+        // Both proofs should have the same positions
+        assert_eq!(
+            original_proof.logprobs.len(),
+            validator_proof.logprobs.len(),
+            "proof lengths should match"
+        );
+
+        // Compare position by position
+        for (orig, val) in original_proof.logprobs.iter().zip(validator_proof.logprobs.iter()) {
+            assert_eq!(orig.position, val.position, "positions should match");
+            assert_eq!(orig.token_id, val.token_id, "token IDs should match at position {}", orig.position);
+            let diff = (orig.logprob - val.logprob).abs();
+            println!(
+                "pos {} | token '{}' | orig_lp={:.4} | val_lp={:.4} | diff={:.4}",
+                orig.position, orig.token_text, orig.logprob, val.logprob, diff
+            );
+            assert!(
+                diff < 0.5,
+                "logprob diff too large at position {}: {diff}",
+                orig.position
+            );
+        }
+
+        println!("\nall positions match — validation passed!");
     }
 }

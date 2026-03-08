@@ -120,10 +120,10 @@ impl Worker {
             temperature,
             top_p: 0.9,
             seed: None,
-            logprob_positions: validation
+            logprob_every_n: validation
                 .as_ref()
-                .map(|v| v.logprob_positions.clone())
-                .unwrap_or_default(),
+                .map(|v| v.logprob_every_n)
+                .unwrap_or(0),
             logprob_top_k: validation.as_ref().map(|v| v.logprob_top_k).unwrap_or(5),
         };
 
@@ -224,6 +224,56 @@ impl Worker {
     /// Check whether the worker has a model loaded.
     pub fn has_model(&self, name: &str) -> bool {
         self.engines.contains_key(name)
+    }
+
+    /// Try to accept a validation task. Same capacity semantics as `try_accept()`.
+    pub fn try_accept_validation(
+        &self,
+        validation_id: Uuid,
+        model: &str,
+        messages: Vec<ChatMessage>,
+        output_text: String,
+        logprob_every_n: usize,
+        logprob_top_k: usize,
+    ) -> Result<(), RejectReason> {
+        let (engine, _model_type) = self
+            .engines
+            .get(model)
+            .ok_or(RejectReason::ModelNotLoaded)?;
+        let engine = Arc::clone(engine);
+
+        // CAS-decrement capacity
+        loop {
+            let current = self.capacity.load(Ordering::Acquire);
+            if current == 0 {
+                return Err(RejectReason::AtCapacity);
+            }
+            if self
+                .capacity
+                .compare_exchange_weak(current, current - 1, Ordering::AcqRel, Ordering::Acquire)
+                .is_ok()
+            {
+                break;
+            }
+        }
+
+        let capacity = Arc::clone(&self.capacity);
+
+        let handle = tokio::task::spawn_blocking(move || {
+            let result = run_validation(
+                &engine,
+                validation_id,
+                messages,
+                output_text,
+                logprob_every_n,
+                logprob_top_k,
+            );
+            capacity.fetch_add(1, Ordering::Release);
+            result
+        });
+        self.in_flight.push(handle);
+
+        Ok(())
     }
 }
 
@@ -372,6 +422,43 @@ fn run_inference_streaming(
                 stream: true,
             }
         }
+    }
+}
+
+/// Run prefill-only validation (called from `spawn_blocking`).
+fn run_validation(
+    engine: &InferenceEngine,
+    validation_id: Uuid,
+    messages: Vec<ChatMessage>,
+    output_text: String,
+    logprob_every_n: usize,
+    logprob_top_k: usize,
+) -> CompletedTask {
+    let prompt = match engine.apply_template(&messages) {
+        Ok(p) => p,
+        Err(e) => {
+            return CompletedTask {
+                task_id: validation_id,
+                result: Err(e),
+                stream: false,
+            };
+        }
+    };
+
+    match engine.validate_prefill(&prompt, &output_text, logprob_every_n, logprob_top_k) {
+        Ok(proof) => CompletedTask {
+            task_id: validation_id,
+            result: Ok(NodeMessage::ValidationResult {
+                validation_id,
+                proof,
+            }),
+            stream: false,
+        },
+        Err(e) => CompletedTask {
+            task_id: validation_id,
+            result: Err(e),
+            stream: false,
+        },
     }
 }
 
