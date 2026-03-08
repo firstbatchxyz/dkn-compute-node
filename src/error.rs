@@ -17,6 +17,9 @@ pub enum NodeError {
     #[error("network error: {0}")]
     Network(String),
 
+    #[error("update error: {0}")]
+    Update(String),
+
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
 }

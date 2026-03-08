@@ -6,6 +6,7 @@ mod models;
 mod network;
 mod setup;
 mod stats;
+mod update;
 mod worker;
 
 use std::collections::HashMap;
@@ -53,8 +54,9 @@ async fn main() -> anyhow::Result<()> {
             data_dir,
             quant,
             insecure,
+            skip_update,
         } => {
-            run_start(wallet, model, router_url, gpu_layers, max_concurrent, data_dir, quant, insecure).await?;
+            run_start(wallet, model, router_url, gpu_layers, max_concurrent, data_dir, quant, insecure, skip_update).await?;
         }
     }
 
@@ -87,13 +89,40 @@ async fn run_start(
     data_dir: Option<std::path::PathBuf>,
     quant: Option<String>,
     insecure: bool,
+    skip_update: bool,
 ) -> anyhow::Result<()> {
     // Parse config
-    let config = Config::from_start_args(wallet, model, router_url, gpu_layers, max_concurrent, data_dir, quant, insecure)?;
+    let config = Config::from_start_args(wallet, model, router_url, gpu_layers, max_concurrent, data_dir, quant, insecure, skip_update)?;
 
     // Create identity
     let identity = Identity::from_secret_hex(&config.secret_key_hex)?;
     tracing::info!(address = %format!("0x{}", identity.address_hex), "node identity");
+
+    // Check for updates
+    if !config.skip_update {
+        match update::check_for_update().await {
+            Ok(update::UpdateAction::Force(version)) => {
+                tracing::warn!(%version, "mandatory update available, downloading...");
+                if let Err(e) = update::perform_update(&version).await {
+                    tracing::error!(%e, "auto-update failed, continuing with current version");
+                } else {
+                    tracing::info!("update complete — please restart the node");
+                    return Ok(());
+                }
+            }
+            Ok(update::UpdateAction::Warn(version)) => {
+                tracing::warn!(
+                    %version,
+                    "new patch version available, update recommended (current: {})",
+                    env!("CARGO_PKG_VERSION")
+                );
+            }
+            Ok(update::UpdateAction::UpToDate) => {}
+            Err(e) => {
+                tracing::debug!(%e, "update check failed, continuing");
+            }
+        }
+    }
 
     // Ensure directories exist
     std::fs::create_dir_all(&config.data_dir)?;

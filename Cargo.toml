@@ -42,3 +42,7 @@ rustls-native-certs = "0.8"
 rcgen = "0.13"
 futures = "0.3"
 bytes = "1"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+semver = "1"
+self-replace = "1"
+tempfile = "3"

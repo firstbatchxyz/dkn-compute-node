@@ -148,7 +148,7 @@ jobs:
           artifacts: "artifacts/*"
           artifactContentType: application/octet-stream
           allowUpdates: true
-          makeLatest: false
+          makeLatest: true
 
   update_homebrew:
     needs: release

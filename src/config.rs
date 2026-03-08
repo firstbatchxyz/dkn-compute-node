@@ -57,6 +57,10 @@ pub enum Command {
         /// Skip TLS certificate verification (for development/testing)
         #[arg(long, env = "DRIA_INSECURE")]
         insecure: bool,
+
+        /// Skip automatic update check on startup
+        #[arg(long, env = "DRIA_SKIP_UPDATE")]
+        skip_update: bool,
     },
 }
 
@@ -71,6 +75,7 @@ pub struct Config {
     pub models_dir: PathBuf,
     pub quant: Option<String>,
     pub insecure: bool,
+    pub skip_update: bool,
 }
 
 impl Config {
@@ -85,6 +90,7 @@ impl Config {
         data_dir: Option<PathBuf>,
         quant: Option<String>,
         insecure: bool,
+        skip_update: bool,
     ) -> Result<Self, NodeError> {
         // Validate wallet key
         let secret_key_hex = wallet.strip_prefix("0x").unwrap_or(&wallet).to_string();
@@ -140,6 +146,7 @@ impl Config {
             models_dir,
             quant,
             insecure,
+            skip_update,
         })
     }
 }
@@ -158,6 +165,7 @@ mod tests {
             1,
             Some("/tmp/dria-test".into()),
             None,
+            false,
             false,
         )
         .unwrap();
@@ -182,6 +190,7 @@ mod tests {
             None,
             None,
             false,
+            false,
         );
         assert!(result.is_err());
     }
@@ -196,6 +205,7 @@ mod tests {
             1,
             None,
             None,
+            false,
             false,
         );
         assert!(result.is_err());
@@ -212,6 +222,7 @@ mod tests {
             None,
             None,
             false,
+            false,
         );
         assert!(result.is_err());
     }
@@ -227,6 +238,7 @@ mod tests {
             None,
             None,
             false,
+            false,
         );
         assert!(result.is_err());
     }
@@ -241,6 +253,7 @@ mod tests {
             1,
             None,
             None,
+            false,
             false,
         )
         .unwrap();
@@ -261,6 +274,7 @@ mod tests {
             None,
             None,
             false,
+            false,
         );
         assert!(result.is_err());
     }
@@ -276,6 +290,7 @@ mod tests {
             None,
             None,
             true,
+            false,
         )
         .unwrap();
         assert!(cfg.insecure);
