@@ -234,6 +234,10 @@ impl InferenceEngine {
         let mut logprobs: Vec<TokenLogprob> = Vec::new();
         let mut current_pos = tokens.len() as i32;
         let mut decoder = encoding_rs::UTF_8.new_decoder();
+        // Batch index where logits are available:
+        // after prompt eval → last prompt token; after each single-token decode → 0
+        let mut logit_batch_idx: i32 = (tokens.len() - 1) as i32;
+
         for _ in 0..params.max_tokens {
             let new_token = sampler.sample(&ctx, -1);
             sampler.accept(new_token);
@@ -242,12 +246,11 @@ impl InferenceEngine {
                 break;
             }
 
-            // Extract logprobs at stride positions.
-            // Each decode has exactly one output token, so the output index is always 0.
+            // Extract logprobs at stride positions
             let gen_index = generated_count as usize;
             if params.logprob_every_n > 0 && gen_index.is_multiple_of(params.logprob_every_n) {
                 if let Some(lp) =
-                    self.extract_logprob(&ctx, 0, gen_index, new_token, params.logprob_top_k)
+                    self.extract_logprob(&ctx, logit_batch_idx, gen_index, new_token, params.logprob_top_k)
                 {
                     logprobs.push(lp);
                 }
@@ -277,6 +280,7 @@ impl InferenceEngine {
                 .map_err(|e| NodeError::Inference(format!("batch add failed: {e}")))?;
             ctx.decode(&mut batch)
                 .map_err(|e| NodeError::Inference(format!("decode failed: {e}")))?;
+            logit_batch_idx = 0; // single-token batch → logits at batch index 0
             current_pos += 1;
         }
 
@@ -544,14 +548,13 @@ impl InferenceEngine {
             .map_err(|e| NodeError::Inference(format!("prefill decode failed: {e}")))?;
 
         // Extract logprobs at each probe position.
-        // get_logits_ith(pos) expects the sequence position passed to batch.add().
+        // get_logits_ith takes the batch index where output=true was set.
         let mut logprobs: Vec<TokenLogprob> = Vec::new();
         for (probe_idx, &gen_index) in probe_gen_indices.iter().enumerate() {
             let target_token = all_tokens[n_prompt + gen_index];
-            // get_logits_ith takes the output index (0-based among tokens with output=true),
-            // NOT the sequence position.
+            let batch_idx = output_positions[probe_idx] as i32;
             if let Some(lp) =
-                self.extract_logprob(&ctx, probe_idx as i32, gen_index, target_token, logprob_top_k)
+                self.extract_logprob(&ctx, batch_idx, gen_index, target_token, logprob_top_k)
             {
                 logprobs.push(lp);
             }
