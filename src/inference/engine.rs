@@ -552,9 +552,10 @@ impl InferenceEngine {
         let mut logprobs: Vec<TokenLogprob> = Vec::new();
         for (probe_idx, &gen_index) in probe_gen_indices.iter().enumerate() {
             let target_token = all_tokens[n_prompt + gen_index];
-            let seq_pos = output_positions[probe_idx] as i32;
+            // get_logits_ith takes the output index (0-based among tokens with output=true),
+            // NOT the sequence position.
             if let Some(lp) =
-                self.extract_logprob(&ctx, seq_pos, gen_index, target_token, logprob_top_k)
+                self.extract_logprob(&ctx, probe_idx as i32, gen_index, target_token, logprob_top_k)
             {
                 logprobs.push(lp);
             }
