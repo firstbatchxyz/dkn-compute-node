@@ -397,6 +397,7 @@ async fn handle_router_message(
             temperature,
             validation,
             stream,
+            response_format,
         } => {
             tracing::info!(%task_id, %model, stream, "received task assignment");
             let stream_tx = if stream {
@@ -404,7 +405,7 @@ async fn handle_router_message(
             } else {
                 None
             };
-            match worker.try_accept(task_id, &model, messages, max_tokens, temperature, validation, stream, stream_tx)
+            match worker.try_accept(task_id, &model, messages, max_tokens, temperature, validation, stream, stream_tx, response_format)
             {
                 Ok(()) => {
                     tracing::debug!(%task_id, "task accepted");

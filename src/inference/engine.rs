@@ -30,6 +30,8 @@ pub struct GenerateParams {
     pub logprob_every_n: usize,
     /// Top-k alternatives to collect at each logprob position.
     pub logprob_top_k: usize,
+    /// Optional GBNF grammar string for constrained output.
+    pub grammar: Option<String>,
 }
 
 impl Default for GenerateParams {
@@ -41,6 +43,7 @@ impl Default for GenerateParams {
             seed: None,
             logprob_every_n: 0,
             logprob_top_k: 5,
+            grammar: None,
         }
     }
 }
@@ -216,8 +219,14 @@ impl InferenceEngine {
             .map_err(|e| NodeError::Inference(format!("prompt decode failed: {e}")))?;
         let prompt_eval_time_ms = prompt_start.elapsed().as_millis() as u64;
 
-        // Build sampler chain (seed is passed via the dist sampler)
+        // Build sampler chain (grammar first to mask invalid tokens, then sampling)
         let mut samplers = vec![];
+        if let Some(ref grammar_str) = params.grammar {
+            samplers.push(
+                LlamaSampler::grammar(&self.model, grammar_str, "root")
+                    .map_err(|e| NodeError::Inference(format!("grammar error: {e}")))?,
+            );
+        }
         if params.temperature > 0.0 {
             samplers.push(LlamaSampler::top_p(params.top_p, 1));
             samplers.push(LlamaSampler::temp(params.temperature));
@@ -239,8 +248,8 @@ impl InferenceEngine {
         let mut logit_batch_idx: i32 = (tokens.len() - 1) as i32;
 
         for _ in 0..params.max_tokens {
+            // sample() internally calls apply + select + accept
             let new_token = sampler.sample(&ctx, -1);
-            sampler.accept(new_token);
 
             if self.model.is_eog_token(new_token) {
                 break;
@@ -379,8 +388,14 @@ impl InferenceEngine {
             .map_err(|e| NodeError::Inference(format!("mtmd eval_chunks failed: {e}")))?;
         let prompt_eval_time_ms = prompt_start.elapsed().as_millis() as u64;
 
-        // Build sampler chain
+        // Build sampler chain (grammar first to mask invalid tokens, then sampling)
         let mut samplers = vec![];
+        if let Some(ref grammar_str) = params.grammar {
+            samplers.push(
+                LlamaSampler::grammar(&self.model, grammar_str, "root")
+                    .map_err(|e| NodeError::Inference(format!("grammar error: {e}")))?,
+            );
+        }
         if params.temperature > 0.0 {
             samplers.push(LlamaSampler::top_p(params.top_p, 1));
             samplers.push(LlamaSampler::temp(params.temperature));
@@ -403,8 +418,8 @@ impl InferenceEngine {
         let mut logits_idx: i32 = -1;
 
         for _ in 0..params.max_tokens {
+            // sample() internally calls apply + select + accept
             let new_token = sampler.sample(&ctx, logits_idx);
-            sampler.accept(new_token);
 
             if self.model.is_eog_token(new_token) {
                 break;
@@ -774,11 +789,8 @@ mod tests {
         assert!(result.tokens_generated > 0);
     }
 
-    /// Helper to load lfm2.5:1.2b from cache (or download).
-    async fn load_text_model() -> (InferenceEngine, String) {
-        let registry = crate::models::default_registry();
-        let spec = registry.get("lfm2.5:1.2b").unwrap().clone();
-
+    /// Helper to load a model from cache (or download).
+    async fn load_model(spec: crate::models::registry::ModelSpec) -> (InferenceEngine, String) {
         let cache_dir = dirs::cache_dir()
             .unwrap_or_else(|| std::path::PathBuf::from("."))
             .join("dria-test-models");
@@ -793,8 +805,29 @@ mod tests {
             cache.link_model(&spec, &hf_path).unwrap()
         };
 
+        let name = spec.name.clone();
         let engine = InferenceEngine::load(&model_path, 0, None).unwrap();
-        (engine, spec.name)
+        (engine, name)
+    }
+
+    /// Load lfm2.5:1.2b from the default registry.
+    async fn load_text_model() -> (InferenceEngine, String) {
+        let registry = crate::models::default_registry();
+        let spec = registry.get("lfm2.5:1.2b").unwrap().clone();
+        load_model(spec).await
+    }
+
+    /// Load a small Qwen 3.5 model for grammar-compatible testing.
+    async fn load_qwen_model() -> (InferenceEngine, String) {
+        let spec = crate::models::registry::ModelSpec {
+            name: "qwen3.5:0.8b".into(),
+            hf_repo: "unsloth/Qwen3.5-0.8B-GGUF".into(),
+            hf_file: "Qwen3.5-0.8B-Q4_K_M.gguf".into(),
+            sha256: None,
+            model_type: dkn_protocol::ModelType::Text,
+            hf_mmproj_file: None,
+        };
+        load_model(spec).await
     }
 
     /// End-to-end validation test:
@@ -870,5 +903,238 @@ mod tests {
         }
 
         println!("\nall positions match — validation passed!");
+    }
+
+    /// End-to-end structured output test:
+    /// 1. Test a trivial GBNF grammar to verify grammar sampling works
+    /// 2. Generate with json_object grammar (greedy) — output must be valid JSON
+    /// 3. Generate with json_schema grammar — output must match the schema
+    ///
+    /// Run with:
+    ///   cargo test test_structured_output_e2e -- --ignored --nocapture
+    #[tokio::test]
+    #[ignore] // requires qwen3.5:0.8b model (~533 MB download)
+    async fn test_structured_output_e2e() {
+        let (engine, _model_name) = load_qwen_model().await;
+
+        // --- Step 1: trivial GBNF grammar to confirm grammar sampling works ---
+        {
+            let grammar = r#"root ::= "hello""#.to_string();
+            let messages = vec![ChatMessage {
+                role: "user".into(),
+                content: "Say hello".into(),
+            }];
+            let prompt = engine.apply_template(&messages).unwrap();
+
+            let params = GenerateParams {
+                max_tokens: 16,
+                temperature: 0.0,
+                grammar: Some(grammar),
+                ..Default::default()
+            };
+
+            println!("\n--- trivial grammar test ---");
+            let result = engine
+                .generate(&prompt, &params, |_| ControlFlow::Continue(()))
+                .unwrap();
+            println!("output: {:?}", result.text);
+            assert_eq!(result.text, "hello", "trivial grammar should constrain to 'hello'");
+            println!("trivial grammar OK");
+        }
+
+        // --- Step 2: json_object mode (permissive JSON) ---
+        {
+            let json_grammar = llama_cpp_2::json_schema_to_grammar(r#"{"type": "object"}"#)
+                .expect("json_object grammar should convert");
+            println!("\njson_object grammar length: {} chars", json_grammar.len());
+
+            let messages = vec![ChatMessage {
+                role: "user".into(),
+                content: "Return a JSON object with a field called 'answer' set to 42.".into(),
+            }];
+            let prompt = engine.apply_template(&messages).unwrap();
+
+            let params = GenerateParams {
+                max_tokens: 128,
+                temperature: 0.0,
+                grammar: Some(json_grammar),
+                ..Default::default()
+            };
+
+            print!("\n--- json_object output ---\n");
+            let result = engine
+                .generate(&prompt, &params, |tok| {
+                    print!("{}", tok.text);
+                    ControlFlow::Continue(())
+                })
+                .unwrap();
+            println!("\n--- end ---");
+
+            let text = result.text.trim();
+            assert!(!text.is_empty(), "should produce output");
+
+            let parsed: serde_json::Value =
+                serde_json::from_str(text).expect("json_object output must be valid JSON");
+            assert!(parsed.is_object(), "should be a JSON object");
+            println!("parsed JSON: {parsed}");
+        }
+
+        // --- Step 3: json_schema mode (specific schema) ---
+        {
+            let schema = serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string" },
+                    "age": { "type": "integer" }
+                },
+                "required": ["name", "age"],
+                "additionalProperties": false
+            });
+
+            let schema_str = serde_json::to_string(&schema).unwrap();
+            let schema_grammar = llama_cpp_2::json_schema_to_grammar(&schema_str)
+                .expect("json_schema grammar should convert");
+            println!("\njson_schema grammar length: {} chars", schema_grammar.len());
+
+            let messages = vec![ChatMessage {
+                role: "user".into(),
+                content: "Give me a person named Alice who is 30 years old.".into(),
+            }];
+            let prompt = engine.apply_template(&messages).unwrap();
+
+            let params = GenerateParams {
+                max_tokens: 128,
+                temperature: 0.0,
+                grammar: Some(schema_grammar),
+                ..Default::default()
+            };
+
+            print!("\n--- json_schema output ---\n");
+            let result = engine
+                .generate(&prompt, &params, |tok| {
+                    print!("{}", tok.text);
+                    ControlFlow::Continue(())
+                })
+                .unwrap();
+            println!("\n--- end ---");
+
+            let text = result.text.trim();
+            assert!(!text.is_empty(), "should produce output");
+
+            let parsed: serde_json::Value =
+                serde_json::from_str(text).expect("json_schema output must be valid JSON");
+            assert!(parsed.is_object(), "should be a JSON object");
+            assert!(parsed.get("name").is_some(), "should have 'name' field");
+            assert!(parsed.get("age").is_some(), "should have 'age' field");
+            assert!(parsed["name"].is_string(), "'name' should be a string");
+            assert!(parsed["age"].is_number(), "'age' should be a number");
+            println!("parsed JSON: {parsed}");
+        }
+
+        println!("\nstructured output test passed!");
+    }
+
+    /// Grammar test with lfm2.5:1.2b — verify grammar sampling works across tokenizer types.
+    ///
+    /// Run with:
+    ///   cargo test test_structured_output_lfm2 -- --ignored --nocapture
+    #[tokio::test]
+    #[ignore] // requires lfm2.5:1.2b model (~800 MB)
+    async fn test_structured_output_lfm2() {
+        let (engine, _model_name) = load_text_model().await;
+
+        // Trivial grammar
+        {
+            let grammar = r#"root ::= "hello""#.to_string();
+            let messages = vec![ChatMessage {
+                role: "user".into(),
+                content: "Say hello".into(),
+            }];
+            let prompt = engine.apply_template(&messages).unwrap();
+
+            let params = GenerateParams {
+                max_tokens: 16,
+                temperature: 0.0,
+                grammar: Some(grammar),
+                ..Default::default()
+            };
+
+            println!("\n--- lfm2 trivial grammar test ---");
+            let result = engine
+                .generate(&prompt, &params, |_| ControlFlow::Continue(()))
+                .unwrap();
+            println!("output: {:?}", result.text);
+            assert_eq!(result.text, "hello");
+            println!("trivial grammar OK");
+        }
+
+        // Class-like schema with nested object, array, and enum
+        {
+            let schema = serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string" },
+                    "age": { "type": "integer" },
+                    "role": { "type": "string", "enum": ["admin", "user", "moderator"] },
+                    "address": {
+                        "type": "object",
+                        "properties": {
+                            "city": { "type": "string" },
+                            "country": { "type": "string" }
+                        },
+                        "required": ["city", "country"],
+                        "additionalProperties": false
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                    }
+                },
+                "required": ["name", "age", "role", "address", "tags"],
+                "additionalProperties": false
+            });
+
+            let schema_str = serde_json::to_string(&schema).unwrap();
+            let grammar = llama_cpp_2::json_schema_to_grammar(&schema_str)
+                .expect("class schema should convert");
+            println!("\nclass schema grammar length: {} chars", grammar.len());
+
+            let messages = vec![ChatMessage {
+                role: "user".into(),
+                content: "Create a user profile for Alice, age 30, admin role, lives in Istanbul Turkey, tags: developer and lead.".into(),
+            }];
+            let prompt = engine.apply_template(&messages).unwrap();
+
+            let params = GenerateParams {
+                max_tokens: 256,
+                temperature: 0.0,
+                grammar: Some(grammar),
+                ..Default::default()
+            };
+
+            print!("\n--- lfm2 class-like schema output ---\n");
+            let result = engine
+                .generate(&prompt, &params, |tok| {
+                    print!("{}", tok.text);
+                    ControlFlow::Continue(())
+                })
+                .unwrap();
+            println!("\n--- end ---");
+
+            let parsed: serde_json::Value =
+                serde_json::from_str(result.text.trim()).expect("must be valid JSON");
+            assert!(parsed.is_object());
+            assert!(parsed["name"].is_string());
+            assert!(parsed["age"].is_number());
+            let role = parsed["role"].as_str().unwrap();
+            assert!(["admin", "user", "moderator"].contains(&role), "role must be enum value");
+            assert!(parsed["address"].is_object());
+            assert!(parsed["address"]["city"].is_string());
+            assert!(parsed["address"]["country"].is_string());
+            assert!(parsed["tags"].is_array());
+            println!("parsed: {parsed}");
+        }
+
+        println!("\nlfm2 structured output OK");
     }
 }

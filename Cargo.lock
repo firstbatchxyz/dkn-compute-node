@@ -412,12 +412,13 @@ dependencies = [
 [[package]]
 name = "dkn-protocol"
 version = "0.1.0"
-source = "git+https://github.com/firstbatchxyz/dkn-protocol.git?rev=ce026e3#ce026e35f646b4ae3cdf6579758cb65b60c5aa97"
+source = "git+https://github.com/firstbatchxyz/dkn-protocol.git?branch=main#c3b1fb6f7884feffd8b6ccc8a1ab11debc0ab8f3"
 dependencies = [
  "base64",
  "quinn",
  "rmp-serde",
  "serde",
+ "serde_json",
  "thiserror 2.0.18",
  "uuid",
 ]

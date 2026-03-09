@@ -605,6 +605,7 @@ mod tests {
                         temperature: 0.7,
                         validation: None,
                         stream: false,
+                        response_format: None,
                     },
                 )
                 .await

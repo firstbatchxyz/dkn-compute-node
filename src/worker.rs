@@ -12,7 +12,8 @@ use uuid::Uuid;
 use crate::error::NodeError;
 use crate::inference::{GenerateParams, InferenceEngine, InferenceResult};
 use crate::network::protocol::{
-    Capacity, ChatMessage, ModelType, NodeMessage, RejectReason, TaskStats, ValidationRequest,
+    Capacity, ChatMessage, ModelType, NodeMessage, RejectReason, ResponseFormat, TaskStats,
+    ValidationRequest,
 };
 
 /// A completed inference task ready to be sent back.
@@ -71,6 +72,7 @@ impl Worker {
         validation: Option<ValidationRequest>,
         stream: bool,
         stream_tx: Option<mpsc::UnboundedSender<NodeMessage>>,
+        response_format: Option<ResponseFormat>,
     ) -> Result<(), RejectReason> {
         // Look up engine + model_type for the requested model (fail fast before decrementing capacity)
         let (engine, model_type) = self
@@ -114,6 +116,26 @@ impl Worker {
             }
         }
 
+        // Convert response_format to GBNF grammar
+        let grammar = match response_format {
+            Some(ResponseFormat::JsonObject) => {
+                let schema = r#"{"type": "object"}"#;
+                Some(
+                    llama_cpp_2::json_schema_to_grammar(schema)
+                        .map_err(|e| RejectReason::InvalidRequest(format!("json grammar error: {e}")))?,
+                )
+            }
+            Some(ResponseFormat::JsonSchema { ref json_schema }) => {
+                let schema_str = serde_json::to_string(&json_schema.schema)
+                    .map_err(|e| RejectReason::InvalidRequest(format!("invalid schema: {e}")))?;
+                Some(
+                    llama_cpp_2::json_schema_to_grammar(&schema_str)
+                        .map_err(|e| RejectReason::InvalidRequest(format!("schema conversion failed: {e}")))?,
+                )
+            }
+            None => None,
+        };
+
         // Build generate params
         let params = GenerateParams {
             max_tokens,
@@ -125,6 +147,7 @@ impl Worker {
                 .map(|v| v.logprob_every_n)
                 .unwrap_or(0),
             logprob_top_k: validation.as_ref().map(|v| v.logprob_top_k).unwrap_or(5),
+            grammar,
         };
 
         let capacity = Arc::clone(&self.capacity);
