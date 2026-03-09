@@ -412,6 +412,7 @@ dependencies = [
 [[package]]
 name = "dkn-protocol"
 version = "0.1.0"
+source = "git+https://github.com/firstbatchxyz/dkn-protocol.git?rev=ce026e3#ce026e35f646b4ae3cdf6579758cb65b60c5aa97"
 dependencies = [
  "base64",
  "quinn",

@@ -35,7 +35,7 @@ uuid = { version = "1", features = ["v7", "serde"] }
 dialoguer = "0.11"
 dirs = "6"
 encoding_rs = "0.8"
-dkn-protocol = { path = "../dkn-protocol" }
+dkn-protocol = { git = "https://github.com/firstbatchxyz/dkn-protocol.git", rev = "ce026e3" }
 quinn = "0.11"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 rustls-native-certs = "0.8"
