@@ -413,13 +413,13 @@ impl InferenceEngine {
         let mut current_pos = n_past;
         let mut decoder = encoding_rs::UTF_8.new_decoder();
         let mut batch = LlamaBatch::new(1, 1);
-        // After eval_chunks the logits index is opaque; use -1 for first sample.
+        // Always use -1 (C API sentinel for "last logits") for sampling.
+        // After single-token decode, batch output index is 0, but -1 always works.
         // Multimodal tasks skip validation so logprob extraction is not needed.
-        let mut logits_idx: i32 = -1;
 
         for _ in 0..params.max_tokens {
             // sample() internally calls apply + select + accept
-            let new_token = sampler.sample(&ctx, logits_idx);
+            let new_token = sampler.sample(&ctx, -1);
 
             if self.model.is_eog_token(new_token) {
                 break;
@@ -451,7 +451,6 @@ impl InferenceEngine {
                 .map_err(|e| NodeError::Inference(format!("batch add failed: {e}")))?;
             ctx.decode(&mut batch)
                 .map_err(|e| NodeError::Inference(format!("decode failed: {e}")))?;
-            logits_idx = current_pos;
             current_pos += 1;
         }
 
