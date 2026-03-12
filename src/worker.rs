@@ -99,6 +99,27 @@ impl Worker {
             ));
         }
 
+        // Pre-flight context check (text-only; multimodal token counting requires a context)
+        let has_media = has_image || has_audio;
+        if !has_media {
+            match engine.tokenize_count(&messages) {
+                Ok(prompt_tokens) => {
+                    let needed = prompt_tokens + max_tokens;
+                    if needed > engine.ctx_limit() {
+                        return Err(RejectReason::InvalidRequest(format!(
+                            "prompt ({prompt_tokens}) + max_tokens ({max_tokens}) = {needed} exceeds context ({})",
+                            engine.ctx_limit()
+                        )));
+                    }
+                }
+                Err(e) => {
+                    return Err(RejectReason::InvalidRequest(format!(
+                        "tokenization failed: {e}"
+                    )));
+                }
+            }
+        }
+
         let engine = Arc::clone(engine);
 
         // Try to decrement capacity (CAS loop)

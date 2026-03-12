@@ -61,6 +61,11 @@ pub enum Command {
         /// Skip automatic update check on startup
         #[arg(long, env = "DRIA_SKIP_UPDATE")]
         skip_update: bool,
+
+        /// Maximum context window size (tokens). When set, engines use min(model_native, this value).
+        /// When unset, engines use the model's full native context window.
+        #[arg(long, env = "DRIA_CONTEXT_SIZE")]
+        context_size: Option<u32>,
     },
 }
 
@@ -76,6 +81,7 @@ pub struct Config {
     pub quant: Option<String>,
     pub insecure: bool,
     pub skip_update: bool,
+    pub max_context: Option<u32>,
 }
 
 impl Config {
@@ -91,6 +97,7 @@ impl Config {
         quant: Option<String>,
         insecure: bool,
         skip_update: bool,
+        max_context: Option<u32>,
     ) -> Result<Self, NodeError> {
         // Validate wallet key
         let secret_key_hex = wallet.strip_prefix("0x").unwrap_or(&wallet).to_string();
@@ -147,6 +154,7 @@ impl Config {
             quant,
             insecure,
             skip_update,
+            max_context,
         })
     }
 }
@@ -167,6 +175,7 @@ mod tests {
             None,
             false,
             false,
+            None,
         )
         .unwrap();
 
@@ -191,6 +200,7 @@ mod tests {
             None,
             false,
             false,
+            None,
         );
         assert!(result.is_err());
     }
@@ -207,6 +217,7 @@ mod tests {
             None,
             false,
             false,
+            None,
         );
         assert!(result.is_err());
     }
@@ -223,6 +234,7 @@ mod tests {
             None,
             false,
             false,
+            None,
         );
         assert!(result.is_err());
     }
@@ -239,6 +251,7 @@ mod tests {
             None,
             false,
             false,
+            None,
         );
         assert!(result.is_err());
     }
@@ -255,6 +268,7 @@ mod tests {
             None,
             false,
             false,
+            None,
         )
         .unwrap();
         assert_eq!(
@@ -275,6 +289,7 @@ mod tests {
             None,
             false,
             false,
+            None,
         );
         assert!(result.is_err());
     }
@@ -291,6 +306,7 @@ mod tests {
             None,
             true,
             false,
+            None,
         )
         .unwrap();
         assert!(cfg.insecure);

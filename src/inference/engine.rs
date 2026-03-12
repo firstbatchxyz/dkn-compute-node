@@ -70,6 +70,8 @@ pub struct InferenceEngine {
     mtmd_ctx: Option<MtmdContext>,
     #[allow(dead_code)]
     gpu_layers: i32,
+    /// Effective context window size (tokens), auto-detected from model metadata.
+    ctx_limit: u32,
 }
 
 /// Helper to convert a token to a string piece using the new token_to_piece API.
@@ -82,10 +84,14 @@ fn token_to_string(model: &LlamaModel, token: LlamaToken) -> String {
 
 impl InferenceEngine {
     /// Load a GGUF model from disk, optionally with a multimodal projector.
+    ///
+    /// `max_context` optionally caps the context window (e.g. for limited VRAM).
+    /// When `None`, the model's full native context window is used.
     pub fn load(
         path: &Path,
         gpu_layers: i32,
         mmproj_path: Option<&Path>,
+        max_context: Option<u32>,
     ) -> Result<Self, NodeError> {
         let backend = LlamaBackend::init()
             .map_err(|e| NodeError::Inference(format!("failed to init llama backend: {e}")))?;
@@ -99,6 +105,13 @@ impl InferenceEngine {
 
         let model = LlamaModel::load_from_file(&backend, path, &model_params)
             .map_err(|e| NodeError::Inference(format!("failed to load model: {e}")))?;
+
+        let n_ctx_train = model.n_ctx_train();
+        let ctx_limit = match max_context {
+            Some(cap) => n_ctx_train.min(cap),
+            None => n_ctx_train,
+        };
+        tracing::info!(model_ctx = n_ctx_train, effective_ctx = ctx_limit, "context window");
 
         let mtmd_ctx = match mmproj_path {
             Some(p) => {
@@ -126,6 +139,7 @@ impl InferenceEngine {
             model,
             mtmd_ctx,
             gpu_layers,
+            ctx_limit,
         })
     }
 
@@ -138,6 +152,26 @@ impl InferenceEngine {
     #[allow(dead_code)]
     pub fn gpu_layers(&self) -> i32 {
         self.gpu_layers
+    }
+
+    /// The model's native training context length.
+    #[allow(dead_code)]
+    pub fn n_ctx_train(&self) -> u32 {
+        self.model.n_ctx_train()
+    }
+
+    /// The effective context limit (possibly capped by --context-size).
+    pub fn ctx_limit(&self) -> u32 {
+        self.ctx_limit
+    }
+
+    /// Count prompt tokens without creating a context (LlamaModel is Send+Sync).
+    pub fn tokenize_count(&self, messages: &[ChatMessage]) -> Result<u32, NodeError> {
+        let prompt = self.apply_template(messages)?;
+        let tokens = self.model
+            .str_to_token(&prompt, AddBos::Always)
+            .map_err(|e| NodeError::Inference(format!("tokenization failed: {e}")))?;
+        Ok(tokens.len() as u32)
     }
 
     /// Apply the GGUF-embedded chat template to produce a formatted prompt string.
@@ -191,20 +225,29 @@ impl InferenceEngine {
     where
         F: FnMut(StreamToken) -> ControlFlow<()>,
     {
-        let ctx_size = std::num::NonZeroU32::new(2048);
-        let ctx_params = LlamaContextParams::default().with_n_ctx(ctx_size);
-
-        let mut ctx = self
-            .model
-            .new_context(&self.backend, ctx_params)
-            .map_err(|e| NodeError::Inference(format!("failed to create context: {e}")))?;
-
         // Tokenize prompt
         let tokens = self
             .model
             .str_to_token(prompt, AddBos::Always)
             .map_err(|e| NodeError::Inference(format!("tokenization failed: {e}")))?;
         let prompt_token_count = tokens.len() as u32;
+
+        // Pre-flight: check that prompt + max_tokens fits in context
+        let needed = prompt_token_count + params.max_tokens;
+        if needed > self.ctx_limit {
+            return Err(NodeError::Inference(format!(
+                "prompt ({prompt_token_count}) + max_tokens ({}) = {needed} exceeds context ({})",
+                params.max_tokens, self.ctx_limit
+            )));
+        }
+
+        let ctx_size = std::num::NonZeroU32::new(self.ctx_limit);
+        let ctx_params = LlamaContextParams::default().with_n_ctx(ctx_size);
+
+        let mut ctx = self
+            .model
+            .new_context(&self.backend, ctx_params)
+            .map_err(|e| NodeError::Inference(format!("failed to create context: {e}")))?;
 
         // Evaluate prompt
         let prompt_start = Instant::now();
@@ -372,8 +415,8 @@ impl InferenceEngine {
 
         let prompt_token_count = chunks.total_tokens() as u32;
 
-        // Create context with larger size for multimodal
-        let ctx_size = std::num::NonZeroU32::new(4096);
+        // Create context sized to the model's effective limit
+        let ctx_size = std::num::NonZeroU32::new(self.ctx_limit);
         let ctx_params = LlamaContextParams::default().with_n_ctx(ctx_size);
 
         let mut ctx = self
@@ -735,7 +778,7 @@ mod tests {
 
         // Load engine with multimodal projector
         println!("loading model + mmproj...");
-        let engine = InferenceEngine::load(&model_path, 0, Some(&mmproj_path)).unwrap();
+        let engine = InferenceEngine::load(&model_path, 0, Some(&mmproj_path), None).unwrap();
         assert!(engine.has_multimodal(), "engine should have multimodal context");
 
         // Get test image: from env var or generate a synthetic BMP
@@ -805,7 +848,7 @@ mod tests {
         };
 
         let name = spec.name.clone();
-        let engine = InferenceEngine::load(&model_path, 0, None).unwrap();
+        let engine = InferenceEngine::load(&model_path, 0, None, None).unwrap();
         (engine, name)
     }
 

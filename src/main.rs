@@ -55,8 +55,9 @@ async fn main() -> anyhow::Result<()> {
             quant,
             insecure,
             skip_update,
+            context_size,
         } => {
-            run_start(wallet, model, router_url, gpu_layers, max_concurrent, data_dir, quant, insecure, skip_update).await?;
+            run_start(wallet, model, router_url, gpu_layers, max_concurrent, data_dir, quant, insecure, skip_update, context_size).await?;
         }
     }
 
@@ -90,9 +91,10 @@ async fn run_start(
     quant: Option<String>,
     insecure: bool,
     skip_update: bool,
+    max_context: Option<u32>,
 ) -> anyhow::Result<()> {
     // Parse config
-    let config = Config::from_start_args(wallet, model, router_url, gpu_layers, max_concurrent, data_dir, quant, insecure, skip_update)?;
+    let config = Config::from_start_args(wallet, model, router_url, gpu_layers, max_concurrent, data_dir, quant, insecure, skip_update, max_context)?;
 
     // Create identity
     let identity = Identity::from_secret_hex(&config.secret_key_hex)?;
@@ -140,7 +142,7 @@ async fn run_start(
         let spec = resolve_model(model_name, &registry, config.quant.as_deref())
             .ok_or_else(|| error::NodeError::Model(format!("unknown model: {model_name}")))?;
 
-        let (engine, tps) = download_and_load_model(&spec, &cache, config.gpu_layers).await?;
+        let (engine, tps) = download_and_load_model(&spec, &cache, config.gpu_layers, config.max_context).await?;
 
         tracing::info!(tps = %format!("{tps:.1}"), model = %model_name, "benchmark complete");
         engines.insert(model_name.clone(), (engine, spec.model_type));
@@ -496,13 +498,14 @@ async fn handle_router_message(
                     let spec = ModelSpec::from_registry_entry(entry);
                     let cache = ctx.cache.clone();
                     let gpu_layers = ctx.config.gpu_layers;
+                    let max_context = ctx.config.max_context;
                     let tx = model_tx.clone();
                     let name = entry.name.clone();
                     let model_type = entry.model_type;
 
                     tracing::info!(model = %name, "spawning background model download+load");
                     tokio::spawn(async move {
-                        let result = download_and_load_model(&spec, &cache, gpu_layers).await;
+                        let result = download_and_load_model(&spec, &cache, gpu_layers, max_context).await;
                         let _ = tx.send(ModelLoadResult { name, model_type, result });
                     });
                 }
@@ -518,6 +521,7 @@ async fn download_and_load_model(
     spec: &ModelSpec,
     cache: &ModelCache,
     gpu_layers: i32,
+    max_context: Option<u32>,
 ) -> Result<(inference::InferenceEngine, f64), error::NodeError> {
     let model_name = spec.name.clone();
 
@@ -558,7 +562,7 @@ async fn download_and_load_model(
 
     // Load model and run benchmark in blocking thread
     let (engine, tps) = tokio::task::spawn_blocking(move || {
-        let engine = inference::InferenceEngine::load(&model_path, gpu_layers, mmproj_path.as_deref())?;
+        let engine = inference::InferenceEngine::load(&model_path, gpu_layers, mmproj_path.as_deref(), max_context)?;
         let tps_result = engine.benchmark(&model_name)?;
         Ok::<_, error::NodeError>((engine, tps_result.generation_tps))
     })
@@ -598,6 +602,13 @@ fn handle_completed_task(
         Err(e) => {
             stats.record_failed();
             tracing::error!(%e, task_id = %completed.task_id, "task failed");
+            // Propagate error back to router so it can retry on another node
+            if let Some(ref conn) = connection {
+                let _ = conn.send(NodeMessage::StreamError {
+                    task_id: completed.task_id,
+                    error: e.to_string(),
+                });
+            }
         }
     }
 }
