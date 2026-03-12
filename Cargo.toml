@@ -12,6 +12,7 @@ path = "src/main.rs"
 default = []
 cuda = ["llama-cpp-2/cuda"]
 metal = ["llama-cpp-2/metal"]
+rocm = ["llama-cpp-2/rocm"]
 
 [dependencies]
 clap = { version = "4", features = ["derive", "env"] }

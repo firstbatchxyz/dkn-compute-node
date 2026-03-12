@@ -124,8 +124,102 @@ jobs:
           name: dria-node-${{ matrix.osname }}-${{ matrix.arch }}
           path: dria-node-${{ matrix.osname }}-${{ matrix.arch }}${{ matrix.extension }}
 
+  build-cuda:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - {
+              runner: ubuntu-latest,
+              osname: linux,
+              arch: amd64-cuda,
+              target: x86_64-unknown-linux-gnu,
+              cuda: "12.6.3",
+            }
+          - {
+              runner: windows-latest,
+              osname: windows,
+              arch: amd64-cuda,
+              target: x86_64-pc-windows-msvc,
+              cuda: "12.6.3",
+              extension: ".exe",
+            }
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Install CUDA toolkit
+        uses: Jimver/cuda-toolkit@v0.2.19
+        with:
+          cuda: ${{ matrix.cuda }}
+          method: network
+
+      - name: Install build dependencies (Linux)
+        if: matrix.osname == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y cmake
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build binary with CUDA
+        run: cargo build --bin dria-node --release --target ${{ matrix.target }} --features cuda
+
+      - name: Strip binary (Linux)
+        if: matrix.osname == 'linux'
+        run: strip target/${{ matrix.target }}/release/dria-node
+
+      - name: Prepare Release File
+        shell: bash
+        run: |
+          mv target/${{ matrix.target }}/release/dria-node${{ matrix.extension }} ./dria-node-${{ matrix.osname }}-${{ matrix.arch }}${{ matrix.extension }}
+
+      - name: Upload Launch Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dria-node-${{ matrix.osname }}-${{ matrix.arch }}
+          path: dria-node-${{ matrix.osname }}-${{ matrix.arch }}${{ matrix.extension }}
+
+  build-rocm:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Install ROCm HIP SDK
+        run: |
+          wget -q -O - https://repo.radeon.com/rocm/rocm.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/rocm.gpg
+          echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/6.3.3 jammy main" | sudo tee /etc/apt/sources.list.d/rocm.list
+          echo 'Package: *\nPin: release o=repo.radeon.com\nPin-Priority: 600' | sudo tee /etc/apt/preferences.d/rocm-pin-600
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake hip-dev rocm-hip-runtime-dev
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build binary with ROCm
+        run: cargo build --bin dria-node --release --target x86_64-unknown-linux-gnu --features rocm
+
+      - name: Strip binary
+        run: strip target/x86_64-unknown-linux-gnu/release/dria-node
+
+      - name: Prepare Release File
+        run: |
+          mv target/x86_64-unknown-linux-gnu/release/dria-node ./dria-node-linux-amd64-rocm
+
+      - name: Upload Launch Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dria-node-linux-amd64-rocm
+          path: dria-node-linux-amd64-rocm
+
   release:
-    needs: build
+    needs: [build, build-cuda, build-rocm]
     runs-on: ubuntu-latest
 
     steps:
