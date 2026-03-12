@@ -241,7 +241,8 @@ impl InferenceEngine {
             )));
         }
 
-        let ctx_size = std::num::NonZeroU32::new(self.ctx_limit);
+        // Allocate only what this request needs (saves RAM vs full ctx_limit)
+        let ctx_size = std::num::NonZeroU32::new(needed);
         let ctx_params = LlamaContextParams::default().with_n_ctx(ctx_size);
 
         let mut ctx = self
@@ -415,8 +416,9 @@ impl InferenceEngine {
 
         let prompt_token_count = chunks.total_tokens() as u32;
 
-        // Create context sized to the model's effective limit
-        let ctx_size = std::num::NonZeroU32::new(self.ctx_limit);
+        // Allocate only what this request needs (saves RAM vs full ctx_limit)
+        let needed = prompt_token_count + params.max_tokens;
+        let ctx_size = std::num::NonZeroU32::new(needed);
         let ctx_params = LlamaContextParams::default().with_n_ctx(ctx_size);
 
         let mut ctx = self
@@ -574,8 +576,8 @@ impl InferenceEngine {
             });
         }
 
-        // Create context sized to fit all tokens
-        let ctx_size = std::num::NonZeroU32::new((all_tokens.len() + 64).max(2048) as u32);
+        // Create context sized to fit all tokens (+ small padding)
+        let ctx_size = std::num::NonZeroU32::new((all_tokens.len() + 64) as u32);
         let ctx_params = LlamaContextParams::default().with_n_ctx(ctx_size);
 
         let mut ctx = self
