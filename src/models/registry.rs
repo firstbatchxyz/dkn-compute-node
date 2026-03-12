@@ -94,6 +94,30 @@ pub fn default_registry() -> HashMap<String, ModelSpec> {
             model_type: ModelType::Vision,
             hf_mmproj_file: Some("mmproj-Qwen3.5-9B-BF16.gguf".into()),
         },
+        ModelSpec {
+            name: "qwen3.5:0.8b".into(),
+            hf_repo: "unsloth/Qwen3.5-0.8B-GGUF".into(),
+            hf_file: "Qwen3.5-0.8B-Q4_K_M.gguf".into(),
+            sha256: None,
+            model_type: ModelType::Vision,
+            hf_mmproj_file: Some("mmproj-BF16.gguf".into()),
+        },
+        ModelSpec {
+            name: "qwen3.5:2b".into(),
+            hf_repo: "unsloth/Qwen3.5-2B-GGUF".into(),
+            hf_file: "Qwen3.5-2B-Q4_K_M.gguf".into(),
+            sha256: None,
+            model_type: ModelType::Vision,
+            hf_mmproj_file: Some("mmproj-BF16.gguf".into()),
+        },
+        ModelSpec {
+            name: "nemotron:30b-a3b".into(),
+            hf_repo: "unsloth/Nemotron-3-Nano-30B-A3B-GGUF".into(),
+            hf_file: "Nemotron-3-Nano-30B-A3B-Q4_K_M.gguf".into(),
+            sha256: None,
+            model_type: ModelType::Text,
+            hf_mmproj_file: None,
+        },
     ];
 
     entries.into_iter().map(|s| (s.name.clone(), s)).collect()
@@ -164,11 +188,14 @@ mod tests {
             "nanbeige:3b",
             "locooperator:4b",
             "qwen3.5:9b",
+            "qwen3.5:0.8b",
+            "qwen3.5:2b",
+            "nemotron:30b-a3b",
         ];
         for name in &expected {
             assert!(reg.contains_key(*name), "missing model: {name}");
         }
-        assert_eq!(reg.len(), 9);
+        assert_eq!(reg.len(), 12);
     }
 
     #[test]
@@ -215,6 +242,9 @@ mod tests {
         assert_eq!(reg["qwen3.5:9b"].model_type, ModelType::Vision);
         assert_eq!(reg["qwen3.5:27b"].model_type, ModelType::Vision);
         assert_eq!(reg["qwen3.5:35b-a3b"].model_type, ModelType::Vision);
+        assert_eq!(reg["qwen3.5:0.8b"].model_type, ModelType::Vision);
+        assert_eq!(reg["qwen3.5:2b"].model_type, ModelType::Vision);
+        assert_eq!(reg["nemotron:30b-a3b"].model_type, ModelType::Text);
     }
 
     #[test]
@@ -225,7 +255,10 @@ mod tests {
         assert!(reg["qwen3.5:9b"].hf_mmproj_file.is_some());
         assert!(reg["qwen3.5:27b"].hf_mmproj_file.is_some());
         assert!(reg["qwen3.5:35b-a3b"].hf_mmproj_file.is_some());
+        assert!(reg["qwen3.5:0.8b"].hf_mmproj_file.is_some());
+        assert!(reg["qwen3.5:2b"].hf_mmproj_file.is_some());
         assert!(reg["lfm2.5:1.2b"].hf_mmproj_file.is_none());
+        assert!(reg["nemotron:30b-a3b"].hf_mmproj_file.is_none());
     }
 
     #[test]
