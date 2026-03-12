@@ -101,8 +101,8 @@ fn detect_ram_bytes() -> Option<u64> {
 fn model_type_label(mt: ModelType) -> &'static str {
     match mt {
         ModelType::Text => "Text",
-        ModelType::Vision => "Vision",
-        ModelType::Audio => "Audio",
+        ModelType::Vision => "Text, Vision",
+        ModelType::Audio => "Text, Audio",
     }
 }
 
@@ -170,7 +170,7 @@ pub async fn run_setup(data_dir: Option<PathBuf>, gpu_layers: i32) -> Result<(),
         .iter()
         .map(|m| {
             format!(
-                "{:<22} {:<8} {:<10} ~{:.1} GB",
+                "{:<22} {:<14} {:<10} ~{:.1} GB",
                 m.name,
                 model_type_label(m.model_type),
                 m.quant,
