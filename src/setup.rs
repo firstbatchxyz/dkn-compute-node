@@ -31,6 +31,9 @@ fn model_size_gb(name: &str) -> Option<(f64, f64)> {
         "qwen3.5:27b" => Some((16.0, 18.0)),
         "qwen3.5:35b-a3b" => Some((20.0, 22.0)),
         "lfm2:24b-a2b" => Some((14.0, 16.0)),
+        "qwen3.5:0.8b" => Some((0.5, 1.0)),
+        "qwen3.5:2b" => Some((1.2, 2.0)),
+        "nemotron:30b-a3b" => Some((24.5, 27.0)),
         _ => None,
     }
 }
@@ -449,6 +452,9 @@ mod tests {
             "qwen3.5:27b",
             "qwen3.5:35b-a3b",
             "lfm2:24b-a2b",
+            "qwen3.5:0.8b",
+            "qwen3.5:2b",
+            "nemotron:30b-a3b",
         ] {
             let (size, needed) = model_size_gb(name).unwrap();
             assert!(
