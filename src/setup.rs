@@ -321,7 +321,7 @@ pub async fn run_setup(data_dir: Option<PathBuf>, gpu_layers: i32) -> Result<(),
         let engine = tokio::task::spawn_blocking({
             let model_path = model_path.clone();
             let mmproj_path = mmproj_path.clone();
-            move || InferenceEngine::load(&model_path, gpu_layers, mmproj_path.as_deref(), None)
+            move || InferenceEngine::load(&model_path, gpu_layers, mmproj_path.as_deref(), None, None)
         })
         .await
         .map_err(|e| NodeError::Inference(format!("task join error: {e}")))?;

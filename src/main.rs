@@ -14,6 +14,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use clap::Parser;
+use llama_cpp_2::context::params::KvCacheType;
 use tokio::sync::mpsc;
 use tracing_subscriber::EnvFilter;
 
@@ -56,8 +57,9 @@ async fn main() -> anyhow::Result<()> {
             insecure,
             skip_update,
             context_size,
+            kv_quant,
         } => {
-            run_start(wallet, model, router_url, gpu_layers, max_concurrent, data_dir, quant, insecure, skip_update, context_size).await?;
+            run_start(wallet, model, router_url, gpu_layers, max_concurrent, data_dir, quant, insecure, skip_update, context_size, kv_quant).await?;
         }
     }
 
@@ -92,9 +94,10 @@ async fn run_start(
     insecure: bool,
     skip_update: bool,
     max_context: Option<u32>,
+    kv_quant: String,
 ) -> anyhow::Result<()> {
     // Parse config
-    let config = Config::from_start_args(wallet, model, router_url, gpu_layers, max_concurrent, data_dir, quant, insecure, skip_update, max_context)?;
+    let config = Config::from_start_args(wallet, model, router_url, gpu_layers, max_concurrent, data_dir, quant, insecure, skip_update, max_context, kv_quant)?;
 
     // Create identity
     let identity = Identity::from_secret_hex(&config.secret_key_hex)?;
@@ -130,6 +133,9 @@ async fn run_start(
     std::fs::create_dir_all(&config.data_dir)?;
     std::fs::create_dir_all(&config.models_dir)?;
 
+    // Parse KV cache quantization type
+    let kv_cache_type = parse_kv_quant(&config.kv_quant)?;
+
     // Resolve and download models
     let registry = default_registry();
     let cache = ModelCache::new(config.models_dir.clone())?;
@@ -142,7 +148,7 @@ async fn run_start(
         let spec = resolve_model(model_name, &registry, config.quant.as_deref())
             .ok_or_else(|| error::NodeError::Model(format!("unknown model: {model_name}")))?;
 
-        let (engine, tps) = download_and_load_model(&spec, &cache, config.gpu_layers, config.max_context).await?;
+        let (engine, tps) = download_and_load_model(&spec, &cache, config.gpu_layers, config.max_context, Some(kv_cache_type)).await?;
 
         tracing::info!(tps = %format!("{tps:.1}"), model = %model_name, "benchmark complete");
         engines.insert(model_name.clone(), (engine, spec.model_type));
@@ -499,13 +505,14 @@ async fn handle_router_message(
                     let cache = ctx.cache.clone();
                     let gpu_layers = ctx.config.gpu_layers;
                     let max_context = ctx.config.max_context;
+                    let kv_type = parse_kv_quant(&ctx.config.kv_quant).ok();
                     let tx = model_tx.clone();
                     let name = entry.name.clone();
                     let model_type = entry.model_type;
 
                     tracing::info!(model = %name, "spawning background model download+load");
                     tokio::spawn(async move {
-                        let result = download_and_load_model(&spec, &cache, gpu_layers, max_context).await;
+                        let result = download_and_load_model(&spec, &cache, gpu_layers, max_context, kv_type).await;
                         let _ = tx.send(ModelLoadResult { name, model_type, result });
                     });
                 }
@@ -522,6 +529,7 @@ async fn download_and_load_model(
     cache: &ModelCache,
     gpu_layers: i32,
     max_context: Option<u32>,
+    kv_cache_type: Option<KvCacheType>,
 ) -> Result<(inference::InferenceEngine, f64), error::NodeError> {
     let model_name = spec.name.clone();
 
@@ -562,7 +570,7 @@ async fn download_and_load_model(
 
     // Load model and run benchmark in blocking thread
     let (engine, tps) = tokio::task::spawn_blocking(move || {
-        let engine = inference::InferenceEngine::load(&model_path, gpu_layers, mmproj_path.as_deref(), max_context)?;
+        let engine = inference::InferenceEngine::load(&model_path, gpu_layers, mmproj_path.as_deref(), max_context, kv_cache_type)?;
         let tps_result = engine.benchmark(&model_name)?;
         Ok::<_, error::NodeError>((engine, tps_result.generation_tps))
     })
@@ -571,6 +579,22 @@ async fn download_and_load_model(
     ?;
 
     Ok((engine, tps))
+}
+
+/// Parse a KV cache quantization string (e.g. "q8_0", "q4_0", "f16") into a `KvCacheType`.
+fn parse_kv_quant(s: &str) -> Result<KvCacheType, error::NodeError> {
+    match s.to_lowercase().as_str() {
+        "f16" => Ok(KvCacheType::F16),
+        "f32" => Ok(KvCacheType::F32),
+        "q8_0" => Ok(KvCacheType::Q8_0),
+        "q4_0" => Ok(KvCacheType::Q4_0),
+        "q4_1" => Ok(KvCacheType::Q4_1),
+        "q5_0" => Ok(KvCacheType::Q5_0),
+        "q5_1" => Ok(KvCacheType::Q5_1),
+        other => Err(error::NodeError::Config(format!(
+            "unknown kv-quant type '{other}' (supported: f16, f32, q8_0, q4_0, q4_1, q5_0, q5_1)"
+        ))),
+    }
 }
 
 /// Handle a completed inference task: send result or log if offline.

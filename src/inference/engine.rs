@@ -2,7 +2,7 @@ use std::ops::ControlFlow;
 use std::path::Path;
 use std::time::Instant;
 
-use llama_cpp_2::context::params::LlamaContextParams;
+use llama_cpp_2::context::params::{KvCacheType, LlamaContextParams};
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
@@ -72,6 +72,8 @@ pub struct InferenceEngine {
     gpu_layers: i32,
     /// Effective context window size (tokens), auto-detected from model metadata.
     ctx_limit: u32,
+    /// KV cache quantization type (default Q8_0 to save memory).
+    kv_cache_type: KvCacheType,
 }
 
 /// Helper to convert a token to a string piece using the new token_to_piece API.
@@ -92,7 +94,9 @@ impl InferenceEngine {
         gpu_layers: i32,
         mmproj_path: Option<&Path>,
         max_context: Option<u32>,
+        kv_cache_type: Option<KvCacheType>,
     ) -> Result<Self, NodeError> {
+        let kv_cache_type = kv_cache_type.unwrap_or(KvCacheType::Q8_0);
         let backend = LlamaBackend::init()
             .map_err(|e| NodeError::Inference(format!("failed to init llama backend: {e}")))?;
 
@@ -111,7 +115,7 @@ impl InferenceEngine {
             Some(cap) => n_ctx_train.min(cap),
             None => n_ctx_train,
         };
-        tracing::info!(model_ctx = n_ctx_train, effective_ctx = ctx_limit, "context window");
+        tracing::info!(model_ctx = n_ctx_train, effective_ctx = ctx_limit, kv_type = ?kv_cache_type, "context window");
 
         let mtmd_ctx = match mmproj_path {
             Some(p) => {
@@ -140,6 +144,7 @@ impl InferenceEngine {
             mtmd_ctx,
             gpu_layers,
             ctx_limit,
+            kv_cache_type,
         })
     }
 
@@ -243,7 +248,10 @@ impl InferenceEngine {
 
         // Allocate only what this request needs (saves RAM vs full ctx_limit)
         let ctx_size = std::num::NonZeroU32::new(needed);
-        let ctx_params = LlamaContextParams::default().with_n_ctx(ctx_size);
+        let ctx_params = LlamaContextParams::default()
+            .with_n_ctx(ctx_size)
+            .with_type_k(self.kv_cache_type)
+            .with_type_v(self.kv_cache_type);
 
         let mut ctx = self
             .model
@@ -419,7 +427,10 @@ impl InferenceEngine {
         // Allocate only what this request needs (saves RAM vs full ctx_limit)
         let needed = prompt_token_count + params.max_tokens;
         let ctx_size = std::num::NonZeroU32::new(needed);
-        let ctx_params = LlamaContextParams::default().with_n_ctx(ctx_size);
+        let ctx_params = LlamaContextParams::default()
+            .with_n_ctx(ctx_size)
+            .with_type_k(self.kv_cache_type)
+            .with_type_v(self.kv_cache_type);
 
         let mut ctx = self
             .model
@@ -578,7 +589,10 @@ impl InferenceEngine {
 
         // Create context sized to fit all tokens (+ small padding)
         let ctx_size = std::num::NonZeroU32::new((all_tokens.len() + 64) as u32);
-        let ctx_params = LlamaContextParams::default().with_n_ctx(ctx_size);
+        let ctx_params = LlamaContextParams::default()
+            .with_n_ctx(ctx_size)
+            .with_type_k(self.kv_cache_type)
+            .with_type_v(self.kv_cache_type);
 
         let mut ctx = self
             .model
@@ -780,7 +794,7 @@ mod tests {
 
         // Load engine with multimodal projector
         println!("loading model + mmproj...");
-        let engine = InferenceEngine::load(&model_path, 0, Some(&mmproj_path), None).unwrap();
+        let engine = InferenceEngine::load(&model_path, 0, Some(&mmproj_path), None, None).unwrap();
         assert!(engine.has_multimodal(), "engine should have multimodal context");
 
         // Get test image: from env var or generate a synthetic BMP
@@ -850,7 +864,7 @@ mod tests {
         };
 
         let name = spec.name.clone();
-        let engine = InferenceEngine::load(&model_path, 0, None, None).unwrap();
+        let engine = InferenceEngine::load(&model_path, 0, None, None, None).unwrap();
         (engine, name)
     }
 

@@ -66,6 +66,10 @@ pub enum Command {
         /// When unset, engines use the model's full native context window.
         #[arg(long, env = "DRIA_CONTEXT_SIZE")]
         context_size: Option<u32>,
+
+        /// KV cache quantization type (q8_0, q4_0, f16). Default: q8_0 (halves KV memory vs f16).
+        #[arg(long, env = "DRIA_KV_QUANT", default_value = "q8_0")]
+        kv_quant: String,
     },
 }
 
@@ -82,6 +86,7 @@ pub struct Config {
     pub insecure: bool,
     pub skip_update: bool,
     pub max_context: Option<u32>,
+    pub kv_quant: String,
 }
 
 impl Config {
@@ -98,6 +103,7 @@ impl Config {
         insecure: bool,
         skip_update: bool,
         max_context: Option<u32>,
+        kv_quant: String,
     ) -> Result<Self, NodeError> {
         // Validate wallet key
         let secret_key_hex = wallet.strip_prefix("0x").unwrap_or(&wallet).to_string();
@@ -155,6 +161,7 @@ impl Config {
             insecure,
             skip_update,
             max_context,
+            kv_quant,
         })
     }
 }
@@ -176,6 +183,7 @@ mod tests {
             false,
             false,
             None,
+            "q8_0".into(),
         )
         .unwrap();
 
@@ -201,6 +209,7 @@ mod tests {
             false,
             false,
             None,
+            "q8_0".into(),
         );
         assert!(result.is_err());
     }
@@ -218,6 +227,7 @@ mod tests {
             false,
             false,
             None,
+            "q8_0".into(),
         );
         assert!(result.is_err());
     }
@@ -235,6 +245,7 @@ mod tests {
             false,
             false,
             None,
+            "q8_0".into(),
         );
         assert!(result.is_err());
     }
@@ -252,6 +263,7 @@ mod tests {
             false,
             false,
             None,
+            "q8_0".into(),
         );
         assert!(result.is_err());
     }
@@ -269,6 +281,7 @@ mod tests {
             false,
             false,
             None,
+            "q8_0".into(),
         )
         .unwrap();
         assert_eq!(
@@ -290,6 +303,7 @@ mod tests {
             false,
             false,
             None,
+            "q8_0".into(),
         );
         assert!(result.is_err());
     }
@@ -307,6 +321,7 @@ mod tests {
             true,
             false,
             None,
+            "q8_0".into(),
         )
         .unwrap();
         assert!(cfg.insecure);
