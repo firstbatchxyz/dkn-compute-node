@@ -29,11 +29,20 @@ impl ModelCache {
     }
 
     /// Check if a model's mmproj GGUF is already present in our cache.
+    /// Uses model-prefixed filename to avoid collisions between models
+    /// that share the same mmproj filename (e.g. multiple Qwen models
+    /// all using "mmproj-BF16.gguf" from different repos).
     pub fn get_mmproj_path(&self, spec: &ModelSpec) -> Option<PathBuf> {
         let file = spec.hf_mmproj_file.as_ref()?;
-        let path = self.cache_dir.join(file);
+        let prefixed = format!("{}_{}", spec.name.replace(':', "-"), file);
+        let path = self.cache_dir.join(&prefixed);
         if path.exists() {
-            Some(path)
+            return Some(path);
+        }
+        // Check legacy unprefixed path for backward compat (single-model setups)
+        let legacy = self.cache_dir.join(file);
+        if legacy.exists() {
+            Some(legacy)
         } else {
             None
         }
@@ -68,12 +77,14 @@ impl ModelCache {
     }
 
     /// Create a symlink from our cache dir to the hf-hub cached mmproj file.
+    /// Uses model-prefixed filename to avoid collisions.
     pub fn link_mmproj(&self, spec: &ModelSpec, source: &Path) -> Result<PathBuf, NodeError> {
         let file = spec
             .hf_mmproj_file
             .as_ref()
             .ok_or_else(|| NodeError::Model("no mmproj file specified".into()))?;
-        let dest = self.cache_dir.join(file);
+        let prefixed = format!("{}_{}", spec.name.replace(':', "-"), file);
+        let dest = self.cache_dir.join(&prefixed);
         if dest.exists() {
             return Ok(dest);
         }
@@ -161,9 +172,51 @@ mod tests {
         // Not present initially
         assert!(cache.get_mmproj_path(&spec_with_mmproj).is_none());
 
-        // Create the mmproj file
-        std::fs::write(dir.join("mmproj.gguf"), b"fake").unwrap();
+        // Create the prefixed mmproj file
+        std::fs::write(dir.join("vl-1b_mmproj.gguf"), b"fake").unwrap();
         assert!(cache.get_mmproj_path(&spec_with_mmproj).is_some());
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_mmproj_no_collision() {
+        let dir = std::env::temp_dir().join("dria-cache-test-mmproj-collision");
+        let cache = ModelCache::new(dir.clone()).unwrap();
+
+        let spec_a = ModelSpec {
+            name: "qwen3.5:0.8b".into(),
+            hf_repo: "unsloth/Qwen3.5-0.8B-GGUF".into(),
+            hf_file: "model-a.gguf".into(),
+            sha256: None,
+            model_type: dkn_protocol::ModelType::Vision,
+            hf_mmproj_file: Some("mmproj-BF16.gguf".into()),
+        };
+
+        let spec_b = ModelSpec {
+            name: "qwen3.5:27b".into(),
+            hf_repo: "unsloth/Qwen3.5-27B-GGUF".into(),
+            hf_file: "model-b.gguf".into(),
+            sha256: None,
+            model_type: dkn_protocol::ModelType::Vision,
+            hf_mmproj_file: Some("mmproj-BF16.gguf".into()),
+        };
+
+        // Create separate source files
+        std::fs::write(dir.join("mmproj_a.gguf"), b"small_model").unwrap();
+        std::fs::write(dir.join("mmproj_b.gguf"), b"large_model").unwrap();
+
+        let path_a = cache.link_mmproj(&spec_a, &dir.join("mmproj_a.gguf")).unwrap();
+        let path_b = cache.link_mmproj(&spec_b, &dir.join("mmproj_b.gguf")).unwrap();
+
+        // Paths must be different
+        assert_ne!(path_a, path_b);
+        assert!(path_a.exists());
+        assert!(path_b.exists());
+
+        // Content must be independent
+        assert_eq!(std::fs::read(&path_a).unwrap(), b"small_model");
+        assert_eq!(std::fs::read(&path_b).unwrap(), b"large_model");
 
         std::fs::remove_dir_all(&dir).ok();
     }
