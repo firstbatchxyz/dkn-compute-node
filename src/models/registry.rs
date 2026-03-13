@@ -138,15 +138,23 @@ impl ModelSpec {
 
     /// Return a new ModelSpec with the quantization portion of `hf_file` replaced.
     ///
-    /// GGUF filenames follow the pattern `{ModelName}-{Quant}.gguf`
-    /// (e.g. `Qwen3.5-9B-Q4_K_M.gguf`). This replaces the last `-{Quant}.gguf`
-    /// segment with the given quantization string.
+    /// GGUF filenames use either `-` or `.` before the quant string
+    /// (e.g. `Qwen3.5-9B-Q4_K_M.gguf` or `LocoOperator-4B.Q4_K_M.gguf`).
+    /// This finds the quant portion by looking for common quant prefixes
+    /// and replaces it while preserving the original separator.
     pub fn with_quant(&self, quant: &str) -> Self {
-        let new_file = if let Some(pos) = self.hf_file.rfind('-') {
-            format!("{}-{}.gguf", &self.hf_file[..pos], quant)
-        } else {
-            self.hf_file.clone()
-        };
+        let stem = self.hf_file.strip_suffix(".gguf").unwrap_or(&self.hf_file);
+        // Find where the quant string starts by looking for known quant prefixes
+        let quant_prefixes = ["Q4_K_M", "Q4_K_S", "Q4_0", "Q4_1", "Q5_K_M", "Q5_K_S", "Q5_0", "Q5_1", "Q6_K", "Q8_0", "Q2_K", "Q3_K"];
+        let new_file = quant_prefixes
+            .iter()
+            .filter_map(|prefix| stem.rfind(prefix).map(|pos| (pos, prefix)))
+            .max_by_key(|(pos, _)| *pos)
+            .map(|(pos, _)| {
+                // Preserve the separator character before the quant (- or .)
+                format!("{}{}.gguf", &self.hf_file[..pos], quant)
+            })
+            .unwrap_or_else(|| self.hf_file.clone());
         ModelSpec {
             hf_file: new_file,
             sha256: None, // hash no longer valid for a different quant
@@ -262,7 +270,7 @@ mod tests {
     }
 
     #[test]
-    fn test_with_quant_substitutes_suffix() {
+    fn test_with_quant_substitutes_dash_separator() {
         let reg = default_registry();
         let spec = &reg["qwen3.5:9b"];
         assert_eq!(spec.hf_file, "Qwen3.5-9B-Q4_K_M.gguf");
@@ -274,6 +282,26 @@ mod tests {
         assert_eq!(q8.hf_repo, spec.hf_repo);
         assert_eq!(q8.model_type, spec.model_type);
         assert_eq!(q8.hf_mmproj_file, spec.hf_mmproj_file);
+    }
+
+    #[test]
+    fn test_with_quant_substitutes_dot_separator() {
+        let reg = default_registry();
+        let spec = &reg["locooperator:4b"];
+        assert_eq!(spec.hf_file, "LocoOperator-4B.Q4_K_M.gguf");
+
+        let q8 = spec.with_quant("Q8_0");
+        assert_eq!(q8.hf_file, "LocoOperator-4B.Q8_0.gguf");
+    }
+
+    #[test]
+    fn test_with_quant_nanbeige_dot_separator() {
+        let reg = default_registry();
+        let spec = &reg["nanbeige:3b"];
+        assert_eq!(spec.hf_file, "Nanbeige.Nanbeige4.1-3B.Q4_K_M.gguf");
+
+        let q8 = spec.with_quant("Q8_0");
+        assert_eq!(q8.hf_file, "Nanbeige.Nanbeige4.1-3B.Q8_0.gguf");
     }
 
     #[test]
