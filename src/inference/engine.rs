@@ -118,7 +118,7 @@ impl InferenceEngine {
             LlamaModelParams::default()
         };
 
-        let model = LlamaModel::load_from_file(&backend, path, &model_params)
+        let model = LlamaModel::load_from_file(backend, path, &model_params)
             .map_err(|e| NodeError::Inference(format!("failed to load model: {e}")))?;
 
         let n_ctx_train = model.n_ctx_train();
@@ -266,7 +266,7 @@ impl InferenceEngine {
 
         let mut ctx = self
             .model
-            .new_context(&self.backend, ctx_params)
+            .new_context(self.backend, ctx_params)
             .map_err(|e| NodeError::Inference(format!("failed to create context: {e}")))?;
 
         // Evaluate prompt
@@ -445,7 +445,7 @@ impl InferenceEngine {
 
         let mut ctx = self
             .model
-            .new_context(&self.backend, ctx_params)
+            .new_context(self.backend, ctx_params)
             .map_err(|e| NodeError::Inference(format!("failed to create context: {e}")))?;
 
         // Evaluate all chunks (text + media embeddings)
@@ -607,7 +607,7 @@ impl InferenceEngine {
 
         let mut ctx = self
             .model
-            .new_context(&self.backend, ctx_params)
+            .new_context(self.backend, ctx_params)
             .map_err(|e| NodeError::Inference(format!("failed to create context: {e}")))?;
 
         // Build batch with all tokens. Set output=true only at positions where we need logits.
