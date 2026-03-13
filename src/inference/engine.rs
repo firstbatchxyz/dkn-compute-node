@@ -1,9 +1,21 @@
 use std::ops::ControlFlow;
 use std::path::Path;
+use std::sync::OnceLock;
 use std::time::Instant;
 
 use llama_cpp_2::context::params::{KvCacheType, LlamaContextParams};
 use llama_cpp_2::llama_backend::LlamaBackend;
+
+/// Global singleton — llama.cpp backend can only be initialized once per process.
+static LLAMA_BACKEND: OnceLock<LlamaBackend> = OnceLock::new();
+
+fn get_backend() -> Result<&'static LlamaBackend, NodeError> {
+    // OnceLock guarantees the closure runs exactly once, so BackendAlreadyInitialized
+    // cannot happen here. If init() somehow fails, it's a fatal environment issue.
+    Ok(LLAMA_BACKEND.get_or_init(|| {
+        LlamaBackend::init().expect("failed to init llama backend")
+    }))
+}
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::{AddBos, LlamaChatMessage, LlamaModel};
@@ -65,7 +77,7 @@ pub struct InferenceResult {
 /// NOTE: `LlamaContext` is not Send/Sync. All inference must happen
 /// via `tokio::task::spawn_blocking` with the engine moved into the closure.
 pub struct InferenceEngine {
-    backend: LlamaBackend,
+    backend: &'static LlamaBackend,
     model: LlamaModel,
     mtmd_ctx: Option<MtmdContext>,
     #[allow(dead_code)]
@@ -97,8 +109,7 @@ impl InferenceEngine {
         kv_cache_type: Option<KvCacheType>,
     ) -> Result<Self, NodeError> {
         let kv_cache_type = kv_cache_type.unwrap_or(KvCacheType::Q8_0);
-        let backend = LlamaBackend::init()
-            .map_err(|e| NodeError::Inference(format!("failed to init llama backend: {e}")))?;
+        let backend = get_backend()?;
 
         let model_params = if gpu_layers != 0 {
             let layers = if gpu_layers < 0 { 1000 } else { gpu_layers as u32 };
