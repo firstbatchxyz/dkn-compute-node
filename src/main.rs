@@ -533,26 +533,23 @@ async fn download_and_load_model(
 ) -> Result<(inference::InferenceEngine, f64), error::NodeError> {
     let model_name = spec.name.clone();
 
-    // Check local cache first
+    // Check local cache first, verify integrity if SHA is available
     let model_path = if let Some(path) = cache.get_local_path(spec) {
-        tracing::info!(model = %model_name, path = %path.display(), "model found in cache");
-        path
-    } else {
-        // Download from HuggingFace
-        let hf_path = ModelDownloader::download(spec).await?;
-
-        // Verify SHA-256 if specified
         if let Some(ref expected_sha) = spec.sha256 {
-            tracing::info!(model = %model_name, "verifying SHA-256");
-            if !ModelCache::verify_sha256(&hf_path, expected_sha)? {
-                return Err(error::NodeError::Model(format!(
-                    "SHA-256 mismatch for model {model_name}"
-                )));
+            if ModelCache::verify_sha256(&path, expected_sha).unwrap_or(false) {
+                tracing::info!(model = %model_name, path = %path.display(), "model found in cache (verified)");
+                path
+            } else {
+                tracing::warn!(model = %model_name, "cached model failed integrity check, re-downloading");
+                std::fs::remove_file(&path).ok();
+                download_and_link(spec, cache, &model_name).await?
             }
+        } else {
+            tracing::info!(model = %model_name, path = %path.display(), "model found in cache");
+            path
         }
-
-        // Link into our cache
-        cache.link_model(spec, &hf_path)?
+    } else {
+        download_and_link(spec, cache, &model_name).await?
     };
 
     // Download mmproj if specified (for vision/audio models)
@@ -579,6 +576,26 @@ async fn download_and_load_model(
     ?;
 
     Ok((engine, tps))
+}
+
+/// Download a model from HuggingFace, verify SHA-256, and link into cache.
+async fn download_and_link(
+    spec: &ModelSpec,
+    cache: &ModelCache,
+    model_name: &str,
+) -> Result<std::path::PathBuf, error::NodeError> {
+    let hf_path = ModelDownloader::download(spec).await?;
+
+    if let Some(ref expected_sha) = spec.sha256 {
+        tracing::info!(model = %model_name, "verifying SHA-256");
+        if !ModelCache::verify_sha256(&hf_path, expected_sha)? {
+            return Err(error::NodeError::Model(format!(
+                "SHA-256 mismatch for model {model_name}"
+            )));
+        }
+    }
+
+    cache.link_model(spec, &hf_path)
 }
 
 /// Parse a KV cache quantization string (e.g. "q8_0", "q4_0", "f16") into a `KvCacheType`.

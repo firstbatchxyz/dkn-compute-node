@@ -79,6 +79,16 @@ fn detect_ram_bytes() -> Option<u64> {
 
     #[cfg(target_os = "windows")]
     {
+        // Try PowerShell first (works on all modern Windows)
+        let output = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-Command", "(Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory"])
+            .output()
+            .ok()?;
+        let s = String::from_utf8_lossy(&output.stdout);
+        if let Ok(bytes) = s.trim().parse::<u64>() {
+            return Some(bytes);
+        }
+        // Fallback to wmic for older Windows
         let output = std::process::Command::new("wmic")
             .args(["OS", "get", "TotalVisibleMemorySize"])
             .output()
@@ -260,11 +270,34 @@ pub async fn run_setup(data_dir: Option<PathBuf>, gpu_layers: i32) -> Result<(),
             }
         };
 
-        // Download model
+        // Download model (verify cached files too)
         println!("  Downloading {}...", model_name);
         let model_path = if let Some(path) = cache.get_local_path(&spec) {
-            println!("  (already cached)");
-            Ok(path)
+            // Verify cached file integrity
+            let valid = match &spec.sha256 {
+                Some(sha) => ModelCache::verify_sha256(&path, sha).unwrap_or(false),
+                None => true,
+            };
+            if valid {
+                println!("  (already cached)");
+                Ok(path)
+            } else {
+                println!("  Cached file is corrupt, re-downloading...");
+                std::fs::remove_file(&path).ok();
+                match ModelDownloader::download(&spec).await {
+                    Ok(hf_path) => {
+                        if let Some(ref expected_sha) = spec.sha256 {
+                            if !ModelCache::verify_sha256(&hf_path, expected_sha)? {
+                                println!("  SHA-256 mismatch! Try a different model.");
+                                println!();
+                                continue;
+                            }
+                        }
+                        cache.link_model(&spec, &hf_path)
+                    }
+                    Err(e) => Err(e),
+                }
+            }
         } else {
             match ModelDownloader::download(&spec).await {
                 Ok(hf_path) => {
