@@ -37,12 +37,7 @@ impl ModelCache {
         let prefixed = format!("{}_{}", spec.name.replace(':', "-"), file);
         let path = self.cache_dir.join(&prefixed);
         if path.exists() {
-            return Some(path);
-        }
-        // Check legacy unprefixed path for backward compat (single-model setups)
-        let legacy = self.cache_dir.join(file);
-        if legacy.exists() {
-            Some(legacy)
+            Some(path)
         } else {
             None
         }
