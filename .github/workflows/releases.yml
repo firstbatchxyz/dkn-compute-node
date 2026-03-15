@@ -134,14 +134,14 @@ jobs:
               osname: linux,
               arch: amd64-cuda,
               target: x86_64-unknown-linux-gnu,
-              cuda: "12.6.3",
+              cuda: "12.8.0",
             }
           - {
               runner: windows-latest,
               osname: windows,
               arch: amd64-cuda,
               target: x86_64-pc-windows-msvc,
-              cuda: "12.6.3",
+              cuda: "12.8.0",
               extension: ".exe",
             }
 
