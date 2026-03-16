@@ -269,17 +269,24 @@ impl InferenceEngine {
             .new_context(self.backend, ctx_params)
             .map_err(|e| NodeError::Inference(format!("failed to create context: {e}")))?;
 
-        // Evaluate prompt
+        // Evaluate prompt in chunks (n_batch = 2048 default in llama.cpp)
         let prompt_start = Instant::now();
-        let mut batch = LlamaBatch::new(tokens.len().max(1), 1);
-        for (i, &token) in tokens.iter().enumerate() {
-            let is_last = i == tokens.len() - 1;
-            batch
-                .add(token, i as i32, &[0], is_last)
-                .map_err(|e| NodeError::Inference(format!("batch add failed: {e}")))?;
+        let n_batch = 2048usize;
+        let mut batch = LlamaBatch::new(n_batch.min(tokens.len()).max(1), 1);
+        let mut prompt_pos = 0;
+        while prompt_pos < tokens.len() {
+            batch.clear();
+            let chunk_end = (prompt_pos + n_batch).min(tokens.len());
+            for i in prompt_pos..chunk_end {
+                let is_last = i == tokens.len() - 1;
+                batch
+                    .add(tokens[i], i as i32, &[0], is_last)
+                    .map_err(|e| NodeError::Inference(format!("batch add failed: {e}")))?;
+            }
+            ctx.decode(&mut batch)
+                .map_err(|e| NodeError::Inference(format!("prompt decode failed: {e}")))?;
+            prompt_pos = chunk_end;
         }
-        ctx.decode(&mut batch)
-            .map_err(|e| NodeError::Inference(format!("prompt decode failed: {e}")))?;
         let prompt_eval_time_ms = prompt_start.elapsed().as_millis() as u64;
 
         // Build sampler chain (grammar first to mask invalid tokens, then sampling)
@@ -307,8 +314,8 @@ impl InferenceEngine {
         let mut current_pos = tokens.len() as i32;
         let mut decoder = encoding_rs::UTF_8.new_decoder();
         // Batch index where logits are available:
-        // after prompt eval → last prompt token; after each single-token decode → 0
-        let mut logit_batch_idx: i32 = (tokens.len() - 1) as i32;
+        // after chunked prompt eval → last token's position in last chunk; after single-token decode → 0
+        let mut logit_batch_idx: i32 = ((tokens.len() - 1) % n_batch) as i32;
 
         for _ in 0..params.max_tokens {
             // sample() internally calls apply + select + accept
@@ -619,29 +626,46 @@ impl InferenceEngine {
             output_positions.push(seq_pos);
         }
 
-        let mut batch = LlamaBatch::new(all_tokens.len().max(1), 1);
-        for (i, &token) in all_tokens.iter().enumerate() {
-            let is_output = output_positions.contains(&i);
-            batch
-                .add(token, i as i32, &[0], is_output)
-                .map_err(|e| NodeError::Inference(format!("batch add failed: {e}")))?;
-        }
-
-        // Single forward pass
-        ctx.decode(&mut batch)
-            .map_err(|e| NodeError::Inference(format!("prefill decode failed: {e}")))?;
-
-        // Extract logprobs at each probe position.
-        // get_logits_ith takes the batch index where output=true was set.
+        // Evaluate in chunks and extract logprobs per-chunk (next decode overwrites logits)
+        let n_batch = 2048usize;
+        let mut batch = LlamaBatch::new(n_batch.min(all_tokens.len()).max(1), 1);
         let mut logprobs: Vec<TokenLogprob> = Vec::new();
-        for (probe_idx, &gen_index) in probe_gen_indices.iter().enumerate() {
-            let target_token = all_tokens[n_prompt + gen_index];
-            let batch_idx = output_positions[probe_idx] as i32;
-            if let Some(lp) =
-                self.extract_logprob(&ctx, batch_idx, gen_index, target_token, logprob_top_k)
-            {
-                logprobs.push(lp);
+
+        let mut pos = 0;
+        while pos < all_tokens.len() {
+            batch.clear();
+            let chunk_end = (pos + n_batch).min(all_tokens.len());
+
+            // Track which probe positions fall in this chunk
+            let mut chunk_probes: Vec<(usize, usize)> = Vec::new(); // (probe_idx, batch_position)
+
+            for (batch_pos, (i, &token)) in all_tokens.iter().enumerate().skip(pos).take(chunk_end - pos).enumerate() {
+                let is_output = output_positions.contains(&i);
+                batch
+                    .add(token, i as i32, &[0], is_output)
+                    .map_err(|e| NodeError::Inference(format!("batch add failed: {e}")))?;
+                if is_output {
+                    if let Some(probe_idx) = output_positions.iter().position(|&p| p == i) {
+                        chunk_probes.push((probe_idx, batch_pos));
+                    }
+                }
             }
+
+            ctx.decode(&mut batch)
+                .map_err(|e| NodeError::Inference(format!("prefill decode failed: {e}")))?;
+
+            // Extract logprobs for this chunk's probes before next decode
+            for &(probe_idx, batch_pos) in &chunk_probes {
+                let gen_index = probe_gen_indices[probe_idx];
+                let target_token = all_tokens[n_prompt + gen_index];
+                if let Some(lp) =
+                    self.extract_logprob(&ctx, batch_pos as i32, gen_index, target_token, logprob_top_k)
+                {
+                    logprobs.push(lp);
+                }
+            }
+
+            pos = chunk_end;
         }
 
         Ok(InferenceProof {
