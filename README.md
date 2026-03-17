@@ -21,9 +21,6 @@
     <a href="https://github.com/firstbatchxyz/dkn-compute-node/releases" target="_blank">
         <img alt="Downloads" src="https://img.shields.io/github/downloads/firstbatchxyz/dkn-compute-node/total?logo=github&logoColor=%23F2FFEE&color=%2332C754">
     </a>
-    <a href="https://hub.docker.com/repository/docker/firstbatch/dkn-compute-node/general" target="_blank">
-        <img alt="Docker Version" src="https://img.shields.io/docker/v/firstbatch/dkn-compute-node?logo=Docker&label=image&color=2496ED&sort=semver">
-    </a>
     <a href="https://dria.co/discord" target="_blank">
         <img alt="Discord" src="https://dcbadge.vercel.app/api/server/dria?style=flat">
     </a>
@@ -33,28 +30,43 @@
 
 ### Install
 
+Choose one installation method:
+
 **Homebrew (macOS / Linux):**
 
 ```sh
-brew tap firstbatchxyz/dkn
-brew install dria-node
+brew install firstbatchxyz/dkn/dria-node
+dria-node --version
 ```
+
+Homebrew will add the tap automatically.
 
 **Shell script (macOS / Linux):**
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/firstbatchxyz/dkn-compute-node/master/install.sh | sh
+dria-node --version
 ```
+
+**AMD ROCm (Linux x86_64):**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/firstbatchxyz/dkn-compute-node/master/install-rocm.sh | bash
+dria-node --version
+```
+
+Requires ROCm 6.x to already be installed on your machine.
 
 **PowerShell (Windows):**
 
 ```powershell
 irm https://raw.githubusercontent.com/firstbatchxyz/dkn-compute-node/master/install.ps1 | iex
+dria-node --version
 ```
 
 **From GitHub Releases:**
 
-Download the latest binary for your platform from [Releases](https://github.com/firstbatchxyz/dkn-compute-node/releases) and place it in your `PATH`.
+Download the latest file for your platform from [Releases](https://github.com/firstbatchxyz/dkn-compute-node/releases), then run `dria-node --version` to verify it.
 
 ### Setup
 
@@ -72,7 +84,7 @@ This will:
 4. Run a test inference to verify everything works
 5. Print a benchmark (tokens per second)
 
-Use `--gpu-layers -1` to offload all layers to GPU (Metal on macOS, requires building with `--features cuda` for NVIDIA):
+Use `--gpu-layers -1` to offload all layers to GPU (Metal on macOS, CUDA on NVIDIA builds, ROCm on AMD Linux builds):
 
 ```sh
 dria-node setup --gpu-layers -1
@@ -148,6 +160,7 @@ cargo build --release
 
 - `--features metal` — Apple Metal GPU acceleration (macOS)
 - `--features cuda` — NVIDIA CUDA GPU acceleration
+- `--features rocm` — AMD ROCm GPU acceleration (Linux x86_64)
 
 ### Testing
 

@@ -17,6 +17,8 @@ env:
 jobs:
   build-rocm:
     runs-on: ubuntu-22.04
+    env:
+      LLAMA_BUILD_SHARED_LIBS: "1"
 
     steps:
       - name: Checkout tagged source
@@ -41,18 +43,64 @@ jobs:
       - name: Strip binary
         run: strip target/x86_64-unknown-linux-gnu/release/dria-node
 
-      - name: Prepare release file
-        run: mv target/x86_64-unknown-linux-gnu/release/dria-node ./dria-node-linux-amd64-rocm
+      - name: Package ROCm bundle
+        shell: bash
+        run: |
+          TARGET_DIR=target/x86_64-unknown-linux-gnu/release
+          BUNDLE_DIR=dria-node-linux-amd64-rocm
+
+          mkdir -p "${BUNDLE_DIR}/lib"
+          mv "${TARGET_DIR}/dria-node" "${BUNDLE_DIR}/dria-node-bin"
+
+          cat > "${BUNDLE_DIR}/dria-node" <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          SOURCE="${BASH_SOURCE[0]}"
+          while [ -L "${SOURCE}" ]; do
+            DIR="$(cd -P "$(dirname "${SOURCE}")" && pwd)"
+            TARGET="$(readlink "${SOURCE}")"
+            if [[ "${TARGET}" != /* ]]; then
+              SOURCE="${DIR}/${TARGET}"
+            else
+              SOURCE="${TARGET}"
+            fi
+          done
+
+          DIR="$(cd -P "$(dirname "${SOURCE}")" && pwd)"
+          export LD_LIBRARY_PATH="${DIR}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+          exec "${DIR}/dria-node-bin" "$@"
+          EOF
+
+          chmod +x "${BUNDLE_DIR}/dria-node" "${BUNDLE_DIR}/dria-node-bin"
+
+          shopt -s nullglob
+          copied=0
+          for lib in "${TARGET_DIR}"/*.so "${TARGET_DIR}"/*.so.*; do
+            cp -a "${lib}" "${BUNDLE_DIR}/lib/"
+            copied=1
+          done
+
+          if [ "${copied}" -eq 0 ]; then
+            echo "No shared libraries were produced for the ROCm build." >&2
+            exit 1
+          fi
+
+          if [ -f LICENSE ]; then
+            cp LICENSE "${BUNDLE_DIR}/LICENSE"
+          fi
+
+          tar -czf "${BUNDLE_DIR}.tar.gz" "${BUNDLE_DIR}"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: dria-node-linux-amd64-rocm
-          path: dria-node-linux-amd64-rocm
+          path: dria-node-linux-amd64-rocm.tar.gz
 
       - name: Attach asset to existing release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null
-          gh release upload "${RELEASE_TAG}" ./dria-node-linux-amd64-rocm --clobber --repo "${GITHUB_REPOSITORY}"
+          gh release upload "${RELEASE_TAG}" ./dria-node-linux-amd64-rocm.tar.gz --clobber --repo "${GITHUB_REPOSITORY}"
