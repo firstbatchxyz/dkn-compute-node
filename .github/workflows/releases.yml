@@ -152,7 +152,7 @@ jobs:
           ref: ${{ env.RELEASE_TAG }}
 
       - name: Install CUDA toolkit
-        uses: Jimver/cuda-toolkit@v0.2.19
+        uses: Jimver/cuda-toolkit@v0.2.22
         with:
           cuda: ${{ matrix.cuda }}
           method: network
@@ -195,7 +195,7 @@ jobs:
         run: |
           wget -q -O - https://repo.radeon.com/rocm/rocm.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/rocm.gpg
           echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/6.3.3 jammy main" | sudo tee /etc/apt/sources.list.d/rocm.list
-          echo 'Package: *\nPin: release o=repo.radeon.com\nPin-Priority: 600' | sudo tee /etc/apt/preferences.d/rocm-pin-600
+          printf 'Package: *\nPin: release o=repo.radeon.com\nPin-Priority: 600\n' | sudo tee /etc/apt/preferences.d/rocm-pin-600
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends cmake hip-dev rocm-hip-runtime-dev
 
