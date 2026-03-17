@@ -3,7 +3,7 @@ name: tests
 on:
   push:
     branches:
-      - v2
+      - master
     paths:
       - "src/**"
       - "Cargo.toml"
@@ -11,7 +11,7 @@ on:
       - ".github/workflows/tests.yml"
   pull_request:
     branches:
-      - v2
+      - master
   workflow_dispatch:
 
 jobs:
