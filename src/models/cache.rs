@@ -58,7 +58,19 @@ impl ModelCache {
     pub fn link_model(&self, spec: &ModelSpec, source: &Path) -> Result<PathBuf, NodeError> {
         let dest = self.cache_dir.join(&spec.hf_file);
         if dest.exists() {
-            // Already linked or copied
+            // On non-unix (Windows) we copy files, so verify the copy isn't truncated.
+            // A previous interrupted copy could leave a 0-byte or partial file.
+            #[cfg(not(unix))]
+            {
+                let src_len = std::fs::metadata(source).map(|m| m.len()).unwrap_or(0);
+                let dst_len = std::fs::metadata(&dest).map(|m| m.len()).unwrap_or(0);
+                if src_len > 0 && dst_len != src_len {
+                    std::fs::remove_file(&dest)?;
+                } else {
+                    return Ok(dest);
+                }
+            }
+            #[cfg(unix)]
             return Ok(dest);
         }
 
@@ -81,6 +93,17 @@ impl ModelCache {
         let prefixed = format!("{}_{}", spec.name.replace(':', "-"), file);
         let dest = self.cache_dir.join(&prefixed);
         if dest.exists() {
+            #[cfg(not(unix))]
+            {
+                let src_len = std::fs::metadata(source).map(|m| m.len()).unwrap_or(0);
+                let dst_len = std::fs::metadata(&dest).map(|m| m.len()).unwrap_or(0);
+                if src_len > 0 && dst_len != src_len {
+                    std::fs::remove_file(&dest)?;
+                } else {
+                    return Ok(dest);
+                }
+            }
+            #[cfg(unix)]
             return Ok(dest);
         }
 
