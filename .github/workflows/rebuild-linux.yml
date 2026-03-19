@@ -1,0 +1,87 @@
+name: rebuild-linux
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.7.3)"
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  GGML_NATIVE: "OFF"
+  RELEASE_TAG: "${{ github.event.inputs.tag }}"
+
+jobs:
+  build:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - {
+              runner: ubuntu-22.04,
+              arch: amd64,
+              target: x86_64-unknown-linux-gnu,
+            }
+          - {
+              runner: ubuntu-22.04,
+              arch: amd64-noavx,
+              target: x86_64-unknown-linux-gnu,
+              noavx: true,
+            }
+          - {
+              runner: ubuntu-24.04-arm,
+              arch: arm64,
+              target: aarch64-unknown-linux-gnu,
+              build_args: --no-default-features,
+              native: true,
+            }
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake
+
+      - name: Disable AVX for baseline build
+        if: matrix.noavx
+        shell: bash
+        run: |
+          echo "GGML_AVX=OFF" >> $GITHUB_ENV
+          echo "GGML_AVX2=OFF" >> $GITHUB_ENV
+          echo "GGML_FMA=OFF" >> $GITHUB_ENV
+          echo "GGML_F16C=OFF" >> $GITHUB_ENV
+
+      - name: Install Rust toolchain (native builds)
+        if: matrix.native
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build binary (native)
+        if: matrix.native
+        run: cargo build --bin dria-node --release --target ${{ matrix.target }} ${{ matrix.build_args }}
+
+      - name: Strip binary (native)
+        if: matrix.native
+        run: strip target/${{ matrix.target }}/release/dria-node
+
+      - name: Build binary (cross)
+        if: "!matrix.native"
+        uses: houseabsolute/actions-rust-cross@v0
+        with:
+          command: build
+          target: ${{ matrix.target }}
+          args: "--bin dria-node --release ${{ matrix.build_args }}"
+          strip: true
+
+      - name: Upload to release
+        shell: bash
+        run: |
+          mv target/${{ matrix.target }}/release/dria-node ./dria-node-linux-${{ matrix.arch }}
+          gh release upload "${{ env.RELEASE_TAG }}" "./dria-node-linux-${{ matrix.arch }}" --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
