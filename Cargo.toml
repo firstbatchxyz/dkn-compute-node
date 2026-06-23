@@ -10,10 +10,9 @@ path = "src/main.rs"
 
 [features]
 default = []
-# Backend selectors. Placeholders during the all-Luminal rewrite — these will map to the
-# Luminal backend crates (luminal_cuda_lite / luminal_metal) once the engine is wired.
-cuda = []
-metal = []
+# Backend selectors: pull in the Luminal backend crate for the target accelerator.
+cuda = ["dep:luminal_cuda_lite"]
+metal = ["dep:luminal_metal"]
 
 [dependencies]
 clap = { version = "4", features = ["derive", "env"] }
@@ -46,3 +45,11 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 semver = "1"
 self-replace = "1"
 tempfile = "3"
+
+# Compute substrate: Luminal, pinned to the validated upstream rev. crates.io ships the
+# older pre-egglog-rewrite release, so we use git. The core graph lib is always built;
+# the backend crates are optional, selected by the cuda/metal features.
+# See docs/substrate-decision.md.
+luminal = { git = "https://github.com/jafioti/luminal", rev = "497b1aad9b7af7db7efeb93b46845d9f8f8919cd" }
+luminal_metal = { git = "https://github.com/jafioti/luminal", rev = "497b1aad9b7af7db7efeb93b46845d9f8f8919cd", optional = true }
+luminal_cuda_lite = { git = "https://github.com/jafioti/luminal", rev = "497b1aad9b7af7db7efeb93b46845d9f8f8919cd", optional = true }
