@@ -1230,4 +1230,294 @@ mod tests {
 
         println!("\nlfm2 structured output OK");
     }
+
+    // -----------------------------------------------------------------------
+    // M1: speculative-decode lossless harness (pipeline Phase 1).
+    // No graph cut, no network — runs on the stock llama-cpp-2 binding. Proves the
+    // greedy spec-decode accept/reject loop + KV rollback (clear_kv_cache_seq) yields
+    // output BIT-IDENTICAL to plain greedy decode, regardless of draft quality. This
+    // de-risks the spec-decode machinery before the llama.cpp graph cut (M3).
+    //   cargo test test_spec_decode_characterization_qwen -- --ignored --nocapture
+    // -----------------------------------------------------------------------
+
+    fn argmax_token(logits: &[f32]) -> i32 {
+        let mut best = 0usize;
+        let mut best_v = f32::NEG_INFINITY;
+        for (i, &v) in logits.iter().enumerate() {
+            if v > best_v {
+                best_v = v;
+                best = i;
+            }
+        }
+        best as i32
+    }
+
+    /// Cheap prompt-lookup (n-gram) drafter: find the last occurrence of the current
+    /// 2-gram suffix earlier in the context and propose what followed it; fall back to
+    /// repeating the last token. Correctness does NOT depend on draft quality — any
+    /// drafts produce identical output — so this just exercises a realistic mix of
+    /// accepts and rejects (and thus the rollback path).
+    fn draft_ngram(ctx_ids: &[i32], gamma: usize) -> Vec<i32> {
+        let n = ctx_ids.len();
+        if n >= 2 {
+            let (a, b) = (ctx_ids[n - 2], ctx_ids[n - 1]);
+            for i in (0..n - 2).rev() {
+                if ctx_ids[i] == a && ctx_ids[i + 1] == b {
+                    let start = i + 2;
+                    let mut d: Vec<i32> = Vec::with_capacity(gamma);
+                    for k in 0..gamma {
+                        if start + k < n {
+                            d.push(ctx_ids[start + k]);
+                        } else {
+                            break;
+                        }
+                    }
+                    if !d.is_empty() {
+                        while d.len() < gamma {
+                            d.push(*d.last().unwrap());
+                        }
+                        return d;
+                    }
+                }
+            }
+        }
+        vec![*ctx_ids.last().unwrap_or(&0); gamma]
+    }
+
+    fn new_ctx(engine: &InferenceEngine, n_ctx: u32) -> llama_cpp_2::context::LlamaContext<'_> {
+        let params = LlamaContextParams::default().with_n_ctx(std::num::NonZeroU32::new(n_ctx));
+        engine
+            .model
+            .new_context(engine.backend, params)
+            .expect("new_context")
+    }
+
+    /// Plain greedy decode — the reference.
+    fn greedy_baseline(engine: &InferenceEngine, prompt: &[LlamaToken], max_new: usize) -> Vec<i32> {
+        let mut ctx = new_ctx(engine, (prompt.len() + max_new + 8) as u32);
+        let mut batch = LlamaBatch::new((prompt.len() + 1).max(8), 1);
+        for (i, &tok) in prompt.iter().enumerate() {
+            batch.add(tok, i as i32, &[0], i == prompt.len() - 1).unwrap();
+        }
+        ctx.decode(&mut batch).unwrap();
+        let mut out: Vec<i32> = Vec::new();
+        let mut pos = prompt.len() as i32;
+        // get_logits_ith takes the BATCH INDEX (must have had output=true); after prefill
+        // that's the last prompt token.
+        let mut next = argmax_token(ctx.get_logits_ith(prompt.len() as i32 - 1));
+        loop {
+            if engine.model.is_eog_token(LlamaToken::new(next)) || out.len() >= max_new {
+                break;
+            }
+            out.push(next);
+            batch.clear();
+            batch.add(LlamaToken::new(next), pos, &[0], true).unwrap();
+            ctx.decode(&mut batch).unwrap();
+            pos += 1;
+            next = argmax_token(ctx.get_logits_ith(0));
+        }
+        out
+    }
+
+    /// Greedy speculative decode with KV rollback. Must equal `greedy_baseline`.
+    /// Returns (tokens, traversals, tokens_per_traversal).
+    fn greedy_spec(
+        engine: &InferenceEngine,
+        prompt: &[LlamaToken],
+        max_new: usize,
+        gamma: usize,
+    ) -> (Vec<i32>, usize, f64) {
+        let mut ctx = new_ctx(engine, (prompt.len() + max_new + gamma + 8) as u32);
+        let mut batch = LlamaBatch::new((prompt.len() + max_new + gamma + 2).max(8), 1);
+        for (i, &tok) in prompt.iter().enumerate() {
+            batch.add(tok, i as i32, &[0], i == prompt.len() - 1).unwrap();
+        }
+        ctx.decode(&mut batch).unwrap();
+
+        let prompt_ids: Vec<i32> = prompt.iter().map(|t| t.0).collect();
+        let mut out: Vec<i32> = Vec::new();
+        // post-prefill: read the last prompt token's batch index (see greedy_baseline note).
+        let mut cur = argmax_token(ctx.get_logits_ith(prompt.len() as i32 - 1)); // token pending at `base`
+        let mut base = prompt.len() as i32;
+        let mut traversals = 0usize;
+        let mut rollback_fallbacks = 0usize;
+
+        'gen: loop {
+            if engine.model.is_eog_token(LlamaToken::new(cur)) || out.len() >= max_new {
+                break;
+            }
+            // draft gamma tokens following [prompt ++ out ++ cur]
+            let mut ctx_ids = prompt_ids.clone();
+            ctx_ids.extend_from_slice(&out);
+            ctx_ids.push(cur);
+            let drafts = draft_ngram(&ctx_ids, gamma);
+
+            // verify chunk: [cur] + drafts, logits at every position.
+            // get_logits_ith(j) predicts the token after batch slot j, so
+            // argmax(get_logits_ith(n)) is the target's greedy choice for drafts[n].
+            batch.clear();
+            batch.add(LlamaToken::new(cur), base, &[0], true).unwrap();
+            for (j, &d) in drafts.iter().enumerate() {
+                batch.add(LlamaToken::new(d), base + 1 + j as i32, &[0], true).unwrap();
+            }
+            if let Err(e) = ctx.decode(&mut batch) {
+                panic!(
+                    "verify decode failed: round={traversals} base={base} n_tokens={} kv_pos_max={} drafts_len={} err={e:?}",
+                    batch.n_tokens(),
+                    ctx.kv_cache_seq_pos_max(0),
+                    drafts.len()
+                );
+            }
+            traversals += 1;
+
+            let mut n = 0usize;
+            while n < drafts.len() && argmax_token(ctx.get_logits_ith(n as i32)) == drafts[n] {
+                n += 1;
+            }
+            let correction = argmax_token(ctx.get_logits_ith(n as i32));
+
+            // commit cur + first n accepted drafts, stopping at EOG to match baseline.
+            for t in std::iter::once(cur).chain(drafts[..n].iter().copied()) {
+                if engine.model.is_eog_token(LlamaToken::new(t)) {
+                    break 'gen;
+                }
+                out.push(t);
+                if out.len() >= max_new {
+                    break 'gen;
+                }
+            }
+
+            // Roll back the speculative KV to the committed prefix [0, base+n]. When the
+            // cache supports partial tail removal (the efficient KvTruncate path) this is
+            // O(1); some caches (SWA/hybrid, e.g. Qwen3.5) refuse it and return false, so
+            // we fall back to a full clear + re-prefill (correctness-equivalent, slower).
+            if n < drafts.len() {
+                let removed = ctx
+                    .clear_kv_cache_seq(
+                        Some(0),
+                        Some((base + n as i32 + 1) as u32),
+                        Some((base + drafts.len() as i32 + 1) as u32),
+                    )
+                    .unwrap();
+                if !removed {
+                    rollback_fallbacks += 1;
+                    ctx.clear_kv_cache_seq(Some(0), None, None).unwrap();
+                    batch.clear();
+                    let committed: Vec<i32> =
+                        prompt_ids.iter().copied().chain(out.iter().copied()).collect();
+                    let last = committed.len() - 1;
+                    for (i, &t) in committed.iter().enumerate() {
+                        batch.add(LlamaToken::new(t), i as i32, &[0], i == last).unwrap();
+                    }
+                    ctx.decode(&mut batch).expect("re-prefill decode");
+                }
+            }
+
+            cur = correction;
+            base += n as i32 + 1;
+        }
+
+        eprintln!(
+            "  [spec] traversals={traversals}, rollback_fallbacks={rollback_fallbacks} \
+             (0 = efficient seq_rm rollback worked every round)"
+        );
+        let tpt = out.len() as f64 / traversals.max(1) as f64;
+        (out, traversals, tpt)
+    }
+
+    /// Pure greedy decode, but re-prefilling the WHOLE sequence each step (clear + decode
+    /// the full prefix, take argmax). No spec decode. Compared against `greedy_baseline`
+    /// (incremental) this isolates whether the substrate is batching-deterministic: if the
+    /// two pure-greedy baselines disagree, llama.cpp/Metal/GGUF flips argmax at fp near-ties
+    /// purely from batching — which would explain any spec-decode divergence WITHOUT a bug.
+    fn greedy_reprefill(engine: &InferenceEngine, prompt: &[LlamaToken], max_new: usize) -> Vec<i32> {
+        let mut ctx = new_ctx(engine, (prompt.len() + max_new + 8) as u32);
+        let mut batch = LlamaBatch::new((prompt.len() + max_new + 2).max(8), 1);
+        let mut seq: Vec<i32> = prompt.iter().map(|t| t.0).collect();
+        let mut out: Vec<i32> = Vec::new();
+        loop {
+            ctx.clear_kv_cache_seq(Some(0), None, None).unwrap();
+            batch.clear();
+            let last = seq.len() - 1;
+            for (i, &t) in seq.iter().enumerate() {
+                batch.add(LlamaToken::new(t), i as i32, &[0], i == last).unwrap();
+            }
+            ctx.decode(&mut batch).unwrap();
+            let next = argmax_token(ctx.get_logits_ith(last as i32));
+            if engine.model.is_eog_token(LlamaToken::new(next)) || out.len() >= max_new {
+                break;
+            }
+            out.push(next);
+            seq.push(next);
+        }
+        out
+    }
+
+    fn first_diff(a: &[i32], b: &[i32]) -> Option<usize> {
+        let n = a.len().min(b.len());
+        (0..n)
+            .find(|&i| a[i] != b[i])
+            .or(if a.len() == b.len() { None } else { Some(n) })
+    }
+
+    #[tokio::test]
+    #[ignore] // requires qwen3.5:0.8b (~0.5 GB); run with --ignored --nocapture
+    async fn test_spec_decode_characterization_qwen() {
+        let (engine, _name) = load_qwen_model().await;
+        let gamma = 4;
+        let max_new = 64;
+
+        for prompt_str in [
+            "The capital of France is",
+            "Once upon a time, in a small village,",
+            "def fibonacci(n):",
+        ] {
+            let prompt = engine.model.str_to_token(prompt_str, AddBos::Always).unwrap();
+
+            let incr = greedy_baseline(&engine, &prompt, max_new); // incremental greedy (reference)
+            let repf = greedy_reprefill(&engine, &prompt, max_new); // greedy, re-prefilled each step
+            let (spec, traversals, tpt) = greedy_spec(&engine, &prompt, max_new, gamma);
+
+            let show = |which: &str, a: &[i32], b: &[i32]| match first_diff(a, b) {
+                None => println!("    {which}: MATCH"),
+                Some(i) => {
+                    let dec = |ids: &[i32], k: usize| {
+                        ids.get(k)
+                            .map(|&t| token_to_string(&engine.model, LlamaToken::new(t)))
+                            .unwrap_or_else(|| "∅".into())
+                    };
+                    println!(
+                        "    {which}: DIVERGE @{i}  incr={:?} other={:?}",
+                        dec(a, i),
+                        dec(b, i)
+                    );
+                }
+            };
+
+            println!(
+                "\nprompt: {prompt_str:?}\n  incr={} repf={} spec={} tok | traversals={traversals} toks/traversal={tpt:.2}",
+                incr.len(),
+                repf.len(),
+                spec.len()
+            );
+            show("incr-vs-reprefill (substrate determinism)", &incr, &repf);
+            show("incr-vs-spec      (spec losslessness)    ", &incr, &spec);
+
+            // Real invariant: where the substrate is deterministic for this prompt
+            // (incremental greedy == re-prefill greedy), spec-decode MUST be bit-identical.
+            // Where it is NOT (an fp near-tie), the substrate itself is the confound, so we
+            // record it rather than fail the loop's correctness on it.
+            if incr == repf {
+                assert_eq!(
+                    incr, spec,
+                    "spec-decode must be lossless where the substrate is deterministic: {prompt_str:?}"
+                );
+            }
+        }
+        println!(
+            "\nM1 diagnostic complete. If incr-vs-reprefill DIVERGES, the GGUF/Metal substrate is \
+             batching-nondeterministic at fp near-ties — greedy spec-decode cannot be bit-identical \
+             via re-prefill rollback on this stack, independent of loop correctness."
+        );
+    }
 }

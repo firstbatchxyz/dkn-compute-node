@@ -4,6 +4,7 @@ mod identity;
 mod inference;
 mod models;
 mod network;
+mod pipeline;
 mod setup;
 mod stats;
 mod update;
