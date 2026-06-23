@@ -44,7 +44,7 @@ impl KVCache {
                     format!("kv_cache.{l}.k"),
                     (N_KV_HEADS, max_seq, HEAD_DIM),
                 )
-                .as_dtype(DType::Bf16),
+                .as_dtype(DType::F16),
             );
             v_caches.push(
                 persist(
@@ -52,7 +52,7 @@ impl KVCache {
                     format!("kv_cache.{l}.v"),
                     (N_KV_HEADS, max_seq, HEAD_DIM),
                 )
-                .as_dtype(DType::Bf16),
+                .as_dtype(DType::F16),
             );
         }
         Self {
@@ -77,7 +77,7 @@ impl Qwen {
         );
         Self {
             embedding: persist(cx, "model.embed_tokens.weight", (VOCAB_SIZE, HIDDEN))
-                .as_dtype(DType::Bf16),
+                .as_dtype(DType::F16),
             layers: (0..layers).map(|l| QwenLayer::init(cx, l)).collect(),
             lm_norm: rms_norm(cx, "model.norm.weight"),
         }
@@ -132,15 +132,15 @@ struct QwenLayer {
 impl QwenLayer {
     fn init(cx: &mut Graph, l: usize) -> Self {
         Self {
-            up: layer_weight(cx, l, "mlp.up_proj", (INTERMEDIATE, HIDDEN)).as_dtype(DType::Bf16),
+            up: layer_weight(cx, l, "mlp.up_proj", (INTERMEDIATE, HIDDEN)).as_dtype(DType::F16),
             gate: layer_weight(cx, l, "mlp.gate_proj", (INTERMEDIATE, HIDDEN))
-                .as_dtype(DType::Bf16),
+                .as_dtype(DType::F16),
             down: layer_weight(cx, l, "mlp.down_proj", (HIDDEN, INTERMEDIATE))
-                .as_dtype(DType::Bf16),
-            q_proj: layer_weight(cx, l, "self_attn.q_proj", (Q_DIM, HIDDEN)).as_dtype(DType::Bf16),
-            k_proj: layer_weight(cx, l, "self_attn.k_proj", (KV_DIM, HIDDEN)).as_dtype(DType::Bf16),
-            v_proj: layer_weight(cx, l, "self_attn.v_proj", (KV_DIM, HIDDEN)).as_dtype(DType::Bf16),
-            o_proj: layer_weight(cx, l, "self_attn.o_proj", (HIDDEN, Q_DIM)).as_dtype(DType::Bf16),
+                .as_dtype(DType::F16),
+            q_proj: layer_weight(cx, l, "self_attn.q_proj", (Q_DIM, HIDDEN)).as_dtype(DType::F16),
+            k_proj: layer_weight(cx, l, "self_attn.k_proj", (KV_DIM, HIDDEN)).as_dtype(DType::F16),
+            v_proj: layer_weight(cx, l, "self_attn.v_proj", (KV_DIM, HIDDEN)).as_dtype(DType::F16),
+            o_proj: layer_weight(cx, l, "self_attn.o_proj", (HIDDEN, Q_DIM)).as_dtype(DType::F16),
             q_norm: layer_weight(cx, l, "self_attn.q_norm", HEAD_DIM),
             k_norm: layer_weight(cx, l, "self_attn.k_norm", HEAD_DIM),
             attn_rms: rms_norm(cx, format!("model.layers.{l}.input_layernorm.weight")),

@@ -7,3 +7,5 @@
 
 pub mod hf;
 pub mod model;
+
+pub mod target;
