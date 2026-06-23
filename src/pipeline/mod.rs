@@ -20,5 +20,9 @@ pub mod engine;
 pub mod specdecode;
 pub mod specpipe;
 pub mod transport;
+
+// The Luminal-backed engine (model graph + weight loading) — only with a backend feature.
+#[cfg(feature = "engine")]
+pub mod qwen;
 // Re-exports (engine::DraftEngine/TargetChain, specdecode::run_spec_decode,
 // specpipe::run_spec_decode_pipelined, …) will be added when the worker consumes them.

@@ -10,9 +10,11 @@ path = "src/main.rs"
 
 [features]
 default = []
-# Backend selectors: pull in the Luminal backend crate for the target accelerator.
-cuda = ["dep:luminal_cuda_lite"]
-metal = ["dep:luminal_metal"]
+# Inference-engine deps (Luminal model graph + safetensors weight loading); enabled by a backend.
+engine = ["dep:luminal_nn", "dep:hf-hub", "dep:safetensors", "dep:half", "dep:bytemuck", "dep:memmap2"]
+# Backend selectors: pull in the Luminal backend crate (+ the engine deps) for the accelerator.
+cuda = ["dep:luminal_cuda_lite", "engine"]
+metal = ["dep:luminal_metal", "engine"]
 
 [dependencies]
 clap = { version = "4", features = ["derive", "env"] }
@@ -53,3 +55,11 @@ tempfile = "3"
 luminal = { git = "https://github.com/jafioti/luminal", rev = "497b1aad9b7af7db7efeb93b46845d9f8f8919cd" }
 luminal_metal = { git = "https://github.com/jafioti/luminal", rev = "497b1aad9b7af7db7efeb93b46845d9f8f8919cd", optional = true }
 luminal_cuda_lite = { git = "https://github.com/jafioti/luminal", rev = "497b1aad9b7af7db7efeb93b46845d9f8f8919cd", optional = true }
+luminal_nn = { git = "https://github.com/jafioti/luminal", rev = "497b1aad9b7af7db7efeb93b46845d9f8f8919cd", optional = true }
+
+# Model weight loading (qwen/glm safetensors → bf16), behind the `engine` feature.
+hf-hub = { version = "0.4", default-features = false, features = ["rustls-tls", "ureq"], optional = true }
+safetensors = { version = "0.7", optional = true }
+half = { version = "2.7", features = ["bytemuck"], optional = true }
+bytemuck = { version = "1", optional = true }
+memmap2 = { version = "0.9", optional = true }
