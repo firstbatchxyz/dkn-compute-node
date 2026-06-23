@@ -14,7 +14,7 @@
 
 use luminal::prelude::*;
 
-use super::model::{Qwen, KVCache, HEAD_DIM, LAYERS, N_KV_HEADS, VOCAB_SIZE};
+use super::model::{KVCache, Qwen, QwenConfig};
 use crate::pipeline::engine::{TargetChain, TokenId};
 
 const EOS_TOKEN: i32 = 151645; // <|im_end|>
@@ -98,20 +98,25 @@ pub struct QwenTarget<R: QwenRuntime> {
     logits: GraphTensor,    // [s, VOCAB] for every fed position
     kv_cache: KVCache,
     cache_outputs: Vec<(GraphTensor, GraphTensor)>,
-    layers: usize,
+    cfg: QwenConfig,
     max_seq_len: usize,
 }
 
 impl<R: QwenRuntime + 'static> QwenTarget<R> {
     /// Build the graph, run the egglog search, and load the bf16 weights. `weights_path` is
     /// the combined safetensors produced by `super::hf::prepare_hf_model`.
-    pub fn load(mut runtime: R, weights_path: &str, max_seq_len: usize, search_graphs: usize) -> Self {
-        let layers = LAYERS;
+    pub fn load(
+        mut runtime: R,
+        cfg: QwenConfig,
+        weights_path: &str,
+        max_seq_len: usize,
+        search_graphs: usize,
+    ) -> Self {
         let mut cx = Graph::default();
         let input = cx.named_tensor("input", 's').as_dtype(DType::Int);
         let pos_ids = cx.named_tensor("token_ids", 's').as_dtype(DType::Int);
-        let kv_cache = KVCache::new(&mut cx, max_seq_len, layers);
-        let (logits, cache_outputs) = Qwen::init(&mut cx, layers).forward(input, pos_ids, &kv_cache);
+        let kv_cache = KVCache::new(&mut cx, &cfg, max_seq_len);
+        let (logits, cache_outputs) = Qwen::init(&mut cx, cfg).forward(input, pos_ids, &kv_cache);
         let logits = logits.output();
         for (k, v) in &cache_outputs {
             k.output();
@@ -132,8 +137,8 @@ impl<R: QwenRuntime + 'static> QwenTarget<R> {
         cx.build_search_space::<R>(compile_options);
         runtime.load_safetensors(&cx, weights_path);
 
-        let cache_bytes = N_KV_HEADS * max_seq_len * HEAD_DIM * 2; // bf16
-        for i in 0..layers {
+        let cache_bytes = cfg.n_kv_heads * max_seq_len * cfg.head_dim * 2; // F16
+        for i in 0..cfg.layers {
             runtime.set_zeros(kv_cache.k_caches[i].id, cache_bytes);
             runtime.set_zeros(kv_cache.v_caches[i].id, cache_bytes);
         }
@@ -146,12 +151,12 @@ impl<R: QwenRuntime + 'static> QwenTarget<R> {
         let search_options = CompileOptions::default().search_graph_limit(search_graphs);
         runtime = cx.search(runtime, search_options);
 
-        for i in 0..layers {
+        for i in 0..cfg.layers {
             runtime.set_zeros(kv_cache.k_caches[i].id, cache_bytes);
             runtime.set_zeros(kv_cache.v_caches[i].id, cache_bytes);
         }
 
-        Self { cx, runtime, input, pos_ids, logits, kv_cache, cache_outputs, layers, max_seq_len }
+        Self { cx, runtime, input, pos_ids, logits, kv_cache, cache_outputs, cfg, max_seq_len }
     }
 
     /// Run a chunk of `tokens` starting at absolute position `start_pos`; advance the KV; return
@@ -178,8 +183,8 @@ impl<R: QwenRuntime + 'static> QwenTarget<R> {
 
     /// Zero the per-layer KV cache (e.g. between two independent generations).
     pub fn reset(&mut self) {
-        let cache_bytes = N_KV_HEADS * self.max_seq_len * HEAD_DIM * 2;
-        for i in 0..self.layers {
+        let cache_bytes = self.cfg.n_kv_heads * self.max_seq_len * self.cfg.head_dim * 2;
+        for i in 0..self.cfg.layers {
             self.runtime.set_zeros(self.kv_cache.k_caches[i].id, cache_bytes);
             self.runtime.set_zeros(self.kv_cache.v_caches[i].id, cache_bytes);
         }
@@ -189,8 +194,9 @@ impl<R: QwenRuntime + 'static> QwenTarget<R> {
 impl<R: QwenRuntime + 'static> TargetChain for QwenTarget<R> {
     fn prefill(&mut self, prompt: &[TokenId]) -> TokenId {
         let logits = self.run_chunk(0, prompt);
-        let last = (prompt.len() - 1) * VOCAB_SIZE;
-        argmax(&logits[last..last + VOCAB_SIZE])
+        let v = self.cfg.vocab_size;
+        let last = (prompt.len() - 1) * v;
+        argmax(&logits[last..last + v])
     }
 
     fn verify(&mut self, start_pos: u32, cur: TokenId, drafts: &[TokenId]) -> Vec<TokenId> {
@@ -198,8 +204,9 @@ impl<R: QwenRuntime + 'static> TargetChain for QwenTarget<R> {
         chunk.push(cur);
         chunk.extend_from_slice(drafts);
         let logits = self.run_chunk(start_pos, &chunk);
+        let v = self.cfg.vocab_size;
         (0..chunk.len())
-            .map(|j| argmax(&logits[j * VOCAB_SIZE..(j + 1) * VOCAB_SIZE]))
+            .map(|j| argmax(&logits[j * v..(j + 1) * v]))
             .collect()
     }
 
@@ -268,7 +275,7 @@ mod tests {
             .expect("download/prepare Qwen3-0.6B");
         let weights = model_dir.join("model_combined_bf16_v1.safetensors");
         let rt = luminal_metal::MetalRuntime::initialize(());
-        let mut target = QwenTarget::load(rt, weights.to_str().unwrap(), 512, 200);
+        let mut target = QwenTarget::load(rt, QwenConfig::QWEN3_0_6B, weights.to_str().unwrap(), 512, 200);
 
         let prompt: Vec<TokenId> = vec![40, 1079, 264, 4108, 4108]; // raw token ids (no tokenizer)
         let max_new = 32;
@@ -295,5 +302,85 @@ mod tests {
             None => println!("length differ: baseline={} spec={}", baseline.len(), spec.len()),
         }
         assert!(!baseline.is_empty(), "model must generate something");
+    }
+
+    /// A real draft model: greedily generate `gamma` tokens from a smaller QwenTarget.
+    /// Re-prefills the whole context on each call (O(context) — fine for a g measurement;
+    /// the production draft keeps an incremental KV).
+    struct QwenDraft<'a, R: QwenRuntime + 'static> {
+        model: &'a mut QwenTarget<R>,
+    }
+    impl<R: QwenRuntime + 'static> DraftEngine for QwenDraft<'_, R> {
+        fn draft(&mut self, context: &[TokenId], gamma: usize) -> Vec<TokenId> {
+            self.model.reset();
+            let mut cur = self.model.prefill(context);
+            let mut out = Vec::with_capacity(gamma);
+            out.push(cur);
+            let mut base = context.len() as u32;
+            for _ in 1..gamma {
+                cur = self.model.verify(base, cur, &[])[0];
+                out.push(cur);
+                base += 1;
+            }
+            out
+        }
+    }
+
+    // THE REAL ACCEPTANCE NUMBER: Qwen3-0.6B drafts Qwen3-4B, greedy, on Luminal/Metal.
+    // toks/traversal = E[accepted]+1 is the speedup proxy the throughput thesis hinges on.
+    // cargo test -p dria-node --features metal qwen_real_g_4b -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn qwen_real_g_4b() {
+        let dir4b = crate::pipeline::qwen::hf::prepare_hf_model("Qwen/Qwen3-4B").expect("prepare 4B");
+        let dir06b =
+            crate::pipeline::qwen::hf::prepare_hf_model("Qwen/Qwen3-0.6B").expect("prepare 0.6B");
+        let w4b = dir4b.join("model_combined_bf16_v1.safetensors");
+        let w06b = dir06b.join("model_combined_bf16_v1.safetensors");
+
+        let mut target = QwenTarget::load(
+            luminal_metal::MetalRuntime::initialize(()),
+            QwenConfig::QWEN3_4B,
+            w4b.to_str().unwrap(),
+            512,
+            200,
+        );
+        let mut draft_model = QwenTarget::load(
+            luminal_metal::MetalRuntime::initialize(()),
+            QwenConfig::QWEN3_0_6B,
+            w06b.to_str().unwrap(),
+            512,
+            200,
+        );
+
+        let prompt: Vec<TokenId> = vec![40, 1079, 264, 4108, 4108]; // raw token ids
+        let max_new = 48;
+        let spec_cfg = SpecConfig { gamma: 8, max_new };
+
+        target.reset();
+        let baseline = greedy_baseline(&mut target, &prompt, max_new);
+
+        target.reset();
+        draft_model.reset();
+        let mut draft = QwenDraft { model: &mut draft_model };
+        let (spec, stats) = run_spec_decode(&mut draft, &mut target, &prompt, &spec_cfg);
+
+        let tpt = stats.toks_per_traversal();
+        println!("\n4B baseline           = {baseline:?}");
+        println!("spec (0.6B drafts 4B) = {spec:?}");
+        println!(
+            "toks/traversal = {tpt:.2}  (= E[accepted]+1, gamma={})  => mean accepted/round = {:.2}",
+            spec_cfg.gamma,
+            tpt - 1.0
+        );
+        match (0..baseline.len().min(spec.len())).find(|&i| baseline[i] != spec[i]) {
+            None if baseline.len() == spec.len() => println!("LOSSLESS vs greedy-4B"),
+            Some(i) => println!(
+                "diverge @{i}: baseline={} spec={} (bf16 near-tie? cf. M1)",
+                baseline[i], spec[i]
+            ),
+            None => println!("length differ: baseline={} spec={}", baseline.len(), spec.len()),
+        }
+        assert!(!spec.is_empty(), "spec-decode must produce output");
     }
 }
