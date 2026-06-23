@@ -74,6 +74,9 @@ pub enum Command {
 }
 
 /// Parsed and validated configuration for the node.
+// Several fields (gpu_layers, quant, kv_quant, max_context, …) are inference config consumed
+// once the Luminal GLM-5.2 engine is wired; kept on the CLI/struct in the meantime.
+#[allow(dead_code)]
 pub struct Config {
     pub secret_key_hex: String,
     pub model_names: Vec<String>,

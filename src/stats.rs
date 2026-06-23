@@ -12,6 +12,8 @@ pub struct NodeStats {
     started_at: Instant,
 }
 
+// record_completed/failed/rejected are consumed once the engine reports task outcomes.
+#[allow(dead_code)]
 impl NodeStats {
     pub fn new() -> Self {
         NodeStats {

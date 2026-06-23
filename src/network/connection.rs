@@ -88,6 +88,7 @@ impl RouterConnection {
     }
 
     /// Get a clone of the outgoing sender for concurrent streaming use.
+    #[allow(dead_code)] // used by the streaming pipeline worker (pending)
     pub fn sender(&self) -> mpsc::UnboundedSender<NodeMessage> {
         self.outgoing_tx.clone()
     }

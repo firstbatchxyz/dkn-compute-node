@@ -1,6 +1,8 @@
 use thiserror::Error;
 
 #[derive(Debug, Error)]
+// Inference/Model variants are produced by the Luminal engine once wired.
+#[allow(dead_code)]
 pub enum NodeError {
     #[error("config error: {0}")]
     Config(String),
