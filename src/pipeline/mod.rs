@@ -18,7 +18,7 @@
 
 pub mod engine;
 pub mod specdecode;
+pub mod specpipe;
 pub mod transport;
-
-pub use engine::{DraftEngine, TargetChain, TokenId};
-pub use specdecode::{run_spec_decode, SpecConfig, SpecStats};
+// Re-exports (engine::DraftEngine/TargetChain, specdecode::run_spec_decode,
+// specpipe::run_spec_decode_pipelined, …) will be added when the worker consumes them.
