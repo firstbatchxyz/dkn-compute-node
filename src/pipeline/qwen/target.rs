@@ -25,6 +25,10 @@ pub trait QwenRuntime: Runtime<ExecReturn = ()> {
     type Buffer;
     fn load_safetensors(&mut self, cx: &Graph, file_path: &str);
     fn set_i32_data(&mut self, id: NodeIndex, data: Vec<i32>);
+    /// Feed F32 data into an input tensor; if the tensor is F16 the runtime converts (used to
+    /// inject a residual-stream hidden state into a non-first pipeline shard, losslessly since
+    /// the data originated as F16 from `get_f32`).
+    fn set_f32_data(&mut self, id: NodeIndex, data: Vec<f32>);
     fn set_zeros(&mut self, id: NodeIndex, num_bytes: usize);
     fn remove_buffer(&mut self, id: NodeIndex) -> Self::Buffer;
     fn set_buffer(&mut self, id: NodeIndex, buffer: Self::Buffer);
@@ -39,6 +43,9 @@ impl QwenRuntime for luminal_metal::MetalRuntime {
         luminal_metal::MetalRuntime::load_safetensors(self, cx, file_path);
     }
     fn set_i32_data(&mut self, id: NodeIndex, data: Vec<i32>) {
+        luminal_metal::MetalRuntime::set_data(self, id, data);
+    }
+    fn set_f32_data(&mut self, id: NodeIndex, data: Vec<f32>) {
         luminal_metal::MetalRuntime::set_data(self, id, data);
     }
     fn set_zeros(&mut self, id: NodeIndex, num_bytes: usize) {
@@ -64,6 +71,9 @@ impl QwenRuntime for luminal_cuda_lite::runtime::CudaRuntime {
     fn set_i32_data(&mut self, id: NodeIndex, data: Vec<i32>) {
         luminal_cuda_lite::runtime::CudaRuntime::set_data(self, id, data);
     }
+    fn set_f32_data(&mut self, id: NodeIndex, data: Vec<f32>) {
+        luminal_cuda_lite::runtime::CudaRuntime::set_data(self, id, data);
+    }
     fn set_zeros(&mut self, id: NodeIndex, num_bytes: usize) {
         luminal_cuda_lite::runtime::CudaRuntime::set_zeros(self, id, num_bytes);
     }
@@ -78,7 +88,7 @@ impl QwenRuntime for luminal_cuda_lite::runtime::CudaRuntime {
     }
 }
 
-fn argmax(row: &[f32]) -> TokenId {
+pub(crate) fn argmax(row: &[f32]) -> TokenId {
     let mut best = 0usize;
     let mut best_v = f32::NEG_INFINITY;
     for (i, &v) in row.iter().enumerate() {
@@ -115,7 +125,7 @@ impl<R: QwenRuntime + 'static> QwenTarget<R> {
         let mut cx = Graph::default();
         let input = cx.named_tensor("input", 's').as_dtype(DType::Int);
         let pos_ids = cx.named_tensor("token_ids", 's').as_dtype(DType::Int);
-        let kv_cache = KVCache::new(&mut cx, &cfg, max_seq_len);
+        let kv_cache = KVCache::new(&mut cx, &cfg, max_seq_len, cfg.layers);
         let (logits, cache_outputs) = Qwen::init(&mut cx, cfg).forward(input, pos_ids, &kv_cache);
         let logits = logits.output();
         for (k, v) in &cache_outputs {

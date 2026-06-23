@@ -75,10 +75,10 @@ pub struct KVCache {
 }
 
 impl KVCache {
-    pub fn new(cx: &mut Graph, cfg: &QwenConfig, max_seq: usize) -> Self {
-        let mut k_caches = Vec::with_capacity(cfg.layers);
-        let mut v_caches = Vec::with_capacity(cfg.layers);
-        for l in 0..cfg.layers {
+    pub fn new(cx: &mut Graph, cfg: &QwenConfig, max_seq: usize, n_layers: usize) -> Self {
+        let mut k_caches = Vec::with_capacity(n_layers);
+        let mut v_caches = Vec::with_capacity(n_layers);
+        for l in 0..n_layers {
             // KV cache stored F16 (2 bytes/elem); the scatter writes F16 k_rope/v rows directly.
             k_caches.push(
                 persist(cx, format!("kv_cache.{l}.k"), (cfg.n_kv_heads, max_seq, cfg.head_dim))
@@ -133,6 +133,74 @@ impl Qwen {
             logits = logits.cast(DType::F32);
         }
         (logits, cache_outputs)
+    }
+}
+
+/// A contiguous shard of the model: global layers `[range.0, range.1)`. The first shard embeds
+/// token-ids; non-first shards consume a `[seq, hidden]` residual stream directly. The last
+/// shard applies the final norm + tied lm_head and emits logits; non-last shards emit the
+/// residual stream to hand to the next shard — this boundary is the node→node "cut".
+pub struct QwenShard {
+    cfg: QwenConfig,
+    is_first: bool,
+    is_last: bool,
+    embedding: Option<GraphTensor>, // first shard embeds inputs; last shard uses it as tied lm_head
+    layers: Vec<QwenLayer>,
+    lm_norm: Option<LayerNorm>,
+}
+
+impl QwenShard {
+    pub fn init(
+        cx: &mut Graph,
+        cfg: QwenConfig,
+        range: (usize, usize),
+        is_first: bool,
+        is_last: bool,
+    ) -> Self {
+        let (a, b) = range;
+        let embedding = (is_first || is_last).then(|| {
+            persist(cx, "model.embed_tokens.weight", (cfg.vocab_size, cfg.hidden)).as_dtype(DType::F16)
+        });
+        let layers = (a..b).map(|l| QwenLayer::init(cx, cfg, l)).collect();
+        let lm_norm = is_last.then(|| rms_norm(cx, cfg, "model.norm.weight"));
+        Self { cfg, is_first, is_last, embedding, layers, lm_norm }
+    }
+
+    /// `input` is token-ids (`[s]`, Int — first shard) or a residual stream (`[s, hidden]`, F16 —
+    /// non-first). Returns logits (`[s, vocab]`, F32 — last shard) or the residual stream
+    /// (`[s, hidden]`, F16 — non-last).
+    pub fn forward(
+        &self,
+        input: GraphTensor,
+        pos_ids: GraphTensor,
+        kv_cache: &KVCache,
+    ) -> (GraphTensor, Vec<(GraphTensor, GraphTensor)>) {
+        let mut x = if self.is_first {
+            token_embedding(self.embedding.unwrap(), input, &self.cfg)
+        } else {
+            input
+        };
+        let mut cache_outputs = Vec::with_capacity(self.layers.len());
+        for (i, layer) in self.layers.iter().enumerate() {
+            let (x_new, k_out, v_out) =
+                layer.forward(x, pos_ids, kv_cache.k_caches[i], kv_cache.v_caches[i], kv_cache.max_seq);
+            x = x_new;
+            cache_outputs.push((k_out, v_out));
+        }
+        if self.is_last {
+            let normed = norm_in_f32(self.lm_norm.as_ref().unwrap(), x);
+            let mut logits = normed.matmul(self.embedding.unwrap().t());
+            if logits.dtype != DType::F32 {
+                logits = logits.cast(DType::F32);
+            }
+            (logits, cache_outputs)
+        } else {
+            (x, cache_outputs)
+        }
+    }
+
+    pub fn num_layers(&self) -> usize {
+        self.layers.len()
     }
 }
 
