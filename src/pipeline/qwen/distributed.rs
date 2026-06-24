@@ -779,4 +779,82 @@ mod tests {
         assert_eq!(out1, truth, "depth-1 must be lossless");
         assert_eq!(out4, truth, "depth-4 must be lossless");
     }
+
+    // DIAGNOSTIC: split each step into head-forward vs QUIC-round-trip (head→tail→back), single-
+    // token greedy over the 2-node chain, at growing context. Localizes the per-traversal cost.
+    // cargo test -p dria-node --features metal qwen_pipeline_step_breakdown -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn qwen_pipeline_step_breakdown() {
+        use std::time::Instant;
+        let cfg = QwenConfig::QWEN3_0_6B;
+        let dir = prepare_hf_model("Qwen/Qwen3-0.6B").expect("prepare 0.6B");
+        let wp = dir.join("model_combined_bf16_v1.safetensors").to_str().unwrap().to_string();
+        let k = cfg.layers / 2;
+
+        let (tail_tx, tail_rx) = std::sync::mpsc::channel();
+        let wp_t = wp.clone();
+        let tail = std::thread::spawn(move || {
+            let rt = tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(2)
+                .enable_all()
+                .build()
+                .unwrap();
+            let ep = {
+                let _g = rt.enter();
+                listen_endpoint("127.0.0.1:0".parse().unwrap()).unwrap()
+            };
+            tail_tx.send(ep.local_addr().unwrap()).unwrap();
+            let shard = Shard::load(
+                luminal_metal::MetalRuntime::initialize(()),
+                cfg,
+                (k, cfg.layers),
+                false,
+                true,
+                &wp_t,
+                768,
+                200,
+            );
+            serve_tail(shard, ep, &rt).expect("tail serve");
+        });
+        let tail_addr = tail_rx.recv().expect("tail addr");
+
+        let mut shard0 = Shard::load(
+            luminal_metal::MetalRuntime::initialize(()),
+            cfg,
+            (0, k),
+            true,
+            false,
+            &wp,
+            768,
+            200,
+        );
+        let hidden_dim = shard0.hidden_dim();
+        let mut down = QuicDownstream::connect(tail_addr).expect("dial tail");
+
+        // prefill
+        let h = shard0.forward_tokens(0, &[40]);
+        let r = down.forward(0, 1, hidden_dim, h).expect("prefill hop");
+        let mut cur = *r.last().unwrap();
+        let mut pos = 1u32;
+
+        println!("\nctx -> head-forward ms | QUIC round-trip ms (single-token greedy, 2-node):");
+        for step in 1..=120u32 {
+            let t0 = Instant::now();
+            let h = shard0.forward_tokens(pos, &[cur]); // head shard (1 token)
+            let head_ms = t0.elapsed().as_secs_f64() * 1000.0;
+
+            let t1 = Instant::now();
+            let r = down.forward(pos, 1, hidden_dim, h).expect("hop"); // QUIC + tail + back
+            let rt_ms = t1.elapsed().as_secs_f64() * 1000.0;
+
+            cur = r[0];
+            pos += 1;
+            if step % 20 == 0 {
+                println!("  ctx≈{:>3}: head {:>6.1} ms | roundtrip {:>7.1} ms", pos, head_ms, rt_ms);
+            }
+        }
+        down.shutdown();
+        tail.join().expect("tail thread");
+    }
 }

@@ -393,4 +393,78 @@ mod tests {
         }
         assert!(!spec.is_empty(), "spec-decode must produce output");
     }
+
+    // DIAGNOSTIC: per-step decode time vs context, single-process (no QUIC/sharding). For a 0.6B
+    // model the MLP/projections dominate and are CONSTANT per token; attention is sub-dominant, so
+    // ms/step should be nearly flat. If it grows steeply with context, the model forward itself is
+    // the culprit (re-prefill? naive O(context) attention/GQA kernel?), not the pipeline.
+    // cargo test -p dria-node --features metal qwen_forward_scaling -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn qwen_forward_scaling() {
+        use std::time::Instant;
+        let dir = crate::pipeline::qwen::hf::prepare_hf_model("Qwen/Qwen3-0.6B").expect("0.6B");
+        let weights = dir.join("model_combined_bf16_v1.safetensors");
+        let rt = luminal_metal::MetalRuntime::initialize(());
+        let mut target =
+            QwenTarget::load(rt, QwenConfig::QWEN3_0_6B, weights.to_str().unwrap(), 768, 200);
+
+        target.reset();
+        let mut cur = target.prefill(&[40]); // 1-token prompt
+        let mut pos = 1u32;
+        let window = 50u32;
+        println!("\ncontext -> ms per single-token decode (avg over {window}), single-process 0.6B:");
+        let mut t = Instant::now();
+        for step in 1..=600u32 {
+            cur = target.verify(pos, cur, &[])[0];
+            pos += 1;
+            if step % window == 0 {
+                println!(
+                    "  ctx≈{:>3}: {:>7.1} ms/step",
+                    pos,
+                    t.elapsed().as_secs_f64() * 1000.0 / window as f64
+                );
+                t = Instant::now();
+            }
+        }
+    }
+
+    // DIAGNOSTIC: forward time vs CHUNK SIZE s (tokens fed at once) at fixed context, single-
+    // process. Spec-decode uses s=γ+1 (multi-token); single-token decode uses s=1. If s≥2 is far
+    // slower than s=1, the multi-token kernel (dim bucket [2,max_seq], generic) is the bottleneck
+    // vs the specialized [1,1] kernel. cargo test -p dria-node --features metal
+    // qwen_forward_vs_chunk_size -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn qwen_forward_vs_chunk_size() {
+        use std::time::Instant;
+        let dir = crate::pipeline::qwen::hf::prepare_hf_model("Qwen/Qwen3-0.6B").expect("0.6B");
+        let weights = dir.join("model_combined_bf16_v1.safetensors");
+        let rt = luminal_metal::MetalRuntime::initialize(());
+        let mut target =
+            QwenTarget::load(rt, QwenConfig::QWEN3_0_6B, weights.to_str().unwrap(), 768, 200);
+
+        // Build ~100 tokens of context with single-token decodes.
+        target.reset();
+        let mut cur = target.prefill(&[40]);
+        let mut pos = 1u32;
+        for _ in 0..100 {
+            cur = target.verify(pos, cur, &[])[0];
+            pos += 1;
+        }
+        let base = pos; // fixed past context for all chunk sizes
+
+        println!("\nchunk size s -> ms per forward (fixed ctx ~{base}, single-process 0.6B):");
+        for &d in &[0usize, 1, 3, 6, 7, 15] {
+            let drafts = vec![cur; d]; // dummy tokens; we only care about timing
+            let _ = target.verify(base, cur, &drafts); // warm-up (compile the bucket kernel)
+            let reps = 5;
+            let t = Instant::now();
+            for _ in 0..reps {
+                let _ = target.verify(base, cur, &drafts);
+            }
+            let ms = t.elapsed().as_secs_f64() * 1000.0 / reps as f64;
+            println!("  s={:>2}: {:>8.1} ms/forward", d + 1, ms);
+        }
+    }
 }
