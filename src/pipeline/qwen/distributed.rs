@@ -728,7 +728,7 @@ mod tests {
                 false,
                 true,
                 &wp_t,
-                512,
+                768,
                 200,
             );
             serve_tail(shard, ep, &rt).expect("tail serve");
@@ -737,9 +737,9 @@ mod tests {
 
         // Truth = the target's greedy continuation (drives the perfect draft).
         let mut full =
-            QwenTarget::load(luminal_metal::MetalRuntime::initialize(()), cfg, &wp, 512, 200);
+            QwenTarget::load(luminal_metal::MetalRuntime::initialize(()), cfg, &wp, 768, 200);
         let prompt: Vec<TokenId> = vec![40, 1079, 264, 4108, 4108];
-        let n = 40;
+        let n = 500;
         full.reset();
         let truth = greedy(&mut full, &prompt, n);
 
@@ -750,7 +750,7 @@ mod tests {
             true,
             false,
             &wp,
-            512,
+            768,
             200,
         );
         let mut chain = PipelinedQuicChain::connect(vec![shard0], tail_addr).expect("connect tail");
