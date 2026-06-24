@@ -11,3 +11,5 @@ pub mod model;
 pub mod target;
 
 pub mod shard;
+
+pub mod distributed;

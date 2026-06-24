@@ -157,6 +157,30 @@ impl<R: QwenRuntime + 'static> Shard<R> {
             self.runtime.set_zeros(self.kv_cache.v_caches[i].id, cache_bytes);
         }
     }
+
+    /// First shard: embed `tokens` (absolute positions from `start_pos`), run the shard, return
+    /// the residual stream `[s, hidden]` flat.
+    pub fn forward_tokens(&mut self, start_pos: u32, tokens: &[TokenId]) -> Vec<f32> {
+        self.run_chunk(start_pos, tokens.len(), ShardInput::Tokens(tokens.to_vec()))
+    }
+
+    /// Non-first shard: consume a residual stream (`s` positions from `start_pos`), run the shard,
+    /// return the residual stream (or logits `[s, vocab]` if this is the last shard) flat.
+    pub fn forward_hidden(&mut self, start_pos: u32, s: usize, hidden: Vec<f32>) -> Vec<f32> {
+        self.run_chunk(start_pos, s, ShardInput::Hidden(hidden))
+    }
+
+    pub fn vocab_size(&self) -> usize {
+        self.cfg.vocab_size
+    }
+
+    pub fn hidden_dim(&self) -> usize {
+        self.cfg.hidden
+    }
+
+    pub fn is_last(&self) -> bool {
+        self.is_last
+    }
 }
 
 /// A node chain: shards run in sequence, each consuming the previous shard's output. Implements

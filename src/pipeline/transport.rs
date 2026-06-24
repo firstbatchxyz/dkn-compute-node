@@ -18,6 +18,7 @@
 use std::io;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 
 use quinn::{ClientConfig, Endpoint, RecvStream, SendStream, ServerConfig, TransportConfig};
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
@@ -175,6 +176,12 @@ impl PeerConnection {
     pub async fn wait_closed(&self) {
         self.conn.closed().await;
     }
+
+    /// Finish the send half cleanly (FIN). The peer's next `recv` returns `Ok(None)` (clean EOF)
+    /// rather than a "connection lost" error — used to end a session gracefully.
+    pub fn finish(&mut self) {
+        let _ = self.send.finish();
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -188,9 +195,10 @@ pub fn dial_endpoint() -> io::Result<Endpoint> {
         .with_custom_certificate_verifier(Arc::new(SkipServerVerification))
         .with_no_client_auth();
     crypto.alpn_protocols = vec![ALPN.to_vec()];
-    let client_config = ClientConfig::new(Arc::new(
+    let mut client_config = ClientConfig::new(Arc::new(
         quinn::crypto::rustls::QuicClientConfig::try_from(crypto).map_err(io_other)?,
     ));
+    client_config.transport_config(Arc::new(keepalive_transport()));
     let mut ep = Endpoint::client("0.0.0.0:0".parse().unwrap()).map_err(io_other)?;
     ep.set_default_client_config(client_config);
     Ok(ep)
@@ -212,11 +220,20 @@ pub fn listen_endpoint(addr: SocketAddr) -> io::Result<Endpoint> {
     let mut server_config = ServerConfig::with_crypto(Arc::new(
         quinn::crypto::rustls::QuicServerConfig::try_from(server_crypto).map_err(io_other)?,
     ));
-    let mut transport = TransportConfig::default();
+    let mut transport = keepalive_transport();
     transport.max_concurrent_bidi_streams(8u32.into());
     server_config.transport_config(Arc::new(transport));
 
     Endpoint::server(server_config, addr).map_err(io_other)
+}
+
+/// Transport config with keepalives so a persistent shard link survives long idle gaps (e.g. a
+/// multi-minute model load before the first hop) without hitting the idle timeout.
+fn keepalive_transport() -> TransportConfig {
+    let mut transport = TransportConfig::default();
+    transport.keep_alive_interval(Some(Duration::from_secs(5)));
+    transport.max_idle_timeout(Some(Duration::from_secs(30).try_into().expect("valid idle timeout")));
+    transport
 }
 
 /// Dial `addr` and open one bi-stream for a hop (upstream node → this peer).

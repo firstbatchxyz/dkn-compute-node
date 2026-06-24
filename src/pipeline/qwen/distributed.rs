@@ -1,0 +1,289 @@
+//! The 2-process sharded pipeline: [`ShardedChain`](super::shard::ShardedChain)'s in-process
+//! hand-off, but the hop to the downstream shards goes over the QUIC
+//! [`transport`](crate::pipeline::transport).
+//!
+//! Roles:
+//!   - **Head** (node-0, path owner): runs its local shards (first embeds tokens), ships the
+//!     residual stream to the tail via [`QuicDownstream`], gets back the per-position argmax.
+//!     [`RemoteChain`] implements [`TargetChain`], so the spec-decode driver drives it unchanged.
+//!   - **Tail**: [`serve_tail`] runs the last shard and replies with the argmax over its logits.
+//!
+//! Threading: the Luminal runtime is `!Send`, and the spec-decode driver is sync, while QUIC is
+//! async. So each side owns its shard on one OS thread and `block_on`s the async hops there (the
+//! head per hop; the tail in a serve loop). The Luminal future never migrates threads.
+#![allow(dead_code)] // head/tail are consumed by the integration test + (next) the worker.
+
+use std::io;
+use std::net::SocketAddr;
+
+use quinn::Endpoint;
+
+use super::shard::Shard;
+use super::target::{argmax, QwenRuntime};
+use crate::pipeline::engine::{TargetChain, TokenId};
+use crate::pipeline::transport::{
+    accept, dial, dial_endpoint, HiddenStateFrame, PeerMessage, PeerConnection, VerifyResult,
+};
+
+/// The head's synchronous link to the downstream (remote) shards: one persistent QUIC bi-stream,
+/// driven by an owned current-thread runtime so each hop is a plain blocking call from the sync
+/// spec-decode driver.
+pub struct QuicDownstream {
+    rt: tokio::runtime::Runtime,
+    // Held to keep the client side driving I/O; dropping it would stall the connection.
+    _endpoint: Endpoint,
+    peer: PeerConnection,
+    request_id: u64,
+}
+
+impl QuicDownstream {
+    /// Dial the tail at `addr` and establish the bi-stream.
+    pub fn connect(addr: SocketAddr) -> io::Result<Self> {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?;
+        let (endpoint, peer) = rt.block_on(async move {
+            let ep = dial_endpoint()?;
+            let peer = dial(&ep, addr).await?;
+            io::Result::Ok((ep, peer))
+        })?;
+        Ok(Self { rt, _endpoint: endpoint, peer, request_id: 0 })
+    }
+
+    /// Ship the post-head-shards residual stream (`s` positions from `start_pos`, dim `hidden_dim`)
+    /// to the tail; block on the tail's per-position argmax.
+    pub fn forward(&mut self, start_pos: u32, s: usize, hidden_dim: usize, hidden: Vec<f32>) -> io::Result<Vec<TokenId>> {
+        self.request_id += 1;
+        let frame = HiddenStateFrame::from_f32(
+            self.request_id,
+            0,
+            start_pos as u64,
+            start_pos,
+            0,
+            s as u32,
+            hidden_dim as u32,
+            &hidden,
+        );
+        let peer = &mut self.peer;
+        self.rt.block_on(async move {
+            peer.send(&PeerMessage::Hidden(frame)).await?;
+            match peer.recv().await? {
+                Some(PeerMessage::Result(r)) => Ok(r.argmax),
+                Some(other) => Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("tail returned {other:?}, expected Result"),
+                )),
+                None => Err(io::Error::new(io::ErrorKind::UnexpectedEof, "tail closed mid-request")),
+            }
+        })
+    }
+
+    /// End the session cleanly: finish the send half (the tail sees clean EOF and returns), then
+    /// drive the runtime until the tail closes back. Must run the runtime so the FIN is flushed.
+    pub fn shutdown(&mut self) {
+        let peer = &mut self.peer;
+        self.rt.block_on(async move {
+            peer.finish();
+            peer.wait_closed().await;
+        });
+    }
+}
+
+/// The head node: local head shards + a remote tail. Implements [`TargetChain`] so the
+/// spec-decode driver drives the distributed model exactly like a single-process one.
+pub struct RemoteChain<R: QwenRuntime> {
+    head: Vec<Shard<R>>, // local shards; head[0] embeds tokens
+    down: QuicDownstream,
+    hidden_dim: usize,
+}
+
+impl<R: QwenRuntime + 'static> RemoteChain<R> {
+    pub fn new(head: Vec<Shard<R>>, down: QuicDownstream) -> Self {
+        assert!(!head.is_empty(), "the head needs at least one local shard");
+        let hidden_dim = head[0].hidden_dim();
+        Self { head, down, hidden_dim }
+    }
+
+    /// Run `tokens` through the local head shards → residual stream, ship to the tail → the
+    /// tail's per-position argmax.
+    fn run(&mut self, start_pos: u32, tokens: &[TokenId]) -> Vec<TokenId> {
+        let s = tokens.len();
+        let mut hidden = self.head[0].forward_tokens(start_pos, tokens);
+        for shard in self.head.iter_mut().skip(1) {
+            hidden = shard.forward_hidden(start_pos, s, hidden);
+        }
+        self.down
+            .forward(start_pos, s, self.hidden_dim, hidden)
+            .expect("downstream hop failed")
+    }
+
+    pub fn reset(&mut self) {
+        for shard in &mut self.head {
+            shard.reset();
+        }
+        // The tail resets its own KV on a fresh request_id boundary in this minimal version; for
+        // the test we drive a single generation per connection.
+    }
+}
+
+impl<R: QwenRuntime + 'static> TargetChain for RemoteChain<R> {
+    fn prefill(&mut self, prompt: &[TokenId]) -> TokenId {
+        *self.run(0, prompt).last().expect("non-empty prompt")
+    }
+
+    fn verify(&mut self, start_pos: u32, cur: TokenId, drafts: &[TokenId]) -> Vec<TokenId> {
+        let mut chunk = Vec::with_capacity(drafts.len() + 1);
+        chunk.push(cur);
+        chunk.extend_from_slice(drafts);
+        self.run(start_pos, &chunk)
+    }
+
+    fn truncate(&mut self, _keep_to_pos: u32) {
+        // No-op: every shard (head + tail) writes KV at the same absolute positions.
+    }
+
+    fn is_eos(&self, token: TokenId) -> bool {
+        token == 151645 || token == 151643
+    }
+}
+
+/// Run the tail: own `shard` (the last shard) on this thread, accept one inbound peer, and serve
+/// hidden→argmax over the QUIC link until the head closes. The Luminal runtime stays on this
+/// thread (the serve future is `block_on`'d, never spawned); the quinn endpoint's I/O driver runs
+/// on the runtime's worker threads so it keeps ticking during the (blocking) shard compute.
+pub fn serve_tail<R: QwenRuntime + 'static>(
+    mut shard: Shard<R>,
+    endpoint: Endpoint,
+    rt: &tokio::runtime::Runtime,
+) -> io::Result<()> {
+    assert!(shard.is_last(), "the tail must be the last shard (it owns the lm_head)");
+    let vocab = shard.vocab_size();
+    rt.block_on(async move {
+        let mut peer = accept(&endpoint).await?;
+        while let Some(msg) = peer.recv().await? {
+            match msg {
+                PeerMessage::Hidden(frame) => {
+                    let s = frame.n_tokens as usize;
+                    let hidden = frame.to_f32();
+                    let logits = shard.forward_hidden(frame.start_pos, s, hidden); // sync GPU
+                    let toks = (0..s)
+                        .map(|j| argmax(&logits[j * vocab..(j + 1) * vocab]))
+                        .collect();
+                    peer.send(&PeerMessage::Result(VerifyResult {
+                        request_id: frame.request_id,
+                        step: frame.step,
+                        argmax: toks,
+                    }))
+                    .await?;
+                }
+                PeerMessage::Truncate(_) => {} // no-op: position-indexed KV
+                PeerMessage::Result(_) => break,
+            }
+        }
+        // Clean EOF from the head (its finish()): return; dropping `peer` closes back to the head.
+        io::Result::Ok(())
+    })
+}
+
+#[cfg(all(test, feature = "metal", target_vendor = "apple"))]
+mod tests {
+    use super::*;
+    use luminal::prelude::Runtime; // MetalRuntime::initialize is a Runtime-trait method
+    use crate::pipeline::qwen::hf::prepare_hf_model;
+    use crate::pipeline::qwen::model::QwenConfig;
+    use crate::pipeline::qwen::target::QwenTarget;
+    use crate::pipeline::transport::listen_endpoint;
+
+    fn greedy<T: TargetChain>(t: &mut T, prompt: &[TokenId], max_new: usize) -> Vec<TokenId> {
+        let mut cur = t.prefill(prompt);
+        let mut out = Vec::new();
+        let mut base = prompt.len() as u32;
+        while !t.is_eos(cur) && out.len() < max_new {
+            out.push(cur);
+            cur = t.verify(base, cur, &[])[0];
+            base += 1;
+        }
+        out
+    }
+
+    // THE 2-PROCESS PIPELINE: head (shard 0) and tail (shard 1) in separate threads, the hidden
+    // state crossing a REAL QUIC link, must reproduce the single-process forward bit-for-bit.
+    // cargo test -p dria-node --features metal qwen_pipeline_over_quic -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn qwen_pipeline_over_quic() {
+        let cfg = QwenConfig::QWEN3_0_6B;
+        let dir = prepare_hf_model("Qwen/Qwen3-0.6B").expect("prepare 0.6B");
+        let wp = dir.join("model_combined_bf16_v1.safetensors").to_str().unwrap().to_string();
+        let k = cfg.layers / 2;
+
+        // Tail thread: bind the endpoint inside its own runtime, report the addr early (before the
+        // slow shard load, so the head's loads overlap), then load shard 1 and serve.
+        let (addr_tx, addr_rx) = std::sync::mpsc::channel();
+        let wp_tail = wp.clone();
+        let tail = std::thread::spawn(move || {
+            let rt = tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(2)
+                .enable_all()
+                .build()
+                .unwrap();
+            let endpoint = {
+                let _g = rt.enter();
+                listen_endpoint("127.0.0.1:0".parse().unwrap()).unwrap()
+            };
+            addr_tx.send(endpoint.local_addr().unwrap()).unwrap();
+            let shard1 = Shard::load(
+                luminal_metal::MetalRuntime::initialize(()),
+                cfg,
+                (k, cfg.layers),
+                false,
+                true,
+                &wp_tail,
+                512,
+                200,
+            );
+            serve_tail(shard1, endpoint, &rt).expect("tail serve");
+        });
+
+        // Single-process baseline.
+        let mut full =
+            QwenTarget::load(luminal_metal::MetalRuntime::initialize(()), cfg, &wp, 512, 200);
+
+        // Head: shard 0, dial the tail, build the distributed chain.
+        let shard0 = Shard::load(
+            luminal_metal::MetalRuntime::initialize(()),
+            cfg,
+            (0, k),
+            true,
+            false,
+            &wp,
+            512,
+            200,
+        );
+        let addr = addr_rx.recv().expect("tail addr");
+        let down = QuicDownstream::connect(addr).expect("dial tail");
+        let mut chain = RemoteChain::new(vec![shard0], down);
+
+        let prompt: Vec<TokenId> = vec![40, 1079, 264, 4108, 4108];
+        let max_new = 24;
+
+        full.reset();
+        let base = greedy(&mut full, &prompt, max_new);
+        chain.reset();
+        let distributed = greedy(&mut chain, &prompt, max_new);
+
+        chain.down.shutdown();
+        tail.join().expect("tail thread");
+
+        println!("\nfull (1 proc)        = {base:?}");
+        println!("pipeline (2 nodes/QUIC) = {distributed:?}");
+        match (0..base.len().min(distributed.len())).find(|&i| base[i] != distributed[i]) {
+            None if base.len() == distributed.len() => {
+                println!("LOSSLESS PIPELINE: head + tail over QUIC == single-process forward")
+            }
+            Some(i) => println!("diverge @{i}: full={} pipe={}", base[i], distributed[i]),
+            None => println!("length differ: full={} pipe={}", base.len(), distributed.len()),
+        }
+        assert_eq!(base, distributed, "the 2-process pipeline must be lossless");
+    }
+}
