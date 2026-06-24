@@ -678,4 +678,105 @@ mod tests {
         }
         assert_eq!(base, out, "the pipelined QUIC chain must be lossless vs greedy");
     }
+
+    /// Perfect draft: returns the target's own greedy continuation, so the pipeline never flushes.
+    struct PerfectDraft {
+        truth: Vec<TokenId>,
+        prompt_len: usize,
+    }
+    impl crate::pipeline::engine::DraftEngine for PerfectDraft {
+        fn draft(&mut self, context: &[TokenId], gamma: usize) -> Vec<TokenId> {
+            let l = context.len() - self.prompt_len;
+            (0..gamma).map(|j| *self.truth.get(l + j).unwrap_or(&0)).collect()
+        }
+    }
+
+    // THROUGHPUT: depth-1 (no pipelining; one chunk in flight) vs depth-4 (pipelined) over the
+    // 2-node QUIC chain, with a perfect draft so the pipeline stays full. On loopback (RTT≈0) the
+    // win is compute overlap (head's shard for chunk k+1 runs while the tail does chunk k); over
+    // real WAN it additionally hides the chain RTT. Same chain/connection — each run's prefill at
+    // pos 0 overwrites the KV, so no reset needed (position-indexed).
+    // cargo test -p dria-node --features metal qwen_pipeline_throughput -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn qwen_pipeline_throughput() {
+        use crate::pipeline::specdecode::SpecConfig;
+        use crate::pipeline::specpipe::run_spec_decode_pipelined;
+        use std::time::Instant;
+        let cfg = QwenConfig::QWEN3_0_6B;
+        let dir = prepare_hf_model("Qwen/Qwen3-0.6B").expect("prepare 0.6B");
+        let wp = dir.join("model_combined_bf16_v1.safetensors").to_str().unwrap().to_string();
+        let k = cfg.layers / 2;
+
+        let (tail_tx, tail_rx) = std::sync::mpsc::channel();
+        let wp_t = wp.clone();
+        let tail = std::thread::spawn(move || {
+            let rt = tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(2)
+                .enable_all()
+                .build()
+                .unwrap();
+            let ep = {
+                let _g = rt.enter();
+                listen_endpoint("127.0.0.1:0".parse().unwrap()).unwrap()
+            };
+            tail_tx.send(ep.local_addr().unwrap()).unwrap();
+            let shard = Shard::load(
+                luminal_metal::MetalRuntime::initialize(()),
+                cfg,
+                (k, cfg.layers),
+                false,
+                true,
+                &wp_t,
+                512,
+                200,
+            );
+            serve_tail(shard, ep, &rt).expect("tail serve");
+        });
+        let tail_addr = tail_rx.recv().expect("tail addr");
+
+        // Truth = the target's greedy continuation (drives the perfect draft).
+        let mut full =
+            QwenTarget::load(luminal_metal::MetalRuntime::initialize(()), cfg, &wp, 512, 200);
+        let prompt: Vec<TokenId> = vec![40, 1079, 264, 4108, 4108];
+        let n = 40;
+        full.reset();
+        let truth = greedy(&mut full, &prompt, n);
+
+        let shard0 = Shard::load(
+            luminal_metal::MetalRuntime::initialize(()),
+            cfg,
+            (0, k),
+            true,
+            false,
+            &wp,
+            512,
+            200,
+        );
+        let mut chain = PipelinedQuicChain::connect(vec![shard0], tail_addr).expect("connect tail");
+        let spec_cfg = SpecConfig { gamma: 6, max_new: truth.len() };
+        let mut draft = PerfectDraft { truth: truth.clone(), prompt_len: prompt.len() };
+
+        // Warm-up (first run pays one-time per-shape costs).
+        let _ = run_spec_decode_pipelined(&mut draft, &mut chain, &prompt, &spec_cfg, 1);
+
+        let t0 = Instant::now();
+        let (out1, st1) = run_spec_decode_pipelined(&mut draft, &mut chain, &prompt, &spec_cfg, 1);
+        let dt1 = t0.elapsed();
+
+        let t0 = Instant::now();
+        let (out4, st4) = run_spec_decode_pipelined(&mut draft, &mut chain, &prompt, &spec_cfg, 4);
+        let dt4 = t0.elapsed();
+
+        chain.shutdown();
+        tail.join().expect("tail thread");
+
+        let tps1 = out1.len() as f64 / dt1.as_secs_f64();
+        let tps4 = out4.len() as f64 / dt4.as_secs_f64();
+        println!("\ndepth-1 (no pipelining): {} tok in {:.3}s = {:.1} tok/s ({} traversals)", out1.len(), dt1.as_secs_f64(), tps1, st1.traversals);
+        println!("depth-4 (pipelined):     {} tok in {:.3}s = {:.1} tok/s ({} traversals)", out4.len(), dt4.as_secs_f64(), tps4, st4.traversals);
+        println!("PIPELINING SPEEDUP: {:.2}x (loopback ⇒ compute-overlap only; WAN adds RTT-hiding)", tps4 / tps1);
+        assert_eq!(out1, truth, "depth-1 must be lossless");
+        assert_eq!(out4, truth, "depth-4 must be lossless");
+    }
 }
