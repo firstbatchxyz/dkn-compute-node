@@ -857,4 +857,94 @@ mod tests {
         down.shutdown();
         tail.join().expect("tail thread");
     }
+
+    // THE FIX, end to end: shards compiled with the SPECIALIZED s=8 bucket (load_chunked) + the
+    // pipeline. 8-token prompt → prefill is s=8; γ=7 → verify is s=8; so every forward rides the
+    // fast specialized kernel (~138ms) instead of the generic one (~2300ms). Expect depth-1 to
+    // jump from ~2 tok/s (generic) to ~10-25 tok/s, and depth-4 to stack on top.
+    // cargo test -p dria-node --features metal qwen_n8_pipeline_throughput -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn qwen_n8_pipeline_throughput() {
+        use crate::pipeline::specdecode::SpecConfig;
+        use crate::pipeline::specpipe::run_spec_decode_pipelined;
+        use std::time::Instant;
+        let cfg = QwenConfig::QWEN3_0_6B;
+        let dir = prepare_hf_model("Qwen/Qwen3-0.6B").expect("prepare 0.6B");
+        let wp = dir.join("model_combined_bf16_v1.safetensors").to_str().unwrap().to_string();
+        let k = cfg.layers / 2;
+        let chunk = 8usize; // γ+1 (γ=7) — the specialized verify chunk size
+
+        let (tail_tx, tail_rx) = std::sync::mpsc::channel();
+        let wp_t = wp.clone();
+        let tail = std::thread::spawn(move || {
+            let rt = tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(2)
+                .enable_all()
+                .build()
+                .unwrap();
+            let ep = {
+                let _g = rt.enter();
+                listen_endpoint("127.0.0.1:0".parse().unwrap()).unwrap()
+            };
+            tail_tx.send(ep.local_addr().unwrap()).unwrap();
+            let shard = Shard::load_chunked(
+                luminal_metal::MetalRuntime::initialize(()),
+                cfg,
+                (k, cfg.layers),
+                false,
+                true,
+                &wp_t,
+                768,
+                200,
+                chunk,
+            );
+            serve_tail(shard, ep, &rt).expect("tail serve");
+        });
+        let tail_addr = tail_rx.recv().expect("tail addr");
+
+        let prompt: Vec<TokenId> = vec![40, 1079, 264, 4108, 4108, 11, 323, 358]; // 8 → prefill s=8
+        let shard0 = Shard::load_chunked(
+            luminal_metal::MetalRuntime::initialize(()),
+            cfg,
+            (0, k),
+            true,
+            false,
+            &wp,
+            768,
+            200,
+            chunk,
+        );
+        let mut chain = PipelinedQuicChain::connect(vec![shard0], tail_addr).expect("connect tail");
+        let spec_cfg = SpecConfig { gamma: chunk - 1, max_new: 200 };
+
+        // Truth = the chain's OWN greedy continuation. Spec-decode is lossless for ANY draft, so
+        // this equals the s=8-verify greedy — the perfect draft below then matches the chain
+        // exactly (no spurious divergences). A full-model truth would mismatch: different kernel +
+        // batching gives different argmaxes at near-ties (the M1 finding).
+        let mut ngram = NgramDraft;
+        let (truth, _) = run_spec_decode_pipelined(&mut ngram, &mut chain, &prompt, &spec_cfg, 1);
+        let mut draft = PerfectDraft { truth: truth.clone(), prompt_len: prompt.len() };
+
+        let _ = run_spec_decode_pipelined(&mut draft, &mut chain, &prompt, &spec_cfg, 1); // warm-up
+        let t0 = Instant::now();
+        let (out1, st1) = run_spec_decode_pipelined(&mut draft, &mut chain, &prompt, &spec_cfg, 1);
+        let dt1 = t0.elapsed();
+        let t0 = Instant::now();
+        let (out4, st4) = run_spec_decode_pipelined(&mut draft, &mut chain, &prompt, &spec_cfg, 4);
+        let dt4 = t0.elapsed();
+
+        chain.shutdown();
+        tail.join().expect("tail thread");
+
+        let ms_per_trav = dt1.as_millis() as f64 / st1.traversals.max(1) as f64;
+        let tps1 = out1.len() as f64 / dt1.as_secs_f64();
+        let tps4 = out4.len() as f64 / dt4.as_secs_f64();
+        println!("\n[SPECIALIZED s=8 kernel + matching perfect draft]");
+        println!("depth-1: {} tok in {:.3}s = {:.1} tok/s ({} traversals, {:.0} ms/traversal)", out1.len(), dt1.as_secs_f64(), tps1, st1.traversals, ms_per_trav);
+        println!("depth-4: {} tok in {:.3}s = {:.1} tok/s ({} traversals)", out4.len(), dt4.as_secs_f64(), tps4, st4.traversals);
+        println!("=> ~{ms_per_trav:.0} ms/traversal vs generic ~2950 ms (≈{:.0}× kernel) | pipelining {:.2}× | generic spec-decode was ~2 tok/s", 2950.0 / ms_per_trav, tps4 / tps1);
+        assert_eq!(out1, truth, "perfect-draft depth-1 must reproduce the chain's greedy");
+        assert_eq!(out4, truth, "perfect-draft depth-4 must reproduce the chain's greedy");
+    }
 }

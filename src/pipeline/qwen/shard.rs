@@ -45,9 +45,30 @@ pub struct Shard<R: QwenRuntime> {
 }
 
 impl<R: QwenRuntime + 'static> Shard<R> {
-    /// Build this shard's graph (global layers `range`), run the egglog search, load weights.
+    /// Build this shard's graph with the GENERIC `s` bucket (`[2,max]` — slow multi-token kernel;
+    /// see [`load_chunked`](Self::load_chunked) for the fast specialized path).
     #[allow(clippy::too_many_arguments)]
     pub fn load(
+        runtime: R,
+        cfg: QwenConfig,
+        range: (usize, usize),
+        is_first: bool,
+        is_last: bool,
+        weights_path: &str,
+        max_seq_len: usize,
+        search_graphs: usize,
+    ) -> Self {
+        Self::load_chunked(
+            runtime, cfg, range, is_first, is_last, weights_path, max_seq_len, search_graphs, 0,
+        )
+    }
+
+    /// Like [`load`](Self::load), but `chunk_size > 0` compiles SPECIALIZED point buckets
+    /// `[1,1] + [chunk_size,chunk_size]` for the fixed spec-decode chunk size (γ+1). On Metal this
+    /// is ~16× faster than the generic dynamic `[2,max]` kernel (the multi-token-kernel perf bug:
+    /// s=8 generic ≈ 2300ms vs specialized ≈ 138ms). Only `s ∈ {1, chunk_size}` may be fed.
+    #[allow(clippy::too_many_arguments)]
+    pub fn load_chunked(
         mut runtime: R,
         cfg: QwenConfig,
         range: (usize, usize),
@@ -56,6 +77,7 @@ impl<R: QwenRuntime + 'static> Shard<R> {
         weights_path: &str,
         max_seq_len: usize,
         search_graphs: usize,
+        chunk_size: usize,
     ) -> Self {
         let n_layers = range.1 - range.0;
         let mut cx = Graph::default();
@@ -75,15 +97,17 @@ impl<R: QwenRuntime + 'static> Shard<R> {
         }
 
         let search_s = 8usize;
-        let compile_options = CompileOptions::default()
-            .dim_buckets(
-                's',
-                &[DimBucket::new(1, 1), DimBucket::new(2, max_seq_len).representative(search_s)],
-            )
-            .dim_buckets(
-                'p',
-                &[DimBucket::new(0, 0), DimBucket::new(1, max_seq_len).representative(search_s)],
-            );
+        let s_buckets = if chunk_size == 0 {
+            vec![DimBucket::new(1, 1), DimBucket::new(2, max_seq_len).representative(search_s)]
+        } else {
+            // Two POINT buckets — s=1 + s=chunk_size, both specialized (fast), no dynamic range.
+            vec![DimBucket::new(1, 1), DimBucket::new(chunk_size, chunk_size)]
+        };
+        let rep_s = if chunk_size == 0 { search_s } else { chunk_size };
+        let compile_options = CompileOptions::default().dim_buckets('s', &s_buckets).dim_buckets(
+            'p',
+            &[DimBucket::new(0, 0), DimBucket::new(1, max_seq_len).representative(search_s)],
+        );
         cx.build_search_space::<R>(compile_options);
         runtime.load_safetensors(&cx, weights_path);
 
@@ -93,15 +117,16 @@ impl<R: QwenRuntime + 'static> Shard<R> {
             runtime.set_zeros(kv_cache.v_caches[i].id, cache_bytes);
         }
 
-        // Representative inputs for the search (it executes candidate genomes).
-        cx.set_dim('s', search_s);
+        // Representative inputs for the search (it executes candidate genomes); size to the
+        // largest bucket so every bucket's profile run has a big-enough buffer.
+        cx.set_dim('s', rep_s);
         cx.set_dim('p', 0);
         if is_first {
-            runtime.set_i32_data(input.id, vec![1i32; search_s]);
+            runtime.set_i32_data(input.id, vec![1i32; rep_s]);
         } else {
-            runtime.set_f32_data(input.id, vec![0.02f32; search_s * cfg.hidden]);
+            runtime.set_f32_data(input.id, vec![0.02f32; rep_s * cfg.hidden]);
         }
-        runtime.set_i32_data(pos_ids.id, (0..search_s as i32).collect());
+        runtime.set_i32_data(pos_ids.id, (0..rep_s as i32).collect());
         let search_options = CompileOptions::default().search_graph_limit(search_graphs);
         runtime = cx.search(runtime, search_options);
 
