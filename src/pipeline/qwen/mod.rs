@@ -13,3 +13,7 @@ pub mod target;
 pub mod shard;
 
 pub mod distributed;
+
+// CUDA substrate de-risk diagnostic — only under `--features cuda` (run on a rented NVIDIA GPU).
+#[cfg(all(test, feature = "cuda"))]
+mod cuda_check;
